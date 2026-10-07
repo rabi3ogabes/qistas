@@ -1,0 +1,27 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "trailingSlash": true,
+  "cleanUrls": false,
+  "redirects": [
+    { "source": "/intro", "destination": "/brand/intro/", "permanent": false },
+    { "source": "/intro/", "destination": "/brand/intro/", "permanent": false },
+    { "source": "/studio", "destination": "/brand/theme-studio/", "permanent": false },
+    { "source": "/studio/", "destination": "/brand/theme-studio/", "permanent": false },
+    { "source": "/theme-studio", "destination": "/brand/theme-studio/", "permanent": false },
+    { "source": "/theme-studio/", "destination": "/brand/theme-studio/", "permanent": false }
+  ],
+  "rewrites": [
+    { "source": "/favicon.ico", "destination": "/brand/logo/web/favicon.ico" },
+    { "source": "/favicon.svg", "destination": "/brand/logo/favicon.svg" },
+    { "source": "/apple-touch-icon.png", "destination": "/brand/logo/web/apple-touch-icon.png" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
+      ]
+    }
+  ]
+}

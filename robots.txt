@@ -1,0 +1,3 @@
+# Test deployment: keep out of search engines until launch.
+User-agent: *
+Disallow: /
