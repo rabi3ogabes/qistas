@@ -1,0 +1,57 @@
+{
+  "$schema": "qistas-design-tokens/1",
+  "_note": "Fixed (non-themeable) tokens. Themeable colour tokens come from the theme engine (docs/THEME_ENGINE.md); the palette below is the BASE theme in primitive form for reference and for print.",
+  "color": {
+    "primitive": {
+      "navy-950": "#071634", "navy-900": "#0B1F44", "navy-800": "#112C5E", "navy-700": "#1B3A78",
+      "gold-300": "#E3CC9B", "gold-500": "#C9A25B", "gold-700": "#7F6126",
+      "ivory-50": "#FBF9F4", "ivory-100": "#F7F3EA", "ivory-200": "#EFE9DB", "ivory-300": "#E3DCCB",
+      "sapphire-500": "#1C6BA4", "sapphire-300": "#7CB7D9", "sapphire-100": "#DDEDFA",
+      "emerald-600": "#1B7F5C", "amber-700": "#9A5700", "ruby-600": "#B3261E",
+      "tint-sky": "#DDEDFA", "tint-blush": "#F6E4EA", "tint-sand": "#F8EBCB", "tint-mint": "#DCF2E8"
+    },
+    "semantic": "see brand/tokens/themes.seed.json → themes[id=base].tokens (26 tokens × light/dark)"
+  },
+  "font": {
+    "display": { "family": "Cormorant Garamond", "weights": [500, 600, 700], "license": "SIL OFL 1.1", "use": "Headlines, big numbers (Latin)" },
+    "body": { "family": "Geist", "weights": [400, 500, 600, 700], "license": "SIL OFL 1.1", "use": "UI text; tabular figures for money" },
+    "arabic": { "family": "IBM Plex Sans Arabic", "weights": [400, 500, 600, 700], "license": "SIL OFL 1.1", "use": "Arabic and Urdu UI text" },
+    "urdu-display": { "family": "Noto Nastaliq Urdu", "weights": [400, 500, 600], "license": "SIL OFL 1.1", "use": "Urdu headlines only (tall line metrics)" },
+    "wordmark-arabic-source": { "family": "Cairo Regular 400", "license": "SIL OFL 1.1", "use": "Outlined into the Arabic logo; not used as live type" }
+  },
+  "type": {
+    "display-xl": { "size": 56, "line": 58, "tracking": "-0.02em" },
+    "display": { "size": 40, "line": 42, "tracking": "-0.015em" },
+    "h1": { "size": 32, "line": 36 }, "h2": { "size": 24, "line": 30 }, "h3": { "size": 20, "line": 26 },
+    "body": { "size": 16, "line": 24 }, "small": { "size": 14, "line": 20 }, "caption": { "size": 12, "line": 16 },
+    "money-xl": { "size": 44, "line": 44, "features": "tnum lnum" },
+    "ar-scale": "multiply line-height by 1.25 for Arabic, 1.5 for Urdu body, 2.0 for Nastaliq display"
+  },
+  "space": [0, 4, 8, 12, 16, 20, 24, 32, 40, 48, 64, 80, 96],
+  "radius": { "sm": 10, "md": 16, "lg": 20, "xl": 28, "pill": 999 },
+  "shadow": {
+    "1": "0 1px 0 rgb(11 31 68 / .04), 0 8px 24px -12px rgb(11 31 68 / .16)",
+    "2": "0 1px 0 rgb(11 31 68 / .05), 0 24px 56px -24px rgb(11 31 68 / .30)"
+  },
+  "motion": {
+    "duration": { "fast": 140, "base": 220, "slow": 360, "intro": 3300 },
+    "easing": {
+      "out": "cubic-bezier(0.23, 1, 0.32, 1)",
+      "inOut": "cubic-bezier(0.77, 0, 0.175, 1)",
+      "drawer": "cubic-bezier(0.32, 0.72, 0, 1)"
+    },
+    "spring": { "plumb": { "mass": 1, "stiffness": 90, "damping": 11, "note": "≈10% overshoot, settles in ~0.9 s" } },
+    "rules": [
+      "UI transitions stay under 300 ms; the intro is the only long animation.",
+      "Animate transform and opacity only.",
+      "Never animate keyboard-initiated or 100+/day actions.",
+      "Reduced motion: keep fades, remove movement."
+    ]
+  },
+  "breakpoint": { "phone": 0, "tablet": 768, "desktop": 1100, "wide": 1440 },
+  "icon": { "family": "Qistas line set (brand/shared/icons.js)", "grid": 24, "stroke": 1.5, "caps": "round" },
+  "logo": {
+    "clearSpace": "1 × bob diameter (31 units on the 96-unit x-height wordmark)",
+    "minSize": { "wordmark": "22 px height", "symbol": "16 px", "symbolSmallCut": "below 40 px" }
+  }
+}

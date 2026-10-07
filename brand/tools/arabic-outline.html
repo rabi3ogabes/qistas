@@ -1,0 +1,31 @@
+<!doctype html><meta charset="utf-8"><title>arabic outline probe</title>
+<body style="font:14px system-ui;padding:16px">
+<pre id="log">loading…</pre><div id="out"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/opentype.js/1.3.4/opentype.min.js"></script>
+<script>
+const FONTS = {
+  cairo500: "https://cdn.jsdelivr.net/npm/@fontsource/cairo@5.0.8/files/cairo-arabic-500-normal.woff",
+  cairo600: "https://cdn.jsdelivr.net/npm/@fontsource/cairo@5.0.8/files/cairo-arabic-600-normal.woff",
+  tajawal500: "https://cdn.jsdelivr.net/npm/@fontsource/tajawal@5.0.8/files/tajawal-arabic-500-normal.woff",
+  plex500: "https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-sans-arabic@5.0.8/files/ibm-plex-sans-arabic-arabic-500-normal.woff"
+};
+window.RESULTS = {};
+(async () => {
+  const log = document.getElementById('log'); const out = document.getElementById('out'); let msg = '';
+  for (const [k, url] of Object.entries(FONTS)) {
+    try {
+      const buf = await (await fetch(url)).arrayBuffer();
+      const font = opentype.parse(buf);
+      const text = 'قسطاس';
+      const size = 200;
+      const path = font.getPath(text, 0, 0, size, {features:{rlig:true, calt:true, liga:true, init:true, medi:true, fina:true, isol:true}});
+      const bb = path.getBoundingBox();
+      window.RESULTS[k] = { d: path.toPathData(2), bb, units: font.unitsPerEm, glyphs: font.numGlyphs };
+      msg += `${k}: ok glyphs=${font.numGlyphs} bbox=${JSON.stringify(bb)}\n`;
+      const pad = 20;
+      out.insertAdjacentHTML('beforeend', `<div><b>${k}</b><br><svg width="${bb.x2-bb.x1+2*pad}" height="${bb.y2-bb.y1+2*pad}" viewBox="${bb.x1-pad} ${bb.y1-pad} ${bb.x2-bb.x1+2*pad} ${bb.y2-bb.y1+2*pad}" style="background:#fff;border:1px solid #ddd"><path d="${window.RESULTS[k].d}" fill="#0B1F44"/></svg></div>`);
+    } catch (e) { msg += `${k}: FAIL ${e.message}\n`; }
+  }
+  log.textContent = msg + 'done';
+})();
+</script>

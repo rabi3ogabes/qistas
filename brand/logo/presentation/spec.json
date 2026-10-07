@@ -1,0 +1,32 @@
+{
+  "brand": "Qistas",
+  "tagline": "The just balance.",
+  "brief": "A premium instalment, lending and accounting platform for merchants and lenders, built Arabic-first and live in five languages. It should feel like private banking: calm, exact and dignified, with one warm metal.",
+  "adjectives": ["calm", "exact", "dignified", "refined"],
+  "criteria": "Success: distinct from blue fintech marks, recognisable at 16 px, works in one colour, equally at home in Arabic and Latin.",
+  "industry": "finance",
+  "nav": ["Customers", "Contracts", "Pricing", "Sign in"],
+  "brand_color": "#0B1F44",
+  "greyscale": false,
+  "designer": "Qistas brand system",
+  "round": 2,
+  "concepts": [
+    {
+      "name": "Plumb q",
+      "symbol": "../qistas-symbol-color.svg",
+      "lockup": "../qistas-wordmark-color.svg",
+      "symbol_on_tile": "../qistas-symbol-reversed.svg",
+      "lockup_on_dark": "../qistas-wordmark-reversed.svg",
+      "tile_color": "#0B1F44",
+      "idea": "A lowercase wordmark whose q ends in a gold plumb-bob: the true, level measure that a balance stands for.",
+      "rationale": [
+        "Qistas means the just balance; the plumb-bob is the oldest symbol of true and level",
+        "One gold accent only: the bob in Latin, the two qaf dots in Arabic",
+        "Custom geometric letters on one grid; Arabic outlined and weight-matched",
+        "Holds at 16 px, in one colour and reversed"
+      ]
+    }
+  ],
+  "recommendation": "Plumb q is the chosen direction: ownable, calm and exact, and it carries a dual-script identity from day one.",
+  "next_steps": ["Trademark and reverse-image search", "Native-speaker review of Arabic and Urdu copy", "Phase 1 build: first three screens in Flutter"]
+}

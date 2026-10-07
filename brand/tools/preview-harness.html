@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Qistas preview harness</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Geist:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Noto+Nastaliq+Urdu:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/qistas-base.css"><link rel="stylesheet" href="../shared/qistas-preview.css">
+<style>body{padding:24px;background:#d9d3c4}.row{display:flex;flex-wrap:wrap;gap:24px}</style></head>
+<body><div class="row" id="row"></div>
+<script src="../shared/qistas-theme.js"></script><script src="../shared/icons.js"></script><script src="../shared/qistas-logo.js"></script>
+<script src="../shared/qistas-preview.js"></script><script src="../theme-studio/theme-data.js"></script>
+<script>
+const themes = QISTAS_SEED.themes;
+const cases = [
+  {country:'US', lang:'en', mode:'light', now:'2026-10-07'},
+  {country:'SA', lang:'ar', mode:'light', now:'2027-02-20'},
+  {country:'AE', lang:'fr', mode:'dark', now:'2027-02-20'},
+  {country:'PK', lang:'ur', mode:'light', now:'2026-08-14'},
+];
+const row = document.getElementById('row');
+cases.forEach(c => {
+  const r = QistasTheme.resolve({themes, country:c.country, now:new Date(c.now+'T12:00:00Z')});
+  const host = document.createElement('div'); row.appendChild(host);
+  QistasPreview.render(host, {tokens:r.tokens, mode:c.mode, lang:c.lang, country:c.country, copy:r.copy, motifs:r.motifs});
+  console.log(c.country, r.applied.map(a=>a.id).join('>'));
+});
+</script></body></html>

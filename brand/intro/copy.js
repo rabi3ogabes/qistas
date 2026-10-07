@@ -1,0 +1,28 @@
+/* Qistas intro copy — five launch languages. Drafted for the prototype; needs review by native speakers before store release. */
+window.QISTAS_INTRO_COPY = {
+    en: { slides: [['Every instalment,<br>in order.', 'Customers, contracts and schedules in one calm, elegant place.'], ['Collect with<br>confidence.', 'Smart WhatsApp reminders, instant receipts and risk scores that explain themselves.'], ['Your data,<br>your way.', 'Managed cloud, your own Google Sheet or your own database, with automatic backups.']],
+      next: 'Continue', skip: 'Skip', start: 'Start your free demo', have: 'I already have an account', demo: 'Up to 5 customers and 5 contracts, free. No card needed.',
+      a1: { item: 'Sofa set', terms: '12 × {amt} · monthly', paid: 'Paid', due: 'Due', received: 'Payment received' },
+      a2: { who: 'Qistas · WhatsApp', msg: 'Hi Mona, a friendly reminder: your instalment of {amt} is due tomorrow. Thank you!', risk: 'Low risk', reasons: ['On-time payments', 'Average delay', 'Broken promises'], vals: ['94%', '1.2 days', '0'] },
+      a3: { opts: ['Managed cloud', 'Google Sheets', 'Your database'], sub: ['Fully managed', 'In your Google Drive', 'Postgres / MySQL'], backup: 'Daily backup · 02:00 · encrypted', ok: 'Last backup 2 hours ago' } },
+    ar: { slides: [['كل قسط<br>في موضعه', 'العملاء والعقود وجداول السداد في مكان واحد هادئ وأنيق.'], ['حصّل<br>بثقة', 'تذكيرات ذكية عبر واتساب، وإيصالات فورية، وتقييم للمخاطر يشرح أسبابه.'], ['بياناتك<br>كما تريد', 'سحابة مُدارة، أو جدول جوجل الخاص بك، أو قاعدة بياناتك، مع نسخ احتياطي تلقائي.']],
+      next: 'متابعة', skip: 'تخطّي', start: 'ابدأ تجربتك المجانية', have: 'لدي حساب بالفعل', demo: 'حتى 5 عملاء و5 عقود مجانًا. بلا بطاقة.',
+      a1: { item: 'طقم كنب', terms: '12 × {amt} · شهريًا', paid: 'مدفوع', due: 'مستحق', received: 'تم استلام الدفعة' },
+      a2: { who: 'قسطاس · واتساب', msg: 'مرحبًا منى، تذكير لطيف: قسطكِ البالغ {amt} يستحق غدًا. شكرًا لكِ!', risk: 'مخاطر منخفضة', reasons: ['الدفع في الموعد', 'متوسط التأخير', 'وعود غير منفّذة'], vals: ['94%', '1.2 يوم', '0'] },
+      a3: { opts: ['سحابة مُدارة', 'جداول جوجل', 'قاعدة بياناتك'], sub: ['مُدارة بالكامل', 'على Google Drive الخاص بك', 'Postgres / MySQL'], backup: 'نسخ احتياطي يومي · 02:00 · مشفّر', ok: 'آخر نسخة قبل ساعتين' } },
+    fr: { slides: [['Chaque échéance,<br>à sa place.', 'Clients, contrats et échéanciers réunis dans un espace calme et élégant.'], ['Encaissez en<br>toute confiance.', 'Relances WhatsApp intelligentes, reçus instantanés et scores de risque expliqués.'], ['Vos données,<br>à votre façon.', 'Cloud géré, votre propre Google Sheet ou votre base de données, avec sauvegardes automatiques.']],
+      next: 'Continuer', skip: 'Passer', start: 'Démarrer l’essai gratuit', have: 'J’ai déjà un compte', demo: 'Jusqu’à 5 clients et 5 contrats, offerts. Sans carte.',
+      a1: { item: 'Canapé', terms: '12 × {amt} · mensuel', paid: 'Payé', due: 'À payer', received: 'Paiement reçu' },
+      a2: { who: 'Qistas · WhatsApp', msg: 'Bonjour Mona, petit rappel : votre échéance de {amt} arrive à terme demain. Merci !', risk: 'Risque faible', reasons: ['Paiements à l’heure', 'Retard moyen', 'Promesses non tenues'], vals: ['94 %', '1,2 jour', '0'] },
+      a3: { opts: ['Cloud géré', 'Google Sheets', 'Votre base'], sub: ['Entièrement géré', 'Dans votre Google Drive', 'Postgres / MySQL'], backup: 'Sauvegarde quotidienne · 02:00 · chiffrée', ok: 'Dernière sauvegarde il y a 2 h' } },
+    es: { slides: [['Cada cuota,<br>en su lugar.', 'Clientes, contratos y calendarios de pago en un espacio sereno y elegante.'], ['Cobra con<br>confianza.', 'Recordatorios inteligentes por WhatsApp, recibos al instante y puntuación de riesgo que se explica.'], ['Tus datos,<br>a tu manera.', 'Nube gestionada, tu propia hoja de Google o tu base de datos, con copias de seguridad automáticas.']],
+      next: 'Continuar', skip: 'Omitir', start: 'Empieza tu prueba gratuita', have: 'Ya tengo una cuenta', demo: 'Hasta 5 clientes y 5 contratos, gratis. Sin tarjeta.',
+      a1: { item: 'Sofá', terms: '12 × {amt} · mensual', paid: 'Pagado', due: 'Pendiente', received: 'Pago recibido' },
+      a2: { who: 'Qistas · WhatsApp', msg: 'Hola Mona, un recordatorio amable: tu cuota de {amt} vence mañana. ¡Gracias!', risk: 'Riesgo bajo', reasons: ['Pagos puntuales', 'Retraso medio', 'Promesas incumplidas'], vals: ['94 %', '1,2 días', '0'] },
+      a3: { opts: ['Nube gestionada', 'Google Sheets', 'Tu base de datos'], sub: ['Totalmente gestionada', 'En tu Google Drive', 'Postgres / MySQL'], backup: 'Copia diaria · 02:00 · cifrada', ok: 'Última copia hace 2 h' } },
+    ur: { slides: [['ہر قسط،<br>اپنی جگہ پر', 'گاہک، معاہدے اور اقساط کا شیڈول، سب ایک پرسکون اور نفیس جگہ پر۔'], ['اعتماد کے ساتھ<br>وصولی', 'واٹس ایپ پر سمارٹ یاد دہانیاں، فوری رسیدیں، اور وجوہات بتانے والا رسک اسکور۔'], ['آپ کا ڈیٹا،<br>آپ کی مرضی', 'مینیجڈ کلاؤڈ، آپ کی اپنی گوگل شیٹ یا اپنا ڈیٹا بیس، خودکار بیک اپ کے ساتھ۔']],
+      next: 'آگے بڑھیں', skip: 'چھوڑیں', start: 'مفت آزمائش شروع کریں', have: 'میرا اکاؤنٹ پہلے سے ہے', demo: '5 گاہکوں اور 5 معاہدوں تک مفت۔ کارڈ کی ضرورت نہیں۔',
+      a1: { item: 'صوفہ سیٹ', terms: '12 × {amt} · ماہانہ', paid: 'ادا شدہ', due: 'واجب', received: 'ادائیگی موصول' },
+      a2: { who: 'قسطاس · واٹس ایپ', msg: 'سلام منیٰ، مہربانی سے یاد دہانی: آپ کی {amt} کی قسط کل واجب الادا ہے۔ شکریہ!', risk: 'کم خطرہ', reasons: ['بروقت ادائیگیاں', 'اوسط تاخیر', 'ٹوٹے وعدے'], vals: ['94%', '1.2 دن', '0'] },
+      a3: { opts: ['مینیجڈ کلاؤڈ', 'گوگل شیٹس', 'آپ کا ڈیٹا بیس'], sub: ['مکمل مینیجڈ', 'آپ کے گوگل ڈرائیو میں', 'Postgres / MySQL'], backup: 'روزانہ بیک اپ · 02:00 · انکرپٹڈ', ok: 'آخری بیک اپ 2 گھنٹے پہلے' } }
+  };

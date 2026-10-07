@@ -1,0 +1,75 @@
+/* Qistas base styles — defaults for every --q-* token (the base theme). The theme runtime overrides them
+   at any element via style.setProperty, so country / event themes cascade without extra CSS. */
+
+:root {
+  /* ---- theme-able colour tokens (base theme, light) ---- */
+  --q-primary: #0B1F44;      --q-on-primary: #F7F3EA;
+  --q-action: #0B1F44;       --q-on-action: #F7F3EA;
+  --q-accent: #C9A25B;       --q-on-accent: #0B1F44;   --q-accent-text: #7F6126;
+  --q-info: #1C6BA4;         --q-on-info: #FFFFFF;
+  --q-bg: #F7F3EA;           --q-surface: #FFFFFF;     --q-surface-alt: #EFE9DB;
+  --q-ink: #0B1F44;          --q-ink-muted: #4F5B76;   --q-line: #E3DCCB;
+  --q-positive: #1B7F5C;     --q-warning: #9A5700;     --q-danger: #B3261E;
+  --q-tint-sky: #DDEDFA;     --q-tint-blush: #F6E4EA;  --q-tint-sand: #F8EBCB;  --q-tint-mint: #DCF2E8;
+  --q-hero-from: #0B1F44;    --q-hero-to: #1B3A78;
+  --q-logo-ink: #0B1F44;     --q-logo-accent: #C9A25B;
+
+  /* ---- fixed tokens (not theme-able) ---- */
+  --q-font-display: "Cormorant Garamond", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --q-font-body: "Geist", "IBM Plex Sans Arabic", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --q-font-arabic: "IBM Plex Sans Arabic", "Geist", "Segoe UI", Tahoma, sans-serif;
+  --q-font-urdu: "Noto Nastaliq Urdu", "IBM Plex Sans Arabic", "Segoe UI", serif;
+  --q-font-mono: "Geist Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  --q-r-sm: 10px; --q-r-md: 16px; --q-r-lg: 20px; --q-r-xl: 28px; --q-r-pill: 999px;
+  --q-shadow-1: 0 1px 0 rgb(11 31 68 / .04), 0 8px 24px -12px rgb(11 31 68 / .16);
+  --q-shadow-2: 0 1px 0 rgb(11 31 68 / .05), 0 24px 56px -24px rgb(11 31 68 / .30);
+  --q-hairline: 1px solid color-mix(in srgb, var(--q-ink) 9%, transparent);
+
+  --q-ease-out: cubic-bezier(0.23, 1, 0.32, 1);          /* strong ease-out: entrances, feedback */
+  --q-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);      /* strong ease-in-out: on-screen movement */
+  --q-ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);       /* sheets, drawers */
+  --q-t-fast: 140ms; --q-t-base: 220ms; --q-t-slow: 360ms;
+}
+
+:root[data-q-mode="dark"], [data-q-mode="dark"] {
+  --q-primary: #163A7A;      --q-on-primary: #F7F3EA;
+  --q-action: #C9A25B;       --q-on-action: #0B1F44;
+  --q-accent: #D4AE68;       --q-on-accent: #0B1F44;   --q-accent-text: #DDBB7A;
+  --q-info: #6AAEE0;         --q-on-info: #071634;
+  --q-bg: #071634;           --q-surface: #0E2250;     --q-surface-alt: #14295F;
+  --q-ink: #F2EEE3;          --q-ink-muted: #A9B4CC;   --q-line: #22386B;
+  --q-positive: #41C795;     --q-warning: #EBB04A;     --q-danger: #F28B82;
+  --q-tint-sky: #14355F;     --q-tint-blush: #3A2540;  --q-tint-sand: #3A3320;  --q-tint-mint: #123B31;
+  --q-hero-from: #1A4290;    --q-hero-to: #0E2A5C;
+  --q-logo-ink: #F7F3EA;     --q-logo-accent: #D4AE68;
+  --q-shadow-1: 0 1px 0 rgb(0 0 0 / .25), 0 8px 24px -12px rgb(0 0 0 / .6);
+  --q-shadow-2: 0 1px 0 rgb(0 0 0 / .3), 0 24px 56px -24px rgb(0 0 0 / .7);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--q-bg); color: var(--q-ink);
+  font-family: var(--q-font-body); font-size: 15px; line-height: 1.55;
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+}
+:lang(ar), [dir="rtl"][lang="ar"] { font-family: var(--q-font-arabic); }
+:lang(ur) { font-family: var(--q-font-arabic); }
+/* Nastaliq is reserved for display text (opt-in with .q-nastaliq); UI chrome uses a Naskh-style face for stable line metrics. */
+.q-nastaliq:lang(ur), :lang(ur) .q-nastaliq { font-family: var(--q-font-urdu); line-height: 2.1; }
+button, input, select, textarea { font: inherit; color: inherit; }
+img, svg { display: block; max-width: 100%; }
+a { color: var(--q-info); }
+
+.tnum { font-variant-numeric: tabular-nums lining-nums; font-feature-settings: "tnum" 1, "lnum" 1; }
+.q-logo .ink { fill: var(--q-logo-ink); }
+.q-logo .acc { fill: var(--q-logo-accent); }
+.q-display { font-family: var(--q-font-display); font-weight: 600; letter-spacing: -0.01em; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+:focus-visible { outline: 2px solid var(--q-info); outline-offset: 2px; border-radius: 6px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}

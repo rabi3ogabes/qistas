@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Intro — Qistas</title>
+  <meta name="description" content="The Qistas splash and onboarding, themeable by country and event, in five languages.">
+  <link rel="icon" href="../logo/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Geist:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Nastaliq+Urdu:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/qistas-base.css">
+  <link rel="stylesheet" href="intro.css">
+</head>
+<body>
+  <header class="page-head">
+    <a class="brand" href="../index.html" id="brandLink" aria-label="Qistas brand guidelines"></a>
+    <span class="crumb">Intro prototype</span>
+    <a class="back" href="../theme-studio/index.html" id="studioLink">Open Theme Studio <span data-ic="arrowUpRight"></span></a>
+  </header>
+
+  <main class="stage">
+    <section class="device-wrap" aria-label="Phone preview">
+      <div class="device" id="device">
+        <div class="screen" id="screen" data-q-mode="light" dir="ltr" lang="en">
+          <div class="status" aria-hidden="true"><span class="tnum">9:41</span><span class="island"></span><span class="sig"><i></i><i></i><i></i><b></b></span></div>
+
+          <div class="layer app" id="appLayer" aria-live="polite">
+            <header class="app-top">
+              <span class="mini-logo" id="miniLogo"></span>
+              <button class="lang-btn" id="langBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Language"><span data-ic="globe"></span><span id="langCode">EN</span><span data-ic="chevronDown"></span></button>
+              <ul class="lang-menu" id="langMenu" role="listbox" hidden></ul>
+            </header>
+            <div class="slides" id="slides" tabindex="0" aria-label="Introduction"></div>
+            <footer class="app-foot">
+              <div class="dots" id="dots" role="tablist" aria-label="Progress"></div>
+              <div class="foot-actions" id="footActions"></div>
+            </footer>
+          </div>
+
+          <div class="layer splash" id="splash" aria-label="Qistas">
+            <div class="glow"></div>
+            <div class="splash-logo" id="splashLogo"></div>
+            <p class="splash-tag" id="splashTag"></p>
+            <i class="splash-rule" id="splashRule"></i>
+            <button class="splash-skip" id="splashSkip" aria-label="Skip intro">Skip</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="controls" id="controls" aria-label="Preview controls">
+      <h1 class="q-display">Preview</h1>
+      <p class="lede">The same resolver the app uses decides the colours, greeting and tagline from the country and date. Try it.</p>
+
+      <div class="ctl"><span class="lbl">Language</span><div class="chips" id="ctlLang"></div></div>
+      <div class="ctl two">
+        <div><span class="lbl">Country</span><select id="ctlCountry" aria-label="Country"></select></div>
+        <div><span class="lbl">Date</span><input type="date" id="ctlDate" aria-label="Date"></div>
+      </div>
+      <div class="ctl"><span class="lbl">Jump to</span><div class="chips" id="ctlJump"></div></div>
+      <div class="ctl two">
+        <div><span class="lbl">Mode</span><div class="seg" id="ctlMode"><button data-v="light" class="on">Light</button><button data-v="dark">Dark</button></div></div>
+        <div><span class="lbl">Motion</span><div class="seg" id="ctlMotion"><button data-v="full" class="on">Full</button><button data-v="reduced">Reduced</button></div></div>
+      </div>
+      <button class="btn-replay" id="replay"><span data-ic="refresh"></span>Replay intro</button>
+
+      <div class="theme-now" id="themeNow" aria-live="polite"></div>
+    </aside>
+  </main>
+
+  <script src="../shared/qistas-theme.js"></script>
+  <script src="../shared/icons.js"></script>
+  <script src="../shared/qistas-logo.js"></script>
+  <script src="../theme-studio/theme-data.js"></script>
+  <script src="copy.js"></script>
+  <script src="intro.js"></script>
+</body>
+</html>

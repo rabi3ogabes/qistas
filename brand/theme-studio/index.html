@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Theme Studio — Qistas Admin Console</title>
+  <meta name="description" content="Control colours per country and per event, with live preview, accessibility gates, scheduling and rollback.">
+  <link rel="icon" href="../logo/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Noto+Nastaliq+Urdu:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/qistas-base.css">
+  <link rel="stylesheet" href="../shared/qistas-preview.css">
+  <link rel="stylesheet" href="studio.css">
+</head>
+<body>
+  <a class="skip" href="#editor">Skip to editor</a>
+  <div class="app" id="app">
+    <aside class="rail" aria-label="Admin sections">
+      <a class="rail-logo" href="../index.html" title="Brand guidelines" id="railLogo"></a>
+      <nav class="rail-nav">
+        <button class="rail-i" disabled title="Accounts (Admin Console phase 5)" id="r-accounts"></button>
+        <button class="rail-i" disabled title="Plans &amp; entitlements (Admin Console phase 5)" id="r-plans"></button>
+        <button class="rail-i on" aria-current="page" title="Theme Studio" id="r-theme"></button>
+        <button class="rail-i" disabled title="Payments (Admin Console phase 5)" id="r-pay"></button>
+        <button class="rail-i" disabled title="Support (Admin Console phase 5)" id="r-support"></button>
+        <button class="rail-i" disabled title="System (Admin Console phase 5)" id="r-system"></button>
+      </nav>
+    </aside>
+
+    <header class="topbar">
+      <div class="crumbs"><span>Admin Console</span><i id="crumbSep"></i><span>Appearance</span><i id="crumbSep2"></i><b>Theme Studio</b></div>
+      <div class="top-actions">
+        <span class="env" title="This prototype stores everything in your browser. In production the same data lives in the Supabase `themes` table.">Prototype · saved in this browser</span>
+        <button class="btn ghost sm" data-act="import"><span data-ic="upload"></span>Import</button>
+        <button class="btn ghost sm" data-act="export-all"><span data-ic="download"></span>Export all</button>
+        <button class="btn ghost sm" data-act="reset-all"><span data-ic="refresh"></span>Reset to seed</button>
+        <input type="file" id="importFile" accept="application/json" hidden>
+      </div>
+    </header>
+
+    <section class="col list" aria-label="Themes">
+      <div class="list-head">
+        <h1 class="q-display">Themes</h1>
+        <button class="btn primary sm" data-act="new"><span data-ic="plus"></span>New theme</button>
+      </div>
+      <div class="list-tools">
+        <label class="search"><span data-ic="search"></span><input id="q" type="search" placeholder="Search themes" aria-label="Search themes"></label>
+        <div class="seg" role="group" aria-label="Filter by kind" id="kindFilter">
+          <button data-kind="all" class="on">All</button><button data-kind="country">Countries</button><button data-kind="event">Events</button>
+        </div>
+      </div>
+      <div class="list-scroll" id="themeList"></div>
+    </section>
+
+    <main class="col editor" id="editor" tabindex="-1" aria-label="Theme editor"></main>
+
+    <aside class="col preview" aria-label="Live preview" id="previewCol"></aside>
+  </div>
+
+  <div id="modalRoot"></div>
+  <div id="toastRoot" role="status" aria-live="polite"></div>
+
+  <script src="../shared/qistas-theme.js"></script>
+  <script src="../shared/icons.js"></script>
+  <script src="../shared/qistas-logo.js"></script>
+  <script src="../shared/qistas-preview.js"></script>
+  <script src="theme-data.js"></script>
+  <script src="studio.js"></script>
+</body>
+</html>
