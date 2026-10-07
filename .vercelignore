@@ -1,0 +1,13 @@
+# Not part of the deployed site (kept in git; linked to GitHub from the brand page where relevant)
+/.github
+/.claude
+/docs
+/scripts
+/supabase
+/brand/tools
+/brand/logo/presentation
+/brand/previews/*.png
+/brand/README.md
+/README.md
+/package.json
+/node_modules

@@ -1,0 +1,26 @@
+name: Post-deploy smoke test
+
+# Vercel reports each finished deployment to GitHub; verify production right after it goes live.
+on:
+  deployment_status
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Smoke test production
+    if: github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://qistas-puce.vercel.app' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Smoke test (headers, redirects, icons, 404, files that must stay private)
+        run: node scripts/smoke.cjs "$PRODUCTION_URL" --deployed --wait=90
+      - name: Rendered-DOM link check against production
+        run: node scripts/check-links.cjs "$PRODUCTION_URL"

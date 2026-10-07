@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify (tests, generated files, site)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Theme engine tests
+        run: node brand/tools/test-theme-runtime.cjs
+
+      - name: Generated files are up to date
+        run: |
+          python brand/tools/build_logo.py
+          python brand/tools/sync-brand-data.py
+          git diff --exit-code -- brand supabase || { echo "::error::Generated files are stale. Run 'npm run build:assets' and commit the result."; exit 1; }
+
+      - name: Validate JSON, SVG, vercel.json and the theme seed
+        run: python scripts/validate-assets.py
+
+      - name: Smoke test and rendered-DOM link check (applies vercel.json rules locally)
+        run: node scripts/verify-local.cjs

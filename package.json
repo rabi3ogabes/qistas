@@ -1,0 +1,16 @@
+{
+  "name": "qistas",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Qistas (قسطاس): brand system, animated intro and admin Theme Studio. Static site deployed on Vercel.",
+  "license": "UNLICENSED",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "dev": "node scripts/serve-vercel.cjs 5274",
+    "test": "node brand/tools/test-theme-runtime.cjs",
+    "build:assets": "python brand/tools/build_logo.py && python brand/tools/sync-brand-data.py",
+    "check:links": "node scripts/check-links.cjs",
+    "smoke": "node scripts/smoke.cjs",
+    "verify": "npm test && node scripts/verify-local.cjs"
+  }
+}
