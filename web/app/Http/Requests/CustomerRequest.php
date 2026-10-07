@@ -30,6 +30,8 @@ class CustomerRequest extends FormRequest
             'national_id' => ['nullable', 'string', 'max:40'],
             'address' => ['nullable', 'string', 'max:1000'],
             'notes' => ['nullable', 'string', 'max:5000'],
+            // Only when editing: clear the stored national ID. A blank ID field means "keep what is stored".
+            'remove_national_id' => ['nullable', 'boolean'],
         ];
     }
 

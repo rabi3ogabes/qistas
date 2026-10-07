@@ -70,6 +70,15 @@ it('keeps no translation for a string the application no longer uses', function 
     expect($stale)->toBe([], "Stale in {$locale}: ".implode(' | ', array_slice($stale, 0, 5)));
 })->with($translated);
 
+it('never uses a string that is also the name of a language file', function () {
+    // On a case-insensitive filesystem (Windows, macOS) __('Pagination') would load lang/en/pagination.php and
+    // return an array, so the same code would work on Linux and crash on a developer's machine.
+    $groups = array_map(fn ($file) => strtolower(basename($file, '.php')), glob(lang_path('en/*.php')));
+    $clashes = array_values(array_filter(usedStrings(), fn ($string) => in_array(strtolower($string), $groups, true)));
+
+    expect($clashes)->toBe([]);
+});
+
 it('keeps every :placeholder when translating', function (string $locale) {
     foreach (appStrings($locale) as $english => $translation) {
         expect(placeholders($translation))->toBe(placeholders($english), "[{$locale}] {$english}");

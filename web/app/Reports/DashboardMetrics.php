@@ -143,11 +143,8 @@ final class DashboardMetrics
         return $this->money($query->sum(DB::raw('installments.amount - installments.paid_amount')));
     }
 
-    /** A database aggregate as an exact two-decimal string (SQLite returns floats, PostgreSQL exact decimals). */
     private function money(mixed $value): string
     {
-        $text = is_string($value) && preg_match('/^-?\d+(\.\d+)?$/', $value) ? $value : sprintf('%.4f', (float) $value);
-
-        return Money::round($text, 2);
+        return Money::fromDatabase($value);
     }
 }

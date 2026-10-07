@@ -10,6 +10,7 @@ final class AppNav
     {
         return [
             ['key' => 'dashboard', 'route' => 'app.dashboard', 'icon' => 'home', 'label' => __('Dashboard')],
+            ['key' => 'customers', 'route' => 'app.customers.index', 'icon' => 'users', 'label' => __('Customers')],
         ];
     }
 }

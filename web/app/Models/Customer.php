@@ -26,6 +26,43 @@ class Customer extends Model
     /** @use HasFactory<CustomerFactory> */
     use BelongsToTenant, HasFactory, HasUuids, SoftDeletes;
 
+    /** The national ID with all but the last three digits hidden, for screens; never the full number. */
+    public function maskedNationalId(): ?string
+    {
+        $id = (string) $this->national_id;
+        $length = mb_strlen($id);
+
+        if ($length === 0) {
+            return null;
+        }
+        if ($length <= 3) {
+            return '••';
+        }
+
+        return str_repeat('•', max(2, min(6, $length - 3))).mb_substr($id, -3);
+    }
+
+    /** A link that starts a phone call: only digits and a leading + are kept. */
+    public function telUrl(): string
+    {
+        return 'tel:'.preg_replace('/[^\d+]/', '', $this->phone);
+    }
+
+    /** A WhatsApp chat link, possible only when the number carries its country code (+ or 00 prefix). */
+    public function whatsappUrl(): ?string
+    {
+        $phone = trim($this->phone);
+
+        $international = match (true) {
+            str_starts_with($phone, '+') => substr($phone, 1),
+            str_starts_with($phone, '00') => substr($phone, 2),
+            default => null,
+        };
+        $digits = $international === null ? '' : (string) preg_replace('/\D/', '', $international);
+
+        return strlen($digits) >= 7 ? "https://wa.me/{$digits}" : null;
+    }
+
     /**
      * Name, either phone number or email contains the text. Phone numbers typed with Arabic-Indic digits
      * match their ASCII form.

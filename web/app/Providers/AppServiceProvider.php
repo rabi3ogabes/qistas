@@ -13,6 +13,7 @@ use App\Tenancy\TenantScope;
 use Illuminate\Contracts\Validation\UncompromisedVerifier;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Client\Factory as HttpFactory;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Lang;
 use Illuminate\Support\ServiceProvider;
@@ -45,6 +46,9 @@ class AppServiceProvider extends ServiceProvider
     {
         // Our own sentences live in lang/app/*.json, apart from the package-managed framework translations.
         Lang::addJsonPath(lang_path('app'));
+
+        Paginator::defaultView('pagination.qistas');
+        Paginator::defaultSimpleView('pagination.qistas');
 
         // A mistyped or malicious attribute fails loudly in development and tests instead of vanishing.
         // In production unfillable attributes are still never written; they are just not reported as errors.

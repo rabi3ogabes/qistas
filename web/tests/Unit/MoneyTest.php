@@ -58,3 +58,23 @@ it('compares and classifies amounts', function () {
         ->and(Money::decimals('12.3400'))->toBe(2)
         ->and(Money::decimals('12.3456'))->toBe(4);
 });
+
+describe('reading database aggregates', function () {
+    it('keeps an exact decimal string exact', function () {
+        expect(Money::fromDatabase('1234567890123.4500'))->toBe('1234567890123.45');
+    });
+
+    it('cleans float noise from databases that return floats', function () {
+        expect(Money::fromDatabase(33.330000000000005))->toBe('33.33')
+            ->and(Money::fromDatabase(100.00000000000001))->toBe('100.00')
+            ->and(Money::fromDatabase(0.1 + 0.2))->toBe('0.30');
+    });
+
+    it('treats nothing as zero', function () {
+        expect(Money::fromDatabase(null))->toBe('0.00')->and(Money::fromDatabase(0))->toBe('0.00');
+    });
+
+    it('can keep more decimals', function () {
+        expect(Money::fromDatabase('12.3456', 4))->toBe('12.3456');
+    });
+});

@@ -74,6 +74,17 @@ final class Money
     }
 
     /** Number of significant decimal places (ignoring trailing zeros). */
+    /**
+     * A database aggregate as an exact decimal string. PostgreSQL returns exact decimals as strings; SQLite
+     * returns floats, which are rounded here so float noise (33.330000000000005) never reaches a figure.
+     */
+    public static function fromDatabase(mixed $value, int $decimals = 2): string
+    {
+        $text = is_string($value) && preg_match('/^-?\d+(\.\d+)?$/', $value) ? $value : sprintf('%.4f', (float) $value);
+
+        return self::round($text, $decimals);
+    }
+
     public static function decimals(string $value): int
     {
         $fraction = explode('.', $value)[1] ?? '';
