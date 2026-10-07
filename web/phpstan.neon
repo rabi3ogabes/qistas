@@ -1,0 +1,15 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 6
+    paths:
+        - app
+        - database/factories
+    tmpDir: storage/framework/phpstan
+    ignoreErrors:
+        # Remove when the first tenant-owned model (Customer) adopts the trait. PHPStan reports an ignore
+        # that no longer matches anything, so this cannot be forgotten.
+        -
+            identifier: trait.unused
+            path: app/Tenancy/BelongsToTenant.php

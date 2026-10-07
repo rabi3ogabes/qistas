@@ -15,6 +15,7 @@ Thumbs.db
 /web/storage/*.key
 /web/.env
 /web/.phpunit.result.cache
+/web/storage/framework/phpstan/
 /app/.dart_tool/
 /app/build/
 /app/.flutter-plugins*
