@@ -37,6 +37,14 @@ it('creates the user, the workspace, the owner membership and an audit row', fun
         ->and(AuditLog::where('action', 'account.registered')->where('tenant_id', $tenant->id)->count())->toBe(1);
 });
 
+it('starts every new workspace on the Free plan', function () {
+    $tenant = app(RegisterTenantOwner::class)->handle(registrationData())->tenants()->sole();
+
+    expect($tenant->subscription->plan->key)->toBe('free')
+        ->and($tenant->subscription->status)->toBe('active')
+        ->and($tenant->subscription->current_period_end)->toBeNull();
+});
+
 it('gives every workspace a unique slug even for identical business names', function () {
     $a = app(RegisterTenantOwner::class)->handle(registrationData(['email' => 'a@example.com']))->tenants()->sole();
     $b = app(RegisterTenantOwner::class)->handle(registrationData(['email' => 'b@example.com']))->tenants()->sole();

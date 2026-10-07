@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureAccountActive;
+use App\Http\Middleware\EnsureFeature;
 use App\Http\Middleware\EnsurePlatformAdmin;
 use App\Http\Middleware\RequireTwoFactorForAdmins;
 use App\Http\Middleware\SetCurrentTenant;
@@ -23,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'tenant' => SetCurrentTenant::class,
             'account.active' => EnsureAccountActive::class,
+            'feature' => EnsureFeature::class,
         ]);
 
         // Everything under /admin: signed-in, not suspended, platform admin (else 404), second factor confirmed.

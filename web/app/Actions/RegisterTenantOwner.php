@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Models\Plan;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\Audit;
@@ -39,6 +40,7 @@ final class RegisterTenantOwner
             $tenant->save();
 
             $tenant->users()->attach($user->id, ['role' => 'owner']);
+            $tenant->subscribeTo(Plan::default());
 
             Audit::record('account.registered', $tenant, tenantId: $tenant->id, userId: $user->id);
 

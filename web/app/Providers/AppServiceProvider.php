@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Entitlements\UsageMeters;
 use App\Listeners\AuditAuthEvents;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Contracts\Validation\UncompromisedVerifier;
@@ -19,6 +20,9 @@ class AppServiceProvider extends ServiceProvider
     {
         // Scoped: a fresh, empty tenant context for every request and every queued job.
         $this->app->scoped(CurrentTenant::class);
+
+        // A registry of closures set up once at boot (each module registers its own meter); safe to share.
+        $this->app->singleton(UsageMeters::class);
 
         // The passkey package registers sign-in endpoints on its own. They stay off until their UI ships.
         Passkeys::ignoreRoutes();
