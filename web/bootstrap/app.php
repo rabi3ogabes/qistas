@@ -11,12 +11,20 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\SubstituteBindings;
+use Illuminate\Support\Facades\Route;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
+        then: function (): void {
+            // The signed-in app: a person with a workspace who is not suspended. The tenant middleware runs
+            // before route-model binding, so another workspace's ids are simply not found.
+            Route::middleware(['web', 'auth', 'account.active', 'tenant'])
+                ->prefix('app')->name('app.')
+                ->group(base_path('routes/app.php'));
+        },
     )
     ->withMiddleware(function (Middleware $middleware): void {
         // After the session starts, so a remembered or saved language can be read.
