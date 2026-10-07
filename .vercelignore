@@ -8,6 +8,7 @@
 /brand/logo/presentation
 /brand/previews/*.png
 /brand/README.md
+/docker-compose.yml
 /README.md
 /package.json
 /node_modules
