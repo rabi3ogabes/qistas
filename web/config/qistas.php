@@ -13,6 +13,9 @@ return [
 
     'currency_default' => env('QISTAS_DEFAULT_CURRENCY', 'USD'),
 
+    // How a customer can pay. Stored on every transaction.
+    'payment_methods' => ['cash', 'bank_transfer', 'card', 'cheque', 'other'],
+
     // Shown to suspended users. Null hides it.
     'support_email' => env('QISTAS_SUPPORT_EMAIL'),
 

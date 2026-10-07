@@ -1,11 +1,19 @@
 <?php
 
+use App\Actions\CreateContract;
+use App\Models\Contract;
 use App\Models\Customer;
+use App\Models\Installment;
 use App\Models\Plan;
 use App\Models\Tenant;
+use App\Models\Transaction;
+use App\Models\TransactionAllocation;
 use App\Models\User;
+use App\Support\Money;
 use App\Tenancy\CurrentTenant;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 /*
@@ -39,6 +47,61 @@ function workspaceOn(string $plan = 'free'): Tenant
 function customerIn(Tenant $tenant, array $attributes = []): Customer
 {
     return asTenant($tenant, fn () => Customer::factory()->create($attributes));
+}
+
+/**
+ * An active contract of $tenant for a new customer: 3 monthly instalments of 100.00 (due 1 Feb, 1 Mar, 1 Apr 2026), no markup.
+ *
+ * @param  array<string, mixed>  $overrides
+ */
+function openContract(Tenant $tenant, array $overrides = []): Contract
+{
+    return app(CreateContract::class)->handle($tenant, array_merge([
+        'customer_id' => customerIn($tenant)->id, 'type' => 'scheduled', 'principal' => '300.00', 'down_payment' => '0',
+        'markup_type' => 'none', 'markup_value' => '0', 'installment_count' => 3, 'frequency' => 'monthly',
+        'start_date' => '2026-01-15', 'first_due_date' => '2026-02-01',
+    ], $overrides));
+}
+
+/** The contract's instalments, oldest first, read fresh from the database. */
+function installmentsOfContract(Contract $contract): Collection
+{
+    return asTenant($contract->tenant, fn () => Installment::where('contract_id', $contract->id)->orderBy('number')->get());
+}
+
+/**
+ * The ledger invariants that must always hold, however payments and voids were interleaved:
+ * every instalment's paid amount is the sum of its allocations, and the contract's net takings are its down
+ * payment plus everything paid on instalments.
+ */
+function expectConsistentLedger(Contract $contract): void
+{
+    asTenant($contract->tenant, function () use ($contract): void {
+        $paidOnInstallments = '0';
+        foreach (Installment::where('contract_id', $contract->id)->get() as $installment) {
+            $allocated = TransactionAllocation::where('installment_id', $installment->id)->get()
+                ->reduce(fn (string $carry, TransactionAllocation $a) => Money::add($carry, $a->amount), '0');
+            expect(Money::cmp($installment->paid_amount, $allocated))->toBe(0, "instalment {$installment->number} paid_amount differs from its allocations");
+            $paidOnInstallments = Money::add($paidOnInstallments, $installment->paid_amount);
+        }
+
+        $net = Transaction::where('contract_id', $contract->id)->get()
+            ->reduce(fn (string $carry, Transaction $t) => Money::add($carry, $t->amount), '0');
+        $fresh = Contract::find($contract->id);
+        expect(Money::cmp($net, Money::add($fresh->down_payment, $paidOnInstallments)))->toBe(0, 'net transactions differ from down payment plus instalments paid');
+    });
+}
+
+/** The field errors a ValidationException carries; fails the test if the call does not throw one. */
+function validationErrors(Closure $call): array
+{
+    try {
+        $call();
+    } catch (ValidationException $e) {
+        return $e->errors();
+    }
+
+    test()->fail('Expected a ValidationException.');
 }
 
 /** The password every test account is created with; it satisfies the production password rules. */

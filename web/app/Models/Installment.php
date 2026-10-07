@@ -37,6 +37,26 @@ class Installment extends Model
         return Money::sub($this->amount, $this->paid_amount);
     }
 
+    /**
+     * Move paid_amount by $delta (positive for a payment, negative for a reversal) and bring status and
+     * paid_at into line. The only way an instalment changes after the contract is opened.
+     */
+    public function applyPayment(string $delta, CarbonInterface $at): void
+    {
+        $paid = Money::add($this->paid_amount, $delta);
+        $status = match (true) {
+            Money::cmp($paid, $this->amount) >= 0 => 'paid',
+            Money::isZero($paid) => 'pending',
+            default => 'partial',
+        };
+
+        $this->forceFill([
+            'paid_amount' => $paid,
+            'status' => $status,
+            'paid_at' => $status === 'paid' ? ($this->paid_at ?? $at) : null,
+        ])->save();
+    }
+
     /** Past its due date and not fully paid. Due today is not overdue yet. */
     public function isOverdue(?CarbonInterface $today = null): bool
     {

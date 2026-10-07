@@ -11,6 +11,7 @@ use App\Models\Customer;
 use App\Models\Installment;
 use App\Models\Plan;
 use App\Models\Tenant;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Support\Money;
 use App\Tenancy\CurrentTenant;
@@ -113,6 +114,31 @@ it('starts every instalment unpaid', function () {
     $rows = asTenant($tenant, fn () => $contract->installments()->get());
 
     expect($rows->every(fn (Installment $i) => $i->status === 'pending' && Money::isZero($i->paid_amount) && $i->paid_at === null))->toBeTrue();
+});
+
+it('records the down payment in the ledger as money received on the contract date', function () {
+    $tenant = workspaceOn();
+    $user = User::factory()->create();
+
+    $contract = app(CreateContract::class)->handle($tenant, contractData(customerIn($tenant)), $user);
+
+    $ledger = asTenant($tenant, fn () => Transaction::where('contract_id', $contract->id)->get());
+    expect($ledger)->toHaveCount(1)
+        ->and($ledger[0]->type)->toBe('down_payment')
+        ->and(Money::cmp($ledger[0]->amount, '200.00'))->toBe(0)
+        ->and($ledger[0]->method)->toBe('cash')
+        ->and($ledger[0]->paid_at->format('Y-m-d'))->toBe('2026-01-15')
+        ->and($ledger[0]->customer_id)->toBe($contract->customer_id)
+        ->and($ledger[0]->created_by_user_id)->toBe($user->id);
+    expectConsistentLedger($contract);
+});
+
+it('records nothing in the ledger when there is no down payment', function () {
+    $tenant = workspaceOn();
+
+    $contract = app(CreateContract::class)->handle($tenant, contractData(customerIn($tenant), ['down_payment' => '0']));
+
+    expect(asTenant($tenant, fn () => Transaction::where('contract_id', $contract->id)->count()))->toBe(0);
 });
 
 it('opens a cash sale as one instalment due on the sale date', function () {

@@ -14,10 +14,12 @@ use App\Models\Contract;
 use App\Models\Customer;
 use App\Models\Installment;
 use App\Models\Tenant;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Support\Money;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -74,6 +76,19 @@ final class CreateContract
                 'created_by_user_id' => $by?->id,
             ]);
             $contract->save();
+
+            // The down payment is money received today: it belongs in the ledger, not only on the contract.
+            if ($type !== 'cash' && ! Money::isZero($contract->down_payment)) {
+                (new Transaction)->forceFill([
+                    'contract_id' => $contract->id,
+                    'customer_id' => $customer->id,
+                    'type' => 'down_payment',
+                    'method' => 'cash',
+                    'amount' => $contract->down_payment,
+                    'paid_at' => Carbon::parse($startDate),
+                    'created_by_user_id' => $by?->id,
+                ])->save();
+            }
 
             foreach ($schedule->installments as $row) {
                 (new Installment)->forceFill([
