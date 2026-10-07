@@ -11,3 +11,8 @@
 /README.md
 /package.json
 /node_modules
+
+# Application code (Laravel, Flutter) is not part of the static Vercel site
+/web
+/app
+/shared

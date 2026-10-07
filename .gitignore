@@ -6,3 +6,15 @@ node_modules/
 .DS_Store
 Thumbs.db
 *.log
+
+# Laravel / Flutter build output
+/web/vendor/
+/web/node_modules/
+/web/public/build/
+/web/public/hot
+/web/storage/*.key
+/web/.env
+/web/.phpunit.result.cache
+/app/.dart_tool/
+/app/build/
+/app/.flutter-plugins*
