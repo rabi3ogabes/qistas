@@ -14,8 +14,8 @@ em { font-style: italic; font-weight: 500; color: var(--q-accent-text); }
 .top { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 16px; width: min(1180px, 100% - 40px); margin: 0 auto; padding: 22px 0 6px; }
 .brand svg { height: 30px; width: auto; display: block; }
 .top-r { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
-.live { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; padding: 8px 14px; border-radius: 99px; background: color-mix(in srgb, var(--q-positive) 11%, var(--q-surface)); color: var(--q-positive); box-shadow: 0 0 0 1px color-mix(in srgb, var(--q-positive) 22%, transparent) inset; }
-.live i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 50%, transparent); animation: ping 2.4s var(--q-ease-out) infinite; }
+.live { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; padding: 8px 14px; border-radius: 99px; background: color-mix(in srgb, var(--q-positive) 11%, var(--q-surface)); color: var(--q-ink); box-shadow: 0 0 0 1px color-mix(in srgb, var(--q-positive) 22%, transparent) inset; }
+.live i { width: 7px; height: 7px; border-radius: 50%; background: var(--q-positive); color: var(--q-positive); box-shadow: 0 0 0 0 color-mix(in srgb, var(--q-positive) 50%, transparent); animation: ping 2.4s var(--q-ease-out) infinite; }
 @keyframes ping { 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
 .gh { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; text-decoration: none; color: var(--q-ink); padding: 8px 14px; border-radius: 99px; background: var(--q-surface); box-shadow: 0 0 0 1px var(--q-line) inset; }
 .gh:hover { background: var(--q-surface-alt); }

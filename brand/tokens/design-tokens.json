@@ -7,7 +7,7 @@
       "gold-300": "#E3CC9B", "gold-500": "#C9A25B", "gold-700": "#7F6126",
       "ivory-50": "#FBF9F4", "ivory-100": "#F7F3EA", "ivory-200": "#EFE9DB", "ivory-300": "#E3DCCB",
       "sapphire-500": "#1C6BA4", "sapphire-300": "#7CB7D9", "sapphire-100": "#DDEDFA",
-      "emerald-600": "#1B7F5C", "amber-700": "#9A5700", "ruby-600": "#B3261E",
+      "emerald-600": "#176E50", "amber-700": "#9A5700", "ruby-600": "#B3261E",
       "tint-sky": "#DDEDFA", "tint-blush": "#F6E4EA", "tint-sand": "#F8EBCB", "tint-mint": "#DCF2E8"
     },
     "semantic": "see brand/tokens/themes.seed.json → themes[id=base].tokens (26 tokens × light/dark)"

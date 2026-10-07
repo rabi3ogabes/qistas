@@ -30,7 +30,7 @@
           "info": "#1C6BA4", "onInfo": "#FFFFFF",
           "bg": "#F7F3EA", "surface": "#FFFFFF", "surfaceAlt": "#EFE9DB",
           "ink": "#0B1F44", "inkMuted": "#4F5B76", "line": "#E3DCCB",
-          "positive": "#1B7F5C", "warning": "#9A5700", "danger": "#B3261E",
+          "positive": "#176E50", "warning": "#9A5700", "danger": "#B3261E",
           "tintSky": "#DDEDFA", "tintBlush": "#F6E4EA", "tintSand": "#F8EBCB", "tintMint": "#DCF2E8",
           "heroFrom": "#0B1F44", "heroTo": "#1B3A78",
           "logoInk": "#0B1F44", "logoAccent": "#C9A25B"

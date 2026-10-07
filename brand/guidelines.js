@@ -79,14 +79,14 @@
   const cmyk = (hex) => { const [r, g, b] = Q.hexToRgb(hex).map((v) => v / 255), k = 1 - Math.max(r, g, b); if (k >= 1) return [0, 0, 0, 100]; return [(1 - r - k) / (1 - k), (1 - g - k) / (1 - k), (1 - b - k) / (1 - k), k].map((v) => Math.round(v * 100)); };
   const PAL = [
     ['Midnight Navy', NAVY, 'Brand ink, primary surfaces, app icon', '#F7F3EA'], ['Champagne Gold', GOLD, 'The plumb-bob, rings, hairlines', NAVY], ['Bronze', '#7F6126', 'Gold as small text on ivory', '#F7F3EA'], ['Ivory', IVORY, 'The canvas', NAVY],
-    ['Sapphire', '#1C6BA4', 'Links and interactive states (from the reference UI)', '#fff'], ['Emerald', '#1B7F5C', 'Paid, settled', '#fff'], ['Amber', '#9A5700', 'Due soon', '#fff'], ['Ruby', '#B3261E', 'Overdue, defaulted', '#fff']
+    ['Sapphire', '#1C6BA4', 'Links and interactive states (from the reference UI)', '#fff'], ['Emerald', '#176E50', 'Paid, settled', '#fff'], ['Amber', '#9A5700', 'Due soon', '#fff'], ['Ruby', '#B3261E', 'Overdue, defaulted', '#fff']
   ];
   $('#palette').innerHTML = PAL.map((p, i) => {
     const rgb = Q.hexToRgb(p[1]).join(' · '), k = cmyk(p[1]).join(' · ');
     return '<article class="pc rv" style="--d:' + (i % 4) * 60 + 'ms"><div class="sw" style="background:' + p[1] + ';color:' + p[3] + '"><small>' + esc(p[2]) + '</small><b>' + p[0] + '</b></div><dl><dt>HEX</dt><dd>' + p[1] + '</dd><dt>RGB</dt><dd>' + rgb + '</dd><dt>CMYK≈</dt><dd>' + k + '</dd><dt>On ivory</dt><dd>' + Q.contrast(p[1], IVORY).toFixed(1) + ' : 1</dd></dl></article>';
   }).join('') + '<div class="tints rv" style="grid-column:1/-1">' + [['Sky', '#DDEDFA'], ['Blush', '#F6E4EA'], ['Sand', '#F8EBCB'], ['Mint', '#DCF2E8']].map((t) => '<div style="background:' + t[1] + '">' + t[0] + '<small>' + t[1] + '</small></div>').join('') + '</div>';
 
-  const PAIRS = [['Navy on ivory · body text', NAVY, IVORY], ['Ivory on navy · hero cards', IVORY, NAVY], ['Navy on gold · gold buttons', NAVY, GOLD], ['Bronze on ivory · accent text', '#7F6126', IVORY], ['Sapphire on ivory · links', '#1C6BA4', IVORY], ['Emerald on white · Paid', '#1B7F5C', '#fff'], ['Amber on white · Due', '#9A5700', '#fff'], ['Ruby on white · Overdue', '#B3261E', '#fff']];
+  const PAIRS = [['Navy on ivory · body text', NAVY, IVORY], ['Ivory on navy · hero cards', IVORY, NAVY], ['Navy on gold · gold buttons', NAVY, GOLD], ['Bronze on ivory · accent text', '#7F6126', IVORY], ['Sapphire on ivory · links', '#1C6BA4', IVORY], ['Emerald on white · Paid', '#176E50', '#fff'], ['Amber on white · Due', '#9A5700', '#fff'], ['Ruby on white · Overdue', '#B3261E', '#fff']];
   $('#pairs').innerHTML = PAIRS.map((p) => { const r = Q.contrast(p[1], p[2]); return '<div class="pr"><i style="background:' + p[2] + ';color:' + p[1] + '">Aa</i><span>' + esc(p[0]) + '</span><span><b>' + r.toFixed(1) + ':1</b> <span class="ok">' + (r >= 7 ? 'AAA' : r >= 4.5 ? 'AA' : '—') + '</span></span></div>'; }).join('');
 
   const seed = window.QISTAS_SEED.themes;
@@ -143,7 +143,7 @@
     const C = window.QISTAS_INTRO_COPY, langs = [['en', 'English'], ['ar', 'العربية'], ['fr', 'Français'], ['es', 'Español'], ['ur', 'اردو']], base = seed.find((t) => t.kind === 'base');
     const cell = (l, txt) => '<td lang="' + l + '" dir="' + (l === 'ar' || l === 'ur' ? 'rtl' : 'ltr') + '"' + (l === 'ur' ? ' style="font-size:15px;line-height:2"' : '') + '>' + esc(txt) + '</td>';
     const rows = [['Tagline', (l) => base.copy.tagline[l]], ['Slide 1', (l) => C[l].slides[0][0].replace(/<br>/g, ' ') + ' — ' + C[l].slides[0][1]], ['Slide 2', (l) => C[l].slides[1][0].replace(/<br>/g, ' ') + ' — ' + C[l].slides[1][1]], ['Slide 3', (l) => C[l].slides[2][0].replace(/<br>/g, ' ') + ' — ' + C[l].slides[2][1]], ['Call to action', (l) => C[l].start], ['Demo note', (l) => C[l].demo]];
-    $('#copyTable').innerHTML = '<table><thead><tr><th></th>' + langs.map((l) => '<th>' + l[1] + '</th>').join('') + '</tr></thead><tbody>' + rows.map((r) => '<tr><td>' + r[0] + '</td>' + langs.map((l) => cell(l[0], r[1](l[0]))).join('') + '</tr>').join('') + '</tbody></table>';
+    $('#copyTable').innerHTML = '<table><thead><tr><th><span class="sr-only">Item</span></th>' + langs.map((l) => '<th>' + l[1] + '</th>').join('') + '</tr></thead><tbody>' + rows.map((r) => '<tr><td>' + r[0] + '</td>' + langs.map((l) => cell(l[0], r[1](l[0]))).join('') + '</tr>').join('') + '</tbody></table>';
   })();
 
   /* ---------------------------------------------------------------- files */
@@ -153,9 +153,13 @@
     ['Tokens & runtime', [['tokens/design-tokens.json', 'Fixed tokens'], ['tokens/themes.seed.json', 'Theme seed (source)'], ['shared/qistas-theme.js', 'Theme resolver'], ['shared/qistas-preview.js', 'Dashboard preview'], ['shared/qistas-logo.js', 'Inline logos (generated)'], ['shared/qistas-base.css', 'Base styles']]],
     ['Prototypes', [['intro/index.html', 'Splash + onboarding'], ['theme-studio/index.html', 'Theme Studio (admin)']]],
     ['Backend & docs', [['../supabase/migrations/20261007000100_theme_engine.sql', 'Migration (unexecuted)'], ['../supabase/seed/theme_seed.sql', 'Seed (generated)'], ['../docs/THEME_ENGINE.md', 'Theme engine spec']]],
-    ['Tools & history', [['tools/build_logo.py', 'Rebuild every logo'], ['tools/sync-brand-data.py', 'Regenerate JS / SQL'], ['tools/test-theme-runtime.cjs', '22 engine tests'], ['tools/arabic-wordmark.json', 'Arabic outlines'], ['concepts/concepts-colour.png', 'The three concepts']]]
+    ['Tools & history', [['tools/build_logo.py', 'Rebuild every logo'], ['tools/sync-brand-data.py', 'Regenerate JS / SQL'], ['tools/test-theme-runtime.cjs', '24 engine tests'], ['tools/arabic-wordmark.json', 'Arabic outlines'], ['concepts/concepts-colour.png', 'The three concepts']]]
   ];
-  $('#files').innerHTML = FILES.map((g) => '<div class="fgroup"><h4>' + g[0] + '</h4>' + g[1].map((f) => '<a href="' + f[0] + '"><b style="font-weight:500">' + f[1] + '</b><span>' + f[0].split('/').pop() + '</span></a>').join('') + (g[2] ? '<p class="small" style="margin:6px 0 0">' + g[2] + '</p>' : '') + '</div>').join('');
+  // Files that are in git but not part of the deployed site open on GitHub.
+  const GH = 'https://github.com/rabi3ogabes/qistas/blob/main/';
+  const href = (p) => (p.indexOf('../') === 0 ? GH + p.slice(3) : p.indexOf('tools/') === 0 ? GH + 'brand/' + p : p);
+  const ext = (p) => (p.indexOf('../') === 0 || p.indexOf('tools/') === 0 ? ' target="_blank" rel="noopener"' : '');
+  $('#files').innerHTML = FILES.map((g) => '<div class="fgroup"><h3>' + g[0] + '</h3>' + g[1].map((f) => '<a href="' + href(f[0]) + '"' + ext(f[0]) + '><b style="font-weight:500">' + f[1] + '</b><span>' + f[0].split('/').pop() + '</span></a>').join('') + (g[2] ? '<p class="small" style="margin:6px 0 0">' + g[2] + '</p>' : '') + '</div>').join('');
 
   /* ---------------------------------------------------------------- reveal, nav state, mobile menu */
   const rv = $$('.rv');

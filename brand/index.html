@@ -6,6 +6,21 @@
   <title>Qistas — Brand System</title>
   <meta name="description" content="Qistas (قسطاس): the name, the Plumb q logo, colour, type, voice, motion and the theming system, in one place.">
   <link rel="icon" href="logo/favicon.svg" type="image/svg+xml">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#0B1F44">
+  <link rel="canonical" href="https://qistas-puce.vercel.app/brand/">
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/brand/logo/web/site.webmanifest">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Qistas">
+  <meta property="og:title" content="Qistas — Brand System">
+  <meta property="og:description" content="The name, the Plumb q logo, colour, type, voice, motion and the theming system.">
+  <meta property="og:url" content="https://qistas-puce.vercel.app/brand/">
+  <meta property="og:image" content="https://qistas-puce.vercel.app/brand/logo/qistas-og-card.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Nastaliq+Urdu:wght@400;500;600&display=swap" rel="stylesheet">
@@ -116,7 +131,7 @@
         <div class="sec-head rv"><span class="eyebrow">03 · Colour</span><h2 class="q-display">Midnight, champagne, <em>ivory.</em></h2>
           <p class="lede">Private-bank calm with one warm metal. The blue and the amber come straight from the reference UI; the pastel tints are the service tiles. Every pair below clears WCAG AA, and every colour can be changed per country and per event by an admin.</p></div>
         <div class="palette" id="palette"></div>
-        <div class="ratio rv" aria-label="Proportion of use">
+        <div class="ratio rv" role="img" aria-label="Proportion of use: ivory 60 percent, navy 25, gold 10, blue and status colours 5">
           <div style="--w:60;--c:var(--q-bg)"><span>Ivory 60%</span></div><div style="--w:25;--c:#0B1F44;color:#F7F3EA"><span>Navy 25%</span></div><div style="--w:10;--c:#C9A25B"><span>Gold 10%</span></div><div style="--w:5;--c:#1C6BA4;color:#fff"><span>5%</span></div>
         </div>
         <div class="split tight">
@@ -200,7 +215,7 @@
       <div class="wrap">
         <div class="sec-head rv"><span class="eyebrow">07 · Theming</span><h2 class="q-display">Every country. Every <em>season.</em></h2>
           <p class="lede">An admin changes any colour from the dashboard, per country and per event, with a live preview, an accessibility gate, a schedule (including Hijri dates) and one-click rollback. No release needed.</p></div>
-        <div class="layers rv" aria-label="Theme layers">
+        <div class="layers rv" role="group" aria-label="Theme layers">
           <div><i>1</i><b>Base</b><span>Qistas Signature. Always on.</span></div><em aria-hidden="true">→</em>
           <div><i>2</i><b>Country</b><span>Saudi, UAE, Egypt, Morocco, Pakistan, France, Spain…</span></div><em aria-hidden="true">→</em>
           <div><i>3</i><b>Event</b><span>Ramadan, Eid, National Days, New Year… scheduled.</span></div><em aria-hidden="true">→</em>
@@ -220,7 +235,7 @@
         </div>
         <ul class="can rv">
           <li><i data-ic="palette"></i><div><b>Change any of 26 colours</b> in light and dark, or only a few and let the engine derive the rest.</div></li>
-          <li><i data-ic="shield"></i><div><b>Accessibility gate.</b> 22 contrast pairs per mode must pass before publish; Auto-fix repairs the failures.</div></li>
+          <li><i data-ic="shield"></i><div><b>Accessibility gate.</b> 25 contrast pairs per mode must pass before publish; Auto-fix repairs the failures.</div></li>
           <li><i data-ic="calendar"></i><div><b>Schedules.</b> Always on, date window, every year, or every Hijri year with a per-country moon-sighting offset.</div></li>
           <li><i data-ic="flag"></i><div><b>Locked campaigns.</b> National Day can suspend merchant accents, then hand them back.</div></li>
           <li><i data-ic="history"></i><div><b>Versions &amp; rollback</b> on every change; instant push to clients through Realtime.</div></li>
@@ -233,7 +248,7 @@
       <div class="wrap">
         <div class="sec-head rv"><span class="eyebrow">08 · Intro copy</span><h2 class="q-display">Five languages, <em>one idea.</em></h2>
           <p class="lede">The tagline and the three onboarding slides, as they appear in the intro. Drafted for this prototype; have native speakers review Arabic, Urdu, French and Spanish before store release.</p></div>
-        <div class="copy-t rv" id="copyTable"></div>
+        <div class="copy-t rv" id="copyTable" tabindex="0" role="region" aria-label="Intro copy in five languages (scrollable)"></div>
       </div>
     </section>
 

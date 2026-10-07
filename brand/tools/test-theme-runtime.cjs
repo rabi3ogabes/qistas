@@ -29,6 +29,27 @@ test('every seed theme, resolved over the base, passes contrast WITHOUT the safe
   });
   assert.deepEqual(problems, []);
 });
+test('status chip text (Paid / Due / Overdue) is checked on its own 14% tint and meets AA in every seed theme', () => {
+  themes.forEach((th) => {
+    const r = Q.resolveSingle(themes, th.id);
+    ['light', 'dark'].forEach((m) => {
+      ['positive', 'warning', 'danger'].forEach((s) => {
+        const T = r.tokens[m], bg = Q.mix(T.surface, T[s], 0.14);
+        assert.ok(Q.contrast(T[s], bg) >= 4.5, `${th.id} ${m} ${s} chip = ${Q.contrast(T[s], bg).toFixed(2)}`);
+      });
+    });
+  });
+  assert.ok(Q.validate(themes[0].tokens).some((c) => c.bg === 'positiveTint'), 'validate() includes the chip pairs');
+});
+test('a too-pale status colour is caught by the gate and repaired by auto-fix', () => {
+  const t = JSON.parse(JSON.stringify(themes[0].tokens));
+  t.light.positive = '#3FBF8F';
+  const bad = Q.validate(t).filter((c) => !c.pass && c.fg === 'positive');
+  assert.ok(bad.length > 0, 'expected a failing chip pair');
+  const fixed = Q.autoFix(t).tokens;
+  assert.deepEqual(Q.validate(fixed).filter((c) => !c.pass && c.mode === 'light'), []);
+  assert.ok(Math.abs(Q.hexToHsl(fixed.light.positive)[0] - Q.hexToHsl('#3FBF8F')[0]) <= 3, 'hue is preserved (within rounding)');
+});
 test('ensureContrast reaches the requested ratio', () => {
   const c = Q.ensureContrast('#C9A25B', '#F7F3EA', 4.5);
   assert.ok(Q.contrast(c, '#F7F3EA') >= 4.5, c);

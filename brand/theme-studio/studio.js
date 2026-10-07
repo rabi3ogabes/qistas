@@ -14,6 +14,9 @@
   const GROUPS = ['Brand', 'Surfaces', 'Text', 'Status', 'Tiles', 'Hero', 'Logo'];
 
   const clone = (o) => JSON.parse(JSON.stringify(o));
+  /** Small stable hash (djb2) used to detect when a seed theme changed upstream. */
+  function hashOf(o) { const str = JSON.stringify(o); let h = 5381; for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; return (h >>> 0).toString(36); }
+  function stableKey(t) { const c = clone(t); delete c.version; delete c.updatedAt; delete c.publishedAt; delete c.seedHash; return JSON.stringify(c); }
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const $ = (s, r) => (r || document).querySelector(s);
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
@@ -25,21 +28,42 @@
   const fmtDateTime = (iso, tz) => new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: tz || 'UTC' }).format(new Date(iso));
 
   /* ------------------------------------------------------------------ state */
+  const SEED_REV = hashOf(window.QISTAS_SEED.themes);
+  function seededTheme(t) { return Object.assign({ version: 1, updatedAt: t.publishedAt }, clone(t), { seedHash: hashOf(t) }); }
   function fresh() {
-    const themes = clone(window.QISTAS_SEED.themes).map((t) => Object.assign({ version: 1, updatedAt: t.publishedAt }, t));
+    const themes = window.QISTAS_SEED.themes.map(seededTheme);
     const versions = {};
     themes.forEach((t) => { versions[t.id] = [{ version: 1, at: t.publishedAt, note: 'Seed', snapshot: clone(t) }]; });
     const countrySettings = {};
     Object.keys(Q.COUNTRIES).forEach((c) => { countrySettings[c] = { hijriOffsetDays: 0 }; });
     return {
-      themes, versions, countrySettings, selectedId: 'country-sa', tab: 'colors', editMode: 'light', kind: 'all', q: '',
+      themes, versions, countrySettings, seedRev: SEED_REV, selectedId: 'country-sa', tab: 'colors', editMode: 'light', kind: 'all', q: '',
       preview: { source: 'theme', country: 'SA', date: todayISO(), lang: 'en', mode: 'light', numerals: 'latn', merchant: false, merchantColor: '#9A2E5B' }
     };
+  }
+  /** Bring a stored working copy up to date with the current seed. Untouched seed themes are replaced,
+   *  themes the admin edited are kept. Returns { upgraded, kept, added } for a one-time notice. */
+  function migrate(state) {
+    const res = { upgraded: 0, kept: 0, added: 0 };
+    if (state.seedRev === SEED_REV) return res;
+    window.QISTAS_SEED.themes.forEach((seedT) => {
+      const h = hashOf(seedT), i = state.themes.findIndex((t) => t.id === seedT.id);
+      if (i === -1) { const nt = seededTheme(seedT); state.themes.push(nt); state.versions[nt.id] = [{ version: 1, at: nt.publishedAt, note: 'Seed', snapshot: clone(nt) }]; res.added++; return; }
+      const cur = state.themes[i];
+      if (cur.seedHash === h) return;
+      const vs = state.versions[cur.id] || [];
+      const pristine = vs.length <= 1 && (!vs[0] || stableKey(vs[0].snapshot) === stableKey(cur));
+      if (pristine) { const nt = seededTheme(seedT); state.themes[i] = nt; state.versions[nt.id] = [{ version: 1, at: nt.publishedAt, note: 'Seed (updated)', snapshot: clone(nt) }]; res.upgraded++; }
+      else res.kept++;
+    });
+    state.seedRev = SEED_REV;
+    state.pendingNotice = res.upgraded || res.kept || res.added ? res : null;
+    return res;
   }
   function load() {
     try {
       const raw = localStorage.getItem(KEY);
-      if (raw) { const s = JSON.parse(raw); if (s && Array.isArray(s.themes) && s.versions) return s; }
+      if (raw) { const s = JSON.parse(raw); if (s && Array.isArray(s.themes) && s.versions) { migrate(s); return s; } }
     } catch (e) { /* storage unavailable: start fresh */ }
     return fresh();
   }
@@ -54,7 +78,6 @@
   const sel = () => S.themes.find((t) => t.id === S.selectedId);
   const baseTheme = () => S.themes.find((t) => t.kind === 'base');
   const lastCommit = (t) => { const v = S.versions[t.id]; return v && v[v.length - 1]; };
-  const stableKey = (t) => { const c = clone(t); delete c.version; delete c.updatedAt; delete c.publishedAt; return JSON.stringify(c); };
   const isDirty = (t) => { const c = lastCommit(t); return !c || stableKey(c.snapshot) !== stableKey(t); };
   const liveThemes = () => S.themes.map((t) => lastCommit(t) && clone(lastCommit(t).snapshot)).filter((t) => t && t.status === 'published');
   const resSel = () => Q.resolveSingle(S.themes, S.selectedId);
@@ -188,7 +211,7 @@
       : '<div class="note info">' + ic('sparkles', 17) + '<div>Only the colours you <b>pin</b> are stored. Everything else is inherited from the base theme or <b>auto-derived</b> (text-on-colour, hero gradient, dark-mode surfaces, accessible accent text, logo colours).</div></div>';
     return note + '<div class="mode-bar"><div class="seg" role="group" aria-label="Colour mode"><button data-act="edit-mode" data-m="light" class="' + (mode === 'light' ? 'on' : '') + '">' + ic('sun', 14) + ' Light</button><button data-act="edit-mode" data-m="dark" class="' + (mode === 'dark' ? 'on' : '') + '">' + ic('moon', 14) + ' Dark</button></div>' +
       '<span class="hint">Click a swatch or type a hex. ↺ returns a colour to inherited / auto.</span></div>' +
-      GROUPS.map((g) => '<section class="tgroup"><h4>' + g + '</h4>' + (byGroup[g] || []).map((n) => {
+      GROUPS.map((g) => '<section class="tgroup"><h3>' + g + '</h3>' + (byGroup[g] || []).map((n) => {
         const m = Q.TOKEN_META[n];
         return '<div class="trow" data-token="' + n + '"><label class="swatch" title="Pick colour"><i></i><input type="color" data-act="tok-color" aria-label="' + esc(m.label) + ' colour"></label>' +
           '<div class="tinfo"><b>' + esc(m.label) + '</b><small>' + esc(m.hint) + '</small></div>' +
@@ -290,7 +313,7 @@
     const res = resSel(), checks = Q.validate(res.tokens), fails = checks.filter((c) => !c.pass), blockers = fails.filter((c) => c.blocking);
     const rows = (mode) => checks.filter((c) => c.mode === mode).map((c) => {
       const T = res.tokens[mode];
-      return '<tr><td><span class="pair"><i style="background:' + T[c.bg] + ';color:' + T[c.fg] + '">Aa</i>' + esc(c.label) + '</span></td><td>' + c.min + ':1</td><td class="tnum"><b>' + c.ratio.toFixed(2) + '</b></td><td>' + (c.pass ? '<span class="chip live">Pass</span>' : '<span class="chip bad">' + (c.blocking ? 'Fails — blocks publish' : 'Advisory') + '</span>') + '</td></tr>';
+      return '<tr><td><span class="pair"><i style="background:' + c.bgHex + ';color:' + T[c.fg] + '">Aa</i>' + esc(c.label) + '</span></td><td>' + c.min + ':1</td><td class="tnum"><b>' + c.ratio.toFixed(2) + '</b></td><td>' + (c.pass ? '<span class="chip live">Pass</span>' : '<span class="chip bad">' + (c.blocking ? 'Fails — blocks publish' : 'Advisory') + '</span>') + '</td></tr>';
     }).join('');
     return '<div class="form" style="max-width:none">' +
       (blockers.length ? '<div class="note bad">' + ic('alert', 17) + '<div><b>' + blockers.length + ' pair' + (blockers.length > 1 ? 's' : '') + ' fail WCAG AA.</b> This theme cannot be published until they are fixed. <button class="btn gold sm" style="margin-inline-start:10px" data-act="autofix">Auto-fix</button></div></div>'
@@ -501,6 +524,7 @@
     $('#q').value = S.q;
     $$('#kindFilter button').forEach((b) => b.classList.toggle('on', b.dataset.kind === S.kind));
     renderAll();
+    if (S.pendingNotice) { const n = S.pendingNotice; S.pendingNotice = null; save(); toast('Seed themes updated: ' + n.upgraded + ' refreshed' + (n.added ? ', ' + n.added + ' new' : '') + (n.kept ? ', ' + n.kept + ' kept because you edited them (Reset to seed to take the new versions)' : ''), 'refresh'); }
   }
   boot();
   window.__studio = { get state() { return S; }, resolve: previewResolution };

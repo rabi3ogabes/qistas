@@ -55,7 +55,7 @@ window.QISTAS_SEED = {
           "ink": "#0B1F44",
           "inkMuted": "#4F5B76",
           "line": "#E3DCCB",
-          "positive": "#1B7F5C",
+          "positive": "#176E50",
           "warning": "#9A5700",
           "danger": "#B3261E",
           "tintSky": "#DDEDFA",

@@ -94,7 +94,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
 .mode-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; gap: 12px; }
 
 /* tokens */
-.tgroup { margin-bottom: 22px; } .tgroup h4 { margin: 0 0 6px; font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--q-ink-muted); font-weight: 600; }
+.tgroup { margin-bottom: 22px; } .tgroup h3 { margin: 0 0 6px; font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--q-ink-muted); font-weight: 600; }
 .trow { display: grid; grid-template-columns: 44px minmax(0, 1fr) 96px 78px 30px 46px; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid color-mix(in srgb, var(--q-line) 70%, transparent); }
 .trow:last-child { border-bottom: 0; }
 .swatch { position: relative; width: 44px; height: 44px; border-radius: 15px; overflow: hidden; box-shadow: 0 0 0 1px rgb(11 31 68 / .12) inset; cursor: pointer; display: block;

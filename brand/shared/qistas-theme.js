@@ -326,14 +326,22 @@
   }
 
   /* ------------------------------------------------------------------ validation */
+  /** Status text sits on a 14% tint of itself over the card (the Paid / Due / Overdue chips). */
+  const STATUS_TOKENS = [['positive', 'Paid chip text'], ['warning', 'Due chip text'], ['danger', 'Overdue chip text']];
+  const TINT = 0.14;
+  /** Every pair that must pass for one mode, with the background resolved to a colour. */
+  function pairsFor(T) {
+    const out = [];
+    CHECKS.forEach(([fg, bg, min, label, blocking]) => { if (T[fg] && T[bg]) out.push({ fg, bg, bgHex: T[bg], min, label, blocking }); });
+    STATUS_TOKENS.forEach(([s, label]) => { if (T[s] && T.surface) out.push({ fg: s, bg: s + 'Tint', bgHex: mix(T.surface, T[s], TINT), min: 4.5, label, blocking: true }); });
+    return out;
+  }
   function validate(tokens) {
     const out = [];
     MODES.forEach((mode) => {
-      const T = tokens[mode];
-      CHECKS.forEach(([fg, bg, min, label, blocking]) => {
-        if (!T[fg] || !T[bg]) return;
-        const ratio = contrast(T[fg], T[bg]);
-        out.push({ mode, fg, bg, min, label, blocking, ratio: Math.round(ratio * 100) / 100, pass: ratio >= min });
+      pairsFor(tokens[mode]).forEach((p) => {
+        const ratio = contrast(tokens[mode][p.fg], p.bgHex);
+        out.push({ mode, fg: p.fg, bg: p.bg, bgHex: p.bgHex, min: p.min, label: p.label, blocking: p.blocking, ratio: Math.round(ratio * 100) / 100, pass: ratio >= p.min });
       });
     });
     return out;
@@ -348,6 +356,16 @@
     const base = readableOn(bg);
     return name === 'inkMuted' ? ensureContrast(mix(base, bg, 0.3), bg, min + 0.05) : base;
   }
+  /** Status colours tint their own chip background, so darken/lighten until the chip text passes. */
+  function fixStatus(T, name, min) {
+    const [h, s, l] = hexToHsl(T[name]);
+    const dir = luminance(T.surface) > 0.4 ? -1 : 1;
+    for (let i = 0; i <= 60; i++) {
+      const c = hslToHex(h, s, clamp(l + dir * i * 0.01, 0, 1));
+      if (contrast(c, mix(T.surface, c, TINT)) >= min + 0.05) return c;
+    }
+    return T[name];
+  }
   /** Fix every failing pair by moving the foreground token. Returns { tokens, changed }. */
   function autoFix(tokens) {
     const fixed = JSON.parse(JSON.stringify(tokens));
@@ -355,13 +373,11 @@
     MODES.forEach((mode) => {
       const T = fixed[mode];
       for (let pass = 0; pass < 3; pass++) {
-        CHECKS.forEach(([fg, bg, min]) => {
-          if (!T[fg] || !T[bg]) return;
-          if (contrast(T[fg], T[bg]) < min) {
-            const before = T[fg];
-            T[fg] = fixForeground(fg, T[fg], T[bg], min);
-            if (T[fg] !== before) changed.push({ mode, token: fg, from: before, to: T[fg] });
-          }
+        pairsFor(T).forEach((p) => {
+          if (contrast(T[p.fg], p.bgHex) >= p.min) return;
+          const before = T[p.fg];
+          T[p.fg] = p.bg.endsWith('Tint') ? fixStatus(T, p.fg, p.min) : fixForeground(p.fg, T[p.fg], p.bgHex, p.min);
+          if (T[p.fg] !== before) changed.push({ mode, token: p.fg, from: before, to: T[p.fg] });
         });
       }
     });

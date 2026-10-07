@@ -6,6 +6,21 @@
   <title>Intro — Qistas</title>
   <meta name="description" content="The Qistas splash and onboarding, themeable by country and event, in five languages.">
   <link rel="icon" href="../logo/favicon.svg" type="image/svg+xml">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#0B1F44">
+  <link rel="canonical" href="https://qistas-puce.vercel.app/brand/intro/">
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/brand/logo/web/site.webmanifest">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Qistas">
+  <meta property="og:title" content="Qistas — Intro">
+  <meta property="og:description" content="The animated splash and onboarding in five languages, themed by country and event.">
+  <meta property="og:url" content="https://qistas-puce.vercel.app/brand/intro/">
+  <meta property="og:image" content="https://qistas-puce.vercel.app/brand/logo/qistas-og-card.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Geist:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Nastaliq+Urdu:wght@400;500;600&display=swap" rel="stylesheet">
@@ -31,14 +46,14 @@
               <button class="lang-btn" id="langBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Language"><span data-ic="globe"></span><span id="langCode">EN</span><span data-ic="chevronDown"></span></button>
               <ul class="lang-menu" id="langMenu" role="listbox" hidden></ul>
             </header>
-            <div class="slides" id="slides" tabindex="0" aria-label="Introduction"></div>
+            <div class="slides" id="slides" tabindex="0" role="region" aria-label="Introduction"></div>
             <footer class="app-foot">
               <div class="dots" id="dots" role="tablist" aria-label="Progress"></div>
               <div class="foot-actions" id="footActions"></div>
             </footer>
           </div>
 
-          <div class="layer splash" id="splash" aria-label="Qistas">
+          <div class="layer splash" id="splash" role="group" aria-label="Qistas">
             <div class="glow"></div>
             <div class="splash-logo" id="splashLogo"></div>
             <p class="splash-tag" id="splashTag"></p>

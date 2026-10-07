@@ -5,7 +5,7 @@ How the **admin changes any colour by country and by event, from the dashboard**
 | | |
 |---|---|
 | Admin UI | `brand/theme-studio/index.html` (prototype of the Admin Console page, Phase 5) |
-| Reference resolver | `brand/shared/qistas-theme.js` (22 tests: `node brand/tools/test-theme-runtime.cjs`) |
+| Reference resolver | `brand/shared/qistas-theme.js` (24 tests: `node brand/tools/test-theme-runtime.cjs`) |
 | Data | `supabase/migrations/20261007000100_theme_engine.sql` + `supabase/seed/theme_seed.sql` |
 | Seed source of truth | `brand/tokens/themes.seed.json` → `python brand/tools/sync-brand-data.py` |
 
@@ -113,7 +113,7 @@ Supabase Realtime pushes to connected clients (they re-fetch immediately); every
 
 ## 5. Guard-rails (why an admin cannot break the product)
 
-1. **Contrast gate** at publish: 22 pairs × 2 modes (text, muted text, text-on-primary/accent/action/interactive, accent text,
+1. **Contrast gate** at publish: 25 pairs × 2 modes (text, muted text, status chips, text-on-primary/accent/action/interactive, accent text,
    links, status colours, tile text, hero text, logo ≥ 3:1). Failing pairs block publish; **Auto-fix** repairs only the
    foregrounds (neutral text snaps back to brand navy/ivory; semantic colours keep their hue).
 2. **Client safeguard**: the same check runs on every resolved palette; if a bad palette ever slips through it is

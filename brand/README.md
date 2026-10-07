@@ -39,7 +39,7 @@ brand/
 ```bash
 python brand/tools/build_logo.py          # regenerates every SVG in brand/logo from geometry
 python brand/tools/sync-brand-data.py     # regenerates theme-data.js, qistas-logo.js and the SQL seed
-node   brand/tools/test-theme-runtime.cjs # 22 tests: layering, Hijri/Gregorian schedules, locked campaigns, contrast
+node   brand/tools/test-theme-runtime.cjs # 24 tests: layering, Hijri/Gregorian schedules, locked campaigns, contrast
 ```
 
 PNG/ICO exports (favicon set, app icon, OG card) are produced with the `logo-design` skill's `render_png.py`; the commands

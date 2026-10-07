@@ -36,7 +36,7 @@
     if (!COPY[state.lang]) state.lang = 'en';
   })();
 
-  const screen = $('#screen'), splash = $('#splash'), slidesEl = $('#slides');
+  const screen = $('#screen'), splash = $('#splash'), appLayer = $('#appLayer'), slidesEl = $('#slides');
   let anims = [], splashToken = 0;
 
   /* ---------------------------------------------------------------- theme */
@@ -126,6 +126,7 @@
     const token = ++splashToken;
     stopAnims(); buildSplash();
     screen.classList.add('on-splash'); splash.classList.remove('done');
+    splash.removeAttribute('inert'); appLayer.setAttribute('inert', '');   // splash is the only interactive layer while it plays
     const reduced = state.motion === 'reduced' || screen.classList.contains('reduced');
     if (reduced) {
       const logo = $('#splashLogo');
@@ -174,6 +175,7 @@
   function finishSplash() {
     stopAnims(); showFinal();
     splash.classList.add('done'); screen.classList.remove('on-splash');
+    splash.setAttribute('inert', ''); appLayer.removeAttribute('inert');             // hand focus back to the app
     setActive(state.slide, true);
   }
 
@@ -300,7 +302,7 @@
     screen.classList.toggle('reduced', state.motion === 'reduced');
     applyTheme(); renderLangMenu(); renderControls(); buildSlides(); fit();
     if (params.get('slide')) { state.slide = +params.get('slide'); }
-    if (params.get('splash') === '0') { buildSplash(); splash.classList.add('done'); screen.classList.remove('on-splash'); showFinal(); requestAnimationFrame(() => { goTo(state.slide, true); setActive(state.slide, true); }); }
+    if (params.get('splash') === '0') { buildSplash(); splash.classList.add('done'); splash.setAttribute('inert', ''); screen.classList.remove('on-splash'); showFinal(); requestAnimationFrame(() => { goTo(state.slide, true); setActive(state.slide, true); }); }
     else playSplash();
   }
   boot();
