@@ -1,0 +1,16 @@
+.git
+.env
+.env.*
+!.env.example
+database/*.sqlite
+node_modules
+vendor
+tests
+storage/logs/*
+storage/framework/cache/data/*
+storage/framework/sessions/*
+storage/framework/views/*
+public/build
+public/hot
+.phpunit.cache
+phpstan.neon

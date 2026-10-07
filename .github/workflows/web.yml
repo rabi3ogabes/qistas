@@ -1,0 +1,128 @@
+name: Web app
+
+# The Laravel app in web/: tests on SQLite and on a real PostgreSQL, code style, static analysis, and a build of the
+# production container image that is started and smoke-tested against a real PostgreSQL.
+
+on:
+  push:
+    branches: [main]
+    paths: ["web/**", "docker-compose.yml", ".github/workflows/web.yml"]
+  pull_request:
+    paths: ["web/**", "docker-compose.yml", ".github/workflows/web.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: web
+
+jobs:
+  tests-sqlite:
+    name: Tests, style and analysis (SQLite)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: intl, bcmath, mbstring, pdo_sqlite, zip
+          coverage: none
+          tools: composer:v2
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+      - run: cp .env.example .env && php artisan key:generate
+      - name: Pint (code style)
+        run: php vendor/bin/pint --test
+      - name: Larastan (static analysis)
+        run: php vendor/bin/phpstan analyse --no-progress
+      - name: Pest
+        run: php vendor/bin/pest
+
+  tests-postgres:
+    name: Tests (PostgreSQL, the database Supabase runs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: qistas
+          POSTGRES_PASSWORD: qistas
+          POSTGRES_DB: qistas_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U qistas -d qistas_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: "5432"
+      DB_DATABASE: qistas_test
+      DB_USERNAME: qistas
+      DB_PASSWORD: qistas
+      DB_SSLMODE: disable
+      DB_URL: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: intl, bcmath, mbstring, pdo_pgsql, zip
+          coverage: none
+          tools: composer:v2
+      - run: composer install --no-interaction --no-progress --prefer-dist
+      - run: cp .env.example .env && php artisan key:generate
+      - name: The migrations run from nothing, and again (a no-op)
+        run: php artisan migrate:fresh --force && php artisan migrate --force
+      - name: Pest on PostgreSQL
+        run: php vendor/bin/pest
+
+  container:
+    name: Production image starts and serves pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the image
+        run: docker build -f Dockerfile.vercel -t qistas-web .
+
+      - name: Start PostgreSQL and the app
+        run: |
+          docker network create qistas
+          docker run -d --name db --network qistas -e POSTGRES_USER=qistas -e POSTGRES_PASSWORD=qistas -e POSTGRES_DB=qistas postgres:17
+          for i in $(seq 1 30); do docker exec db pg_isready -U qistas -d qistas && break; sleep 2; done
+          docker run -d --name app --network qistas -p 8080:8080 \
+            -e APP_KEY="base64:$(openssl rand -base64 32)" \
+            -e DB_URL=postgresql://qistas:qistas@db:5432/qistas -e DB_SSLMODE=disable -e DB_EMULATE_PREPARES=false \
+            -e SESSION_SECURE_COOKIE=false -e TRUSTED_PROXIES= -e APP_URL=http://localhost:8080 \
+            qistas-web
+          for i in $(seq 1 45); do curl -fsS http://localhost:8080/up >/dev/null 2>&1 && break; sleep 2; done
+
+      - name: Smoke test
+        run: |
+          set -e
+          for path in /up / /pricing /terms /privacy /login /register /sitemap.xml /robots.txt; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:8080$path")
+            echo "$path -> $code"
+            [ "$code" = "200" ] || { echo "::error::$path answered $code"; exit 1; }
+          done
+          # The app is for signed-in people only; a guest is sent to sign in, never shown it.
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/app)
+          echo "/app -> $code"
+          [ "$code" = "302" ] || { echo "::error::/app answered $code instead of redirecting to sign in"; exit 1; }
+          # Built assets are served.
+          curl -fsS http://localhost:8080/ | grep -o '/build/assets/[^"]*\.css' | head -1 | xargs -I{} curl -fsS -o /dev/null http://localhost:8080{}
+          # The schema was created by the container on start.
+          docker exec db psql -U qistas -d qistas -tAc "select count(*) from migrations" | grep -E '^[1-9]'
+
+      - name: App logs
+        if: always()
+        run: docker logs app 2>&1 | tail -60

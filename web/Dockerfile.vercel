@@ -1,0 +1,64 @@
+# The production image of the Qistas web app (website, signed-in app, admin and API in one Laravel app).
+#
+# One image for every host: Vercel runs it as a container Function (that is why it is called Dockerfile.vercel),
+# `docker compose up` runs it on a laptop, and any container host (Render, Fly, Cloud Run, a VPS) can run it.
+# It listens on $PORT. Nothing is stored inside it: the database holds the data, sessions and cache.
+
+# ---------- 1. Front-end assets (Tailwind + Vite). Needs Node only here, never at runtime ----------
+FROM node:22-alpine AS assets
+WORKDIR /build
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY vite.config.js ./
+COPY resources ./resources
+COPY public ./public
+RUN npm run build
+
+# ---------- 2. PHP with the extensions the app needs ----------
+FROM dunglas/frankenphp:1-php8.4-bookworm AS base
+RUN cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
+    && install-php-extensions intl zip bcmath pdo_pgsql opcache
+WORKDIR /app
+
+# ---------- 3. PHP dependencies and the application ----------
+FROM base AS dependencies
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --no-interaction --no-progress --no-scripts --optimize-autoloader --prefer-dist
+COPY . .
+COPY --from=assets /build/public/build ./public/build
+RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
+    && composer dump-autoload --no-dev --classmap-authoritative \
+    && php artisan package:discover --ansi \
+    && php artisan view:cache
+
+# ---------- 4. What actually runs ----------
+FROM base AS runtime
+COPY --from=dependencies --chown=www-data:www-data /app /app
+COPY --chown=www-data:www-data Caddyfile /etc/frankenphp/Caddyfile
+COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/qistas-entrypoint
+
+RUN setcap CAP_NET_BIND_SERVICE=+eip /usr/local/bin/frankenphp \
+    && mkdir -p /data/qistas \
+    && chown -R www-data:www-data /config/caddy /data/caddy /data/qistas
+
+# Defaults suit the standard target: Vercel + a Supabase (Postgres) database. Secrets (APP_KEY, DB_URL) are never
+# baked in: set them as environment variables where the image runs. docker-compose.yml overrides these for a laptop.
+ENV PORT=8080 \
+    APP_ENV=production \
+    APP_DEBUG=false \
+    LOG_CHANNEL=stderr \
+    DB_CONNECTION=pgsql \
+    DB_SSLMODE=require \
+    DB_EMULATE_PREPARES=true \
+    SESSION_DRIVER=database \
+    SESSION_SECURE_COOKIE=true \
+    CACHE_STORE=database \
+    QUEUE_CONNECTION=sync \
+    TRUSTED_PROXIES='*' \
+    AUTO_MIGRATE=true
+
+USER www-data
+EXPOSE 8080
+ENTRYPOINT ["qistas-entrypoint"]
+CMD ["frankenphp", "run", "--config", "/etc/frankenphp/Caddyfile"]

@@ -6,6 +6,7 @@ use App\Models\Transaction;
 use App\Models\TransactionAllocation;
 use Illuminate\Database\Eloquent\MassAssignmentException;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 
 beforeEach(function () {
     $this->tenant = workspaceOn();
@@ -41,9 +42,10 @@ it('cannot be mass-assigned from a request', function () {
 it('has a reversal recorded at most once per payment', function () {
     $reversal = app(VoidTransaction::class)->handle($this->transaction);
 
-    expect(fn () => asTenant($this->tenant, fn () => (new Transaction)->forceFill([
+    // Inside its own savepoint: on PostgreSQL a failed statement poisons the whole surrounding transaction.
+    expect(fn () => DB::transaction(fn () => asTenant($this->tenant, fn () => (new Transaction)->forceFill([
         'contract_id' => $this->contract->id, 'customer_id' => $this->contract->customer_id, 'type' => 'reversal', 'method' => 'cash',
         'amount' => '-150.00', 'paid_at' => now(), 'reverses_transaction_id' => $this->transaction->id,
-    ])->save()))->toThrow(QueryException::class);
+    ])->save())))->toThrow(QueryException::class);
     expect($reversal->reverses_transaction_id)->toBe($this->transaction->id);
-});
+})->group('db-errors'); // makes the database raise an error: left out when running against the PGlite stand-in

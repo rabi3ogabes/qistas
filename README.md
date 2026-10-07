@@ -3,7 +3,26 @@
 *The just balance.* A premium instalment, lending and accounting platform for merchants and lenders, Arabic-first and
 available in Arabic, English, French, Spanish and Urdu.
 
-**Live test site:** https://qistas-puce.vercel.app/ (static, no sign-in, nothing leaves your browser)
+**Brand prototype (static):** https://qistas-puce.vercel.app/ — the animated intro, Theme Studio and brand system. It is not the app.
+
+## The app: website, dashboard and API
+
+One Laravel application in [`web/`](web/): the public website (home with a live instalment calculator, pricing, legal pages
+in five languages), the signed-in app (dashboard, customers, contracts with a live schedule preview, payments with an
+immutable ledger, plan limits and upgrade prompts), and, in progress, the admin console and REST API. Free accounts have
+a minimal feature set; Pro unlocks everything; an admin chooses which feature belongs to which plan.
+
+**Run it on your computer** (needs Docker and Git):
+
+```bash
+git clone https://github.com/rabi3ogabes/qistas.git
+cd qistas
+docker compose up --build        # then open http://localhost:8080  (demo login is printed in docs/DEPLOY.md)
+```
+
+**Put it online** with Vercel + Supabase: [docs/DEPLOY.md](docs/DEPLOY.md). The mobile app (Flutter) is not built yet.
+
+### Brand prototypes
 
 | Prototype | Live | What to try |
 |---|---|---|
@@ -15,15 +34,17 @@ available in Arabic, English, French, Spanish and Urdu.
 
 | Done and verified | Not built yet |
 |---|---|
-| Name, Plumb q logo kit, app icons and favicon set | Flutter app (customers, contracts, schedules, payments, reports) |
-| Animated intro and onboarding in five languages, RTL | Laravel API |
-| Theme engine: base → country → event → merchant accent, Hijri schedules, WCAG gate (24 tests) | Supabase database (migration written, **not executed**) |
-| Theme Studio prototype with preview, versions, rollback | Auth, billing, reminders, backups, AI assistant |
+| Name, Plumb q logo kit, app icons and favicon set | Flutter mobile app |
+| Laravel web app: website, sign-up and sign-in with 2FA, customers, contracts, payments, plans and limits, five languages, 895 tests also green on PostgreSQL | Admin console, REST API, Stripe billing, reports and exports |
+| Theme engine: base → country → event → merchant accent, Hijri schedules, WCAG gate (24 tests) | Hosted app on Vercel + Supabase (ready to deploy: see docs/DEPLOY.md) |
+| Theme Studio prototype with preview, versions, rollback | Reminders, backups, AI assistant |
 | Production deployment: security headers + CSP, redirects, 404, CI, smoke tests | Native-speaker review of Arabic/Urdu/French/Spanish copy; trademark search |
 
 ## Repository map
 
 ```
+web/          the Laravel app (website, /app, admin, API) · Dockerfile.vercel · tests · lang/ (five languages)
+docker-compose.yml                                                    run the whole app locally with one command
 index.html · 404.html · robots.txt · vercel.json · .vercelignore      the deployed site's root
 brand/        index.html (brand system) · intro/ · theme-studio/ · landing/ · shared/ (theme resolver, logo, preview, icons)
               logo/ (SVG masters, web icons) · tokens/ (themes.seed.json is the source of truth) · tools/ (build + tests)

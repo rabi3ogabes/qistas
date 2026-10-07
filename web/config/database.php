@@ -97,6 +97,9 @@ return [
             'prefix_indexes' => true,
             'search_path' => 'public',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
+            // Behind a connection pooler in transaction mode (Supabase, port 6543) a server-side prepared statement
+            // may be run on a different connection than the one that prepared it. Emulated prepares avoid that.
+            'options' => env('DB_EMULATE_PREPARES', false) ? [PDO::ATTR_EMULATE_PREPARES => true] : [],
         ],
 
         'sqlsrv' => [

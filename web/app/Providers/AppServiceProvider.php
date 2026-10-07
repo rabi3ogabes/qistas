@@ -13,6 +13,7 @@ use App\Tenancy\TenantScope;
 use Illuminate\Contracts\Validation\UncompromisedVerifier;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Client\Factory as HttpFactory;
+use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Lang;
@@ -53,6 +54,12 @@ class AppServiceProvider extends ServiceProvider
         // A mistyped or malicious attribute fails loudly in development and tests instead of vanishing.
         // In production unfillable attributes are still never written; they are just not reported as errors.
         Model::preventSilentlyDiscardingAttributes(! $this->app->isProduction());
+
+        // Behind Vercel or a load balancer the request arrives over plain HTTP from the proxy; trusting its
+        // X-Forwarded-* headers is what lets the app know the visitor used https and what their address is.
+        if (($proxies = config('qistas.trusted_proxies')) !== null) {
+            TrustProxies::at($proxies);
+        }
 
         // The single password policy for sign-up, reset and change. Breach lookups use k-anonymity (only the
         // first 5 characters of a SHA-1 hash leave the server) and are skipped in the test suite.

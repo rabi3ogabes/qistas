@@ -23,7 +23,7 @@ return new class extends Migration
             $table->timestamp('paid_at');
             $table->text('note')->nullable();
             $table->string('idempotency_key', 100)->nullable();
-            $table->foreignUuid('reverses_transaction_id')->nullable()->constrained('transactions');
+            $table->uuid('reverses_transaction_id')->nullable(); // foreign key added below, once the table has its key
             $table->foreignUuid('created_by_user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamp('created_at')->useCurrent();
 
@@ -33,6 +33,12 @@ return new class extends Migration
             $table->unique('reverses_transaction_id');
             $table->index(['tenant_id', 'paid_at']);
             $table->index('contract_id');
+        });
+
+        // A reversal points back at the payment it undoes. Added after create(): PostgreSQL adds a table's primary key
+        // after the constraints written inside create(), and a foreign key to the table's own key needs that key first.
+        Schema::table('transactions', function (Blueprint $table) {
+            $table->foreign('reverses_transaction_id')->references('id')->on('transactions');
         });
 
         // Which instalments each transaction paid (reversals carry the same amounts, negated), so that an

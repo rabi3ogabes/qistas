@@ -1,0 +1,56 @@
+# Run the whole Qistas web app on your own computer with one command:
+#
+#     docker compose up --build
+#
+# then open http://localhost:8080 . Sign in as demo@qistas.test (password: Demo!Passw0rd2026) to look around a demo
+# business, or create your own free account. Stop with Ctrl-C; `docker compose down -v` also erases the data.
+#
+# This file is for a laptop. It uses a throw-away database password and a demo workspace: do not expose it to
+# the internet. For a real deployment see docs/DEPLOY.md.
+
+name: qistas
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: qistas
+      POSTGRES_PASSWORD: qistas-local-only
+      POSTGRES_DB: qistas
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qistas -d qistas"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build:
+      context: ./web
+      dockerfile: Dockerfile.vercel
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      APP_ENV: local
+      APP_URL: http://localhost:8080
+      QISTAS_ALLOW_GENERATED_KEY: "1"
+      AUTO_MIGRATE: "true"
+      DEMO_DATA: "true"
+      DB_CONNECTION: pgsql
+      DB_URL: postgresql://qistas:qistas-local-only@db:5432/qistas
+      DB_SSLMODE: prefer
+      DB_EMULATE_PREPARES: "false"
+      SESSION_SECURE_COOKIE: "false"
+      TRUSTED_PROXIES: ""
+      MAIL_MAILER: log
+    volumes:
+      - appdata:/data/qistas
+
+volumes:
+  database:
+  appdata:

@@ -63,7 +63,7 @@ it('rolls everything back when any step fails', function () {
 
     expect(fn () => app(RegisterTenantOwner::class)->handle(registrationData()))->toThrow(Exception::class);
     expect(User::count())->toBe(1);
-});
+})->group('db-errors'); // a duplicate e-mail makes the database raise an error: left out on the PGlite stand-in
 
 it('does not let mass assignment grant platform privileges or change status', function () {
     expect(fn () => User::create([

@@ -48,6 +48,15 @@ return [
         'ip_allowlist' => array_values(array_filter(array_map('trim', explode(',', (string) env('ADMIN_IP_ALLOWLIST', ''))))),
     ],
 
+    /*
+    | Who may tell the app about the original request (https, client address) through X-Forwarded-* headers.
+    | Null trusts nobody. "*" trusts any proxy: right behind Vercel or a load balancer that is the only way in,
+    | wrong when the app is reachable directly. Or a comma-separated list of proxy addresses.
+    */
+    'trusted_proxies' => env('TRUSTED_PROXIES') === null || env('TRUSTED_PROXIES') === ''
+        ? null
+        : (env('TRUSTED_PROXIES') === '*' ? '*' : array_values(array_filter(array_map('trim', explode(',', (string) env('TRUSTED_PROXIES')))))),
+
     'security' => [
         'login_attempts_per_minute' => 5,
         'api_token_days' => 30,
