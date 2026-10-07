@@ -47,6 +47,12 @@ class Transaction extends Model
         return $this->belongsTo(Customer::class)->withTrashed();
     }
 
+    /** @return BelongsTo<User, $this> who took the money; null for lines written by the system */
+    public function createdBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by_user_id');
+    }
+
     /** @return HasMany<TransactionAllocation, $this> */
     public function allocations(): HasMany
     {

@@ -41,6 +41,10 @@ it('reads an amount typed with Arabic-Indic digits', function () {
     expect($validator->passes())->toBeTrue()->and($validator->getData()['amount'])->toBe('150.50');
 });
 
+it('accepts a well-formed idempotency key and rejects a malformed one', function (string $key, bool $valid) {
+    expect(validatePayment(['amount' => '10', 'method' => 'cash', 'idempotency_key' => $key])->passes())->toBe($valid);
+})->with([['web-3f2a-9c', true], ['a.b:c_d-e', true], [str_repeat('k', 100), true], [str_repeat('k', 101), false], ['has space', false], ['semi;colon', false]]);
+
 it('only offers fields a client may set', function () {
-    expect(array_keys((new PaymentRequest)->rules()))->toEqualCanonicalizing(['amount', 'method', 'paid_at', 'note']);
+    expect(array_keys((new PaymentRequest)->rules()))->toEqualCanonicalizing(['amount', 'method', 'paid_at', 'note', 'idempotency_key']);
 });

@@ -122,3 +122,23 @@ function makeAccount(array $user = [], array $tenant = []): array
 
     return [$owner, $workspace];
 }
+
+/**
+ * A signed-up business owner on the Free plan.
+ *
+ * @param  array<string, mixed>  $tenant
+ * @return array{0: User, 1: Tenant}
+ */
+function owner(array $tenant = []): array
+{
+    return makeAccount(tenant: $tenant);
+}
+
+/** A new user who belongs to $tenant with the given role (owner, manager, accountant, collector or viewer). */
+function memberAs(string $role, Tenant $tenant): User
+{
+    $user = User::factory()->create();
+    $tenant->users()->attach($user->id, ['role' => $role]);
+
+    return $user;
+}

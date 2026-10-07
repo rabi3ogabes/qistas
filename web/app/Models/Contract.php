@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Support\Digits;
 use App\Tenancy\BelongsToTenant;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 /**
  * An agreement to repay a purchase in instalments (or a cash sale, which is a single instalment).
@@ -30,10 +33,56 @@ class Contract extends Model
 {
     use BelongsToTenant, HasUuids;
 
+    /** The lists a person can choose between. "late" is a running contract with an instalment past its date. */
+    public const VIEWS = ['active', 'late', 'settled', 'cancelled', 'all'];
+
     /** The human-readable reference shown to people, e.g. C-0042. */
     public function reference(): string
     {
         return 'C-'.str_pad((string) $this->number, 4, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * One of VIEWS; anything else means the default, running contracts.
+     *
+     * @param  Builder<Contract>  $query
+     * @return Builder<Contract>
+     */
+    public function scopeInView(Builder $query, string $view): Builder
+    {
+        return match ($view) {
+            'all' => $query,
+            'late' => $query->where('status', 'active')->whereExists(
+                fn ($overdue) => $overdue->select(DB::raw(1))->from('installments')
+                    ->whereColumn('installments.contract_id', 'contracts.id')
+                    ->where('installments.status', '!=', 'paid')
+                    ->whereDate('installments.due_date', '<', today()),
+            ),
+            'settled', 'cancelled' => $query->where('status', $view),
+            default => $query->where('status', 'active'),
+        };
+    }
+
+    /**
+     * By reference ("C-0042", "c0042" or a short number such as "42") or by anything that finds the customer.
+     * Up to five digits are a contract number; a longer run of digits is a phone number.
+     *
+     * @param  Builder<Contract>  $query
+     * @return Builder<Contract>
+     */
+    public function scopeSearch(Builder $query, ?string $term): Builder
+    {
+        $term = trim(Digits::toAscii((string) $term));
+
+        if ($term === '') {
+            return $query;
+        }
+
+        if (preg_match('/^(?:c-?\s*)?0*(\d{1,6})$/i', $term, $match) && (preg_match('/^c/i', $term) || strlen($term) <= 5)) {
+            return $query->where('number', (int) $match[1]);
+        }
+
+        return $query->whereIn('customer_id', Customer::query()->withTrashed()->search($term)->select('id'));
     }
 
     /** @return BelongsTo<Customer, $this> */

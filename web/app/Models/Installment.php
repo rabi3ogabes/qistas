@@ -65,6 +65,17 @@ class Installment extends Model
         return $this->status !== 'paid' && $this->due_date->lt($today->copy()->startOfDay());
     }
 
+    /** What a person sees: paid, overdue (past its date), partial (part-paid, not yet due) or upcoming. */
+    public function displayState(?CarbonInterface $today = null): string
+    {
+        return match (true) {
+            $this->status === 'paid' => 'paid',
+            $this->isOverdue($today) => 'overdue',
+            $this->status === 'partial' => 'partial',
+            default => 'upcoming',
+        };
+    }
+
     protected function casts(): array
     {
         return [

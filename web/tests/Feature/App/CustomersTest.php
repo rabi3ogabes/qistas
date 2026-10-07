@@ -4,23 +4,8 @@ use App\Actions\RecordPayment;
 use App\Models\Customer;
 use App\Models\Plan;
 use App\Models\Tenant;
-use App\Models\User;
 use App\Support\Format;
 use Illuminate\Support\Facades\DB;
-
-/** @return array{0: User, 1: Tenant} an owner on the Free plan with a workspace */
-function owner(array $tenant = []): array
-{
-    return makeAccount(tenant: $tenant);
-}
-
-function memberAs(string $role, Tenant $tenant): User
-{
-    $user = User::factory()->create();
-    $tenant->users()->attach($user->id, ['role' => $role]);
-
-    return $user;
-}
 
 function customerPayload(array $overrides = []): array
 {

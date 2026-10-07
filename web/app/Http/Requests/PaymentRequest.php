@@ -5,7 +5,9 @@ namespace App\Http\Requests;
 use App\Http\Requests\Concerns\MoneyRules;
 use App\Models\Transaction;
 use App\Support\Digits;
+use Carbon\CarbonInterface;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 
 /**
@@ -29,7 +31,30 @@ class PaymentRequest extends FormRequest
             'method' => ['required', 'string', Rule::in(config('qistas.payment_methods'))],
             'paid_at' => ['nullable', 'date', 'before_or_equal:now'],
             'note' => ['nullable', 'string', 'max:1000'],
+            // Makes a retry (a double click, a flaky connection) record one payment, not two.
+            'idempotency_key' => ['nullable', 'string', 'regex:/^[A-Za-z0-9_.:\-]{1,100}$/'],
         ];
+    }
+
+    /**
+     * When the money was received. A date on its own means that day: right now if it is today, otherwise the
+     * end of the day (so it never lands in the future). Null means now.
+     */
+    public function paidAt(): ?CarbonInterface
+    {
+        $value = $this->validated('paid_at');
+
+        if ($value === null) {
+            return null;
+        }
+
+        $moment = Carbon::parse($value);
+
+        if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+            return $moment;
+        }
+
+        return $moment->isToday() ? now() : $moment->endOfDay();
     }
 
     protected function prepareForValidation(): void
@@ -43,6 +68,7 @@ class PaymentRequest extends FormRequest
             'method' => $text('method'),
             'paid_at' => $text('paid_at'),
             'note' => $text('note'),
+            'idempotency_key' => $text('idempotency_key'),
         ]);
     }
 }

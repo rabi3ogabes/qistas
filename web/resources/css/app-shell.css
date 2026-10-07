@@ -56,7 +56,7 @@
     .notice form { margin: 0; }
 
     .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
-    .page-head h1 { margin: 0; font-size: clamp(1.75rem, 4vw, 2.25rem); }
+    .page-head h1 { margin: 0; font-size: clamp(1.75rem, 4vw, 2.25rem); font-variant-numeric: lining-nums; }
     .page-sub { margin: .25rem 0 0; color: var(--q-ink-muted); font-size: .9375rem; }
     .page-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
 
@@ -147,4 +147,63 @@
     .confirm > summary { list-style: none; width: fit-content; cursor: pointer; }
     .confirm > summary::-webkit-details-marker { display: none; }
     .confirm form { margin-top: .75rem; }
+
+    /* ---------- Contracts and payments ---------- */
+    .contents { display: contents; }
+    .muted { color: var(--q-ink-muted); }
+    .cell-sub { display: block; font-size: .8125rem; color: var(--q-ink-muted); }
+    .line-title { display: inline-flex; align-items: center; gap: .5rem; flex-wrap: wrap; font-weight: 600; }
+    .voided { color: var(--q-ink-muted); text-decoration: line-through; text-decoration-thickness: 1px; }
+    .confirm-inline { padding-top: .5rem; border-top: 0; }
+    .confirm-inline > summary { font-size: .8125rem; }
+    tr[data-line="reversal"] .line-title { color: var(--q-danger); }
+
+    /* Filter tabs: a row of lists with their counts, scrolling sideways on a phone rather than wrapping. */
+    .tabs { display: flex; gap: .25rem; overflow-x: auto; scrollbar-width: none; padding-bottom: 1px; border-bottom: 1px solid var(--q-line); }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tabs-item {
+        display: inline-flex; align-items: center; gap: .5rem; flex: none; min-height: 2.75rem; padding: .5rem .875rem; margin-bottom: -1px;
+        border-bottom: 2px solid transparent; color: var(--q-ink-muted); font-size: .9375rem; font-weight: 500; text-decoration: none; white-space: nowrap;
+    }
+    .tabs-item[aria-current="page"] { border-bottom-color: var(--q-accent); color: var(--q-ink); font-weight: 600; }
+    .tabs-count { padding: 0 .4375rem; border-radius: 999px; background: var(--q-surface-alt); font-size: .75rem; line-height: 1.5; }
+    @media (hover: hover) and (pointer: fine) { .tabs-item:hover { color: var(--q-ink); } }
+
+    /* The three headline figures of one contract: still owed leads, then paid and total side by side. */
+    .summary-trio .figure:last-child { grid-column: auto; }
+    .summary-trio .figure-lead .figure-value { font-size: clamp(1.375rem, 3vw, 1.875rem); }
+    @media (min-width: 720px) {
+        .summary-trio { grid-template-columns: 1.3fr 1fr 1fr; }
+        .summary-trio .figure-lead { grid-column: auto; }
+    }
+
+    /* Terms read as a grid of facts when the card is full width, and as one column in the narrow side card. */
+    .contract-layout .facts { grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); }
+
+    /* Opening a contract: the fields on the left, the plan they produce on the right and following the page. */
+    .planner { display: grid; gap: 1.25rem; align-items: start; }
+    @media (min-width: 1360px) {
+        .planner { grid-template-columns: minmax(0, 1fr) minmax(0, 24rem); grid-template-areas: "fields preview" "actions preview"; }
+        .planner-fields { grid-area: fields; }
+        .planner-preview { grid-area: preview; position: sticky; top: 1.5rem; }
+        .planner-actions { grid-area: actions; }
+    }
+    .planner-preview[data-loading="true"] { opacity: .7; transition: opacity var(--q-t-fast) var(--q-ease-out); }
+    .planner .calc-schedule { max-height: 16rem; }
+    .planner .calc-balance { margin: 0; }
+
+    /* Two big choices side by side (instalments or cash): radio buttons dressed as selectable cards. */
+    .choice { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .625rem; margin: 0; padding: 0; border: 0; }
+    .choice > legend { grid-column: 1 / -1; padding: 0; margin-bottom: .375rem; }
+    @media (max-width: 479px) { .choice { grid-template-columns: minmax(0, 1fr); } }
+    .choice-item {
+        display: flex; align-items: flex-start; gap: .75rem; padding: .875rem 1rem; border: 1px solid color-mix(in srgb, var(--q-ink) 22%, var(--q-line));
+        border-radius: var(--q-r-md); background: var(--q-surface); cursor: pointer;
+        transition: border-color var(--q-t-fast) var(--q-ease-out), background-color var(--q-t-fast) var(--q-ease-out);
+    }
+    .choice-item input { flex: none; width: 1.125rem; height: 1.125rem; margin-top: .2rem; accent-color: var(--q-action); }
+    .choice-item span { display: grid; gap: .125rem; }
+    .choice-item small { color: var(--q-ink-muted); font-size: .8125rem; }
+    .choice-item:has(input:checked) { border-color: var(--q-accent); background: color-mix(in srgb, var(--q-accent) 9%, var(--q-surface)); }
+    .choice-item:has(input:focus-visible) { outline: 2px solid var(--q-info); outline-offset: 2px; }
 }

@@ -54,17 +54,21 @@ class ContractRequest extends FormRequest
             return is_scalar($raw) && trim((string) $raw) !== '' ? Digits::toAscii(trim((string) $raw)) : null;
         };
 
+        // A cash sale has no plan: whatever instalment fields came along (a form that hid them, an API client
+        // that sent them anyway) are not part of it and must not be able to fail it.
+        $plan = fn (string $key): ?string => $value('type') === 'cash' ? null : $value($key);
+
         $this->merge([
             'customer_id' => $value('customer_id'),
             'type' => $value('type'),
             'principal' => $value('principal'),
-            'down_payment' => $value('down_payment'),
-            'markup_type' => $value('markup_type'),
-            'markup_value' => $value('markup_value'),
-            'installment_count' => $value('installment_count'),
-            'frequency' => $value('frequency'),
+            'down_payment' => $plan('down_payment'),
+            'markup_type' => $plan('markup_type'),
+            'markup_value' => $plan('markup_value'),
+            'installment_count' => $plan('installment_count'),
+            'frequency' => $plan('frequency'),
             'start_date' => $value('start_date'),
-            'first_due_date' => $value('first_due_date'),
+            'first_due_date' => $plan('first_due_date'),
             'notes' => is_scalar($this->input('notes')) && trim((string) $this->input('notes')) !== '' ? trim((string) $this->input('notes')) : null,
         ]);
     }

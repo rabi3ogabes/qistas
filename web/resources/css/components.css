@@ -57,7 +57,7 @@
 
     /* ---------- Form fields ---------- */
     .form { display: grid; gap: 1rem; }
-    .field { display: grid; gap: .375rem; }
+    .field { display: grid; align-content: start; gap: .375rem; }
     .field > label, .field-label { font-size: .875rem; font-weight: 600; color: var(--q-ink); }
     .field input:not([type="checkbox"]):not([type="radio"]), .field select, .field textarea {
         width: 100%;
