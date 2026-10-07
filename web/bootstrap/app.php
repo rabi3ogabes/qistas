@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Middleware\EnsureAccountActive;
+use App\Http\Middleware\EnsurePlatformAdmin;
+use App\Http\Middleware\RequireTwoFactorForAdmins;
 use App\Http\Middleware\SetCurrentTenant;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -14,7 +17,20 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->alias(['tenant' => SetCurrentTenant::class]);
+        // Signed-in people who open a guest page (sign-in, sign-up) go to the app, not to the site root.
+        $middleware->redirectUsersTo(fn () => config('fortify.home'));
+
+        $middleware->alias([
+            'tenant' => SetCurrentTenant::class,
+            'account.active' => EnsureAccountActive::class,
+        ]);
+
+        // Everything under /admin: signed-in, not suspended, platform admin (else 404), second factor confirmed.
+        $middleware->group('admin', [
+            EnsureAccountActive::class,
+            EnsurePlatformAdmin::class,
+            RequireTwoFactorForAdmins::class,
+        ]);
 
         // The workspace must be known before route-model binding, or another workspace's ids would resolve.
         $middleware->prependToPriorityList(before: SubstituteBindings::class, prepend: SetCurrentTenant::class);

@@ -13,6 +13,9 @@ return [
 
     'currency_default' => env('QISTAS_DEFAULT_CURRENCY', 'USD'),
 
+    // Shown to suspended users. Null hides it.
+    'support_email' => env('QISTAS_SUPPORT_EMAIL'),
+
     /*
     | Country (ISO 3166-1 alpha-2) => the currency a new workspace starts with. Unknown countries get
     | currency_default. Amounts are handled to 2 decimals; 3-decimal currencies (KWD, BHD, OMR, ...) are a

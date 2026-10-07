@@ -20,7 +20,8 @@ final class SetCurrentTenant
         $user = $request->user();
 
         if ($user !== null) {
-            $tenant = $user->tenants()->orderBy('tenant_users.created_at')->orderBy('tenants.id')->first();
+            $tenant = $user->tenants()->where('tenants.status', 'active')
+                ->orderBy('tenant_users.created_at')->orderBy('tenants.id')->first();
             abort_if($tenant === null, 403, 'This account does not belong to a workspace.');
             $this->current->set($tenant);
         }

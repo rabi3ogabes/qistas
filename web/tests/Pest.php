@@ -1,50 +1,35 @@
 <?php
 
+use App\Models\Tenant;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /*
-|--------------------------------------------------------------------------
-| Test Case
-|--------------------------------------------------------------------------
-|
-| The closure you provide to your test functions is always bound to a specific PHPUnit test
-| case class. By default, that class is "PHPUnit\Framework\TestCase". Of course, you may
-| need to change it using the "pest()" function to bind different classes or traits.
-|
+| Feature tests hit the database (SQLite in memory, rolled back per test). Vite assets are not built in
+| the test run, so views render without the manifest.
 */
 
 pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)
+    ->beforeEach(fn () => $this->withoutVite())
     ->in('Feature');
 
-/*
-|--------------------------------------------------------------------------
-| Expectations
-|--------------------------------------------------------------------------
-|
-| When you're writing tests, you often need to check that values meet certain conditions. The
-| "expect()" function gives you access to a set of "expectations" methods that you can use
-| to assert different things. Of course, you may extend the Expectation API at any time.
-|
-*/
+/** The password every test account is created with; it satisfies the production password rules. */
+const TEST_PASSWORD = 'S3cure!Passw0rd';
 
-expect()->extend('toBeOne', function () {
-    return $this->toBe(1);
-});
-
-/*
-|--------------------------------------------------------------------------
-| Functions
-|--------------------------------------------------------------------------
-|
-| While Pest is very powerful out-of-the-box, you may have some testing code specific to your
-| project that you don't want to repeat in every file. Here you can also expose helpers as
-| global functions to help you to reduce the number of lines of code in your test files.
-|
-*/
-
-function something()
+/**
+ * A signed-up business owner: a user with a known password who owns one workspace.
+ *
+ * @param  array<string, mixed>  $user
+ * @param  array<string, mixed>  $tenant
+ * @return array{0: User, 1: Tenant}
+ */
+function makeAccount(array $user = [], array $tenant = []): array
 {
-    // ..
+    $workspace = Tenant::factory()->create($tenant);
+    $owner = User::factory()->create(array_merge(['password' => TEST_PASSWORD], $user));
+    $workspace->users()->attach($owner->id, ['role' => 'owner']);
+
+    return [$owner, $workspace];
 }

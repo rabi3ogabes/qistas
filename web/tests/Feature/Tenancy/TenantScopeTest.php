@@ -86,6 +86,16 @@ it('sets the current tenant from the signed-in user', function () {
     $this->actingAs($user)->get('/_test/whoami')->assertOk()->assertSee('A');
 });
 
+it('skips a suspended workspace and works in the next active one', function () {
+    [$suspended, $user] = tenantWithOwner('Suspended');
+    $suspended->forceFill(['status' => 'suspended'])->save();
+    $active = Tenant::factory()->create(['name' => 'Active']);
+    $active->users()->attach($user->id, ['role' => 'staff']);
+    Route::middleware(['web', 'auth', 'tenant'])->get('/_test/whoami', fn (CurrentTenant $t) => $t->get()->name);
+
+    $this->actingAs($user)->get('/_test/whoami')->assertOk()->assertSee('Active');
+});
+
 it('answers 403 when a signed-in user belongs to no workspace', function () {
     Route::middleware(['web', 'auth', 'tenant'])->get('/_test/whoami', fn (CurrentTenant $t) => $t->get()->name);
 
