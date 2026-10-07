@@ -6,6 +6,7 @@ it('turns Arabic-Indic and Persian digits into ASCII digits', function (string $
     expect(Digits::toAscii($typed))->toBe($expected);
 })->with([
     'arabic-indic phone' => ['٠٥٠ ١٢٣ ٤٥٦٧', '050 123 4567'],
+    'arabic decimal separator' => ['١٢٠٠٫٥٠', '1200.50'],
     'persian (urdu) digits' => ['۰۳۰۰-۱۲۳۴۵۶۷', '0300-1234567'],
     'mixed with latin' => ['+966 ٥٠ 123 4567', '+966 50 123 4567'],
     'already ascii' => ['+971 50 123 4567', '+971 50 123 4567'],

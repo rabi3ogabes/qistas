@@ -1,0 +1,115 @@
+<?php
+
+namespace App\Actions;
+
+use App\Domain\Schedule\InvalidScheduleException;
+use App\Domain\Schedule\ScheduleGenerator;
+use App\Domain\Schedule\ScheduleRequest;
+use App\Domain\Schedule\ScheduleResult;
+use App\Entitlements\Entitlements;
+use App\Entitlements\Feature;
+use App\Entitlements\FeatureLocked;
+use App\Entitlements\LimitReached;
+use App\Models\Contract;
+use App\Models\Customer;
+use App\Models\Installment;
+use App\Models\Tenant;
+use App\Models\User;
+use App\Support\Money;
+use App\Tenancy\CurrentTenant;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+
+/**
+ * Opens a contract for one of the workspace's customers and writes its instalments, in one transaction.
+ * The one place contracts are created.
+ */
+final class CreateContract
+{
+    public function __construct(
+        private readonly CurrentTenant $current,
+        private readonly ScheduleGenerator $generator,
+    ) {}
+
+    /**
+     * @param  array<string, mixed>  $data  validated input (see App\Http\Requests\ContractRequest)
+     *
+     * @throws ModelNotFoundException when the customer is not one of this workspace's
+     * @throws ValidationException when the schedule cannot be built
+     * @throws FeatureLocked|LimitReached
+     */
+    public function handle(Tenant $tenant, array $data, ?User $by = null): Contract
+    {
+        return DB::transaction(fn () => $this->current->use($tenant, function () use ($tenant, $data, $by): Contract {
+            // Serialise per workspace (see CreateCustomer): numbering and the limit check both depend on it.
+            Tenant::query()->whereKey($tenant->id)->lockForUpdate()->first();
+
+            // The tenant scope and soft deletes make a foreign or deleted customer simply not found.
+            $customer = Customer::query()->findOrFail($data['customer_id'] ?? null);
+
+            Entitlements::for($tenant)->assertCanCreate(Feature::ActiveContracts);
+
+            $type = $data['type'] ?? 'scheduled';
+            $startDate = $data['start_date'] ?? today()->format('Y-m-d');
+            $schedule = $this->schedule($type, $data, $startDate);
+
+            $contract = (new Contract)->forceFill([
+                'customer_id' => $customer->id,
+                'number' => (int) Contract::query()->max('number') + 1,
+                'type' => $type,
+                'status' => 'active',
+                'principal' => Money::parse($data['principal']),
+                'down_payment' => $type === 'cash' ? '0' : Money::parse($data['down_payment'] ?? '0'),
+                'financed' => $schedule->financed,
+                'markup_type' => $type === 'cash' ? 'none' : ($data['markup_type'] ?? 'none'),
+                'markup_value' => $type === 'cash' ? '0' : Money::parse($data['markup_value'] ?? '0'),
+                'markup_amount' => $schedule->markup,
+                'total' => $schedule->total,
+                'installment_count' => count($schedule->installments),
+                'frequency' => $type === 'cash' ? 'monthly' : $data['frequency'],
+                'start_date' => $startDate,
+                'first_due_date' => $schedule->installments[0]['due_date'],
+                'notes' => $data['notes'] ?? null,
+                'created_by_user_id' => $by?->id,
+            ]);
+            $contract->save();
+
+            foreach ($schedule->installments as $row) {
+                (new Installment)->forceFill([
+                    'contract_id' => $contract->id,
+                    'number' => $row['number'],
+                    'due_date' => $row['due_date'],
+                    'amount' => $row['amount'],
+                ])->save();
+            }
+
+            return $contract;
+        }));
+    }
+
+    /** @param  array<string, mixed>  $data */
+    private function schedule(string $type, array $data, string $startDate): ScheduleResult
+    {
+        $request = match ($type) {
+            // A cash sale is paid in full on the day: one instalment, no markup.
+            'cash' => new ScheduleRequest((string) ($data['principal'] ?? ''), '0', 'none', '0', 1, 'monthly', $startDate),
+            'scheduled' => ScheduleRequest::fromArray([
+                'principal' => $data['principal'] ?? '',
+                'down_payment' => $data['down_payment'] ?? '0',
+                'markup_type' => $data['markup_type'] ?? 'none',
+                'markup_value' => $data['markup_value'] ?? '0',
+                'count' => $data['installment_count'] ?? 0,
+                'frequency' => $data['frequency'] ?? '',
+                'first_due_date' => $data['first_due_date'] ?? '',
+            ]),
+            default => throw ValidationException::withMessages(['type' => __('The contract type must be scheduled or cash.')]),
+        };
+
+        try {
+            return $this->generator->generate($request);
+        } catch (InvalidScheduleException $e) {
+            throw ValidationException::withMessages(['schedule' => $e->getMessage()]);
+        }
+    }
+}

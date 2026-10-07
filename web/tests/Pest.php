@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\Customer;
+use App\Models\Plan;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Tenancy\CurrentTenant;
@@ -20,6 +22,23 @@ pest()->extend(TestCase::class)
 function asTenant(Tenant $tenant, Closure $callback): mixed
 {
     return app(CurrentTenant::class)->use($tenant, $callback);
+}
+
+/** A workspace subscribed to the plan with this key ("free" and "pro" exist after migration). */
+function workspaceOn(string $plan = 'free'): Tenant
+{
+    $tenant = Tenant::factory()->create();
+    $tenant->subscribeTo(Plan::where('key', $plan)->sole());
+
+    return $tenant;
+}
+
+/**
+ * @param  array<string, mixed>  $attributes
+ */
+function customerIn(Tenant $tenant, array $attributes = []): Customer
+{
+    return asTenant($tenant, fn () => Customer::factory()->create($attributes));
 }
 
 /** The password every test account is created with; it satisfies the production password rules. */

@@ -8,9 +8,10 @@ final class Digits
     private const MAP = [
         '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4', '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
         '۰' => '0', '۱' => '1', '۲' => '2', '۳' => '3', '۴' => '4', '۵' => '5', '۶' => '6', '۷' => '7', '۸' => '8', '۹' => '9',
+        '٫' => '.', // Arabic decimal separator
     ];
 
-    /** Phone numbers and IDs are often typed on an Arabic or Urdu keyboard; store and search them as ASCII. */
+    /** Phone numbers, IDs and amounts are often typed on an Arabic or Urdu keyboard; store and search them as ASCII. */
     public static function toAscii(string $value): string
     {
         return strtr($value, self::MAP);

@@ -8,11 +8,6 @@ use Illuminate\Database\Eloquent\MassAssignmentException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
-function customerIn(Tenant $tenant, array $attributes = []): Customer
-{
-    return asTenant($tenant, fn () => Customer::factory()->create($attributes));
-}
-
 it('keeps the national ID encrypted at rest and readable through the model', function () {
     $customer = customerIn(Tenant::factory()->create(), ['national_id' => '1098765432']);
 

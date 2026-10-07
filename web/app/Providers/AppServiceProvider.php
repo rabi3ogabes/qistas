@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Entitlements\Feature;
 use App\Entitlements\UsageMeters;
 use App\Listeners\AuditAuthEvents;
+use App\Models\Contract;
 use App\Models\Customer;
 use App\Models\Tenant;
 use App\Tenancy\CurrentTenant;
@@ -56,5 +57,8 @@ class AppServiceProvider extends ServiceProvider
         $meters = $this->app->make(UsageMeters::class);
         $meters->register(Feature::Customers, fn (Tenant $tenant): int => Customer::withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $tenant->id)->count());
+        // Only contracts still running count: settled and cancelled ones free their place.
+        $meters->register(Feature::ActiveContracts, fn (Tenant $tenant): int => Contract::withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenant->id)->where('status', 'active')->count());
     }
 }

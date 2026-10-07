@@ -15,14 +15,6 @@ function newCustomerData(array $overrides = []): array
     return array_merge(['name' => 'Layla Haddad', 'phone' => '+966501234567'], $overrides);
 }
 
-function workspaceOn(string $plan = 'free'): Tenant
-{
-    $tenant = Tenant::factory()->create();
-    $tenant->subscribeTo(Plan::where('key', $plan)->sole());
-
-    return $tenant;
-}
-
 function customersOf(Tenant $tenant): int
 {
     return asTenant($tenant, fn () => Customer::count());
