@@ -31,8 +31,7 @@ it('renders the confirm-password page', function () {
 it('marks every auth page as not for search engines and sets the document language and direction', function () {
     $this->get('/login')->assertSee('<meta name="robots" content="noindex">', false)->assertSee('lang="en" dir="ltr"', false);
 
-    app()->setLocale('ar');
-    $this->get('/login')->assertSee('lang="ar" dir="rtl"', false);
+    $this->get('/login?lang=ar')->assertSee('lang="ar" dir="rtl"', false);
 });
 
 it('lists the supported countries in the sign-up form', function () {

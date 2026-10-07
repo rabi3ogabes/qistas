@@ -5,6 +5,7 @@ use App\Http\Middleware\EnsureFeature;
 use App\Http\Middleware\EnsurePlatformAdmin;
 use App\Http\Middleware\RequireTwoFactorForAdmins;
 use App\Http\Middleware\SetCurrentTenant;
+use App\Http\Middleware\SetLocale;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -18,6 +19,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // After the session starts, so a remembered or saved language can be read.
+        $middleware->web(append: [SetLocale::class]);
+
         // Signed-in people who open a guest page (sign-in, sign-up) go to the app, not to the site root.
         $middleware->redirectUsersTo(fn () => config('fortify.home'));
 

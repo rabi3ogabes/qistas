@@ -12,8 +12,8 @@ use LogicException;
 /**
  * Answers "what may this workspace do?" for every feature, from data the admin controls.
  *
- * Resolution, first match wins: an active override for the workspace -> the value on its plan (a plan_features
- * row, or the code default for the built-in plans) -> denied. Nothing is cached, so an admin edit or a billing
+ * Resolution, first match wins: an active override for the workspace -> the value on its plan (see PlanSettings:
+ * a plan_features row, or the code default for the built-in plans) -> denied. Nothing is cached, so an admin edit or a billing
  * change is seen by the very next call.
  */
 final class Entitlements
@@ -122,27 +122,19 @@ final class Entitlements
     {
         $plan = $this->tenant->currentPlan();
 
-        $rows = [];
-        foreach ($plan->features()->get() as $row) {
-            $rows[$row->feature_key] = ['enabled' => $row->enabled, 'limit' => $row->limit_value];
-        }
-
         // Oldest first, so when several overrides are active for a feature the newest one wins.
         $overrides = [];
         foreach ($this->tenant->overrides()->active()->orderBy('created_at')->orderBy('id')->get() as $override) {
             $overrides[$override->feature_key] = ['enabled' => $override->enabled, 'limit' => $override->limit_value];
         }
 
-        return ['plan' => $plan, 'rows' => $rows, 'overrides' => $overrides];
+        return ['plan' => $plan, 'rows' => PlanSettings::resolve($plan), 'overrides' => $overrides];
     }
 
     /** @param  array{plan: Plan, rows: array<string, array{enabled: bool, limit: ?int}>, overrides: array<string, array{enabled: bool, limit: ?int}>}  $loaded */
     private function entitlement(Feature $feature, array $loaded): Entitlement
     {
-        $value = $loaded['overrides'][$feature->value]
-            ?? $loaded['rows'][$feature->value]
-            ?? $feature->defaultFor($loaded['plan']->key)
-            ?? ['enabled' => false, 'limit' => null];
+        $value = $loaded['overrides'][$feature->value] ?? $loaded['rows'][$feature->value];
 
         $type = $feature->type();
         $enabled = $value['enabled'];

@@ -59,6 +59,9 @@ class FortifyServiceProvider extends ServiceProvider
         RateLimiter::for('two-factor', fn (Request $request) => Limit::perMinute(5)
             ->by((string) ($request->session()->get('login.id') ?? $request->ip())));
 
+        // The public instalment calculator is cheap but unauthenticated: one address gets a minute's budget.
+        RateLimiter::for('schedule-preview', fn (Request $request) => Limit::perMinute(60)->by('schedule-preview|'.$request->ip()));
+
         // Applied to every Fortify route (config/fortify.php). Sign-up and reset requests are the expensive
         // or abusable ones, so they get a tight budget.
         RateLimiter::for('auth-forms', fn (Request $request) => match (true) {

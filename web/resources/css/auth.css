@@ -1,0 +1,52 @@
+/*
+ * Sign-in, sign-up and the security pages. On a wide screen the brand sits beside the form; on a phone the form
+ * comes first and the brand shrinks to the logo. The plumb line (from the logo's gold plumb-bob) settles once.
+ */
+
+@layer components {
+    .auth-page { display: grid; min-height: 100svh; }
+    @media (min-width: 960px) { .auth-page { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); } }
+
+    .auth-aside {
+        display: none; position: relative; overflow: hidden;
+        background: linear-gradient(165deg, var(--q-hero-from), var(--q-hero-to));
+        color: var(--q-on-primary);
+    }
+    @media (min-width: 960px) {
+        .auth-aside { display: flex; flex-direction: column; justify-content: space-between; padding: 3rem clamp(2rem, 5vw, 4.5rem); }
+    }
+    .auth-aside { --q-logo-ink: var(--q-on-primary); }
+    .auth-aside :focus-visible { outline-color: var(--q-accent); }
+    .auth-tagline { margin: 0; max-width: 11ch; font-size: clamp(2.75rem, 5vw, 4.25rem); color: var(--q-on-primary); }
+    :lang(ar) .auth-tagline, :lang(ur) .auth-tagline { max-width: 12ch; font-size: clamp(2.25rem, 4vw, 3.25rem); }
+    .auth-aside-note { max-width: 24rem; margin: 1.25rem 0 0; color: color-mix(in srgb, var(--q-on-primary) 78%, transparent); }
+
+    .plumb { position: absolute; inset-block-start: 0; inset-inline-end: clamp(2rem, 6vw, 5rem); display: flex; flex-direction: column; align-items: center; transform-origin: top center; animation: q-plumb 1.1s var(--q-ease-out) both; }
+    .plumb::before { content: ""; width: 1px; height: clamp(5rem, 16vh, 9rem); background: color-mix(in srgb, var(--q-accent) 70%, transparent); }
+    .plumb::after { content: ""; width: .875rem; height: .875rem; border-radius: 50%; background: var(--q-accent); }
+    @keyframes q-plumb {
+        0% { transform: rotate(-9deg); }
+        35% { transform: rotate(4.5deg); }
+        65% { transform: rotate(-1.8deg); }
+        100% { transform: rotate(0); }
+    }
+
+    .auth-main { display: grid; align-content: center; justify-items: center; padding: max(1.5rem, env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right)) max(1.5rem, env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left)); }
+    .auth-card { width: min(26rem, 100%); display: grid; gap: 1.5rem; }
+    .auth-card.is-wide { width: min(34rem, 100%); }
+    .auth-brand { display: inline-flex; width: fit-content; border-radius: 8px; }
+    @media (min-width: 960px) { .auth-main .auth-brand { display: none; } }
+    .auth-head h1 { margin: 0; font-size: 2rem; line-height: 1.1; }
+    .auth-head p { margin: .5rem 0 0; color: var(--q-ink-muted); }
+    .auth-alt { margin: 0; font-size: .9375rem; color: var(--q-ink-muted); }
+    .auth-alt a { color: var(--q-info); font-weight: 500; }
+    details.auth-alt summary { cursor: pointer; font-weight: 500; color: var(--q-info); }
+    details.auth-alt .form { margin-top: 1rem; }
+
+    .steps { margin: 0; padding-inline-start: 1.25rem; color: var(--q-ink-muted); }
+    .qr { width: fit-content; padding: .75rem; border-radius: var(--q-r-md); background: #fff; }
+    .qr svg { width: 11rem; height: 11rem; }
+    .codes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; margin: 0; padding: 0; list-style: none; }
+    .codes li { padding: .625rem .75rem; border: 1px solid var(--q-line); border-radius: var(--q-r-sm); background: var(--q-surface); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .875rem; text-align: center; }
+    code { padding: .125rem .375rem; border-radius: 6px; background: var(--q-surface-alt); font-size: .875em; overflow-wrap: anywhere; }
+}

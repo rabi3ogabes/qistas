@@ -38,15 +38,41 @@ enum Feature: string
         };
     }
 
-    /** What is being counted, as it reads after a number: "5 customers", "3 PDF statements per month". */
-    public function unit(): string
+    /**
+     * What is being counted, as it reads after a number: "5 customers", "1 API token", "3 PDF statements per month".
+     * Pluralised by $count in every language (Arabic has six forms); an on/off feature counts nothing.
+     */
+    public function unit(int $count = 5): string
     {
-        return match ($this) {
-            self::Customers => __('customers'),
-            self::ActiveContracts => __('active contracts'),
-            self::PdfStatements => __('PDF statements per month'),
-            self::ApiTokens => __('API tokens'),
-            self::ExportCsv, self::AdvancedReports, self::CustomBranding => '',
+        return $this->type() === FeatureType::Toggle ? '' : trans_choice("units.{$this->value}", $count);
+    }
+
+    /** One line for a plan's feature list: "Up to 5 customers", "Unlimited customers", "CSV export". */
+    public function summary(bool $enabled, ?int $limit): string
+    {
+        if (! $enabled) {
+            return __('Not included');
+        }
+        if ($this->type() === FeatureType::Toggle) {
+            return $this->label();
+        }
+
+        return $limit === null
+            ? __('Unlimited :unit', ['unit' => $this->unit()])
+            : __('Up to :count :unit', ['count' => $limit, 'unit' => $this->unit($limit)]);
+    }
+
+    /** The short value for a comparison table cell: "5", "Unlimited", "3 / month", "Included", "Not included". */
+    public function shortValue(bool $enabled, ?int $limit): string
+    {
+        if (! $enabled) {
+            return __('Not included');
+        }
+
+        return match ($this->type()) {
+            FeatureType::Toggle => __('Included'),
+            FeatureType::Limit => $limit === null ? __('Unlimited') : (string) $limit,
+            FeatureType::Quota => $limit === null ? __('Unlimited') : __(':count / month', ['count' => $limit]),
         };
     }
 

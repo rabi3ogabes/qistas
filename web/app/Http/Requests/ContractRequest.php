@@ -2,14 +2,13 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\MoneyRules;
 use App\Models\Contract;
 use App\Support\Digits;
-use App\Support\Money;
 use App\Tenancy\CurrentTenant;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use InvalidArgumentException;
 
 /**
  * Validation and authorisation for opening a contract, shared by the web app and the API. A cash sale needs
@@ -17,6 +16,8 @@ use InvalidArgumentException;
  */
 class ContractRequest extends FormRequest
 {
+    use MoneyRules;
+
     public function authorize(): bool
     {
         return $this->user()?->can('create', Contract::class) ?? false;
@@ -33,8 +34,8 @@ class ContractRequest extends FormRequest
                 ->where('tenant_id', app(CurrentTenant::class)->id())
                 ->whereNull('deleted_at')],
             'type' => ['nullable', Rule::in(['scheduled', 'cash'])],
-            'principal' => ['required', 'string', $this->amount(positive: true)],
-            'down_payment' => ['nullable', 'string', $this->amount(), $this->belowPrincipal()],
+            'principal' => ['required', 'string', $this->amountRule(positive: true)],
+            'down_payment' => ['nullable', 'string', $this->amountRule(), $this->belowRule('principal', __('The down payment must be less than the price.'))],
             'markup_type' => ['nullable', Rule::in(['none', 'fixed', 'percent'])],
             'markup_value' => ['nullable', 'string', 'regex:/^\d{1,10}(\.\d{1,4})?$/'],
             'installment_count' => [$scheduled, 'nullable', 'integer', 'between:1,120'],
@@ -66,33 +67,6 @@ class ContractRequest extends FormRequest
             'first_due_date' => $value('first_due_date'),
             'notes' => is_scalar($this->input('notes')) && trim((string) $this->input('notes')) !== '' ? trim((string) $this->input('notes')) : null,
         ]);
-    }
-
-    /** A money amount with at most two decimals (the schedule works in whole cents). */
-    private function amount(bool $positive = false): Closure
-    {
-        return function (string $attribute, mixed $value, Closure $fail) use ($positive): void {
-            $value = (string) $value;
-
-            if (! preg_match('/^\d{1,14}(\.\d{1,2})?$/', $value) || ($positive && Money::isZero(Money::parse($value)))) {
-                $fail($positive ? __('Enter an amount greater than zero, with at most two decimals.') : __('Enter an amount with at most two decimals.'));
-            }
-        };
-    }
-
-    private function belowPrincipal(): Closure
-    {
-        return function (string $attribute, mixed $value, Closure $fail): void {
-            try {
-                $tooHigh = Money::cmp(Money::parse((string) $value), Money::parse((string) $this->input('principal'))) >= 0;
-            } catch (InvalidArgumentException) {
-                return; // a malformed amount is reported by its own rule
-            }
-
-            if ($tooHigh) {
-                $fail(__('The down payment must be less than the price.'));
-            }
-        };
     }
 
     private function notBeforeStart(): Closure

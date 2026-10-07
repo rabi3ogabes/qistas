@@ -1,0 +1,209 @@
+/*
+ * Components. One vocabulary for the website, the app and sign-in: the same button, field, badge and meter
+ * everywhere. Logical properties throughout so right-to-left languages mirror without a second stylesheet.
+ */
+
+@layer components {
+    /* ---------- Buttons ---------- */
+    .btn {
+        --btn-bg: var(--q-action);
+        --btn-fg: var(--q-on-action);
+        --btn-bd: transparent;
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .5rem;
+        min-height: 2.75rem;
+        padding: .5rem 1.25rem;
+        border: 1px solid var(--btn-bd);
+        border-radius: var(--q-r-md);
+        background: var(--btn-bg);
+        color: var(--btn-fg);
+        font-size: .9375rem;
+        font-weight: 600;
+        line-height: 1.25;
+        text-align: center;
+        text-wrap: balance;
+        text-decoration: none;
+        cursor: pointer;
+        transition: background-color var(--q-t-fast) var(--q-ease-out), border-color var(--q-t-fast) var(--q-ease-out),
+            transform 100ms var(--q-ease-out), box-shadow var(--q-t-base) var(--q-ease-out);
+    }
+    .btn:active { transform: scale(.98); }
+    .btn:disabled, .btn[aria-disabled="true"] { opacity: .5; cursor: not-allowed; transform: none; }
+    .btn-gold { --btn-bg: var(--q-accent); --btn-fg: var(--q-on-accent); }
+    .btn-quiet { --btn-bg: transparent; --btn-fg: var(--q-ink); --btn-bd: var(--q-line); }
+    .btn-ghost { --btn-bg: transparent; --btn-fg: var(--q-ink); padding-inline: .75rem; }
+    .btn-danger { --btn-bg: var(--q-danger); --btn-fg: #fff; }
+    .btn-lg { min-height: 3.25rem; padding: .625rem 1.75rem; font-size: 1rem; }
+    .btn-block { width: 100%; }
+    .btn-sm { min-height: 2.25rem; padding: .375rem .875rem; font-size: .875rem; border-radius: var(--q-r-sm); }
+
+    /* Loading: the label stays (width does not jump); a small ring replaces the cursor affordance. */
+    .btn[aria-busy="true"] { pointer-events: none; color: transparent; }
+    .btn[aria-busy="true"]::after {
+        content: ""; position: absolute; width: 1.1rem; height: 1.1rem; border-radius: 50%;
+        border: 2px solid var(--btn-fg); border-inline-end-color: transparent;
+        animation: q-spin .7s linear infinite;
+    }
+    @keyframes q-spin { to { transform: rotate(360deg); } }
+
+    @media (hover: hover) and (pointer: fine) {
+        .btn:hover { background: color-mix(in srgb, var(--btn-bg) 88%, var(--q-ink)); }
+        .btn-quiet:hover, .btn-ghost:hover { background: var(--q-surface-alt); }
+        .btn-gold:hover { background: color-mix(in srgb, var(--q-accent) 90%, #fff); }
+    }
+
+    /* ---------- Form fields ---------- */
+    .form { display: grid; gap: 1rem; }
+    .field { display: grid; gap: .375rem; }
+    .field > label, .field-label { font-size: .875rem; font-weight: 600; color: var(--q-ink); }
+    .field input:not([type="checkbox"]):not([type="radio"]), .field select, .field textarea {
+        width: 100%;
+        min-height: 2.875rem;
+        padding: .625rem .875rem;
+        border: 1px solid color-mix(in srgb, var(--q-ink) 22%, var(--q-line));
+        border-radius: var(--q-r-md);
+        background: var(--q-surface);
+        color: var(--q-ink);
+        transition: border-color var(--q-t-fast) var(--q-ease-out), box-shadow var(--q-t-fast) var(--q-ease-out);
+    }
+    .field textarea { min-height: 6rem; resize: vertical; }
+    .field input::placeholder, .field textarea::placeholder { color: color-mix(in srgb, var(--q-ink-muted) 80%, transparent); }
+    .field input:focus, .field select:focus, .field textarea:focus {
+        outline: none;
+        border-color: var(--q-info);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--q-info) 22%, transparent);
+    }
+    .field [aria-invalid="true"] { border-color: var(--q-danger); }
+    .field [aria-invalid="true"]:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--q-danger) 22%, transparent); }
+    .field input:disabled, .field select:disabled { background: var(--q-surface-alt); color: var(--q-ink-muted); }
+    .field-hint { margin: 0; font-size: .8125rem; color: var(--q-ink-muted); }
+    .field-error { margin: 0; font-size: .8125rem; font-weight: 500; color: var(--q-danger); }
+    .field select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%234F5B76' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right .875rem center; padding-inline-end: 2.5rem; }
+    [dir="rtl"] .field select { background-position: left .875rem center; }
+
+    .check { display: flex; align-items: flex-start; gap: .625rem; font-weight: 400; cursor: pointer; }
+    .check input { flex: none; width: 1.125rem; height: 1.125rem; margin-top: .2rem; accent-color: var(--q-action); }
+    .form-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; font-size: .875rem; }
+
+    /* ---------- Links ---------- */
+    .link { color: var(--q-info); text-decoration: underline; text-underline-offset: .2em; text-decoration-thickness: 1px; }
+    @media (hover: hover) and (pointer: fine) { .link:hover { text-decoration-thickness: 2px; } }
+
+    /* ---------- Surfaces ---------- */
+    .card {
+        background: var(--q-surface);
+        border: 1px solid var(--q-line);
+        border-radius: var(--q-r-lg);
+        box-shadow: var(--q-shadow-1);
+    }
+    .card-pad { padding: 1.25rem; }
+    @media (min-width: 768px) { .card-pad { padding: 1.5rem; } }
+
+    /* ---------- Badges ---------- */
+    .badge {
+        display: inline-flex; align-items: center; gap: .375rem;
+        padding: .125rem .625rem; border-radius: 999px;
+        border: 1px solid var(--q-line); background: var(--q-surface-alt);
+        font-size: .75rem; font-weight: 600; line-height: 1.5; color: var(--q-ink);
+    }
+    .badge-pro { background: color-mix(in srgb, var(--q-accent) 22%, var(--q-surface)); border-color: color-mix(in srgb, var(--q-accent) 55%, transparent); color: var(--q-accent-text); }
+    .badge-ok { background: var(--q-tint-mint); border-color: transparent; color: var(--q-positive); }
+    .badge-warn { background: var(--q-tint-sand); border-color: transparent; color: var(--q-warning); }
+    .badge-bad { background: var(--q-tint-blush); border-color: transparent; color: var(--q-danger); }
+    .badge-info { background: var(--q-tint-sky); border-color: transparent; color: var(--q-info); }
+
+    /* ---------- Usage meter: "3 of 5 customers" ---------- */
+    .meter { display: grid; gap: .375rem; }
+    .meter-head { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; font-size: .8125rem; }
+    .meter-label { color: var(--q-ink-muted); }
+    .meter-figures { font-weight: 600; color: var(--q-ink); }
+    .meter-track { height: .375rem; border-radius: 999px; background: var(--q-surface-alt); overflow: hidden; }
+    .meter-fill {
+        height: 100%; border-radius: inherit; background: var(--q-accent);
+        transform-origin: left center; transition: width var(--q-t-slow) var(--q-ease-out);
+    }
+    [dir="rtl"] .meter-fill { transform-origin: right center; }
+    .meter[data-level="high"] .meter-fill { background: var(--q-warning); }
+    .meter[data-level="full"] .meter-fill { background: var(--q-danger); }
+
+    /* ---------- Alerts ---------- */
+    .alert {
+        margin: 0; padding: .75rem 1rem; border-radius: var(--q-r-md);
+        border: 1px solid transparent; font-size: .9375rem; line-height: 1.45;
+    }
+    .alert-status { background: var(--q-tint-mint); color: var(--q-positive); }
+    .alert-warning { background: var(--q-tint-sand); color: var(--q-warning); }
+    .alert-error { background: var(--q-tint-blush); color: var(--q-danger); }
+    .alert-info { background: var(--q-tint-sky); color: var(--q-info); }
+
+    /* ---------- Tables: real tables on wide screens, labelled rows on phones ---------- */
+    .table-wrap { overflow-x: auto; }
+    .table { width: 100%; border-collapse: collapse; font-size: .9375rem; }
+    .table th {
+        padding: .625rem .875rem; text-align: start; font-size: .8125rem; font-weight: 600;
+        color: var(--q-ink-muted); border-bottom: 1px solid var(--q-line); white-space: nowrap;
+    }
+    .table td { padding: .75rem .875rem; border-bottom: 1px solid color-mix(in srgb, var(--q-line) 70%, transparent); vertical-align: middle; }
+    .table .num { text-align: end; }
+    .table tbody tr:last-child td { border-bottom: 0; }
+    @media (hover: hover) and (pointer: fine) { .table tbody tr:hover { background: color-mix(in srgb, var(--q-surface-alt) 55%, transparent); } }
+    @media (max-width: 639px) {
+        .table-stack thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+        .table-stack, .table-stack tbody, .table-stack tr, .table-stack td { display: block; width: 100%; }
+        .table-stack tr { padding: .75rem 0; border-bottom: 1px solid var(--q-line); }
+        .table-stack td { display: flex; justify-content: space-between; gap: 1rem; padding: .25rem 0; border: 0; text-align: end; }
+        .table-stack td::before { content: attr(data-label); color: var(--q-ink-muted); font-size: .8125rem; text-align: start; }
+    }
+
+    /* ---------- Empty and loading states ---------- */
+    .empty { display: grid; justify-items: center; gap: .75rem; padding: 3rem 1.5rem; text-align: center; }
+    .empty-icon { display: grid; place-items: center; width: 3.5rem; height: 3.5rem; border-radius: 50%; background: var(--q-surface-alt); color: var(--q-accent-text); }
+    .empty h3 { margin: 0; font-size: 1.125rem; }
+    .empty p { margin: 0; max-width: 34ch; color: var(--q-ink-muted); }
+
+    .skeleton {
+        border-radius: var(--q-r-sm);
+        background: linear-gradient(90deg, var(--q-surface-alt), color-mix(in srgb, var(--q-surface-alt) 50%, var(--q-surface)), var(--q-surface-alt));
+        background-size: 200% 100%;
+        animation: q-shimmer 1.4s linear infinite;
+    }
+    @keyframes q-shimmer { to { background-position: -200% 0; } }
+
+    /* ---------- Menus (no JavaScript: <details>) ---------- */
+    .menu { position: relative; }
+    .menu > summary { list-style: none; cursor: pointer; }
+    .menu > summary::-webkit-details-marker { display: none; }
+    .menu-panel {
+        position: absolute; inset-inline-end: 0; top: calc(100% + .5rem); z-index: 40;
+        min-width: 11rem; padding: .375rem; border-radius: var(--q-r-md);
+        background: var(--q-surface); border: 1px solid var(--q-line); box-shadow: var(--q-shadow-2);
+    }
+    .menu-item {
+        display: flex; align-items: center; gap: .625rem; width: 100%;
+        padding: .5rem .75rem; border: 0; border-radius: 8px; background: none;
+        color: var(--q-ink); font-size: .9375rem; text-align: start; text-decoration: none; cursor: pointer;
+    }
+    .menu-cta { justify-content: center; margin-bottom: .25rem; background: var(--q-accent); color: var(--q-on-accent); font-weight: 600; }
+    .menu-rule { margin: .375rem .5rem; border: 0; border-top: 1px solid var(--q-line); }
+    .menu-item[aria-current="true"] { font-weight: 600; background: var(--q-surface-alt); }
+    @media (hover: hover) and (pointer: fine) { .menu-item:hover { background: var(--q-surface-alt); } }
+
+    /* ---------- Sheet: the upgrade prompt. Bottom sheet on phones, centred dialog on larger screens ---------- */
+    dialog.sheet {
+        width: min(32rem, 100%); max-height: min(90svh, 40rem); margin: auto; padding: 0; overflow: auto;
+        border: 1px solid var(--q-line); border-radius: var(--q-r-xl); background: var(--q-surface); color: var(--q-ink);
+        box-shadow: var(--q-shadow-2);
+    }
+    dialog.sheet::backdrop { background: color-mix(in srgb, var(--q-primary) 55%, transparent); }
+    dialog.sheet[open] { animation: q-sheet-in var(--q-t-slow) var(--q-ease-drawer); }
+    @keyframes q-sheet-in { from { opacity: 0; transform: translateY(1.5rem); } }
+    @media (max-width: 639px) {
+        dialog.sheet { margin-block-end: 0; width: 100%; max-width: none; border-end-start-radius: 0; border-end-end-radius: 0; padding-bottom: env(safe-area-inset-bottom); }
+    }
+    .sheet-body { display: grid; gap: 1rem; padding: 1.5rem; }
+    .sheet-title { margin: 0; font-size: 1.375rem; line-height: 1.2; }
+    .sheet-actions { display: grid; gap: .5rem; }
+}

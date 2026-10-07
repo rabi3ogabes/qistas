@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Entitlements\Feature;
 use App\Entitlements\FeatureType;
+use App\Support\Money;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -11,8 +12,18 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 
+/**
+ * @property string $key
+ * @property string $name
+ * @property string|null $description
+ * @property string|null $price_monthly exact decimal string
+ * @property string|null $price_yearly exact decimal string
+ * @property string $currency
+ * @property bool $is_default
+ * @property bool $is_public
+ */
 // key and is_default are set by trusted code only.
-#[Fillable(['name', 'description', 'sort_order', 'is_public'])]
+#[Fillable(['name', 'description', 'price_monthly', 'price_yearly', 'currency', 'sort_order', 'is_public'])]
 class Plan extends Model
 {
     use HasUuids;
@@ -28,6 +39,13 @@ class Plan extends Model
     public static function default(): self
     {
         return static::where('is_default', true)->orderBy('sort_order')->firstOrFail();
+    }
+
+    /** A plan with listed prices that are all zero. A plan with no listed price is not free; it is unpriced. */
+    public function isFree(): bool
+    {
+        return $this->price_monthly !== null && $this->price_yearly !== null
+            && Money::isZero($this->price_monthly) && Money::isZero($this->price_yearly);
     }
 
     /** @return HasMany<PlanFeature, $this> */
@@ -58,7 +76,13 @@ class Plan extends Model
 
     protected function casts(): array
     {
-        return ['is_default' => 'boolean', 'is_public' => 'boolean', 'sort_order' => 'integer'];
+        return [
+            'is_default' => 'boolean',
+            'is_public' => 'boolean',
+            'sort_order' => 'integer',
+            'price_monthly' => 'decimal:4',
+            'price_yearly' => 'decimal:4',
+        ];
     }
 
     private static function uniqueKey(string $name): string

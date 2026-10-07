@@ -14,6 +14,7 @@ use Illuminate\Contracts\Validation\UncompromisedVerifier;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Lang;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\NotPwnedVerifier;
 use Illuminate\Validation\Rules\Password;
@@ -42,6 +43,9 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Our own sentences live in lang/app/*.json, apart from the package-managed framework translations.
+        Lang::addJsonPath(lang_path('app'));
+
         // A mistyped or malicious attribute fails loudly in development and tests instead of vanishing.
         // In production unfillable attributes are still never written; they are just not reported as errors.
         Model::preventSilentlyDiscardingAttributes(! $this->app->isProduction());

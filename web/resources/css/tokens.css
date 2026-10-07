@@ -1,0 +1,100 @@
+/*
+ * Qistas design tokens. The colour tokens are the BASE theme of the theme engine (brand/tokens/themes.seed.json);
+ * country and event themes override these same --q-* variables at runtime, so everything below follows them.
+ * Fixed tokens (type, radius, motion) never change per theme.
+ */
+
+:root {
+    --q-primary: #0B1F44;      --q-on-primary: #F7F3EA;
+    --q-action: #0B1F44;       --q-on-action: #F7F3EA;
+    --q-accent: #C9A25B;       --q-on-accent: #0B1F44;   --q-accent-text: #7F6126;
+    --q-info: #1C6BA4;         --q-on-info: #FFFFFF;
+    --q-bg: #F7F3EA;           --q-surface: #FFFFFF;     --q-surface-alt: #EFE9DB;
+    --q-ink: #0B1F44;          --q-ink-muted: #4F5B76;   --q-line: #E3DCCB;
+    --q-positive: #176E50;     --q-warning: #9A5700;     --q-danger: #B3261E;
+    --q-tint-sky: #DDEDFA;     --q-tint-blush: #F6E4EA;  --q-tint-sand: #F8EBCB;  --q-tint-mint: #DCF2E8;
+    --q-hero-from: #0B1F44;    --q-hero-to: #1B3A78;
+    --q-logo-ink: #0B1F44;     --q-logo-accent: #C9A25B;
+
+    --q-shadow-1: 0 1px 0 rgb(11 31 68 / .04), 0 8px 24px -12px rgb(11 31 68 / .16);
+    --q-shadow-2: 0 1px 0 rgb(11 31 68 / .05), 0 24px 56px -24px rgb(11 31 68 / .30);
+
+    --q-font-display: "Cormorant Garamond", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    --q-font-body: "Geist Variable", "Geist", "IBM Plex Sans Arabic", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --q-font-arabic: "IBM Plex Sans Arabic", "Geist Variable", "Segoe UI", Tahoma, sans-serif;
+    --q-font-urdu: "Noto Nastaliq Urdu", "IBM Plex Sans Arabic", "Segoe UI", serif;
+
+    --q-r-sm: 10px;
+    --q-r-md: 12px;
+    --q-r-lg: 20px;
+    --q-r-xl: 28px;
+
+    --q-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --q-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+    --q-ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+    --q-t-fast: 140ms;
+    --q-t-base: 220ms;
+    --q-t-slow: 360ms;
+
+    color-scheme: light;
+}
+
+/* Dark: chosen explicitly, or followed from the system unless light was chosen explicitly. */
+:root[data-q-mode="dark"] {
+    --q-primary: #163A7A;      --q-on-primary: #F7F3EA;
+    --q-action: #C9A25B;       --q-on-action: #0B1F44;
+    --q-accent: #D4AE68;       --q-on-accent: #0B1F44;   --q-accent-text: #DDBB7A;
+    --q-info: #6AAEE0;         --q-on-info: #071634;
+    --q-bg: #071634;           --q-surface: #0E2250;     --q-surface-alt: #14295F;
+    --q-ink: #F2EEE3;          --q-ink-muted: #A9B4CC;   --q-line: #22386B;
+    --q-positive: #41C795;     --q-warning: #EBB04A;     --q-danger: #F28B82;
+    --q-tint-sky: #14355F;     --q-tint-blush: #3A2540;  --q-tint-sand: #3A3320;  --q-tint-mint: #123B31;
+    --q-hero-from: #1A4290;    --q-hero-to: #0E2A5C;
+    --q-logo-ink: #F7F3EA;     --q-logo-accent: #D4AE68;
+    --q-shadow-1: 0 1px 0 rgb(0 0 0 / .25), 0 8px 24px -12px rgb(0 0 0 / .6);
+    --q-shadow-2: 0 1px 0 rgb(0 0 0 / .3), 0 24px 56px -24px rgb(0 0 0 / .7);
+    color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-q-mode="light"]) {
+        --q-primary: #163A7A;      --q-on-primary: #F7F3EA;
+        --q-action: #C9A25B;       --q-on-action: #0B1F44;
+        --q-accent: #D4AE68;       --q-on-accent: #0B1F44;   --q-accent-text: #DDBB7A;
+        --q-info: #6AAEE0;         --q-on-info: #071634;
+        --q-bg: #071634;           --q-surface: #0E2250;     --q-surface-alt: #14295F;
+        --q-ink: #F2EEE3;          --q-ink-muted: #A9B4CC;   --q-line: #22386B;
+        --q-positive: #41C795;     --q-warning: #EBB04A;     --q-danger: #F28B82;
+        --q-tint-sky: #14355F;     --q-tint-blush: #3A2540;  --q-tint-sand: #3A3320;  --q-tint-mint: #123B31;
+        --q-hero-from: #1A4290;    --q-hero-to: #0E2A5C;
+        --q-logo-ink: #F7F3EA;     --q-logo-accent: #D4AE68;
+        --q-shadow-1: 0 1px 0 rgb(0 0 0 / .25), 0 8px 24px -12px rgb(0 0 0 / .6);
+        --q-shadow-2: 0 1px 0 rgb(0 0 0 / .3), 0 24px 56px -24px rgb(0 0 0 / .7);
+        color-scheme: dark;
+    }
+}
+
+/* Tailwind utilities (bg-surface, text-muted, border-line, ...) read the live variables, so themes cascade. */
+@theme inline {
+    --color-canvas: var(--q-bg);
+    --color-surface: var(--q-surface);
+    --color-surface-alt: var(--q-surface-alt);
+    --color-ink: var(--q-ink);
+    --color-muted: var(--q-ink-muted);
+    --color-line: var(--q-line);
+    --color-navy: var(--q-primary);
+    --color-on-navy: var(--q-on-primary);
+    --color-gold: var(--q-accent);
+    --color-gold-ink: var(--q-accent-text);
+    --color-info: var(--q-info);
+    --color-ok: var(--q-positive);
+    --color-warn: var(--q-warning);
+    --color-bad: var(--q-danger);
+    --color-sky: var(--q-tint-sky);
+    --color-mint: var(--q-tint-mint);
+    --color-sand: var(--q-tint-sand);
+    --color-blush: var(--q-tint-blush);
+
+    --font-sans: var(--q-font-body);
+    --font-display: var(--q-font-display);
+}

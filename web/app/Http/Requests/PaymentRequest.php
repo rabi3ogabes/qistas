@@ -2,9 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\MoneyRules;
 use App\Models\Transaction;
 use App\Support\Digits;
-use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -14,6 +14,8 @@ use Illuminate\Validation\Rule;
  */
 class PaymentRequest extends FormRequest
 {
+    use MoneyRules;
+
     public function authorize(): bool
     {
         return $this->user()?->can('create', Transaction::class) ?? false;
@@ -23,11 +25,7 @@ class PaymentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'amount' => ['required', 'string', function (string $attribute, mixed $value, Closure $fail): void {
-                if (! preg_match('/^\d{1,14}(\.\d{1,2})?$/', (string) $value) || (float) $value <= 0) {
-                    $fail(__('Enter an amount greater than zero, with at most two decimals.'));
-                }
-            }],
+            'amount' => ['required', 'string', $this->amountRule(positive: true)],
             'method' => ['required', 'string', Rule::in(config('qistas.payment_methods'))],
             'paid_at' => ['nullable', 'date', 'before_or_equal:now'],
             'note' => ['nullable', 'string', 'max:1000'],
