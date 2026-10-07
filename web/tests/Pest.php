@@ -2,6 +2,7 @@
 
 use App\Models\Tenant;
 use App\Models\User;
+use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -14,6 +15,12 @@ pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)
     ->beforeEach(fn () => $this->withoutVite())
     ->in('Feature');
+
+/** Run $callback with $tenant as the active workspace (tenant-owned models need one). */
+function asTenant(Tenant $tenant, Closure $callback): mixed
+{
+    return app(CurrentTenant::class)->use($tenant, $callback);
+}
 
 /** The password every test account is created with; it satisfies the production password rules. */
 const TEST_PASSWORD = 'S3cure!Passw0rd';

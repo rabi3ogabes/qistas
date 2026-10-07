@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Notifications\ResetPasswordQueued;
 use App\Notifications\VerifyEmailQueued;
+use App\Tenancy\TenantRole;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -14,6 +15,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 
 // platform_role and status are deliberately not fillable: no request payload can ever set them.
@@ -36,6 +38,14 @@ class User extends Authenticatable implements MustVerifyEmail
     public function tenants(): BelongsToMany
     {
         return $this->belongsToMany(Tenant::class, 'tenant_users')->withPivot('role')->withTimestamps();
+    }
+
+    /** This person's role in one workspace, or null if they are not a member. */
+    public function roleIn(string $tenantId): ?TenantRole
+    {
+        $role = DB::table('tenant_users')->where(['user_id' => $this->id, 'tenant_id' => $tenantId])->value('role');
+
+        return is_string($role) ? TenantRole::tryFrom($role) : null;
     }
 
     public function isPlatformAdmin(): bool

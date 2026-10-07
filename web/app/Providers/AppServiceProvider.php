@@ -2,9 +2,13 @@
 
 namespace App\Providers;
 
+use App\Entitlements\Feature;
 use App\Entitlements\UsageMeters;
 use App\Listeners\AuditAuthEvents;
+use App\Models\Customer;
+use App\Models\Tenant;
 use App\Tenancy\CurrentTenant;
+use App\Tenancy\TenantScope;
 use Illuminate\Contracts\Validation\UncompromisedVerifier;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Client\Factory as HttpFactory;
@@ -47,5 +51,10 @@ class AppServiceProvider extends ServiceProvider
             ->when(! $this->app->environment('testing'), fn (Password $rule) => $rule->uncompromised()));
 
         Event::subscribe(AuditAuthEvents::class);
+
+        // How each counted feature is measured. Every module that has a limit registers its meter here.
+        $meters = $this->app->make(UsageMeters::class);
+        $meters->register(Feature::Customers, fn (Tenant $tenant): int => Customer::withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenant->id)->count());
     }
 }

@@ -23,7 +23,7 @@ return new class extends Migration
         Schema::create('tenant_users', function (Blueprint $table) {
             $table->foreignUuid('tenant_id')->constrained()->cascadeOnDelete();
             $table->foreignUuid('user_id')->constrained()->cascadeOnDelete();
-            $table->string('role', 16); // owner | admin | staff | viewer
+            $table->string('role', 16); // owner | manager | accountant | collector | viewer (App\Tenancy\TenantRole)
             $table->timestamps();
             $table->primary(['tenant_id', 'user_id']);
             $table->index('user_id');
