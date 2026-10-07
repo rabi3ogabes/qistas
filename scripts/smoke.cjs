@@ -18,6 +18,15 @@ const bad = (name, why) => { failed++; console.log('  FAIL ' + name + '\n       
 async function check(name, fn) { try { const r = await fn(); if (r === true || r === undefined) ok(name); else bad(name, String(r)); } catch (e) { bad(name, e.message || String(e)); } }
 const get = (p, opts) => fetch(base + p, Object.assign({ redirect: 'manual' }, opts || {}));
 const must = (cond, msg) => { if (!cond) throw new Error(msg); };
+/** Follow redirects like a browser (Vercel may normalise the trailing slash before applying a redirect rule). */
+async function follow(p) {
+  let url = base + p, hops = 0;
+  for (;;) {
+    const r = await fetch(url, { redirect: 'manual' });
+    if ([301, 302, 307, 308].includes(r.status) && hops < 4) { url = new URL(r.headers.get('location'), url).href; hops++; continue; }
+    return { status: r.status, path: new URL(url).pathname, hops };
+  }
+}
 
 (async () => {
   console.log('\nSmoke test: ' + base + (deployed ? '  (deployed checks on)' : '') + '\n');
@@ -36,8 +45,9 @@ const must = (cond, msg) => { if (!cond) throw new Error(msg); };
   const redirs = [['/intro', '/brand/intro/'], ['/studio', '/brand/theme-studio/'], ['/theme-studio', '/brand/theme-studio/'], ['/brand', '/brand/'], ['/brand/intro', '/brand/intro/'], ['/brand/theme-studio', '/brand/theme-studio/']];
   for (const [from, to] of redirs) {
     await check(`${from} -> ${to}`, async () => {
-      const r = await get(from); must([301, 302, 307, 308].includes(r.status), 'status ' + r.status);
-      const loc = r.headers.get('location') || ''; must(loc.replace(base, '') === to, 'Location ' + loc);
+      const r = await follow(from);
+      must(r.hops >= 1 && r.hops <= 2, 'expected 1-2 redirects, got ' + r.hops);
+      must(r.path === to && r.status === 200, `ended at ${r.path} (${r.status})`);
     });
   }
 
@@ -67,7 +77,7 @@ const must = (cond, msg) => { if (!cond) throw new Error(msg); };
     await check('Strict-Transport-Security present', () => must(/max-age=\d+/.test(h.get('strict-transport-security') || ''), h.get('strict-transport-security') || 'missing'));
     console.log('\nFiles that must NOT be public');
     for (const p of ['/supabase/migrations/20261007000100_theme_engine.sql', '/docs/THEME_ENGINE.md', '/brand/tools/build_logo.py', '/scripts/smoke.cjs', '/package.json', '/.git/config', '/.vercelignore']) {
-      await check(`${p} -> 404`, async () => { const r = await get(p); must(r.status === 404, 'status ' + r.status); });
+      await check(`${p} -> 404`, async () => { const r = await follow(p); must(r.status === 404, 'status ' + r.status + ' at ' + r.path); });
     }
   }
 
