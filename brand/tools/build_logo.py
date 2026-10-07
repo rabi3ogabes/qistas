@@ -175,7 +175,7 @@ def svg(w, h, body, title, bg=None):
 
 
 def write(name, content):
-    with open(os.path.join(OUT, name), "w", encoding="utf-8") as fh:
+    with open(os.path.join(OUT, name), "w", encoding="utf-8", newline="\n") as fh:
         fh.write(content)
 
 
