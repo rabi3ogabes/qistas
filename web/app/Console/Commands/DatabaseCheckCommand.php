@@ -47,15 +47,25 @@ final class DatabaseCheckCommand extends Command
             $pooled = $port === '6543' || str_contains($host, 'pooler');
             $this->line(sprintf('  host %s, port %s%s', $host, $port, $pooled ? ' (connection pooler: right for Vercel)' : ''));
 
+            // Through a pooler, pg_stat_ssl describes the pooler's own hop to Postgres, not this connection. What this
+            // connection asked for is the sslmode: "require" or stronger means it would not have connected unencrypted.
+            $asked = in_array((string) ($config['sslmode'] ?? ''), ['require', 'verify-ca', 'verify-full'], true);
+
             try {
                 $ssl = $connection->selectOne('select ssl from pg_stat_ssl where pid = pg_backend_pid()');
-                $this->line('  encrypted connection: '.(($ssl->ssl ?? false) ? 'yes' : 'NO (set DB_SSLMODE=require)'));
+                $this->line('  encrypted connection: '.($asked || ($ssl->ssl ?? false) ? 'yes' : 'NO (set DB_SSLMODE=require)'));
             } catch (Throwable) {
-                $this->line('  encrypted connection: could not tell');
+                $this->line('  encrypted connection: '.($asked ? 'yes' : 'could not tell'));
             }
 
-            $role = $connection->selectOne('select current_user as name, (select rolbypassrls or rolsuper from pg_roles where rolname = current_user) as bypass');
-            $this->line(sprintf('  signed in as %s%s', $role->name, $role->bypass ? '' : ' (this role is subject to row-level security: use the default postgres user)'));
+            // A role that owns the tables is not subject to row-level security either (the app's own role, once it has
+            // set the schema up), so only a role that owns none of them and cannot bypass is a problem.
+            $role = $connection->selectOne(
+                'select current_user as name, (select rolbypassrls or rolsuper from pg_roles where rolname = current_user) as bypass, '
+                .'(select count(*) from pg_tables where schemaname = current_schema() and tableowner <> current_user) as foreign_tables',
+            );
+            $exempt = $role->bypass || (int) $role->foreign_tables === 0;
+            $this->line(sprintf('  signed in as %s%s', $role->name, $exempt ? '' : ' (this role does not own the app\'s tables and is subject to row-level security: connect as the role that set the database up)'));
         }
 
         try {

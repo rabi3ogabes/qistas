@@ -71,9 +71,12 @@ What the script does to the database, in the order it does it:
    `php artisan qistas:secure-database`: **row-level security on every table, and no access for Supabase's `anon` and
    `authenticated` roles**, including on tables created later. This matters: Supabase publishes the `public` schema
    through its data API and the project's public key is easy to find, so without this the customers' data would be
-   readable by anyone. The app itself connects as the table owner (`postgres`), which row-level security does not
-   apply to, so it is unaffected. If you want to be thorough, also switch off the Data API in the Supabase dashboard
-   (Project Settings → Data API): the app never uses it.
+   readable by anyone. The app itself connects as the table owner (`postgres`, or a dedicated login role that set the
+   schema up, such as `qistas_app`), which row-level security does not apply to, so it is unaffected. A dedicated role
+   is the tidier choice: it is not a superuser and cannot touch Supabase's own schemas, e.g.
+   `create role qistas_app login password '…'; grant usage, create on schema public to qistas_app;` and then use
+   `qistas_app.<project-ref>` as the user name in the pooler string. If you want to be thorough, also switch off the
+   Data API in the Supabase dashboard (Project Settings → Data API): the app never uses it.
 3. It generates the application key (**keep a private copy**: if it is lost, encrypted national IDs cannot be read
    again), then copies `APP_KEY` and `DB_URL` to your clipboard one after the other for you to paste into
    **Vercel → Settings → Environment Variables → Add New (Production)**.
