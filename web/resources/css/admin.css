@@ -153,13 +153,6 @@
     }
 }
 
-@media (min-width: 52rem) {
-    .admin-tools {
-        grid-template-columns: 1fr 1fr;
-        align-items: start;
-    }
-}
-
 /* Across the top of every page of the test workspace. */
 .test-banner {
     display: flex;

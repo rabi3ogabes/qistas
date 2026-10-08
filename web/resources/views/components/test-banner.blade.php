@@ -3,7 +3,7 @@
     <strong>{{ __('Test workspace') }}</strong>
     <span class="test-banner-note">{{ __('Sample data. Nothing here is real, and no customer sees it.') }}</span>
     <div class="tool-actions">
-        <a class="btn btn-quiet btn-sm" href="{{ route('admin.home') }}">{{ __('Admin') }}</a>
+        <a class="btn btn-quiet btn-sm" href="{{ route('admin.home') }}">{{ __('Admin area') }}</a>
         <form method="POST" action="{{ route('admin.test.reset') }}">
             @csrf
             <button class="btn btn-quiet btn-sm">{{ __('Start again') }}</button>

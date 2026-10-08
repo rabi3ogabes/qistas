@@ -9,6 +9,7 @@ use App\Models\Contract;
 use App\Models\Customer;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\AppFirstTranslationLoader;
 use App\Tenancy\CurrentTenant;
 use App\Tenancy\TenantScope;
 use Illuminate\Contracts\Validation\UncompromisedVerifier;
@@ -18,7 +19,6 @@ use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\Lang;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\NotPwnedVerifier;
 use Illuminate\Validation\Rules\Password;
@@ -28,6 +28,8 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->extend('translation.loader', fn ($loader, $app) => AppFirstTranslationLoader::from($loader, lang_path('app')));
+
         // Scoped: a fresh, empty tenant context for every request and every queued job.
         $this->app->scoped(CurrentTenant::class);
 
@@ -47,8 +49,8 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        // Our own sentences live in lang/app/*.json, apart from the package-managed framework translations.
-        Lang::addJsonPath(lang_path('app'));
+        // Our own sentences live in lang/app/*.json, apart from the package-managed framework translations, and
+        // win where both have one (see AppFirstTranslationLoader).
 
         Paginator::defaultView('pagination.qistas');
         Paginator::defaultSimpleView('pagination.qistas');

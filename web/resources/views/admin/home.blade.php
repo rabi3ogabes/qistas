@@ -1,7 +1,7 @@
 @php
     $plan = $sandbox?->currentPlan();
 @endphp
-<x-layouts.auth :title="__('Admin')" :heading="__('Admin')" :lead="__('Try the product the way a customer does, without touching real data.')" wide>
+<x-layouts.auth :title="__('Admin area')" :heading="__('Admin area')" :lead="__('Try the product the way a customer does, without touching real data.')" wide>
     <p class="mode-pill" data-on="{{ $testOn ? 'true' : 'false' }}" role="status">{{ $testOn ? __('Test mode is on') : __('Test mode is off') }}</p>
 
     <x-alert type="warning" :message="session('warning')" />
