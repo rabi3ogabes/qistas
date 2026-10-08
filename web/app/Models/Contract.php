@@ -28,6 +28,13 @@ use Illuminate\Support\Facades\DB;
  * @property string $total
  * @property Carbon $start_date
  * @property Carbon $first_due_date
+ * @property int $installment_count
+ * @property string $frequency
+ * @property string $markup_type
+ * @property string $markup_value
+ * @property string|null $notes
+ * @property Carbon|null $settled_at
+ * @property Carbon|null $cancelled_at
  */
 class Contract extends Model
 {
@@ -90,6 +97,12 @@ class Contract extends Model
     {
         // A deleted customer's contracts stay readable.
         return $this->belongsTo(Customer::class)->withTrashed();
+    }
+
+    /** @return HasMany<Transaction, $this> */
+    public function transactions(): HasMany
+    {
+        return $this->hasMany(Transaction::class);
     }
 
     /** @return HasMany<Installment, $this> */

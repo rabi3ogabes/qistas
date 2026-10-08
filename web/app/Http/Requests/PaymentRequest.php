@@ -68,7 +68,8 @@ class PaymentRequest extends FormRequest
             'method' => $text('method'),
             'paid_at' => $text('paid_at'),
             'note' => $text('note'),
-            'idempotency_key' => $text('idempotency_key'),
+            // The API takes it as the Idempotency-Key header; the web form sends it as a field.
+            'idempotency_key' => $text('idempotency_key') ?? (trim((string) $this->header('Idempotency-Key')) ?: null),
         ]);
     }
 }

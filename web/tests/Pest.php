@@ -14,6 +14,7 @@ use App\Tenancy\CurrentTenant;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 /*
@@ -57,7 +58,7 @@ function customerIn(Tenant $tenant, array $attributes = []): Customer
 function openContract(Tenant $tenant, array $overrides = []): Contract
 {
     return app(CreateContract::class)->handle($tenant, array_merge([
-        'customer_id' => customerIn($tenant)->id, 'type' => 'scheduled', 'principal' => '300.00', 'down_payment' => '0',
+        'customer_id' => $overrides['customer_id'] ?? customerIn($tenant)->id, 'type' => 'scheduled', 'principal' => '300.00', 'down_payment' => '0',
         'markup_type' => 'none', 'markup_value' => '0', 'installment_count' => 3, 'frequency' => 'monthly',
         'start_date' => '2026-01-15', 'first_due_date' => '2026-02-01',
     ], $overrides));
@@ -132,6 +133,30 @@ function makeAccount(array $user = [], array $tenant = []): array
 function owner(array $tenant = []): array
 {
     return makeAccount(tenant: $tenant);
+}
+
+/**
+ * An owner on the Free plan, signed in to the API with an app token (or one with the given abilities).
+ *
+ * @param  array<string, mixed>  $tenant
+ * @param  list<string>  $abilities
+ * @return array{0: User, 1: Tenant}
+ */
+function apiOwner(array $tenant = [], array $abilities = ['app']): array
+{
+    [$user, $workspace] = owner($tenant);
+    Sanctum::actingAs($user, $abilities);
+
+    return [$user, $workspace];
+}
+
+/** A new member of $tenant with this role, signed in to the API from now on in the test. */
+function apiMember(string $role, Tenant $tenant, array $abilities = ['app']): User
+{
+    $user = memberAs($role, $tenant);
+    Sanctum::actingAs($user, $abilities);
+
+    return $user;
 }
 
 /** A new user who belongs to $tenant with the given role (owner, manager, accountant, collector or viewer). */

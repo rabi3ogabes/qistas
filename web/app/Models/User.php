@@ -17,6 +17,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\DB;
 use Laravel\Fortify\TwoFactorAuthenticatable;
+use Laravel\Sanctum\HasApiTokens;
 
 // platform_role and status are deliberately not fillable: no request payload can ever set them.
 #[Fillable(['name', 'email', 'password', 'locale'])]
@@ -24,7 +25,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
 class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, HasUuids, Notifiable, TwoFactorAuthenticatable;
+    use HasApiTokens, HasFactory, HasUuids, Notifiable, TwoFactorAuthenticatable;
 
     /** Platform staff who may open /admin (and must have two-factor authentication to do so). */
     public const ADMIN_ROLES = ['admin', 'super_admin'];
@@ -38,6 +39,13 @@ class User extends Authenticatable implements MustVerifyEmail
     public function tenants(): BelongsToMany
     {
         return $this->belongsToMany(Tenant::class, 'tenant_users')->withPivot('role')->withTimestamps();
+    }
+
+    /** The workspace this person works in: their oldest membership that is not suspended. */
+    public function primaryTenant(): ?Tenant
+    {
+        return $this->tenants()->where('tenants.status', 'active')
+            ->orderBy('tenant_users.created_at')->orderBy('tenants.id')->first();
     }
 
     /** This person's role in one workspace, or null if they are not a member. */

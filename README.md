@@ -20,6 +20,8 @@ cd qistas
 docker compose up --build        # then open http://localhost:8080  (demo login is printed in docs/DEPLOY.md)
 ```
 
+**The REST API** (what the mobile app uses): [docs/api/openapi.yaml](docs/api/openapi.yaml), under `/api/v1`.
+
 **Put it online for real** with Supabase: [docs/DEPLOY.md](docs/DEPLOY.md). The mobile app (Flutter) is not built yet.
 
 ### Brand prototypes (run locally with `npm run dev`; no longer hosted)

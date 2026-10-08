@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -25,6 +26,12 @@ class Customer extends Model
 {
     /** @use HasFactory<CustomerFactory> */
     use BelongsToTenant, HasFactory, HasUuids, SoftDeletes;
+
+    /** @return HasMany<Contract, $this> */
+    public function contracts(): HasMany
+    {
+        return $this->hasMany(Contract::class);
+    }
 
     /** The national ID with all but the last three digits hidden, for screens; never the full number. */
     public function maskedNationalId(): ?string

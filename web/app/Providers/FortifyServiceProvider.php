@@ -62,6 +62,17 @@ class FortifyServiceProvider extends ServiceProvider
         // The public instalment calculator is cheap but unauthenticated: one address gets a minute's budget.
         RateLimiter::for('schedule-preview', fn (Request $request) => Limit::perMinute(60)->by('schedule-preview|'.$request->ip()));
 
+        // The REST API (see routes/api.php). Signed-in calls are counted per person, the rest per address.
+        RateLimiter::for('api', fn (Request $request) => Limit::perMinute(120)->by('api|'.($request->user()?->getAuthIdentifier() ?? $request->ip())));
+        RateLimiter::for('api-money', fn (Request $request) => Limit::perMinute(60)->by('api-money|'.($request->user()?->getAuthIdentifier() ?? $request->ip())));
+        RateLimiter::for('api-public', fn (Request $request) => Limit::perMinute(60)->by('api-public|'.$request->ip()));
+        RateLimiter::for('api-register', fn (Request $request) => Limit::perMinute(5)->by('api-register|'.$request->ip()));
+        RateLimiter::for('api-login', fn (Request $request) => [
+            Limit::perMinute(config('qistas.security.login_attempts_per_minute'))
+                ->by('api-login|'.Str::transliterate(Str::lower((string) $request->input('email'))).'|'.$request->ip()),
+            Limit::perMinute(20)->by('api-login-address|'.$request->ip()),
+        ]);
+
         // The signed-in contract form asks for a fresh preview as the person types, so it gets a wider budget.
         RateLimiter::for('contract-preview', fn (Request $request) => Limit::perMinute(180)->by('contract-preview|'.($request->user()?->getAuthIdentifier() ?? $request->ip())));
 

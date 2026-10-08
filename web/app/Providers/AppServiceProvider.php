@@ -8,6 +8,7 @@ use App\Listeners\AuditAuthEvents;
 use App\Models\Contract;
 use App\Models\Customer;
 use App\Models\Tenant;
+use App\Models\User;
 use App\Tenancy\CurrentTenant;
 use App\Tenancy\TenantScope;
 use Illuminate\Contracts\Validation\UncompromisedVerifier;
@@ -15,6 +16,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Lang;
 use Illuminate\Support\ServiceProvider;
@@ -72,6 +74,13 @@ class AppServiceProvider extends ServiceProvider
         $meters = $this->app->make(UsageMeters::class);
         $meters->register(Feature::Customers, fn (Tenant $tenant): int => Customer::withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $tenant->id)->count());
+        // API access tokens made on purpose (see TokenController); a person's own phone sign-ins are not counted.
+        $meters->register(Feature::ApiTokens, fn (Tenant $tenant): int => DB::table('personal_access_tokens as tokens')
+            ->join('tenant_users as members', 'members.user_id', '=', 'tokens.tokenable_id')
+            ->where('members.tenant_id', $tenant->id)
+            ->where('tokens.tokenable_type', (new User)->getMorphClass())
+            ->where('tokens.abilities', 'like', '%"integration"%')
+            ->count());
         // Only contracts still running count: settled and cancelled ones free their place.
         $meters->register(Feature::ActiveContracts, fn (Tenant $tenant): int => Contract::withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $tenant->id)->where('status', 'active')->count());

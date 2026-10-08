@@ -1,0 +1,885 @@
+openapi: 3.1.0
+info:
+  title: Qistas API
+  version: "1"
+  summary: Customers, contracts, instalments and payments for a lending or instalment business.
+  description: |
+    The API behind the Qistas web app and the Qistas mobile app. Everything an app needs: create an account or sign
+    in, read what the plan allows, manage customers and contracts, take payments.
+
+    **Conventions**
+
+    * Base path `/api/v1`. Requests and responses are JSON. Send `Accept: application/json`.
+    * Authentication is a bearer token: `Authorization: Bearer <token>`. A token is made by signing in (one per
+      device, 30 days) or on purpose under *API access tokens* (for another program).
+    * **Money is a string with two decimals** (`"1200.00"`), never a number. Dates are `YYYY-MM-DD`; moments are
+      ISO 8601 in UTC (`2026-10-07T12:00:00Z`).
+    * Send `Accept-Language` (`en`, `ar`, `fr`, `es`, `ur`) to receive messages and plan descriptions in that
+      language. The reply carries `Content-Language`.
+    * **Errors** always look the same: `{"error": {"code": "...", "message": "...", ...}}`. `code` is stable and for
+      programs, `message` is translated and for people.
+    * **Plans and limits.** Whether a feature is free or paid is decided by the plan the admin configured. Read it
+      from `GET /me` (`entitlements`); never hard-code it. An action the plan does not allow answers **HTTP 402**
+      with `code` `limit_reached` or `feature_locked`, the `feature`, the `limit`, how much is `used`, and an
+      `upgrade_url`.
+    * **Retrying a payment.** `POST /contracts/{id}/payments` accepts an `Idempotency-Key` header (1 to 100 characters
+      from `A-Z a-z 0-9 _ . : -`). Repeating a request with the same key and the same content records one payment and
+      answers with it (200 instead of 201). The same key with different content is a `validation_failed`.
+    * **Another workspace's records are never found**: they answer 404, not 403.
+    * Lists are paginated: `?page=` and `?per_page=` (1 to 100, default 20); the reply has `data`, `links` and `meta`.
+servers:
+  - url: https://qistas-puce.vercel.app/api/v1
+    description: Live
+  - url: http://localhost:8080/api/v1
+    description: docker compose on your computer
+security:
+  - bearer: []
+tags:
+  - name: Account
+  - name: Plans
+  - name: Customers
+  - name: Contracts
+  - name: Payments
+  - name: Dashboard
+  - name: API access tokens
+paths:
+  /plans:
+    get:
+      tags: [Plans]
+      summary: The plans on offer, exactly as the admin set them up
+      security: []
+      parameters: [{$ref: "#/components/parameters/AcceptLanguage"}]
+      responses:
+        "200":
+          description: The public plans, cheapest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {type: array, items: {$ref: "#/components/schemas/Plan"}}
+        "429": {$ref: "#/components/responses/RateLimited"}
+  /auth/register:
+    post:
+      tags: [Account]
+      summary: Open a free account and sign in on this device
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RegisterRequest"}
+      responses:
+        "201":
+          description: The account, a workspace on the Free plan, and a token for this device.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/Session"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+  /auth/login:
+    post:
+      tags: [Account]
+      summary: Sign in on this device
+      description: |
+        Wrong e-mail and wrong password are indistinguishable (`invalid_credentials`). An account with two-factor
+        authentication answers `two_factor_required` (422) until a `code` from the authenticator app, or a
+        `recovery_code`, is sent along. Five failed attempts per minute for one e-mail and address are allowed.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/LoginRequest"}
+      responses:
+        "200":
+          description: Signed in.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/Session"}
+        "401":
+          description: "`invalid_credentials` or `invalid_two_factor_code`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          description: "`account_suspended`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "422":
+          description: "`validation_failed` or `two_factor_required`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+  /auth/logout:
+    post:
+      tags: [Account]
+      summary: End this device's token
+      responses:
+        "204": {description: Signed out.}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+  /auth/logout-all:
+    post:
+      tags: [Account]
+      summary: End every signed-in device of the person
+      description: API access tokens made on purpose are not ended.
+      responses:
+        "204": {description: Every device is signed out.}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+  /me:
+    get:
+      tags: [Account]
+      summary: Who is signed in, where, and what the plan allows right now
+      parameters: [{$ref: "#/components/parameters/AcceptLanguage"}]
+      responses:
+        "200":
+          description: The account.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/Account"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /dashboard:
+    get:
+      tags: [Dashboard]
+      summary: The headline figures and who pays today
+      description: |
+        `outstanding` is what is still owed on instalments of contracts that are not cancelled; `overdue` the part due
+        before today; `collected_this_month` the net money received this calendar month; `active_customers` those with a
+        running contract; `collection_rate` the percent of this month's instalments already paid (null when none fall
+        due).
+      responses:
+        "200":
+          description: The figures.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/Dashboard"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+  /customers:
+    get:
+      tags: [Customers]
+      summary: List customers, alphabetically
+      parameters:
+        - {name: q, in: query, schema: {type: string}, description: Part of a name, phone number or e-mail.}
+        - {$ref: "#/components/parameters/Page"}
+        - {$ref: "#/components/parameters/PerPage"}
+      responses:
+        "200":
+          description: A page of customers with what each owes.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/CustomerPage"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+    post:
+      tags: [Customers]
+      summary: Add a customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CustomerInput"}
+      responses:
+        "201":
+          description: The customer.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/Customer"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "402": {$ref: "#/components/responses/PlanLimit"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+  /customers/{customer}:
+    parameters:
+      - {name: customer, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [Customers]
+      summary: One customer with their contracts
+      responses:
+        "200":
+          description: The customer.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/Customer"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "404": {$ref: "#/components/responses/NotFound"}
+    put:
+      tags: [Customers]
+      summary: Change a customer
+      description: |
+        A national ID left out or blank keeps the stored one; send `remove_national_id: true` to erase it. `PATCH` is an
+        alias.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CustomerInput"}
+      responses:
+        "200":
+          description: The customer.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/Customer"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+    delete:
+      tags: [Customers]
+      summary: Remove a customer from the lists
+      description: Their contracts and payments stay in the books. A customer with a running contract cannot be removed (`validation_failed` on `customer`).
+      responses:
+        "204": {description: Removed. A place on the plan is free again.}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+  /contracts:
+    get:
+      tags: [Contracts]
+      summary: List contracts, newest first
+      parameters:
+        - name: status
+          in: query
+          description: Which list. `late` is a running contract with an overdue instalment. An unknown value means `active`.
+          schema: {type: string, enum: [active, late, settled, cancelled, all], default: active}
+        - {name: q, in: query, schema: {type: string}, description: "A reference (C-0012, 12) or part of the customer's name, phone or e-mail."}
+        - {$ref: "#/components/parameters/Page"}
+        - {$ref: "#/components/parameters/PerPage"}
+      responses:
+        "200":
+          description: A page of contracts.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ContractPage"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+    post:
+      tags: [Contracts]
+      summary: Open a contract
+      description: |
+        Creates the contract and its schedule (and the down payment line) in one step. Instalments add up to the total,
+        to the cent. A cash sale (`type: cash`) needs only a customer and a price.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ContractInput"}
+      responses:
+        "201":
+          description: The contract with its schedule.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/Contract"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "402": {$ref: "#/components/responses/PlanLimit"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+  /contracts/preview:
+    post:
+      tags: [Contracts]
+      summary: See the schedule a plan would create, without storing anything
+      description: The same engine that writes real contracts, so the preview is exact.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/PreviewInput"}
+      responses:
+        "200":
+          description: The schedule.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/Schedule"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+  /contracts/{contract}:
+    parameters:
+      - {name: contract, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [Contracts]
+      summary: One contract with its schedule and the money received
+      responses:
+        "200":
+          description: The contract.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/Contract"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /contracts/{contract}/cancel:
+    post:
+      tags: [Contracts]
+      summary: Cancel a running contract
+      description: Owners and managers only. Nothing is deleted; the place on the plan is freed.
+      parameters:
+        - {name: contract, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: {type: string, maxLength: 500}
+      responses:
+        "200":
+          description: The cancelled contract.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/Contract"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+  /contracts/{contract}/payments:
+    post:
+      tags: [Payments]
+      summary: Record a payment
+      description: |
+        Applied to the oldest unpaid instalment first. Safe to retry with an `Idempotency-Key`.
+      parameters:
+        - {name: contract, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: "#/components/parameters/IdempotencyKey"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/PaymentInput"}
+      responses:
+        "200":
+          description: "A retry of a payment already recorded: that payment."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/Transaction"}
+        "201":
+          description: The payment, and what the contract now owes.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/Transaction"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+  /payments:
+    get:
+      tags: [Payments]
+      summary: The money ledger, newest first
+      parameters:
+        - {name: contract_id, in: query, schema: {type: string, format: uuid}}
+        - {$ref: "#/components/parameters/Page"}
+        - {$ref: "#/components/parameters/PerPage"}
+      responses:
+        "200":
+          description: A page of ledger lines.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/TransactionPage"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+  /payments/{transaction}/void:
+    post:
+      tags: [Payments]
+      summary: Void a payment
+      description: |
+        Owners and managers only. Adds a reversal; the original line is never changed. Only instalment payments can be
+        voided, once.
+      parameters:
+        - {name: transaction, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: {type: string, maxLength: 500}
+      responses:
+        "200":
+          description: The reversal.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/Transaction"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+  /tokens:
+    get:
+      tags: [API access tokens]
+      summary: The API access tokens made on purpose
+      description: Needs a signed-in device, not another API access token. A device's own sign-in is not listed.
+      responses:
+        "200":
+          description: The tokens, without their secrets.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {type: array, items: {$ref: "#/components/schemas/Token"}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+    post:
+      tags: [API access tokens]
+      summary: Make an API access token
+      description: The secret is shown once, in this answer. How many a plan allows is the `api_tokens` feature (402 beyond it).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: {type: string, maxLength: 100}
+      responses:
+        "201":
+          description: The token, with its secret.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    allOf:
+                      - {$ref: "#/components/schemas/Token"}
+                      - type: object
+                        properties:
+                          token: {type: string}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "402": {$ref: "#/components/responses/PlanLimit"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+  /tokens/{token}:
+    delete:
+      tags: [API access tokens]
+      summary: Revoke an API access token
+      parameters:
+        - {name: token, in: path, required: true, schema: {type: integer}}
+      responses:
+        "204": {description: Revoked. It stops working at once.}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+  parameters:
+    Page: {name: page, in: query, schema: {type: integer, minimum: 1, default: 1}}
+    PerPage: {name: per_page, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}
+    AcceptLanguage:
+      name: Accept-Language
+      in: header
+      schema: {type: string, example: ar}
+      description: One of en, ar, fr, es, ur.
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      schema: {type: string, pattern: '^[A-Za-z0-9_.:\-]{1,100}$'}
+      description: Makes a retry record one payment.
+  responses:
+    Unauthenticated:
+      description: No token, an unknown token, or an expired one (`unauthenticated`).
+      content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}
+    Forbidden:
+      description: The role may not do that, the token lacks the ability, or the account is suspended (`forbidden`, `account_suspended`).
+      content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}
+    NotFound:
+      description: It does not exist, or belongs to another workspace (`not_found`).
+      content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}
+    ValidationFailed:
+      description: Something sent is not valid (`validation_failed`); `fields` says which and why.
+      content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}
+    PlanLimit:
+      description: The plan does not allow it (`limit_reached` or `feature_locked`).
+      content: {application/json: {schema: {$ref: "#/components/schemas/PlanError"}}}
+    RateLimited:
+      description: Too many requests (`rate_limited`); wait `Retry-After` seconds.
+      headers: {Retry-After: {schema: {type: integer}}}
+      content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}
+  schemas:
+    Money: {type: string, pattern: '^-?\d+\.\d{2}$', example: "1200.00"}
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: {type: string, example: validation_failed}
+            message: {type: string}
+            fields: {type: object, additionalProperties: {type: array, items: {type: string}}}
+            retry_after: {type: integer}
+    PlanError:
+      type: object
+      properties:
+        error:
+          type: object
+          required: [code, message, feature, limit, used, upgrade_url]
+          properties:
+            code: {type: string, enum: [limit_reached, feature_locked]}
+            message: {type: string}
+            feature: {type: string, example: customers}
+            limit: {type: [integer, "null"]}
+            used: {type: [integer, "null"]}
+            upgrade_url: {type: string, format: uri}
+    RegisterRequest:
+      type: object
+      required: [name, email, password, password_confirmation, business_name, country, terms]
+      properties:
+        name: {type: string}
+        email: {type: string, format: email}
+        password: {type: string, minLength: 10, description: "At least 10 characters with upper and lower case, a number and a symbol; known-breached passwords are refused."}
+        password_confirmation: {type: string}
+        business_name: {type: string}
+        country: {type: string, minLength: 2, maxLength: 2, example: SA, description: "ISO 3166-1 alpha-2; decides the starting currency."}
+        terms: {type: boolean, const: true}
+        locale: {type: string, enum: [en, ar, fr, es, ur]}
+        device_name: {type: string, maxLength: 100, example: Pixel 9}
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: {type: string}
+        password: {type: string}
+        device_name: {type: string, maxLength: 100}
+        code: {type: string, description: The 6-digit code from the authenticator app.}
+        recovery_code: {type: string}
+    Session:
+      type: object
+      properties:
+        token: {type: string, description: "Shown once. Send as Authorization: Bearer <token>."}
+        token_type: {type: string, const: Bearer}
+        expires_at: {type: string, format: date-time}
+        user: {$ref: "#/components/schemas/User"}
+        tenant: {$ref: "#/components/schemas/Tenant"}
+        plan: {$ref: "#/components/schemas/PlanRef"}
+        entitlements: {$ref: "#/components/schemas/Entitlements"}
+    Account:
+      type: object
+      properties:
+        user: {$ref: "#/components/schemas/User"}
+        tenant: {$ref: "#/components/schemas/Tenant"}
+        plan: {$ref: "#/components/schemas/PlanRef"}
+        entitlements: {$ref: "#/components/schemas/Entitlements"}
+    User:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        email: {type: string}
+        email_verified: {type: boolean}
+        locale: {type: string}
+        two_factor: {type: boolean}
+    Tenant:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        country: {type: string}
+        currency: {type: string, example: SAR}
+        role: {type: string, enum: [owner, manager, accountant, collector, viewer]}
+    PlanRef:
+      type: object
+      properties:
+        key: {type: string, example: free}
+        name: {type: string}
+    Entitlements:
+      type: object
+      description: One entry per feature, keyed by feature (customers, active_contracts, pdf_statements, export_csv, advanced_reports, custom_branding, api_tokens).
+      additionalProperties: {$ref: "#/components/schemas/Entitlement"}
+    Entitlement:
+      type: object
+      properties:
+        type: {type: string, enum: [toggle, limit, quota]}
+        enabled: {type: boolean}
+        limit: {type: [integer, "null"], description: "null means unlimited for counted features."}
+        used: {type: [integer, "null"]}
+        remaining: {type: [integer, "null"]}
+        unlimited: {type: boolean}
+    Plan:
+      type: object
+      properties:
+        key: {type: string}
+        name: {type: string}
+        description: "{type: [string, \"null\"]}"
+        is_free: {type: boolean}
+        currency: {type: string}
+        monthly_price: {oneOf: [{$ref: "#/components/schemas/Money"}, {type: "null"}]}
+        yearly_price: {oneOf: [{$ref: "#/components/schemas/Money"}, {type: "null"}]}
+        yearly_saving_percent: {type: [integer, "null"]}
+        features:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              type: {type: string}
+              label: {type: string}
+              enabled: {type: boolean}
+              limit: {type: [integer, "null"]}
+              summary: "{type: string, example: Up to 5 customers}"
+    Dashboard:
+      type: object
+      properties:
+        currency: {type: string}
+        outstanding: {$ref: "#/components/schemas/Money"}
+        overdue: {$ref: "#/components/schemas/Money"}
+        collected_this_month: {$ref: "#/components/schemas/Money"}
+        active_customers: {type: integer}
+        collection_rate: {type: [string, "null"]}
+        due_today:
+          type: array
+          items:
+            type: object
+            properties:
+              installment_id: {type: string}
+              contract_id: {type: string}
+              contract_reference: {type: string}
+              customer_id: {type: string}
+              customer_name: {type: string}
+              amount_due: {$ref: "#/components/schemas/Money"}
+              due_date: {type: string, format: date}
+    CustomerInput:
+      type: object
+      required: [name, phone]
+      properties:
+        name: {type: string, maxLength: 255}
+        phone: {type: string, description: "6 to 15 digits; Arabic-Indic digits are accepted."}
+        phone_secondary: {type: [string, "null"]}
+        email: {type: [string, "null"], format: email}
+        national_id: {type: [string, "null"], maxLength: 40}
+        address: {type: [string, "null"]}
+        notes: {type: [string, "null"]}
+        remove_national_id: {type: boolean, description: "Only when changing a customer."}
+    Customer:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        phone: {type: string}
+        phone_secondary: {type: [string, "null"]}
+        email: {type: [string, "null"]}
+        national_id: {type: [string, "null"], description: "Only ever masked: the last three digits."}
+        address: {type: [string, "null"]}
+        notes: {type: [string, "null"]}
+        created_at: {type: string, format: date-time}
+        owed: {$ref: "#/components/schemas/Money"}
+        running_contracts: {type: integer}
+        contracts: {type: array, items: {$ref: "#/components/schemas/Contract"}}
+    CustomerPage:
+      allOf:
+        - {$ref: "#/components/schemas/Page"}
+        - type: object
+          properties:
+            data: {type: array, items: {$ref: "#/components/schemas/Customer"}}
+    ContractInput:
+      type: object
+      required: [customer_id, principal]
+      properties:
+        customer_id: {type: string, format: uuid}
+        type: {type: string, enum: [scheduled, cash], default: scheduled}
+        principal: {$ref: "#/components/schemas/Money"}
+        down_payment: {$ref: "#/components/schemas/Money"}
+        markup_type: {type: string, enum: [none, fixed, percent]}
+        markup_value: {type: string, example: "10"}
+        installment_count: {type: integer, minimum: 1, maximum: 120}
+        frequency: {type: string, enum: [weekly, biweekly, monthly]}
+        start_date: {type: string, format: date}
+        first_due_date: {type: string, format: date}
+        notes: {type: string}
+    PreviewInput:
+      type: object
+      required: [principal, count, frequency]
+      properties:
+        principal: {$ref: "#/components/schemas/Money"}
+        down_payment: {$ref: "#/components/schemas/Money"}
+        markup_type: {type: string, enum: [none, fixed, percent]}
+        markup_value: {type: string}
+        count: {type: integer, minimum: 1, maximum: 120}
+        frequency: {type: string, enum: [weekly, biweekly, monthly]}
+        first_due_date: {type: string, format: date}
+    Schedule:
+      type: object
+      properties:
+        financed: {$ref: "#/components/schemas/Money"}
+        markup: {$ref: "#/components/schemas/Money"}
+        total: {$ref: "#/components/schemas/Money"}
+        installments:
+          type: array
+          items:
+            type: object
+            properties:
+              number: {type: integer}
+              due_date: {type: string, format: date}
+              amount: {$ref: "#/components/schemas/Money"}
+    Contract:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        reference: {type: string, example: C-0012}
+        number: {type: integer}
+        type: {type: string, enum: [scheduled, cash]}
+        status: {type: string, enum: [active, settled, cancelled]}
+        state: {type: string, enum: [active, late, settled, cancelled]}
+        principal: {$ref: "#/components/schemas/Money"}
+        down_payment: {$ref: "#/components/schemas/Money"}
+        financed: {$ref: "#/components/schemas/Money"}
+        markup_type: {type: string}
+        markup_value: {$ref: "#/components/schemas/Money"}
+        markup_amount: {$ref: "#/components/schemas/Money"}
+        total: {$ref: "#/components/schemas/Money"}
+        installment_count: {type: integer}
+        frequency: {type: string}
+        start_date: {type: string, format: date}
+        first_due_date: {type: string, format: date}
+        notes: {type: [string, "null"]}
+        created_at: {type: string, format: date-time}
+        settled_at: {type: [string, "null"], format: date-time}
+        cancelled_at: {type: [string, "null"], format: date-time}
+        customer:
+          type: object
+          properties:
+            id: {type: string, format: uuid}
+            name: {type: string}
+        owed: {$ref: "#/components/schemas/Money"}
+        paid: {$ref: "#/components/schemas/Money"}
+        next_installment:
+          oneOf:
+            - type: object
+              properties:
+                number: {type: integer}
+                due_date: {type: string, format: date}
+                remaining: {$ref: "#/components/schemas/Money"}
+            - {type: "null"}
+        installments: {type: array, items: {$ref: "#/components/schemas/Installment"}}
+        transactions: {type: array, items: {$ref: "#/components/schemas/Transaction"}}
+    ContractPage:
+      allOf:
+        - {$ref: "#/components/schemas/Page"}
+        - type: object
+          properties:
+            data: {type: array, items: {$ref: "#/components/schemas/Contract"}}
+    Installment:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        number: {type: integer}
+        due_date: {type: string, format: date}
+        amount: {$ref: "#/components/schemas/Money"}
+        paid_amount: {$ref: "#/components/schemas/Money"}
+        remaining: {$ref: "#/components/schemas/Money"}
+        status: {type: string, enum: [pending, partial, paid]}
+        state: {type: string, enum: [paid, overdue, partial, upcoming], description: "What a person should see."}
+        paid_at: {type: [string, "null"], format: date-time}
+    PaymentInput:
+      type: object
+      required: [amount, method]
+      properties:
+        amount: {$ref: "#/components/schemas/Money"}
+        method: {type: string, enum: [cash, bank_transfer, card, cheque, other]}
+        paid_at: {type: string, description: "A date or a moment, never in the future. A date alone means that day."}
+        note: {type: string, maxLength: 1000}
+        idempotency_key: {type: string, description: "The Idempotency-Key header may be used instead."}
+    Transaction:
+      type: object
+      description: One line of the immutable money ledger. Amounts are signed; a reversal is negative.
+      properties:
+        id: {type: string, format: uuid}
+        type: {type: string, enum: [payment, down_payment, reversal]}
+        method: {type: string}
+        amount: {$ref: "#/components/schemas/Money"}
+        paid_at: {type: string, format: date-time}
+        note: {type: [string, "null"]}
+        voided: {type: boolean}
+        reverses_transaction_id: {type: [string, "null"]}
+        created_by:
+          type: [object, "null"]
+          properties:
+            id: {type: string}
+            name: {type: string}
+        customer:
+          type: [object, "null"]
+          properties:
+            id: {type: string}
+            name: {type: string}
+        contract:
+          type: object
+          properties:
+            id: {type: string}
+            reference: {type: string}
+            status: {type: string}
+            owed: {$ref: "#/components/schemas/Money"}
+    TransactionPage:
+      allOf:
+        - {$ref: "#/components/schemas/Page"}
+        - type: object
+          properties:
+            data: {type: array, items: {$ref: "#/components/schemas/Transaction"}}
+    Token:
+      type: object
+      properties:
+        id: {type: integer}
+        name: {type: string}
+        created_at: {type: string, format: date-time}
+        last_used_at: {type: [string, "null"], format: date-time}
+        expires_at: {type: [string, "null"], format: date-time}
+    Page:
+      type: object
+      properties:
+        links:
+          type: object
+          properties:
+            first: {type: [string, "null"]}
+            last: {type: [string, "null"]}
+            prev: {type: [string, "null"]}
+            next: {type: [string, "null"]}
+        meta:
+          type: object
+          properties:
+            current_page: {type: integer}
+            last_page: {type: integer}
+            per_page: {type: integer}
+            total: {type: integer}
