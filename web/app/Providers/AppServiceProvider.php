@@ -22,6 +22,7 @@ use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\NotPwnedVerifier;
 use Illuminate\Validation\Rules\Password;
@@ -77,6 +78,9 @@ class AppServiceProvider extends ServiceProvider
             ->when(! $this->app->environment('testing'), fn (Password $rule) => $rule->uncompromised()));
 
         Event::subscribe(AuditAuthEvents::class);
+
+        // Only a super admin changes what the platform has on, off or in beta; an admin may look.
+        Gate::define('manage-platform-features', fn (User $user): bool => $user->platform_role === 'super_admin');
 
         // @feature('key') ... @endfeature: shown only when the feature is on for the current workspace (not plan-locked,
         // not switched off by the platform). Nothing is shown outside a workspace.

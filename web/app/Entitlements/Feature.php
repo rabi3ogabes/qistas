@@ -87,6 +87,21 @@ enum Feature: string
         };
     }
 
+    /**
+     * Does this feature reach out to a customer (a message, a link, an offer)? The admin's "pause all automation"
+     * control switches these off in one action. Declared per feature when it is built; nothing does yet.
+     */
+    public function touchesCustomers(): bool
+    {
+        return false;
+    }
+
+    /** Part of the "essentials" preset: the small set worth switching on for every workspace first. */
+    public function isEssential(): bool
+    {
+        return false;
+    }
+
     /** 'workspace' features are assigned to plans; 'platform' ones (membership billing) are only switched. */
     public function scope(): string
     {

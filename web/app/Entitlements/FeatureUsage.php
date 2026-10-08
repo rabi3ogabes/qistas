@@ -26,6 +26,22 @@ final class FeatureUsage
         DB::table('feature_usage_daily')->where($row)->update(['hits' => DB::raw('hits + 1')]);
     }
 
+    /**
+     * The same count for every feature at once, in one query: how many workspaces used each in the last thirty days.
+     *
+     * @return array<string, int> by feature key; a feature nobody used is absent
+     */
+    public static function workspacesInLast30DaysByFeature(): array
+    {
+        return DB::table('feature_usage_daily')
+            ->where('day', '>=', now()->subDays(30)->toDateString())
+            ->groupBy('feature_key')
+            ->selectRaw('feature_key, count(distinct tenant_id) as workspaces')
+            ->pluck('workspaces', 'feature_key')
+            ->map(fn ($count) => (int) $count)
+            ->all();
+    }
+
     /** How many different workspaces used the feature in the last thirty days (today included). */
     public static function workspacesInLast30Days(Feature $feature): int
     {

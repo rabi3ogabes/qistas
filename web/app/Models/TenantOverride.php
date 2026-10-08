@@ -7,8 +7,14 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
-// created_by_user_id is set by the admin action, never from input.
+/**
+ * One workspace's own setting for one feature (a grant, or a denial), with a reason and optionally an end date.
+ * created_by_user_id is set by the admin action, never from input.
+ *
+ * @property Carbon|null $expires_at
+ */
 #[Fillable(['feature_key', 'enabled', 'limit_value', 'reason', 'expires_at'])]
 class TenantOverride extends Model
 {
