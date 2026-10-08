@@ -36,5 +36,12 @@ for pattern in '/build/assets/[^"]*\.css' '/build/assets/[^"]*\.js'; do
     if [ -n "$asset" ]; then check "$asset" 200; else echo "FAIL  no asset matching $pattern on the home page"; failed=1; fi
 done
 
+# Security headers are present, and the PHP version is not advertised.
+headers="$(curl -sI "$BASE/" | tr 'A-Z' 'a-z')"
+for wanted in 'x-content-type-options: nosniff' 'x-frame-options: deny' 'referrer-policy:'; do
+    if echo "$headers" | grep -q "$wanted"; then echo "ok    header $wanted"; else echo "FAIL  missing header $wanted"; failed=1; fi
+done
+if echo "$headers" | grep -q 'x-powered-by'; then echo "FAIL  X-Powered-By is advertised"; failed=1; else echo "ok    no X-Powered-By"; fi
+
 [ "$failed" = "0" ] || { echo "::error::smoke test failed for $BASE"; exit 1; }
 echo "smoke test passed for $BASE"
