@@ -70,4 +70,17 @@ return [
         'login_attempts_per_minute' => 5,
         'api_token_days' => 30,
     ],
+
+    /*
+    | "Try the demo" buttons on the sign-in page and in the app. Each press makes a throw-away account with its own
+    | workspace and sample data (an "admin" on the Pro plan with every feature, or a "user" on the Free plan with its
+    | limits), signed in at once. It is nobody's real account: it expires, is deleted, and can never be platform
+    | staff. Off unless QISTAS_DEMO_LOGIN is true (or the whole site is a demo, QISTAS_DEMO).
+    */
+    'demo_login' => [
+        'enabled' => filter_var(env('QISTAS_DEMO_LOGIN', false), FILTER_VALIDATE_BOOL),
+        'hours' => (int) env('QISTAS_DEMO_HOURS', 12),
+        'per_hour' => (int) env('QISTAS_DEMO_PER_HOUR', 8), // per address
+        'max_accounts' => (int) env('QISTAS_DEMO_MAX', 300),
+    ],
 ];

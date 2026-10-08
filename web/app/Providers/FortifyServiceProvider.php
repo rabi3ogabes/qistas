@@ -59,6 +59,10 @@ class FortifyServiceProvider extends ServiceProvider
         RateLimiter::for('two-factor', fn (Request $request) => Limit::perMinute(5)
             ->by((string) ($request->session()->get('login.id') ?? $request->ip())));
 
+        // The demo buttons make a real account each time: a few an hour per address, shared by web and app.
+        RateLimiter::for('demo', fn (Request $request) => Limit::perHour(max(1, (int) config('qistas.demo_login.per_hour')))->by('demo|'.$request->ip()));
+        RateLimiter::for('api-demo', fn (Request $request) => Limit::perHour(max(1, (int) config('qistas.demo_login.per_hour')))->by('demo|'.$request->ip()));
+
         // The public instalment calculator is cheap but unauthenticated: one address gets a minute's budget.
         RateLimiter::for('schedule-preview', fn (Request $request) => Limit::perMinute(60)->by('schedule-preview|'.$request->ip()));
 

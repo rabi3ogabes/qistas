@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Actions\Auth\AuthenticateUser;
 use App\Actions\Fortify\CreateNewUser;
-use App\Http\Api\AccountPayload;
+use App\Http\Api\DeviceSession;
 use App\Http\ApiException;
 use App\Models\User;
 use App\Support\Audit;
@@ -76,20 +76,7 @@ final class AuthController
 
     private function session(User $user, Request $request, int $status): JsonResponse
     {
-        $tenant = $user->primaryTenant() ?? throw new ApiException('no_workspace', __('This account does not belong to a workspace.'), 403);
-
-        $token = $user->createToken(
-            (string) ($request->input('device_name') ?: __('Mobile app')),
-            ['app'],
-            now()->addDays((int) config('qistas.security.api_token_days')),
-        );
-
-        return response()->json(['data' => [
-            'token' => $token->plainTextToken,
-            'token_type' => 'Bearer',
-            'expires_at' => $token->accessToken->expires_at?->utc()->format('Y-m-d\TH:i:s\Z'),
-            ...AccountPayload::for($user, $tenant),
-        ]], $status);
+        return DeviceSession::issue($user, $request, $status);
     }
 
     /** A person with two-factor authentication on must also give a code from their authenticator, or a recovery code. */

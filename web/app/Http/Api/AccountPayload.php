@@ -34,6 +34,8 @@ final class AccountPayload
                 'role' => $user->roleIn($tenant->id)?->value,
                 // An admin's sandbox: the app marks it so nobody mistakes sample data for a customer's books.
                 'is_test' => $tenant->is_test,
+                // A throw-away workspace made by a demo button: the app says so and offers a real account.
+                'is_demo' => $tenant->is_demo,
             ],
             'plan' => $entitlements['plan'],
             'entitlements' => $entitlements['features'],

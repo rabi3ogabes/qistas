@@ -52,6 +52,7 @@ FutureOr<FakeResponse> Function(RequestOptions) always(FakeResponse response) =>
 
 /// A workspace with a dashboard, one customer, one contract and one payment. [routes] add to or replace any of it.
 FakeServer workspaceServer({Map<String, dynamic>? account, Map<String, Route> routes = const {}}) => FakeServer({
+      'GET /demo': always(json(200, {'data': {'enabled': false, 'hours': 12, 'personas': <Object?>[]}})),
       'GET /me': always(json(200, {'data': account ?? accountJson()})),
       'GET /dashboard': always(json(200, {'data': dashboardJson()})),
       'GET /customers': always(json(200, pageJson([customerJson()], page: 1, last: 1, total: 1))),

@@ -151,6 +151,11 @@ class AuthController extends AsyncNotifier<AuthState> {
     await _signedIn(session);
   }
 
+  Future<void> signInDemo(String persona) async {
+    final session = await ref.read(apiProvider).startDemo(persona, deviceName: deviceName());
+    await _signedIn(session);
+  }
+
   Future<void> register({
     required String name,
     required String email,
@@ -239,6 +244,15 @@ class AuthController extends AsyncNotifier<AuthState> {
 }
 
 final authProvider = AsyncNotifierProvider<AuthController, AuthState>(AuthController.new);
+
+/// Whether the server offers "Try the demo". Anything but a clear yes (no connection, an old server) means no.
+final demoOfferProvider = FutureProvider.autoDispose<DemoOffer>((ref) async {
+  try {
+    return await ref.watch(apiProvider).demoOffer();
+  } on ApiException {
+    return DemoOffer.none;
+  }
+});
 
 /// The signed-in account, or null.
 final accountProvider = Provider<Account?>((ref) => ref.watch(authProvider).valueOrNull?.account);

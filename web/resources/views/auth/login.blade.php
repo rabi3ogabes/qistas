@@ -23,4 +23,22 @@
     </form>
 
     <p class="auth-alt">{{ __('New to :app?', ['app' => config('qistas.app_name')]) }} <a href="{{ route('register') }}">{{ __('Create a free account') }}</a></p>
+
+    @if (\App\Sandbox\DemoAccess::enabled())
+        <section class="demo-choices" aria-labelledby="demo-title">
+            <h2 id="demo-title">{{ __('Just looking around?') }}</h2>
+            <p>{{ __('Try the demo with sample data. Nothing to sign up for, nothing to type.') }}</p>
+            <div class="demo-grid">
+                @foreach (app(\App\Sandbox\DemoAccess::class)->personas() as $persona)
+                    <form method="POST" action="{{ route('demo.start', $persona['key']) }}">
+                        @csrf
+                        <button type="submit" class="demo-choice" data-persona="{{ $persona['key'] }}">
+                            <span class="demo-choice-title">{{ $persona['label'] }}</span>
+                            <span class="demo-choice-note">{{ $persona['description'] }}</span>
+                        </button>
+                    </form>
+                @endforeach
+            </div>
+        </section>
+    @endif
 </x-layouts.auth>

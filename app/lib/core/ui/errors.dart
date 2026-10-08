@@ -8,7 +8,11 @@ import '../l10n/translations.dart';
 String errorMessage(BuildContext context, Object error) {
   if (error is ApiException) {
     if (error.isNetwork) return context.t('No connection. Check your internet and try again.');
-    if (error.status >= 500) return context.t('Something went wrong on our side. Please try again.');
+    // A server fault is told in our own words, except when the server named the situation itself
+    // (the demo being full is a 503 with a message written for the reader).
+    if (error.status >= 500 && (error.code == 'server_error' || error.code.startsWith('http_') || error.message.isEmpty)) {
+      return context.t('Something went wrong on our side. Please try again.');
+    }
     if (error.message.isNotEmpty) return error.message;
   }
 

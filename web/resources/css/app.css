@@ -18,6 +18,7 @@
 @import './auth.css';
 @import './app-shell.css';
 @import './admin.css';
+@import './demo.css';
 
 @source '../views';
 @source '../js';

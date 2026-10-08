@@ -32,6 +32,34 @@ class AppShell extends ConsumerWidget {
     final notices = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (account != null && account.isDemo)
+          Container(
+            width: double.infinity,
+            color: context.qc.tintSand,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text.rich(
+                  TextSpan(children: [
+                    TextSpan(text: context.t('Demo workspace'), style: const TextStyle(fontWeight: FontWeight.w700)),
+                    TextSpan(text: '  ${context.t('Sample data, cleared a few hours after you started. Nothing here is real.')}'),
+                  ]),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: context.qc.ink),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    final router = GoRouter.of(context);
+                    await ref.read(authProvider.notifier).signOut();
+                    router.go('/register');
+                  },
+                  child: Text(context.t('Create my free account')),
+                ),
+              ],
+            ),
+          ),
         if (account != null && account.isTest)
           Container(
             width: double.infinity,

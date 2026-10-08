@@ -71,6 +71,13 @@ class QistasApi {
     return SignedIn(token: data['token'].toString(), account: Account.fromJson(data));
   }
 
+  /// Whether "Try the demo" is on. Public, so it can be asked before anyone has signed in.
+  Future<DemoOffer> demoOffer() async => DemoOffer.fromJson(_data(await _client.get('/demo')));
+
+  /// Enter the demo as [persona] (admin or user): a throw-away account, signed in on this device.
+  Future<SignedIn> startDemo(String persona, {required String deviceName}) async =>
+      _signedIn(await _client.post('/demo/$persona', body: {'device_name': deviceName}));
+
   Future<Account> me() async => Account.fromJson(_data(await _client.get('/me')));
 
   Future<void> logout() async => _client.post('/auth/logout');

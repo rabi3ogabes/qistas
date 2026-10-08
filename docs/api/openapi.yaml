@@ -59,6 +59,70 @@ paths:
                 properties:
                   data: {type: array, items: {$ref: "#/components/schemas/Plan"}}
         "429": {$ref: "#/components/responses/RateLimited"}
+  /demo:
+    get:
+      tags: [Account]
+      summary: Whether "Try the demo" is on, and the two ways in
+      description: |
+        When the site offers it, the app shows two buttons. Each press of `POST /demo/{persona}` makes a throw-away
+        account with its own workspace and sample data and signs in on this device. The account is nobody's real one,
+        is never platform staff, and is deleted `hours` after it was made.
+      security: []
+      parameters: [{$ref: "#/components/parameters/AcceptLanguage"}]
+      responses:
+        "200":
+          description: The offer. `personas` is empty when the demo is off.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      enabled: {type: boolean}
+                      hours: {type: integer, description: How long a demo account lasts.}
+                      personas:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            key: {type: string, enum: [admin, user]}
+                            label: {type: string}
+                            description: {type: string}
+                            plan: {type: string, enum: [pro, free]}
+        "429": {$ref: "#/components/responses/RateLimited"}
+  /demo/{persona}:
+    post:
+      tags: [Account]
+      summary: Enter the demo as an admin (Pro, every feature) or as a user (Free, with its limits)
+      description: |
+        A few demos an hour per address are allowed. `503 demo_busy` means the site already holds as many demo
+        accounts as it allows; try again in a few minutes. `404` when the demo is off.
+      security: []
+      parameters:
+        - {name: persona, in: path, required: true, schema: {type: string, enum: [admin, user]}}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                device_name: {type: string, maxLength: 100}
+      responses:
+        "201":
+          description: The throw-away account, its workspace, and a token for this device that lasts as long as the demo.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/Session"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+        "503":
+          description: The demo is full (`demo_busy`).
   /auth/register:
     post:
       tags: [Account]
@@ -625,6 +689,9 @@ components:
         is_test:
           type: boolean
           description: True for a platform admin's test workspace (sample data). Show it as a test, never as a customer's books.
+        is_demo:
+          type: boolean
+          description: True for a throw-away workspace made by "Try the demo". Say so, and offer a real account.
     PlanRef:
       type: object
       properties:

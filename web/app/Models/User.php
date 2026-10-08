@@ -15,10 +15,14 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Sanctum\HasApiTokens;
 
+/**
+ * @property Carbon|null $demo_expires_at when a demo account is deleted; null for every real account
+ */
 // platform_role and status are deliberately not fillable: no request payload can ever set them.
 #[Fillable(['name', 'email', 'password', 'locale'])]
 #[Hidden(['password', 'remember_token', 'two_factor_secret', 'two_factor_recovery_codes'])]
@@ -122,6 +126,7 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return [
             'email_verified_at' => 'datetime',
+            'demo_expires_at' => 'datetime',
             'two_factor_confirmed_at' => 'datetime',
             'password' => 'hashed',
         ];

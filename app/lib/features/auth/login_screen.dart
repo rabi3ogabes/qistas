@@ -8,6 +8,7 @@ import '../../core/design/widgets.dart';
 import '../../core/l10n/translations.dart';
 import '../../core/ui/errors.dart';
 import 'auth_shell.dart';
+import 'demo_choices.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -168,6 +169,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ),
         const SizedBox(height: 24),
         QButton(label: context.t('Sign in'), loading: _busy, onPressed: _submit),
+        const DemoChoices(),
       ],
     );
   }

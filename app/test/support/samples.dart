@@ -30,6 +30,24 @@ Map<String, dynamic> accountJson({String role = 'owner', int customersUsed = 3, 
       'entitlements': entitlementsJson(customersUsed: customersUsed, plan: plan),
     };
 
+/// What `GET /demo` answers when the site offers "Try the demo".
+Map<String, dynamic> demoOfferJson() => {
+      'enabled': true,
+      'hours': 12,
+      'personas': [
+        {'key': 'admin', 'label': 'Enter as admin', 'description': 'Every feature, on the Pro plan', 'plan': 'pro'},
+        {'key': 'user', 'label': 'Enter as user', 'description': 'The Free plan, with its limits', 'plan': 'free'},
+      ],
+    };
+
+/// The account of a throw-away demo workspace.
+Map<String, dynamic> demoAccountJson({String plan = 'pro'}) {
+  final account = accountJson(plan: plan);
+  account['tenant'] = {...Map<String, dynamic>.from(account['tenant'] as Map), 'is_demo': true};
+
+  return account;
+}
+
 Map<String, dynamic> sessionJson() => {
       'token': 'qst_new-token',
       'token_type': 'Bearer',

@@ -109,6 +109,8 @@ Everything else has a safe default (production mode, secure cookies, trusted pro
 | `MAIL_MAILER`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_ADDRESS` | `log` | Send real e-mail (verification, password reset). Until set, e-mails are written to the log only. |
 | `AUTO_MIGRATE` | `true` | Bring the database up to date on every start. Set `false` to run `php artisan migrate --force` yourself. |
 | `TRUSTED_PROXIES` | `*` | Which proxies' `X-Forwarded-*` headers are believed. `*` is right behind Vercel. |
+| `QISTAS_DEMO_LOGIN` | `false` | `true` adds "Enter as admin" (Pro, every feature) and "Enter as user" (Free, with its limits) buttons to the sign-in page and the app. Each press makes a **throw-away account** with its own workspace and sample data; it is never platform staff, and is deleted when it expires. Set it to `false` to switch the demo off at any time. |
+| `QISTAS_DEMO_HOURS`, `QISTAS_DEMO_PER_HOUR`, `QISTAS_DEMO_MAX` | `12`, `8`, `300` | How long a demo account lasts, how many demos one address may start per hour, and how many demo accounts may exist at once. |
 | `BILLING_GATEWAY` | `fake` | `fake` shows a pretend checkout; `stripe` needs `STRIPE_SECRET` and `STRIPE_WEBHOOK_SECRET`. |
 | `QISTAS_DEFAULT_CURRENCY` | `USD` | Currency for new workspaces whose country is not recognised. |
 
