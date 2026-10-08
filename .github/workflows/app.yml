@@ -1,0 +1,119 @@
+name: Mobile app
+
+# The Flutter app in app/: analysis, tests, translation completeness, a web build, and an Android APK that is
+# attached to the rolling "Qistas app (latest)" release so it can be downloaded straight from GitHub.
+
+on:
+  push:
+    branches: [main]
+    paths: ["app/**", "shared/**", ".github/workflows/app.yml"]
+  pull_request:
+    paths: ["app/**", "shared/**", ".github/workflows/app.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: app
+
+env:
+  FLUTTER_VERSION: "3.41.2"
+
+jobs:
+  check:
+    name: Analyse and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      # Zero issues, including infos: the build fails on any analyzer message.
+      - run: flutter analyze
+      # Every sentence the app shows has all four translations, with its placeholders intact.
+      - run: python3 tool/i18n.py --sync
+      - run: flutter test
+
+  web:
+    name: Web build
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter build web --release --dart-define=APP_VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //; s/+.*//')
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qistas-app-web
+          path: app/build/web
+          retention-days: 30
+
+  android:
+    name: Android build
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write # to move the rolling release tag and attach the APK
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Build the APK
+        run: |
+          VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //; s/+.*//')
+          flutter build apk --release --build-name="$VERSION" --build-number="${{ github.run_number }}" --dart-define=APP_VERSION="$VERSION"
+          cp build/app/outputs/flutter-apk/app-release.apk ../qistas-app.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qistas-app-android
+          path: qistas-app.apk
+          retention-days: 30
+      # Only builds of main are published; a pull request just proves that it builds.
+      - name: Move the rolling release tag to this commit
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        working-directory: .
+        run: |
+          git tag -f app-latest "$GITHUB_SHA"
+          git push -f origin app-latest
+      - name: Publish to the "Qistas app (latest)" release
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: app-latest
+          name: Qistas app (latest)
+          make_latest: "true"
+          fail_on_unmatched_files: true
+          files: qistas-app.apk
+          body: |
+            The newest Android build of the Qistas app, made from the latest commit on `main`.
+
+            **Install:** download `qistas-app.apk` on the phone, open it and allow installation from this source when asked.
+            This is a test build signed with a debug key: if you already have an older one, uninstall it first.
+            It talks to https://qistas-puce.vercel.app, so you sign in with the same account as on the website.
+
+            Commit: ${{ github.sha }}

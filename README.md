@@ -3,13 +3,17 @@
 *The just balance.* A premium instalment, lending and accounting platform for merchants and lenders, Arabic-first and
 available in Arabic, English, French, Spanish and Urdu.
 
-**Live:** https://qistas-puce.vercel.app/ — the real website with a sign-in to the dashboard. Until a database is connected it runs as a demo with temporary data (see [docs/DEPLOY.md](docs/DEPLOY.md)).
+**Live:** https://qistas-puce.vercel.app/ — the real website with a sign-in to the dashboard, running on a Supabase (PostgreSQL) database. Create a free account, or sign in.
+
+**The mobile app:** download the Android build from the [latest release](https://github.com/rabi3ogabes/qistas/releases/latest) (built by GitHub Actions from `app/`; see [app/README.md](app/README.md)). It uses the same account as the website.
 
 ## The app: website, dashboard and API
 
 One Laravel application in [`web/`](web/): the public website (home with a live instalment calculator, pricing, legal pages
 in five languages), the signed-in app (dashboard, customers, contracts with a live schedule preview, payments with an
-immutable ledger, plan limits and upgrade prompts), and, in progress, the admin console and REST API. Free accounts have
+immutable ledger, plan limits and upgrade prompts), the REST API under `/api/v1`, and the first part of the admin area:
+platform admins get a one-click **test workspace** (sample data, Free or Pro) to try the dashboard and the app without
+touching real data (`php artisan qistas:make-admin <email>` makes the first admin). Free accounts have
 a minimal feature set; Pro unlocks everything; an admin chooses which feature belongs to which plan.
 
 **Run it on your computer** (needs Docker and Git):
@@ -22,7 +26,7 @@ docker compose up --build        # then open http://localhost:8080  (demo login 
 
 **The REST API** (what the mobile app uses): [docs/api/openapi.yaml](docs/api/openapi.yaml), under `/api/v1`.
 
-**Put it online for real** with Supabase: [docs/DEPLOY.md](docs/DEPLOY.md). The mobile app (Flutter) is not built yet.
+**Put it online for real** with Supabase: [docs/DEPLOY.md](docs/DEPLOY.md). **The mobile app** (Flutter, Android/iOS/web) is in [`app/`](app/).
 
 ### Brand prototypes (run locally with `npm run dev`; no longer hosted)
 
@@ -36,9 +40,10 @@ docker compose up --build        # then open http://localhost:8080  (demo login 
 
 | Done and verified | Not built yet |
 |---|---|
-| Name, Plumb q logo kit, app icons and favicon set | Flutter mobile app |
-| Laravel web app: website, sign-up and sign-in with 2FA, customers, contracts, payments, plans and limits, five languages, 895 tests also green on PostgreSQL | Admin console, REST API, Stripe billing, reports and exports |
-| Theme engine: base → country → event → merchant accent, Hijri schedules, WCAG gate (24 tests) | Real database behind the live site (Supabase: needs your two secrets, see docs/DEPLOY.md) |
+| Name, Plumb q logo kit, app icons and favicon set | Admin console (users, plans, themes), Stripe billing, reports and exports |
+| Laravel web app: website, sign-up and sign-in with 2FA, customers, contracts, payments, plans and limits, five languages, REST API, admin test workspace; 1,100 tests, also green on PostgreSQL | Online payment for Pro (today the team turns Pro on), e-mail sending (needs SMTP) |
+| Flutter app: sign-in with 2FA, dashboard, customers, contracts with a live schedule preview, payments (safe to retry), plans, five languages with right-to-left, 220+ tests | iOS and store builds, push reminders, offline queue |
+| Theme engine: base → country → event → merchant accent, Hijri schedules, WCAG gate (24 tests) | Real database behind the live site: Supabase, connected |
 | Theme Studio prototype with preview, versions, rollback | Reminders, backups, AI assistant |
 | Production deployment: security headers + CSP, redirects, 404, CI, smoke tests | Native-speaker review of Arabic/Urdu/French/Spanish copy; trademark search |
 
