@@ -6,9 +6,9 @@ name: Web app
 on:
   push:
     branches: [main]
-    paths: ["web/**", "docker-compose.yml", "scripts/smoke-app.sh", "scripts/e2e-demo.sh", ".github/workflows/web.yml"]
+    paths: ["web/**", "docker-compose.yml", "scripts/smoke-app.sh", "scripts/e2e-demo.sh", "scripts/connect-supabase.ps1", ".github/workflows/web.yml"]
   pull_request:
-    paths: ["web/**", "docker-compose.yml", "scripts/smoke-app.sh", "scripts/e2e-demo.sh", ".github/workflows/web.yml"]
+    paths: ["web/**", "docker-compose.yml", "scripts/smoke-app.sh", "scripts/e2e-demo.sh", "scripts/connect-supabase.ps1", ".github/workflows/web.yml"]
   workflow_dispatch:
 
 permissions:
@@ -44,6 +44,13 @@ jobs:
         run: php vendor/bin/phpstan analyse --no-progress
       - name: Pest
         run: php vendor/bin/pest
+      - name: The Supabase connect script is valid PowerShell
+        working-directory: .
+        shell: pwsh
+        run: |
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile("$PWD/scripts/connect-supabase.ps1", [ref]$null, [ref]$errors)
+          if ($errors) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }
 
   tests-postgres:
     name: Tests (PostgreSQL, the database Supabase runs)

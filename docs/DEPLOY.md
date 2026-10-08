@@ -47,38 +47,56 @@ stops. Anyone can look around; nothing real should be entered. To go live for re
 
 1. Sign in at <https://supabase.com> and choose **New project**. Pick a region close to your customers and set a
    database password (save it).
-2. Open the project, press **Connect**, and copy the **Transaction pooler** connection string. It looks like
+2. Open the project and press **Connect**. Choose **Transaction pooler** and copy the connection string. It looks like
    `postgresql://postgres.abcdefgh:[YOUR-PASSWORD]@aws-0-eu-central-1.pooler.supabase.com:6543/postgres`.
-   Replace `[YOUR-PASSWORD]` with your database password.
 
-### 2. Create the key that protects your data
+### 2. Connect it: one script, on your own computer
 
-The application key encrypts sessions and customers' national IDs. **Keep it; if you lose it, encrypted data cannot be
-read again.** Create one (any one of these):
+The script asks for that string and your database password, checks the connection, creates the Qistas tables, locks
+Supabase's public API out of them, and then walks you through pasting the two secrets into Vercel through your
+clipboard. The password is never printed, saved or sent anywhere except to your own database. In a terminal, in the
+repository folder:
 
 ```powershell
-# Windows PowerShell
-"base64:" + [Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
-```
-```bash
-# macOS / Linux / Git Bash
-echo "base64:$(openssl rand -base64 32)"
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\connect-supabase.ps1
 ```
 
-### 3. Add both to Vercel and redeploy
+(It needs PHP and `composer install` done in `web/`, as in [Option C](#option-c--develop-without-docker).)
 
-In Vercel open the project, **Settings → Environment Variables**, add the two below (for Production), then
-**Deployments → ⋯ → Redeploy**:
+What the script does to the database, in the order it does it:
+
+1. `php artisan qistas:db-check` says in plain words whether the connection works and why not: wrong password, wrong
+   user name, IPv6-only direct connection, paused project, missing SSL.
+2. `php artisan qistas:setup` creates the tables in **one transaction** (all or nothing) and runs
+   `php artisan qistas:secure-database`: **row-level security on every table, and no access for Supabase's `anon` and
+   `authenticated` roles**, including on tables created later. This matters: Supabase publishes the `public` schema
+   through its data API and the project's public key is easy to find, so without this the customers' data would be
+   readable by anyone. The app itself connects as the table owner (`postgres`), which row-level security does not
+   apply to, so it is unaffected. If you want to be thorough, also switch off the Data API in the Supabase dashboard
+   (Project Settings → Data API): the app never uses it.
+3. It generates the application key (**keep a private copy**: if it is lost, encrypted national IDs cannot be read
+   again), then copies `APP_KEY` and `DB_URL` to your clipboard one after the other for you to paste into
+   **Vercel → Settings → Environment Variables → Add New (Production)**.
+
+**Without the script** you can do the same by hand: create a key (`"base64:" + [Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))`
+in PowerShell, or `echo "base64:$(openssl rand -base64 32)"` in a shell), add `APP_KEY` and `DB_URL` in Vercel, and
+redeploy: on its first start the app creates its tables and secures them by itself.
+
+*Optional shortcut:* connect the **Supabase** connector in Claude Code and ask it to create the project and apply the
+schema; you still paste the database password and the two variables yourself.
+
+### 3. Redeploy
+
+In Vercel open **Deployments → ⋯ → Redeploy**. The demo banner disappears and the site is real: **Start free**
+creates a real account in your Supabase database. Setting only one of `APP_KEY` and `DB_URL` stops the app with a
+clear message in the Vercel logs instead of quietly running as a demo.
 
 | Name | Value |
 |---|---|
-| `APP_KEY` | the key from step 2 |
-| `DB_URL` | the Supabase connection string from step 1 |
+| `APP_KEY` | the key the script generated |
+| `DB_URL` | the Supabase transaction-pooler string with your password filled in (percent-encoded) |
 
-Everything else has a safe default (production mode, secure cookies, trusted proxy, automatic database set-up). On its
-first start the app creates its tables in your Supabase database, the demo banner disappears, and the site is real:
-**Start free** creates a real account. Setting only one of the two variables stops the app with a clear message in
-the Vercel logs instead of quietly running as a demo.
+Everything else has a safe default (production mode, secure cookies, trusted proxy, automatic database set-up).
 
 ### Optional settings
 

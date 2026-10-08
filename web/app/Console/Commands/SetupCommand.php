@@ -7,10 +7,9 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Brings the database schema up to date. The container runs this on every start, and a host may start several
- * copies at once, so on PostgreSQL it holds an advisory lock: one copy migrates, the others wait and then find
- * nothing left to do. (Behind a transaction pooler the lock is only a hint, which is why the container also
- * retries.) Safe to run any number of times.
+ * Brings the database schema up to date and secures it (see SecureDatabaseCommand). The container runs this on every
+ * start, and a host may start several copies at once, so on PostgreSQL it holds an advisory lock for the whole
+ * transaction: one copy migrates, the others wait and then find nothing left to do. Safe to run any number of times.
  */
 final class SetupCommand extends Command
 {
@@ -24,23 +23,29 @@ final class SetupCommand extends Command
     public function handle(): int
     {
         $connection = DB::connection();
-        $locking = $connection->getDriverName() === 'pgsql';
 
-        if ($locking) {
-            $connection->select('select pg_advisory_lock(?)', [self::LOCK]);
-        }
-
-        try {
+        $setUp = function (): void {
             $this->call('migrate', ['--force' => true]);
+            $this->call('qistas:secure-database');
 
             if ($this->option('demo')) {
                 $this->call('db:seed', ['--class' => DemoSeeder::class, '--force' => true]);
             }
-        } finally {
-            if ($locking) {
-                $connection->select('select pg_advisory_unlock(?)', [self::LOCK]);
-            }
+        };
+
+        if ($connection->getDriverName() !== 'pgsql') {
+            $setUp();
+
+            return self::SUCCESS;
         }
+
+        // One transaction, one transaction-scoped lock: a transaction pooler (Supabase, port 6543) may hand every
+        // statement to a different connection, and a session-level lock would then be left behind for good. This
+        // lock ends with the transaction, and a failed migration leaves nothing half-done.
+        $connection->transaction(function () use ($connection, $setUp): void {
+            $connection->select('select pg_advisory_xact_lock(?)', [self::LOCK]);
+            $setUp();
+        });
 
         return self::SUCCESS;
     }
