@@ -38,6 +38,73 @@ enum Feature: string
         };
     }
 
+    /** Where the admin's cockpit files it. Exhaustive on purpose: a new case must say where it belongs. */
+    public function group(): FeatureGroup
+    {
+        return match ($this) {
+            self::Customers, self::ActiveContracts, self::PdfStatements, self::ExportCsv,
+            self::AdvancedReports, self::CustomBranding, self::ApiTokens => FeatureGroup::Core,
+        };
+    }
+
+    /** One sentence for the admin's card: what the feature is, in plain words. */
+    public function description(): string
+    {
+        return match ($this) {
+            self::Customers => __('How many customers a workspace can keep on its lists.'),
+            self::ActiveContracts => __('How many contracts can be running at the same time.'),
+            self::PdfStatements => __('Customer statements as PDF files, with a monthly allowance.'),
+            self::ExportCsv => __('Spreadsheet downloads of customers, contracts and payments.'),
+            self::AdvancedReports => __('Ageing, monthly collections and other deeper reports.'),
+            self::CustomBranding => __('The shop\'s own logo and colour on its documents.'),
+            self::ApiTokens => __('Access tokens that let other software connect to a workspace.'),
+        };
+    }
+
+    /**
+     * What happens to existing data and running work when the admin switches this off. Shown in the confirmation
+     * before the admin does it. A switch never deletes anything.
+     */
+    public function offBehaviour(): string
+    {
+        return match ($this) {
+            self::Customers, self::ActiveContracts, self::ApiTokens => __('Core feature, always on. The plan sets the limit; going over it never removes anything that exists.'),
+            self::PdfStatements => __('Core feature, always on. The plan sets a monthly allowance; documents already made stay available.'),
+            self::ExportCsv, self::AdvancedReports, self::CustomBranding => __('Core feature, always on. The plan decides who has it; nothing is deleted when a plan changes.'),
+        };
+    }
+
+    /**
+     * The features that must be on for this one to work. Declared in code and checked to be free of cycles.
+     *
+     * @return list<Feature>
+     */
+    public function dependsOn(): array
+    {
+        return match ($this) {
+            self::Customers, self::ActiveContracts, self::PdfStatements, self::ExportCsv,
+            self::AdvancedReports, self::CustomBranding, self::ApiTokens => [],
+        };
+    }
+
+    /** 'workspace' features are assigned to plans; 'platform' ones (membership billing) are only switched. */
+    public function scope(): string
+    {
+        return 'workspace';
+    }
+
+    /** A feature that already worked before the switch system: always on, its platform switch cannot be changed. */
+    public function isCore(): bool
+    {
+        return $this->group() === FeatureGroup::Core;
+    }
+
+    /** Where a feature's switch starts: core features on (nothing changes for anyone), everything new dark. */
+    public function launchState(): PlatformState
+    {
+        return $this->isCore() ? PlatformState::On : PlatformState::Off;
+    }
+
     /**
      * What is being counted, as it reads after a number: "5 customers", "1 API token", "3 PDF statements per month".
      * Pluralised by $count in every language (Arabic has six forms); an on/off feature counts nothing.

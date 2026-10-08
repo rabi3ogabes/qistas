@@ -26,6 +26,8 @@ final class SetupCommand extends Command
 
         $setUp = function (): void {
             $this->call('migrate', ['--force' => true]);
+            // A feature added in this release gets its platform switch (dark) before anyone can use it.
+            $this->call('qistas:sync-features');
             $this->call('qistas:secure-database');
 
             if ($this->option('demo')) {

@@ -19,3 +19,6 @@ Thumbs.db
 /app/.dart_tool/
 /app/build/
 /app/.flutter-plugins*
+
+# Scratch for the plan executor (ledgers, briefs)
+.superpowers/
