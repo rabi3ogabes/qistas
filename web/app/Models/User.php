@@ -41,10 +41,24 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->belongsToMany(Tenant::class, 'tenant_users')->withPivot('role')->withTimestamps();
     }
 
-    /** The workspace this person works in: their oldest membership that is not suspended. */
+    /**
+     * The workspace this person works in: the one they chose (only the admin test tools choose), if they still
+     * belong to it and it is not suspended; otherwise their oldest membership that is not suspended. A test
+     * workspace is only ever entered on purpose, never picked by default.
+     */
     public function primaryTenant(): ?Tenant
     {
-        return $this->tenants()->where('tenants.status', 'active')
+        $active = $this->tenants()->where('tenants.status', 'active');
+
+        if ($this->current_tenant_id !== null) {
+            $chosen = (clone $active)->where('tenants.id', $this->current_tenant_id)->first();
+
+            if ($chosen !== null) {
+                return $chosen;
+            }
+        }
+
+        return $active->where('tenants.is_test', false)
             ->orderBy('tenant_users.created_at')->orderBy('tenants.id')->first();
     }
 

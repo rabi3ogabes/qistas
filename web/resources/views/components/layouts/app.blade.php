@@ -20,6 +20,9 @@
 </head>
 <body class="app-body">
     <x-demo-banner />
+    @if ($tenant->is_test && $user->isPlatformAdmin())
+        <x-test-banner />
+    @endif
     <x-logo-defs />
     <a class="sr-only" href="#main">{{ __('Skip to content') }}</a>
 
@@ -58,6 +61,9 @@
                     </summary>
                     <div class="menu-panel" role="menu">
                         <a class="menu-item" role="menuitem" href="{{ route('security') }}"><x-icon name="shield" :size="18" /> {{ __('Security') }}</a>
+                        @if ($user->isPlatformAdmin())
+                            <a class="menu-item" role="menuitem" href="{{ route('admin.home') }}"><x-icon name="sliders" :size="18" /> {{ __('Admin') }}</a>
+                        @endif
                         @foreach (\App\Support\Locale::options() as $code => $name)
                             <a class="menu-item" role="menuitem" lang="{{ $code }}" href="{{ request()->fullUrlWithQuery(['lang' => $code]) }}" @if ($code === app()->getLocale()) aria-current="true" @endif>{{ $name }}</a>
                         @endforeach

@@ -66,6 +66,62 @@ it('does not touch a visitor’s stored language when they are not signed in', f
     expect($user->fresh()->locale)->toBe('en');
 });
 
+describe('a language the person chose stays chosen', function () {
+    it('lets the browser’s remembered choice beat the profile, and leaves the profile alone', function () {
+        // The profile says English (the default at sign-up); this browser was set to French by the person.
+        $user = User::factory()->unverified()->create(['locale' => 'en']);
+
+        $this->actingAs($user)->withCookie('qistas_locale', 'fr')->get('/email/verify')
+            ->assertSee('lang="fr" dir="ltr"', false)
+            ->assertHeader('Content-Language', 'fr');
+
+        expect($user->fresh()->locale)->toBe('en');
+    });
+
+    it('uses the profile on a browser that has no choice yet, and remembers it there', function () {
+        $user = User::factory()->unverified()->create(['locale' => 'ar']);
+
+        $this->actingAs($user)->get('/email/verify')
+            ->assertSee('lang="ar" dir="rtl"', false)
+            ->assertCookie('qistas_locale', 'ar');
+    });
+
+    it('keeps the same language on every page a person moves through', function () {
+        $chosen = $this->get('/?lang=ur')->assertCookie('qistas_locale', 'ur');
+        $cookie = $chosen->getCookie('qistas_locale');
+
+        foreach (['/', '/pricing', '/login', '/register', '/terms', '/privacy'] as $page) {
+            $this->withCookie('qistas_locale', $cookie->getValue())->get($page)
+                ->assertOk()
+                ->assertSee('lang="ur" dir="rtl"', false);
+        }
+    });
+
+    it('keeps the language a visitor chose after they sign in, even if their profile says otherwise', function () {
+        [$user] = owner();
+        $user->forceFill(['locale' => 'en'])->save();
+
+        $this->withCookie('qistas_locale', 'ar')->actingAs($user)->get('/app')
+            ->assertOk()
+            ->assertSee('lang="ar" dir="rtl"', false);
+    });
+
+    it('changes only when the person changes it, and then everywhere', function () {
+        $user = User::factory()->unverified()->create(['locale' => 'ar']);
+
+        $this->actingAs($user)->withCookie('qistas_locale', 'ar')->get('/email/verify?lang=es')
+            ->assertSee('lang="es" dir="ltr"', false)
+            ->assertCookie('qistas_locale', 'es');
+
+        expect($user->fresh()->locale)->toBe('es');
+    });
+
+    it('does not let the browser’s language override a remembered choice', function () {
+        $this->withCookie('qistas_locale', 'ar')->withHeaders(['Accept-Language' => 'fr'])->get('/pricing')
+            ->assertSee('lang="ar" dir="rtl"', false);
+    });
+});
+
 it('lays out right-to-left languages from the right', function (string $locale, string $dir) {
     $this->get("/login?lang={$locale}")->assertSee("dir=\"{$dir}\"", false);
 })->with([['en', 'ltr'], ['fr', 'ltr'], ['es', 'ltr'], ['ar', 'rtl'], ['ur', 'rtl']]);

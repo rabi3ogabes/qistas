@@ -10,8 +10,13 @@ use Illuminate\Support\Facades\Cookie;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Chooses the language for this request. In order: an explicit ?lang= (remembered for next time), the
- * signed-in user's saved language, the session, the cookie, the browser's Accept-Language, the default.
+ * Chooses the language for this request. A language stays chosen: it changes only when the person changes it.
+ *
+ * In order: an explicit ?lang= (remembered for next time, in this browser and on the person's profile), then what
+ * this browser already remembers (the cookie, then the session), then the signed-in person's saved language (a
+ * browser with no choice yet takes it up and remembers it), then the browser's Accept-Language, then the default.
+ * The browser's own memory comes before the profile because the profile is one value shared by every device: it
+ * must not flip a page back to the language a person left behind when they signed up or last used another device.
  * Only languages the product ships are ever accepted, whatever a client sends.
  */
 final class SetLocale
@@ -26,11 +31,14 @@ final class SetLocale
             $this->remember($request, $explicit);
             $locale = $explicit;
         } else {
-            $locale = $this->fromUser($request)
-                ?? $this->fromSession($request)
-                ?? $this->fromCookie($request)
-                ?? $this->fromBrowser($request)
-                ?? config('app.locale');
+            $locale = $this->fromCookie($request) ?? $this->fromSession($request);
+
+            if ($locale === null && ($locale = $this->fromUser($request)) !== null) {
+                // First visit on this browser by someone who has a language on their profile: keep it from now on.
+                Cookie::queue(self::COOKIE, $locale, 60 * 24 * 365);
+            }
+
+            $locale ??= $this->fromBrowser($request) ?? config('app.locale');
         }
 
         app()->setLocale($locale);

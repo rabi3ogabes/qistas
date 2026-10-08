@@ -622,6 +622,9 @@ components:
         country: {type: string}
         currency: {type: string, example: SAR}
         role: {type: string, enum: [owner, manager, accountant, collector, viewer]}
+        is_test:
+          type: boolean
+          description: True for a platform admin's test workspace (sample data). Show it as a test, never as a customer's books.
     PlanRef:
       type: object
       properties:

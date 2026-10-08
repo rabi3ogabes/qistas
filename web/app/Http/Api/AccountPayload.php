@@ -32,6 +32,8 @@ final class AccountPayload
                 'country' => $tenant->country,
                 'currency' => $tenant->currency,
                 'role' => $user->roleIn($tenant->id)?->value,
+                // An admin's sandbox: the app marks it so nobody mistakes sample data for a customer's books.
+                'is_test' => $tenant->is_test,
             ],
             'plan' => $entitlements['plan'],
             'entitlements' => $entitlements['features'],

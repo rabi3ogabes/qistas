@@ -17,6 +17,7 @@
 @import './site.css';
 @import './auth.css';
 @import './app-shell.css';
+@import './admin.css';
 
 @source '../views';
 @source '../js';

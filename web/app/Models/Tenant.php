@@ -21,7 +21,14 @@ class Tenant extends Model
 
     protected $attributes = [
         'status' => 'active',
+        'is_test' => false,
     ];
+
+    /** @return array<string, string> */
+    protected function casts(): array
+    {
+        return ['is_test' => 'boolean'];
+    }
 
     /** @return BelongsToMany<User, $this> */
     public function users(): BelongsToMany

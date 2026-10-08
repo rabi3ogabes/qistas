@@ -4,6 +4,9 @@ return [
 
     'app_name' => env('QISTAS_APP_NAME', 'Qistas'),
 
+    // Where the admin's "Get the app" button goes: the page with the latest Android build.
+    'app_download_url' => env('APP_DOWNLOAD_URL', 'https://github.com/rabi3ogabes/qistas/releases/latest'),
+
     /*
     | Languages shipped with the product. `en` and `ar` are complete; the others fall back to English
     | per key until their translation files are filled in.

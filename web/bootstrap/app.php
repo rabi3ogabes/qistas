@@ -30,6 +30,11 @@ return Application::configure(basePath: dirname(__DIR__))
             Route::middleware(['web', 'auth', 'account.active', 'tenant'])
                 ->prefix('app')->name('app.')
                 ->group(base_path('routes/app.php'));
+
+            // The admin console: platform staff only (a 404 for everyone else), with a confirmed second factor.
+            Route::middleware(['web', 'auth', 'admin'])
+                ->prefix('admin')->name('admin.')
+                ->group(base_path('routes/admin.php'));
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {

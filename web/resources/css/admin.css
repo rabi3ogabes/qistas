@@ -1,0 +1,187 @@
+/* The admin front door and the test-mode controls. Colours come from the theme tokens, never literals. */
+
+.admin-tools {
+    display: grid;
+    gap: 1rem;
+    margin-block: 1.5rem 0;
+}
+
+.tool {
+    display: grid;
+    gap: 1rem;
+    padding: 1.5rem;
+    background: var(--q-surface);
+    border: 1px solid var(--q-line);
+    border-radius: var(--q-r-lg);
+    box-shadow: var(--q-shadow-1);
+}
+
+.tool-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.tool-icon {
+    flex: none;
+    display: grid;
+    place-items: center;
+    inline-size: 2.75rem;
+    block-size: 2.75rem;
+    border-radius: var(--q-r-md);
+    background: var(--q-tint-sand);
+    color: var(--q-accent-text);
+}
+
+.tool h2 {
+    margin: 0;
+    font-family: var(--q-font-display);
+    font-size: 1.5rem;
+    line-height: 1.2;
+    color: var(--q-ink);
+}
+
+.tool p {
+    margin: .25rem 0 0;
+    color: var(--q-ink-muted);
+}
+
+.tool-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .625rem;
+    align-items: center;
+}
+
+.tool-actions form {
+    display: contents;
+}
+
+.tool-facts {
+    display: grid;
+    gap: .5rem;
+    margin: 0;
+    padding: 1rem;
+    background: var(--q-surface-alt);
+    border-radius: var(--q-r-md);
+    font-size: .9375rem;
+}
+
+.tool-facts div {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: .25rem 1rem;
+}
+
+.tool-facts dt {
+    color: var(--q-ink-muted);
+}
+
+.tool-facts dd {
+    margin: 0;
+    color: var(--q-ink);
+    font-weight: 500;
+    overflow-wrap: anywhere;
+}
+
+/* Is test mode on? A quiet pill, with a dot that is only a decoration (the words say it). */
+.mode-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .25rem .75rem;
+    border-radius: 999px;
+    background: var(--q-surface-alt);
+    color: var(--q-ink);
+    font-size: .875rem;
+    font-weight: 500;
+    inline-size: fit-content;
+}
+
+.mode-pill::before {
+    content: "";
+    inline-size: .5rem;
+    block-size: .5rem;
+    border-radius: 50%;
+    background: var(--q-ink-muted);
+}
+
+.mode-pill[data-on="true"] {
+    background: var(--q-tint-mint);
+    color: var(--q-positive);
+}
+
+.mode-pill[data-on="true"]::before {
+    background: var(--q-positive);
+}
+
+/* Free / Pro, as one control. */
+.plan-switch {
+    display: inline-flex;
+    padding: .1875rem;
+    background: var(--q-surface-alt);
+    border-radius: var(--q-r-md);
+}
+
+.plan-switch form {
+    display: contents;
+}
+
+.plan-switch button {
+    min-block-size: 2.75rem;
+    padding-inline: 1.25rem;
+    border: 0;
+    border-radius: calc(var(--q-r-md) - 3px);
+    background: transparent;
+    color: var(--q-ink-muted);
+    font: inherit;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background var(--q-t-fast) var(--q-ease-out), color var(--q-t-fast) var(--q-ease-out);
+}
+
+.plan-switch button[aria-pressed="true"] {
+    background: var(--q-surface);
+    color: var(--q-ink);
+    box-shadow: var(--q-shadow-1);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .plan-switch button:hover {
+        color: var(--q-ink);
+    }
+}
+
+@media (min-width: 52rem) {
+    .admin-tools {
+        grid-template-columns: 1fr 1fr;
+        align-items: start;
+    }
+}
+
+/* Across the top of every page of the test workspace. */
+.test-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem 1rem;
+    padding: .625rem 1rem;
+    background: var(--q-tint-sand);
+    color: var(--q-ink);
+    border-block-end: 1px solid var(--q-line);
+    font-size: .9375rem;
+}
+
+.test-banner strong {
+    font-weight: 600;
+}
+
+.test-banner .test-banner-note {
+    flex: 1 1 14rem;
+    color: var(--q-ink-muted);
+}
+
+.test-banner .tool-actions {
+    gap: .5rem;
+}
