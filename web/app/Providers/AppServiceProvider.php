@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Entitlements\Entitlements;
 use App\Entitlements\Feature;
 use App\Entitlements\UsageMeters;
 use App\Listeners\AuditAuthEvents;
@@ -17,6 +18,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
@@ -71,6 +73,15 @@ class AppServiceProvider extends ServiceProvider
             ->when(! $this->app->environment('testing'), fn (Password $rule) => $rule->uncompromised()));
 
         Event::subscribe(AuditAuthEvents::class);
+
+        // @feature('key') ... @endfeature: shown only when the feature is on for the current workspace (not plan-locked,
+        // not switched off by the platform). Nothing is shown outside a workspace.
+        Blade::if('feature', function (string $key): bool {
+            $tenant = app(CurrentTenant::class)->get();
+            $feature = Feature::tryFrom($key);
+
+            return $tenant !== null && $feature !== null && Entitlements::for($tenant)->check($feature)->enabled();
+        });
 
         // How each counted feature is measured. Every module that has a limit registers its meter here.
         $meters = $this->app->make(UsageMeters::class);

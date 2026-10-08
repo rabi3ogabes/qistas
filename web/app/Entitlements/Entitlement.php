@@ -8,17 +8,29 @@ final readonly class Entitlement
     /**
      * @param  ?int  $limit  null = unlimited (for counted features) or not applicable (on/off features)
      * @param  ?int  $used  null for on/off features
+     * @param  ?string  $detail  why, when it is not obvious: `dependency:<key>` when a feature this one needs is the reason
      */
     public function __construct(
         public Feature $feature,
-        private bool $enabled,
+        private FeatureStatus $status,
+        private ?string $detail,
         private ?int $limit,
         private ?int $used,
     ) {}
 
+    public function status(): FeatureStatus
+    {
+        return $this->status;
+    }
+
+    public function detail(): ?string
+    {
+        return $this->detail;
+    }
+
     public function enabled(): bool
     {
-        return $this->enabled;
+        return $this->status === FeatureStatus::On;
     }
 
     public function limit(): ?int
@@ -33,7 +45,7 @@ final readonly class Entitlement
 
     public function unlimited(): bool
     {
-        return $this->enabled && $this->feature->type() !== FeatureType::Toggle && $this->limit === null;
+        return $this->enabled() && $this->feature->type() !== FeatureType::Toggle && $this->limit === null;
     }
 
     /** How many more may be added; null when there is no cap to count down from. Never negative. */
@@ -42,7 +54,7 @@ final readonly class Entitlement
         if ($this->feature->type() === FeatureType::Toggle) {
             return null;
         }
-        if (! $this->enabled) {
+        if (! $this->enabled()) {
             return 0;
         }
 
@@ -51,19 +63,21 @@ final readonly class Entitlement
 
     public function allows(int $amount = 1): bool
     {
-        if (! $this->enabled) {
+        if (! $this->enabled()) {
             return false;
         }
 
         return $this->limit === null || (int) $this->used + $amount <= $this->limit;
     }
 
-    /** @return array{type: string, enabled: bool, limit: ?int, used: ?int, remaining: ?int, unlimited: bool} */
+    /** @return array{type: string, status: string, detail: ?string, enabled: bool, limit: ?int, used: ?int, remaining: ?int, unlimited: bool} */
     public function toArray(): array
     {
         return [
             'type' => $this->feature->type()->value,
-            'enabled' => $this->enabled,
+            'status' => $this->status->value,
+            'detail' => $this->detail,
+            'enabled' => $this->enabled(),
             'limit' => $this->limit,
             'used' => $this->used,
             'remaining' => $this->remaining(),

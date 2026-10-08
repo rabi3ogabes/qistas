@@ -6,17 +6,13 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Reads the platform switches. A feature with no row yet is at its launch state, so a feature added in code can
- * never be "denied" or "allowed" by accident while its row is missing; and a core feature is always on, whatever
- * its row says, so a stray edit can never take away something every workspace already uses.
+ * never be "denied" or "allowed" by accident while its row is missing. What is stored is reported as it is, for core
+ * features too: FeatureControl and the cockpit refuse to change a core switch, and only editing the table by hand can.
  */
 final class PlatformFeatures
 {
     public static function state(Feature $feature): PlatformState
     {
-        if ($feature->isCore()) {
-            return PlatformState::On;
-        }
-
         $stored = DB::table('platform_features')->where('feature_key', $feature->value)->value('state');
 
         return PlatformState::tryFrom((string) $stored) ?? $feature->launchState();
@@ -33,9 +29,7 @@ final class PlatformFeatures
 
         $states = [];
         foreach (Feature::cases() as $feature) {
-            $states[$feature->value] = $feature->isCore()
-                ? PlatformState::On
-                : (PlatformState::tryFrom((string) ($stored[$feature->value] ?? '')) ?? $feature->launchState());
+            $states[$feature->value] = PlatformState::tryFrom((string) ($stored[$feature->value] ?? '')) ?? $feature->launchState();
         }
 
         return $states;

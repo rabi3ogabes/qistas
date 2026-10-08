@@ -22,6 +22,12 @@ info:
       from `GET /me` (`entitlements`); never hard-code it. An action the plan does not allow answers **HTTP 402**
       with `code` `limit_reached` or `feature_locked`, the `feature`, the `limit`, how much is `used`, and an
       `upgrade_url`.
+    * **Switched off by the platform.** Every feature in `entitlements` has a `status`: `on`, `plan_locked` (the plan
+      does not include it: show it locked and offer an upgrade) or `platform_off` (the platform has it switched off
+      or in a beta this workspace is not part of: show nothing, there is nothing to buy). `detail` says why when it
+      is another feature that is the reason (`dependency:<key>`). A call to a feature that is `platform_off` answers
+      **HTTP 403** with `code` `feature_unavailable` and no `upgrade_url`; when you receive it, read `GET /me` again
+      and hide what is no longer `on`. `enabled` is `true` exactly when `status` is `on`.
     * **Retrying a payment.** `POST /contracts/{id}/payments` accepts an `Idempotency-Key` header (1 to 100 characters
       from `A-Z a-z 0-9 _ . : -`). Repeating a request with the same key and the same content records one payment and
       answers with it (200 instead of 201). The same key with different content is a `validation_failed`.
@@ -600,6 +606,9 @@ components:
     PlanLimit:
       description: The plan does not allow it (`limit_reached` or `feature_locked`).
       content: {application/json: {schema: {$ref: "#/components/schemas/PlanError"}}}
+    FeatureUnavailable:
+      description: The platform has the feature switched off for this workspace (`feature_unavailable`). There is no upgrade to offer.
+      content: {application/json: {schema: {$ref: "#/components/schemas/FeatureError"}}}
     RateLimited:
       description: Too many requests (`rate_limited`); wait `Retry-After` seconds.
       headers: {Retry-After: {schema: {type: integer}}}
@@ -630,6 +639,16 @@ components:
             limit: {type: [integer, "null"]}
             used: {type: [integer, "null"]}
             upgrade_url: {type: string, format: uri}
+    FeatureError:
+      type: object
+      properties:
+        error:
+          type: object
+          required: [code, message, feature]
+          properties:
+            code: {type: string, enum: [feature_unavailable]}
+            message: {type: string}
+            feature: {type: string, example: advanced_reports}
     RegisterRequest:
       type: object
       required: [name, email, password, password_confirmation, business_name, country, terms]
@@ -705,7 +724,9 @@ components:
       type: object
       properties:
         type: {type: string, enum: [toggle, limit, quota]}
-        enabled: {type: boolean}
+        status: {type: string, enum: ["on", plan_locked, platform_off], description: "on: usable. plan_locked: the plan lacks it (offer an upgrade). platform_off: switched off by the platform (show nothing)."}
+        detail: {type: [string, "null"], description: "dependency:<key> when another feature is the reason; otherwise null."}
+        enabled: {type: boolean, description: "true exactly when status is on."}
         limit: {type: [integer, "null"], description: "null means unlimited for counted features."}
         used: {type: [integer, "null"]}
         remaining: {type: [integer, "null"]}

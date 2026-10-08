@@ -10,6 +10,11 @@ final class LimitReached extends EntitlementException
         return 'limit_reached';
     }
 
+    public function status(): int
+    {
+        return 402;
+    }
+
     protected function describe(): string
     {
         return __('You have reached the limit of :limit :unit on your plan.', [

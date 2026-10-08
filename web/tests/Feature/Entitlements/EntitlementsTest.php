@@ -302,13 +302,13 @@ describe('the API payload', function () {
         expect($payload['plan'])->toBe(['key' => 'free', 'name' => 'Free'])
             ->and(array_keys($payload['features']))->toBe(array_map(fn (Feature $f) => $f->value, Feature::cases()))
             ->and($payload['features']['customers'])->toBe([
-                'type' => 'limit', 'enabled' => true, 'limit' => 5, 'used' => 3, 'remaining' => 2, 'unlimited' => false,
+                'type' => 'limit', 'status' => 'on', 'detail' => null, 'enabled' => true, 'limit' => 5, 'used' => 3, 'remaining' => 2, 'unlimited' => false,
             ])
             ->and($payload['features']['pdf_statements'])->toBe([
-                'type' => 'quota', 'enabled' => true, 'limit' => 3, 'used' => 0, 'remaining' => 3, 'unlimited' => false,
+                'type' => 'quota', 'status' => 'on', 'detail' => null, 'enabled' => true, 'limit' => 3, 'used' => 0, 'remaining' => 3, 'unlimited' => false,
             ])
             ->and($payload['features']['export_csv'])->toBe([
-                'type' => 'toggle', 'enabled' => false, 'limit' => null, 'used' => null, 'remaining' => null, 'unlimited' => false,
+                'type' => 'toggle', 'status' => 'plan_locked', 'detail' => null, 'enabled' => false, 'limit' => null, 'used' => null, 'remaining' => null, 'unlimited' => false,
             ]);
     });
 

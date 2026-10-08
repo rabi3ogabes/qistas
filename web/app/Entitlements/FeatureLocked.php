@@ -10,6 +10,11 @@ final class FeatureLocked extends EntitlementException
         return 'feature_locked';
     }
 
+    public function status(): int
+    {
+        return 402;
+    }
+
     protected function describe(): string
     {
         return __(':feature is not included in your plan.', ['feature' => $this->feature->label()]);

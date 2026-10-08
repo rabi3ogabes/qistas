@@ -21,7 +21,7 @@ describe('the signed-in account', function () {
             ->assertJsonPath('data.tenant.currency', 'SAR')
             ->assertJsonPath('data.tenant.role', 'owner')
             ->assertJsonPath('data.plan.key', 'free')
-            ->assertJsonPath('data.entitlements.customers', ['type' => 'limit', 'enabled' => true, 'limit' => 5, 'used' => 3, 'remaining' => 2, 'unlimited' => false])
+            ->assertJsonPath('data.entitlements.customers', ['type' => 'limit', 'status' => 'on', 'detail' => null, 'enabled' => true, 'limit' => 5, 'used' => 3, 'remaining' => 2, 'unlimited' => false])
             ->assertJsonPath('data.entitlements.active_contracts.used', 1)
             ->assertJsonPath('data.entitlements.export_csv.enabled', false);
     });

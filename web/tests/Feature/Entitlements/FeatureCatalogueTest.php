@@ -66,10 +66,14 @@ describe('the features that already worked stay on', function () {
             ->and($feature->scope())->toBe('workspace');
     })->with(CORE_FEATURES);
 
-    it('reports a core feature as on even when its row says otherwise', function () {
+    // The reader reports what is stored for every feature, core or not: the admin's cockpit and FeatureControl refuse
+    // to change a core switch (Task 5), and only editing the table by hand can. Reading it honestly is what lets the
+    // resolution and "off means off" be proven end to end with the features that exist today.
+    it('reports the stored state, even for a core feature', function () {
         PlatformFeature::query()->where('feature_key', 'customers')->update(['state' => 'off']);
 
-        expect(PlatformFeatures::state(Feature::Customers))->toBe(PlatformState::On);
+        expect(PlatformFeatures::state(Feature::Customers))->toBe(PlatformState::Off)
+            ->and(PlatformFeatures::all()['customers'])->toBe(PlatformState::Off);
     });
 
     it('reports the launch state when the table has no rows at all', function (Feature $feature) {
