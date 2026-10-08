@@ -48,6 +48,7 @@ tags:
   - name: Payments
   - name: Dashboard
   - name: API access tokens
+  - name: Instalment tools
 paths:
   /plans:
     get:
@@ -514,6 +515,62 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "422": {$ref: "#/components/responses/ValidationFailed"}
+  /settings/tools:
+    get:
+      tags: [Instalment tools]
+      summary: The tools this workspace can configure
+      description: |
+        The settings of every feature that is `on` for the workspace, each with its kind (`switch`, `int` or `select`),
+        its current `value` and, for a select, its `options`. The list is empty until a feature declares a setting.
+        Anyone in the workspace may read it; `meta.can_edit` says whether this person may change it (owner and manager).
+        Draw the controls from this answer: a new tool needs no new screen.
+      responses:
+        "200":
+          description: The tools.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {type: array, items: {$ref: "#/components/schemas/Tool"}}
+                  meta:
+                    type: object
+                    properties:
+                      can_edit: {type: boolean}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+  /settings/tools/{key}:
+    put:
+      tags: [Instalment tools]
+      summary: Change one tool
+      description: |
+        Owner and manager only (403 `forbidden` otherwise). The value must suit the tool's kind and rules (422
+        `validation_failed`, field `value`). A tool whose feature the platform has switched off answers 403
+        `feature_unavailable`; one the plan lacks answers 402 `feature_locked`. Every change is audited.
+      parameters:
+        - {name: key, in: path, required: true, schema: {type: string, example: reports.window_days}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [value]
+              properties:
+                value: {description: "A boolean, a whole number or one of the tool's options, by its kind."}
+      responses:
+        "200":
+          description: The tool as it now is.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/Tool"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "402": {$ref: "#/components/responses/PlanLimit"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
   /tokens:
     get:
       tags: [API access tokens]
@@ -639,6 +696,23 @@ components:
             limit: {type: [integer, "null"]}
             used: {type: [integer, "null"]}
             upgrade_url: {type: string, format: uri}
+    Tool:
+      type: object
+      properties:
+        key: {type: string, example: reports.window_days}
+        feature: {type: string, example: advanced_reports}
+        type: {type: string, enum: [switch, int, select]}
+        label: {type: string}
+        help: {type: string}
+        value: {description: "A boolean, a whole number or the chosen option's value."}
+        options:
+          type: array
+          description: Only for a select.
+          items:
+            type: object
+            properties:
+              value: {type: string}
+              label: {type: string}
     FeatureError:
       type: object
       properties:

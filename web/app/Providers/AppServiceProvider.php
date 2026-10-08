@@ -10,6 +10,7 @@ use App\Models\Contract;
 use App\Models\Customer;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Settings\SettingsRegistry;
 use App\Support\AppFirstTranslationLoader;
 use App\Tenancy\CurrentTenant;
 use App\Tenancy\TenantScope;
@@ -37,6 +38,9 @@ class AppServiceProvider extends ServiceProvider
 
         // A registry of closures set up once at boot (each module registers its own meter); safe to share.
         $this->app->singleton(UsageMeters::class);
+
+        // The settings features declare for the workspace owner (see App\Settings). One per application instance.
+        $this->app->singleton(SettingsRegistry::class);
 
         // The passkey package registers sign-in endpoints on its own. They stay off until their UI ships.
         Passkeys::ignoreRoutes();

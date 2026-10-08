@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\PlanController;
 use App\Http\Controllers\Api\V1\SchedulePreviewController;
 use App\Http\Controllers\Api\V1\TokenController;
+use App\Http\Controllers\Api\V1\ToolsController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -33,6 +34,9 @@ Route::name('api.')->group(function (): void {
 
         Route::get('me', MeController::class)->name('me');
         Route::get('dashboard', DashboardController::class)->name('dashboard');
+
+        Route::get('settings/tools', [ToolsController::class, 'index'])->name('settings.tools.index');
+        Route::put('settings/tools/{key}', [ToolsController::class, 'update'])->name('settings.tools.update');
 
         Route::apiResource('customers', CustomerController::class);
 

@@ -1,6 +1,7 @@
 @php
     $user = auth()->user();
     $isFree = $plan->isFree();
+    $hasTools = app(\App\Settings\SettingsRegistry::class)->definitionsFor($tenant) !== [];
     $tabs = array_slice($nav, 0, 4);
 @endphp
 <!DOCTYPE html>
@@ -63,6 +64,9 @@
                         <x-icon name="chevronDown" :size="16" />
                     </summary>
                     <div class="menu-panel" role="menu">
+                        @if ($hasTools)
+                            <a class="menu-item" role="menuitem" href="{{ route('app.settings.tools') }}"><x-icon name="sliders" :size="18" /> {{ __('Instalment tools') }}</a>
+                        @endif
                         <a class="menu-item" role="menuitem" href="{{ route('security') }}"><x-icon name="shield" :size="18" /> {{ __('Security') }}</a>
                         @if ($user->isPlatformAdmin())
                             <a class="menu-item" role="menuitem" href="{{ route('admin.home') }}"><x-icon name="sliders" :size="18" /> {{ __('Admin area') }}</a>
@@ -117,6 +121,9 @@
                     @foreach (array_slice($nav, 4) as $item)
                         <a class="menu-item" role="menuitem" href="{{ route($item['route']) }}"><x-icon :name="$item['icon']" :size="18" /> {{ $item['label'] }}</a>
                     @endforeach
+                    @if ($hasTools)
+                        <a class="menu-item" role="menuitem" href="{{ route('app.settings.tools') }}"><x-icon name="sliders" :size="18" /> {{ __('Instalment tools') }}</a>
+                    @endif
                     <a class="menu-item" role="menuitem" href="{{ route('security') }}"><x-icon name="shield" :size="18" /> {{ __('Security') }}</a>
                     @if ($isFree)
                         <a class="menu-item menu-cta" role="menuitem" href="{{ url('/app/billing') }}">{{ __('Upgrade your plan') }}</a>

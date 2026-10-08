@@ -17,6 +17,12 @@ enum TenantRole: string
         return $this !== self::Viewer;
     }
 
+    /** May change the workspace's own choices (its instalment tools). */
+    public function canManageSettings(): bool
+    {
+        return $this === self::Owner || $this === self::Manager;
+    }
+
     /** May delete records. */
     public function canDelete(): bool
     {
