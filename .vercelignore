@@ -1,19 +1,18 @@
-# Not part of the deployed site (kept in git; linked to GitHub from the brand page where relevant)
+# This Vercel project deploys the Laravel app in web/ (see vercel.json). Everything else stays in git only.
 /.github
 /.claude
 /docs
 /scripts
 /supabase
-/brand/tools
-/brand/logo/presentation
-/brand/previews/*.png
-/brand/README.md
-/docker-compose.yml
+/brand
+/index.html
+/404.html
+/robots.txt
+/vercel.static.json
+/.vercelignore.static
 /README.md
+/docker-compose.yml
 /package.json
 /node_modules
-
-# Application code (Laravel, Flutter) is not part of the static Vercel site
-/web
 /app
 /shared

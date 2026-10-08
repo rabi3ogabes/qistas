@@ -27,6 +27,7 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body>
+    <x-demo-banner />
     <x-logo-defs />
     <div class="auth-page">
         <aside class="auth-aside" aria-hidden="false">

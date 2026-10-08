@@ -11,6 +11,12 @@ return [
     'locales' => ['en', 'ar', 'fr', 'es', 'ur'],
     'rtl_locales' => ['ar', 'ur'],
 
+    /*
+    | True when the app runs as a throw-away demo (no database and key configured: see docker/entrypoint.sh).
+    | Shows a banner on every page and the demo sign-in on the sign-in page. Never true on a real site.
+    */
+    'demo' => filter_var(env('QISTAS_DEMO', false), FILTER_VALIDATE_BOOL),
+
     'currency_default' => env('QISTAS_DEFAULT_CURRENCY', 'USD'),
 
     // How a customer can pay. Stored on every transaction.

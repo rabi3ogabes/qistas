@@ -57,7 +57,7 @@ for p in walk((".svg",)):
         ok(False, f"{rel(p)}: invalid SVG ({e})")
 
 # ---------------------------------------------------------------- vercel.json
-cfg = json.load(open(os.path.join(ROOT, "vercel.json"), encoding="utf-8"))
+cfg = json.load(open(os.path.join(ROOT, "vercel.static.json"), encoding="utf-8"))
 
 
 def exists(url_path):
@@ -79,7 +79,7 @@ for k in ("x-content-type-options", "x-frame-options", "referrer-policy", "permi
 
 # ---------------------------------------------------------------- .vercelignore vs deployed pages
 patterns = []
-vi = os.path.join(ROOT, ".vercelignore")
+vi = os.path.join(ROOT, ".vercelignore.static")
 if os.path.exists(vi):
     patterns = [l.strip() for l in open(vi, encoding="utf-8") if l.strip() and not l.startswith("#")]
 

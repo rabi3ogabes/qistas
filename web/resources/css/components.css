@@ -206,4 +206,19 @@
     .sheet-body { display: grid; gap: 1rem; padding: 1.5rem; }
     .sheet-title { margin: 0; font-size: 1.375rem; line-height: 1.2; }
     .sheet-actions { display: grid; gap: .5rem; }
+
+    /* ---------- Demo mode: a slim notice on every page, and the demo sign-in on the sign-in page ---------- */
+    .demo-banner {
+        display: flex; align-items: center; justify-content: center; gap: .625rem; flex-wrap: wrap;
+        padding: .375rem max(1rem, env(safe-area-inset-left)); text-align: center; font-size: .8125rem; line-height: 1.4;
+        background: color-mix(in srgb, var(--q-accent) 24%, var(--q-surface)); color: var(--q-ink);
+        border-bottom: 1px solid color-mix(in srgb, var(--q-accent) 45%, transparent);
+    }
+    .demo-banner strong { font-weight: 700; }
+    .demo-login { display: grid; gap: .5rem; margin-bottom: 1rem; padding: .875rem 1rem; border-radius: var(--q-r-md); background: var(--q-tint-sand); color: var(--q-ink); font-size: .875rem; }
+    .demo-login p { margin: 0; }
+    .demo-login dl { display: grid; gap: .25rem; margin: 0; }
+    .demo-login dl div { display: flex; flex-wrap: wrap; gap: .25rem .75rem; }
+    .demo-login dt { min-width: 5rem; color: var(--q-ink-muted); }
+    .demo-login dd { margin: 0; font-weight: 600; user-select: all; overflow-wrap: anywhere; }
 }

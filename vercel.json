@@ -1,44 +1,13 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "trailingSlash": true,
-  "cleanUrls": false,
-  "redirects": [
-    { "source": "/intro", "destination": "/brand/intro/", "permanent": false },
-    { "source": "/intro/", "destination": "/brand/intro/", "permanent": false },
-    { "source": "/studio", "destination": "/brand/theme-studio/", "permanent": false },
-    { "source": "/studio/", "destination": "/brand/theme-studio/", "permanent": false },
-    { "source": "/theme-studio", "destination": "/brand/theme-studio/", "permanent": false },
-    { "source": "/theme-studio/", "destination": "/brand/theme-studio/", "permanent": false }
-  ],
-  "rewrites": [
-    { "source": "/favicon.ico", "destination": "/brand/logo/web/favicon.ico" },
-    { "source": "/favicon.svg", "destination": "/brand/logo/favicon.svg" },
-    { "source": "/apple-touch-icon.png", "destination": "/brand/logo/web/apple-touch-icon.png" }
-  ],
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()" },
-        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
-        { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
-      ]
-    },
-    {
-      "source": "/brand/logo/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600, stale-while-revalidate=86400" }]
-    },
-    {
-      "source": "/brand/previews/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600, stale-while-revalidate=86400" }]
-    },
-    {
-      "source": "/brand/concepts/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600, stale-while-revalidate=86400" }]
+  "services": {
+    "app": {
+      "root": "web",
+      "entrypoint": "Dockerfile.vercel",
+      "runtime": "container"
     }
+  },
+  "rewrites": [
+    { "source": "/(.*)", "destination": { "service": "app" } }
   ]
 }

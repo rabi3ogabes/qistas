@@ -17,7 +17,7 @@ RUN npm run build
 # ---------- 2. PHP with the extensions the app needs ----------
 FROM dunglas/frankenphp:1-php8.4-bookworm AS base
 RUN cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
-    && install-php-extensions intl zip bcmath pdo_pgsql opcache
+    && install-php-extensions intl zip bcmath pdo_pgsql pdo_sqlite opcache
 WORKDIR /app
 
 # ---------- 3. PHP dependencies and the application ----------
@@ -32,6 +32,13 @@ RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framewor
     && php artisan package:discover --ansi \
     && php artisan view:cache
 
+# A demo key and a ready-made demo database, so that the image starts with no configuration at all (see
+# docker/entrypoint.sh). They are made here, once per build, and are never used when APP_KEY and a database are set.
+RUN php artisan key:generate --show --no-ansi --no-interaction > storage/app/demo.key \
+    && touch database/demo.sqlite \
+    && APP_KEY="$(cat storage/app/demo.key)" APP_ENV=local DB_CONNECTION=sqlite DB_DATABASE=/app/database/demo.sqlite \
+       CACHE_STORE=array SESSION_DRIVER=array php artisan qistas:setup --demo --no-interaction
+
 # ---------- 4. What actually runs ----------
 FROM base AS runtime
 COPY --from=dependencies --chown=www-data:www-data /app /app
@@ -43,7 +50,8 @@ RUN setcap CAP_NET_BIND_SERVICE=+eip /usr/local/bin/frankenphp \
     && chown -R www-data:www-data /config/caddy /data/caddy /data/qistas
 
 # Defaults suit the standard target: Vercel + a Supabase (Postgres) database. Secrets (APP_KEY, DB_URL) are never
-# baked in: set them as environment variables where the image runs. docker-compose.yml overrides these for a laptop.
+# baked in: set them as environment variables where the image runs; until then the image runs as a demo.
+# docker-compose.yml overrides these for a laptop.
 ENV PORT=8080 \
     APP_ENV=production \
     APP_DEBUG=false \

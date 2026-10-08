@@ -1,4 +1,14 @@
 <x-layouts.auth :title="__('Sign in')" :heading="__('Welcome back')" :lead="__('Sign in to manage your customers and instalments.')">
+    @if (config('qistas.demo'))
+        <aside class="demo-login" aria-label="{{ __('Demo account') }}">
+            <p><strong>{{ __('Look around with the demo account') }}</strong></p>
+            <dl>
+                <div><dt>{{ __('Email') }}</dt><dd dir="ltr">{{ \Database\Seeders\DemoSeeder::EMAIL }}</dd></div>
+                <div><dt>{{ __('Password') }}</dt><dd dir="ltr">{{ \Database\Seeders\DemoSeeder::PASSWORD }}</dd></div>
+            </dl>
+        </aside>
+    @endif
+
     <form method="POST" action="{{ route('login.store') }}" class="form" novalidate>
         @csrf
         <x-field name="email" type="email" :label="__('Email')" autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" required autofocus />

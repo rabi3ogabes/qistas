@@ -1,3 +1,6 @@
+> **Note (2026-10-08):** this runbook describes the static brand prototype, which is no longer deployed. The live address
+> now serves the Laravel app: see [DEPLOY.md](DEPLOY.md). The static configuration lives in `vercel.static.json`.
+
 # Deployment (Vercel)
 
 Live test site: **https://qistas-puce.vercel.app/** · Source: https://github.com/rabi3ogabes/qistas · Branch: `main`

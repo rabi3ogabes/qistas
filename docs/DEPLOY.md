@@ -34,7 +34,14 @@ This setup uses a throw-away database password and a published demo login. **Nev
 
 ## Option B: online, with Vercel and Supabase
 
-Vercel runs the container; Supabase keeps the data. About ten minutes, and you never touch a server.
+Vercel runs the container; Supabase keeps the data. The repository's `vercel.json` already tells Vercel to build the
+app in `web/` as a container, so **every push to `main` redeploys the live site** (https://qistas-puce.vercel.app/).
+
+### Step 0: it works at once, as a demo
+
+With nothing configured, the container starts in **demo mode**: a demo business with a published sign-in (shown on the
+sign-in page), a banner on every page, and temporary data that each running copy keeps for itself and loses when it
+stops. Anyone can look around; nothing real should be entered. To go live for real, do steps 1 to 3.
 
 ### 1. Create the database (Supabase)
 
@@ -58,45 +65,41 @@ read again.** Create one (any one of these):
 echo "base64:$(openssl rand -base64 32)"
 ```
 
-### 3. Create the Vercel project
+### 3. Add both to Vercel and redeploy
 
-1. In Vercel choose **Add New → Project** and import the GitHub repository `rabi3ogabes/qistas`.
-2. Set **Root Directory** to `web`. Leave the framework preset on **Other**.
-3. Add these **Environment Variables**:
+In Vercel open the project, **Settings → Environment Variables**, add the two below (for Production), then
+**Deployments → ⋯ → Redeploy**:
 
-   | Name | Value |
-   |---|---|
-   | `APP_KEY` | the key from step 2 |
-   | `DB_URL` | the Supabase connection string from step 1 |
-   | `APP_URL` | the project's public address, e.g. `https://qistas.vercel.app` (you can add it after the first deploy) |
+| Name | Value |
+|---|---|
+| `APP_KEY` | the key from step 2 |
+| `DB_URL` | the Supabase connection string from step 1 |
 
-   Everything else has a safe default for this setup (production mode, secure cookies, trusted proxy, automatic
-   database set-up). Optional settings are in the table below.
-4. Press **Deploy**.
-
-On its first start the app creates its tables in your Supabase database by itself. Open the address Vercel gives
-you, press **Start free**, create an account, and you are in the dashboard.
-
-> **Containers on Vercel.** This uses Vercel's container Functions (the `Dockerfile.vercel` file). If your Vercel plan
-> does not offer them, the same image runs on Render, Fly.io, Railway, Google Cloud Run or any server with Docker:
-> point it at the same two variables (`APP_KEY`, `DB_URL`).
+Everything else has a safe default (production mode, secure cookies, trusted proxy, automatic database set-up). On its
+first start the app creates its tables in your Supabase database, the demo banner disappears, and the site is real:
+**Start free** creates a real account. Setting only one of the two variables stops the app with a clear message in
+the Vercel logs instead of quietly running as a demo.
 
 ### Optional settings
 
 | Name | Default | Meaning |
 |---|---|---|
+| `APP_URL` | detected | The public address, used in e-mails and links created outside a request. |
 | `MAIL_MAILER`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_ADDRESS` | `log` | Send real e-mail (verification, password reset). Until set, e-mails are written to the log only. |
 | `AUTO_MIGRATE` | `true` | Bring the database up to date on every start. Set `false` to run `php artisan migrate --force` yourself. |
 | `TRUSTED_PROXIES` | `*` | Which proxies' `X-Forwarded-*` headers are believed. `*` is right behind Vercel. |
 | `BILLING_GATEWAY` | `fake` | `fake` shows a pretend checkout; `stripe` needs `STRIPE_SECRET` and `STRIPE_WEBHOOK_SECRET`. |
 | `QISTAS_DEFAULT_CURRENCY` | `USD` | Currency for new workspaces whose country is not recognised. |
 
-### Making the public site the main Vercel link
+> **Containers on Vercel.** This uses Vercel's container Functions (`web/Dockerfile.vercel`). The same image runs on
+> Render, Fly.io, Railway, Google Cloud Run or any server with Docker: give it the same two variables.
 
-The existing `qistas-puce` Vercel project serves only the static brand prototype from the repository root. To make that
-same address show the real website, open that project's **Settings → General → Root Directory**, set it to `web`, add
-the variables above, and redeploy. The prototype pages remain in the repository (`brand/`) and run locally with
-`npm run dev`.
+### What happened to the brand prototype
+
+The static brand prototype (intro, Theme Studio, brand system) is no longer served at the live address, which now
+belongs to the app. It stays in the repository (`brand/`, `index.html`): run it with `npm run dev`
+(<http://127.0.0.1:5274>). Its Vercel settings are kept in `vercel.static.json` and `.vercelignore.static` should it
+ever get a project of its own.
 
 ---
 

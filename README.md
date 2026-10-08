@@ -3,7 +3,7 @@
 *The just balance.* A premium instalment, lending and accounting platform for merchants and lenders, Arabic-first and
 available in Arabic, English, French, Spanish and Urdu.
 
-**Brand prototype (static):** https://qistas-puce.vercel.app/ — the animated intro, Theme Studio and brand system. It is not the app.
+**Live:** https://qistas-puce.vercel.app/ — the real website with a sign-in to the dashboard. Until a database is connected it runs as a demo with temporary data (see [docs/DEPLOY.md](docs/DEPLOY.md)).
 
 ## The app: website, dashboard and API
 
@@ -20,15 +20,15 @@ cd qistas
 docker compose up --build        # then open http://localhost:8080  (demo login is printed in docs/DEPLOY.md)
 ```
 
-**Put it online** with Vercel + Supabase: [docs/DEPLOY.md](docs/DEPLOY.md). The mobile app (Flutter) is not built yet.
+**Put it online for real** with Supabase: [docs/DEPLOY.md](docs/DEPLOY.md). The mobile app (Flutter) is not built yet.
 
-### Brand prototypes
+### Brand prototypes (run locally with `npm run dev`; no longer hosted)
 
-| Prototype | Live | What to try |
+| Prototype | Local address | What to try |
 |---|---|---|
-| Intro: splash + onboarding | [/brand/intro/](https://qistas-puce.vercel.app/brand/intro/) | switch to Arabic or Urdu, jump to Ramadan for Saudi Arabia, try dark mode |
-| Theme Studio (admin) | [/brand/theme-studio/](https://qistas-puce.vercel.app/brand/theme-studio/) | change a colour, break the contrast, publish, auto-fix, roll back |
-| Brand system | [/brand/](https://qistas-puce.vercel.app/brand/) | the name, the Plumb q logo, colour, type, voice, motion |
+| Intro: splash + onboarding | [/brand/intro/](http://127.0.0.1:5274/brand/intro/) | switch to Arabic or Urdu, jump to Ramadan for Saudi Arabia, try dark mode |
+| Theme Studio (admin) | [/brand/theme-studio/](http://127.0.0.1:5274/brand/theme-studio/) | change a colour, break the contrast, publish, auto-fix, roll back |
+| Brand system | [/brand/](http://127.0.0.1:5274/brand/) | the name, the Plumb q logo, colour, type, voice, motion |
 
 ## Status
 
@@ -36,7 +36,7 @@ docker compose up --build        # then open http://localhost:8080  (demo login 
 |---|---|
 | Name, Plumb q logo kit, app icons and favicon set | Flutter mobile app |
 | Laravel web app: website, sign-up and sign-in with 2FA, customers, contracts, payments, plans and limits, five languages, 895 tests also green on PostgreSQL | Admin console, REST API, Stripe billing, reports and exports |
-| Theme engine: base → country → event → merchant accent, Hijri schedules, WCAG gate (24 tests) | Hosted app on Vercel + Supabase (ready to deploy: see docs/DEPLOY.md) |
+| Theme engine: base → country → event → merchant accent, Hijri schedules, WCAG gate (24 tests) | Real database behind the live site (Supabase: needs your two secrets, see docs/DEPLOY.md) |
 | Theme Studio prototype with preview, versions, rollback | Reminders, backups, AI assistant |
 | Production deployment: security headers + CSP, redirects, 404, CI, smoke tests | Native-speaker review of Arabic/Urdu/French/Spanish copy; trademark search |
 
@@ -45,7 +45,8 @@ docker compose up --build        # then open http://localhost:8080  (demo login 
 ```
 web/          the Laravel app (website, /app, admin, API) · Dockerfile.vercel · tests · lang/ (five languages)
 docker-compose.yml                                                    run the whole app locally with one command
-index.html · 404.html · robots.txt · vercel.json · .vercelignore      the deployed site's root
+vercel.json · .vercelignore                                           deploy web/ as a container on Vercel
+index.html · 404.html · robots.txt · vercel.static.json              the static brand prototype (not deployed)
 brand/        index.html (brand system) · intro/ · theme-studio/ · landing/ · shared/ (theme resolver, logo, preview, icons)
               logo/ (SVG masters, web icons) · tokens/ (themes.seed.json is the source of truth) · tools/ (build + tests)
 supabase/     migrations/ · seed/ (generated from the theme seed)

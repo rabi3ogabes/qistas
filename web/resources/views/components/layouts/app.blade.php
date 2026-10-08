@@ -19,6 +19,7 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="app-body">
+    <x-demo-banner />
     <x-logo-defs />
     <a class="sr-only" href="#main">{{ __('Skip to content') }}</a>
 

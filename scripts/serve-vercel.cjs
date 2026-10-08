@@ -14,7 +14,7 @@ const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
 const PORT = Number(process.argv[2] || process.env.PORT || 5274);
-const CONFIG = JSON.parse(fs.readFileSync(path.join(ROOT, 'vercel.json'), 'utf8'));
+const CONFIG = JSON.parse(fs.readFileSync(path.join(ROOT, 'vercel.static.json'), 'utf8'));
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.cjs': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp',
@@ -80,6 +80,6 @@ const server = http.createServer((req, res) => {
 });
 
 if (require.main === module) {
-  server.listen(PORT, '127.0.0.1', () => console.log('Serving ' + ROOT + ' with vercel.json rules at http://127.0.0.1:' + PORT));
+  server.listen(PORT, '127.0.0.1', () => console.log('Serving ' + ROOT + ' with vercel.static.json rules at http://127.0.0.1:' + PORT));
 }
 module.exports = { server, compile };

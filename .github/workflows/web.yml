@@ -6,9 +6,9 @@ name: Web app
 on:
   push:
     branches: [main]
-    paths: ["web/**", "docker-compose.yml", ".github/workflows/web.yml"]
+    paths: ["web/**", "docker-compose.yml", "scripts/smoke-app.sh", "scripts/e2e-demo.sh", ".github/workflows/web.yml"]
   pull_request:
-    paths: ["web/**", "docker-compose.yml", ".github/workflows/web.yml"]
+    paths: ["web/**", "docker-compose.yml", "scripts/smoke-app.sh", "scripts/e2e-demo.sh", ".github/workflows/web.yml"]
   workflow_dispatch:
 
 permissions:
@@ -126,3 +126,25 @@ jobs:
       - name: App logs
         if: always()
         run: docker logs app 2>&1 | tail -60
+
+      - name: Stop the real-mode container
+        if: always()
+        run: docker rm -f app db >/dev/null 2>&1 || true
+
+      # With no configuration at all the image must still start, as a demo with its own temporary data, and the
+      # demo account must be able to sign in and open the app. This is what a first Vercel deploy runs.
+      - name: Start with no configuration (demo mode)
+        run: |
+          docker run -d --name demo -p 8081:8080 -e SESSION_SECURE_COOKIE=false qistas-web
+          for i in $(seq 1 45); do curl -fsS http://localhost:8081/up >/dev/null 2>&1 && break; sleep 2; done
+
+      - name: Demo mode smoke test and sign-in
+        run: |
+          sh ../scripts/smoke-app.sh http://localhost:8081 60
+          sh ../scripts/e2e-demo.sh http://localhost:8081 | tee e2e.log
+          grep -q 'POST /login .*-> 302 -> http://localhost:8081/app' e2e.log
+          grep -q 'GET /app -> 200' e2e.log
+
+      - name: Demo logs
+        if: always()
+        run: docker logs demo 2>&1 | tail -40
