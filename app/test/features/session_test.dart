@@ -13,7 +13,7 @@ void main() {
       await pumpApp(tester, server);
 
       expect(find.text('Dashboard'), findsWidgets);
-      expect(find.text('Al-Fares Electronics'), findsOneWidget);
+      expect(find.textContaining(', Layla'), findsOneWidget);
       expect(find.text('SAR 5,000.00'), findsOneWidget);
       expect(find.text('Ahmad Salem'), findsOneWidget);
       expect(server.adapter.requests.first.headers['Authorization'], 'Bearer qst_test-token');
@@ -40,7 +40,7 @@ void main() {
       await pumpApp(tester, server, preferences: {'account': jsonEncode(sampleAccount().toJson())});
 
       expect(find.textContaining('You are offline'), findsOneWidget);
-      expect(find.text('Al-Fares Electronics'), findsOneWidget);
+      expect(find.textContaining(', Layla'), findsOneWidget);
     });
   });
 
@@ -54,7 +54,7 @@ void main() {
       await tapText(tester, 'Sign in', last: true);
 
       expect(server.requestsTo('POST /auth/login').single.data, contains('layla@example.com'));
-      expect(find.text('Al-Fares Electronics'), findsOneWidget);
+      expect(find.textContaining(', Layla'), findsOneWidget);
       expect(find.text('Welcome back'), findsNothing);
     });
 
@@ -75,14 +75,14 @@ void main() {
       await tapText(tester, 'Sign in', last: true);
 
       expect(find.text('Authentication code'), findsOneWidget);
-      expect(find.text('Al-Fares Electronics'), findsNothing);
+      expect(find.textContaining(', Layla'), findsNothing);
 
       await typeInto(tester, 'Authentication code', '123456');
       await tapText(tester, 'Sign in', last: true);
 
       expect(attempts, 2);
       expect(jsonDecode(server.requestsTo('POST /auth/login').last.data as String), containsPair('code', '123456'));
-      expect(find.text('Al-Fares Electronics'), findsOneWidget);
+      expect(find.textContaining(', Layla'), findsOneWidget);
     });
 
     testWidgets('says what was wrong, and does not sign in, when the password is refused', (tester) async {
@@ -96,7 +96,7 @@ void main() {
       await tapText(tester, 'Sign in', last: true);
 
       expect(find.text('These credentials do not match our records.'), findsOneWidget);
-      expect(find.text('Al-Fares Electronics'), findsNothing);
+      expect(find.textContaining(', Layla'), findsNothing);
     });
 
     testWidgets('checks the form before asking the server', (tester) async {
@@ -121,7 +121,7 @@ void main() {
 
       expect(find.text('Welcome back'), findsOneWidget);
       expect(find.text('Your session ended. Please sign in again.'), findsOneWidget);
-      expect(find.text('Al-Fares Electronics'), findsNothing);
+      expect(find.textContaining(', Layla'), findsNothing);
     });
   });
 }

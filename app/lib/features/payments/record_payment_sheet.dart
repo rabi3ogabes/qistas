@@ -23,6 +23,14 @@ String methodLabel(BuildContext context, String method) => switch (method) {
       _ => method,
     };
 
+IconData methodIcon(String method) => switch (method) {
+      'cash' => Icons.payments_outlined,
+      'bank_transfer' => Icons.account_balance_outlined,
+      'card' => Icons.credit_card_outlined,
+      'cheque' => Icons.receipt_long_outlined,
+      _ => Icons.paid_outlined,
+    };
+
 const List<String> paymentMethods = ['cash', 'bank_transfer', 'card', 'cheque', 'other'];
 
 /// Opens the sheet that takes a payment on [contract]. Returns the payment that was recorded, or null.

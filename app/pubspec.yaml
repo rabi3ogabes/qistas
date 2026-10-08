@@ -3,7 +3,7 @@ description: "Qistas: customers, contracts and payments for instalment businesse
 publish_to: 'none'
 
 # build-name+build-number. CI overrides the build number with the run number.
-version: 1.0.0+1
+version: 1.1.0+2
 
 environment:
   sdk: ^3.11.0
@@ -21,7 +21,6 @@ dependencies:
   flutter_secure_storage: ^11.2.0
   shared_preferences: ^2.5.6
   intl: any
-  google_fonts: ^8.2.1
   url_launcher: ^6.3.3
 
 dev_dependencies:
@@ -36,6 +35,39 @@ flutter:
   assets:
     - assets/i18n/
     - assets/icon/
+
+  # Bundled so the app looks the same offline: tool/fonts.py builds these from the website's font packages.
+  fonts:
+    - family: Geist
+      fonts:
+        - asset: assets/fonts/Geist-Regular.ttf
+        - asset: assets/fonts/Geist-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Geist-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Geist-Bold.ttf
+          weight: 700
+    - family: CormorantGaramond
+      fonts:
+        - asset: assets/fonts/CormorantGaramond-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/CormorantGaramond-Bold.ttf
+          weight: 700
+    - family: IBMPlexSansArabic
+      fonts:
+        - asset: assets/fonts/IBMPlexSansArabic-Regular.ttf
+        - asset: assets/fonts/IBMPlexSansArabic-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/IBMPlexSansArabic-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/IBMPlexSansArabic-Bold.ttf
+          weight: 700
+    - family: NotoNastaliqUrdu
+      fonts:
+        - asset: assets/fonts/NotoNastaliqUrdu-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/NotoNastaliqUrdu-SemiBold.ttf
+          weight: 600
 
 # `dart run flutter_launcher_icons` writes the Android, iOS, web and Windows icons from the Qistas mark.
 flutter_launcher_icons:

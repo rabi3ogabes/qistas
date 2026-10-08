@@ -6,13 +6,13 @@ use App\Reports\DashboardMetrics;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
 
-/** The headline numbers (see DashboardMetrics for exactly how each is defined) and who owes money today. */
+/** The headline numbers (see DashboardMetrics for how each is defined), who pays today, who is late or about to be, and this month against last. */
 final class DashboardController
 {
     public function __invoke(CurrentTenant $current, DashboardMetrics $metrics): JsonResponse
     {
         $tenant = $current->get();
 
-        return response()->json(['data' => ['currency' => $tenant->currency, ...$metrics->for($tenant)]]);
+        return response()->json(['data' => ['currency' => $tenant->currency, ...$metrics->for($tenant), ...$metrics->briefing($tenant)]]);
     }
 }

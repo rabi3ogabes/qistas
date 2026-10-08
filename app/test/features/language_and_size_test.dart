@@ -38,10 +38,10 @@ void main() {
       expect(find.text('SAR 5,000.00'), findsOneWidget);
     });
 
-    testWidgets('a language chosen in More is kept, and used the next time the app starts', (tester) async {
+    testWidgets('a language chosen in Settings is kept, and used the next time the app starts', (tester) async {
       await pumpApp(tester, workspaceServer());
 
-      await tapText(tester, 'More', last: true);
+      await openSettings(tester);
       await tapText(tester, 'Français');
       expect(find.text('Tableau de bord'), findsWidgets);
 
@@ -56,9 +56,11 @@ void main() {
     testWidgets('moving between sections never changes the language', (tester) async {
       await pumpApp(tester, workspaceServer(), language: 'es');
 
-      for (final section in ['Clientes', 'Contratos', 'Pagos', 'Más', 'Panel']) {
+      for (final section in ['Clientes', 'Contratos', 'Pagos']) {
         await tapText(tester, section, last: true);
       }
+      await openSettings(tester);
+      await tapText(tester, 'Panel', last: true);
 
       expect(find.text('Panel'), findsWidgets);
       expect(find.text('Dashboard'), findsNothing);
@@ -70,11 +72,16 @@ void main() {
       testWidgets('every main screen lays out at 200% text in $language without overflow', (tester) async {
         await pumpApp(tester, workspaceServer(), language: language, size: const Size(360, 640), textScale: 2);
 
-        final tabs = language == 'en' ? ['Customers', 'Contracts', 'Payments', 'More', 'Dashboard'] : ['العملاء', 'العقود', 'الدفعات', 'المزيد', 'لوحة التحكم'];
+        final tabs = language == 'en' ? ['Customers', 'Contracts', 'Payments'] : ['العملاء', 'العقود', 'الدفعات'];
         for (final tab in tabs) {
           await tapText(tester, tab, last: true);
           expect(tester.takeException(), isNull, reason: 'overflow on $tab');
         }
+
+        await openSettings(tester);
+        expect(tester.takeException(), isNull, reason: 'overflow on settings');
+        await tapText(tester, language == 'en' ? 'Dashboard' : 'لوحة التحكم', last: true);
+        expect(tester.takeException(), isNull, reason: 'overflow on the dashboard');
       });
     }
 

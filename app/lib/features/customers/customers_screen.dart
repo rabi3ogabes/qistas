@@ -6,13 +6,14 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
 import '../../app/shell.dart';
-import '../../core/api/api_exception.dart';
+import '../../core/design/luxe.dart';
 import '../../core/design/tokens.dart';
 import '../../core/design/widgets.dart';
 import '../../core/l10n/translations.dart';
 import '../../core/ui/paged.dart';
 import '../../data/models.dart';
 import '../billing/upgrade_sheet.dart';
+import '../common/add_flows.dart';
 
 class CustomersList extends PagedNotifier<Customer> {
   String _query = '';
@@ -30,29 +31,6 @@ class CustomersList extends PagedNotifier<Customer> {
 }
 
 final customersListProvider = NotifierProvider<CustomersList, PagedState<Customer>>(CustomersList.new);
-
-/// What a person sees when they try to add a customer on a full plan: the upgrade sheet, never an empty form.
-Future<void> addCustomer(BuildContext context, WidgetRef ref) async {
-  final account = ref.read(accountProvider);
-  final customers = account?.entitlement('customers');
-
-  if (customers != null && !customers.allowsMore) {
-    await showUpgradeSheet(
-      context,
-      UpgradeRequired(
-        code: customers.enabled ? 'limit_reached' : 'feature_locked',
-        message: context.t('Your plan includes up to :limit customers. Upgrade to add more, or delete a customer you no longer need to free up a place.', {'limit': customers.limit ?? 0}),
-        feature: 'customers',
-        limit: customers.limit,
-        used: customers.used,
-      ),
-    );
-
-    return;
-  }
-
-  await context.push('/customers/new');
-}
 
 class CustomersScreen extends ConsumerStatefulWidget {
   const CustomersScreen({super.key});
@@ -148,8 +126,8 @@ class _CustomerRow extends StatelessWidget {
       onTap: () => context.push('/customers/${customer.id}'),
       child: Row(
         children: [
-          CircleAvatar(backgroundColor: c.surfaceAlt, foregroundColor: c.ink, child: Text(customer.name.isEmpty ? '?' : String.fromCharCode(customer.name.runes.first).toUpperCase())),
-          const SizedBox(width: 12),
+          InitialsAvatar(customer.name, size: 46),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

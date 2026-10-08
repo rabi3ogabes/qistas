@@ -48,11 +48,23 @@ class QCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final card = Card(
-      clipBehavior: Clip.antiAlias,
-      child: onTap == null
-          ? Padding(padding: padding, child: child)
-          : InkWell(onTap: onTap, child: Padding(padding: padding, child: child)),
+    final c = context.qc;
+    final radius = BorderRadius.circular(QistasMetrics.radiusLg);
+
+    final card = DecoratedBox(
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: radius,
+        border: Border.all(color: c.line.withValues(alpha: 0.75)),
+        boxShadow: [BoxShadow(color: c.ink.withValues(alpha: 0.05), blurRadius: 20, offset: const Offset(0, 8))],
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: ClipRRect(
+          borderRadius: radius,
+          child: onTap == null ? Padding(padding: padding, child: child) : InkWell(onTap: onTap, child: Padding(padding: padding, child: child)),
+        ),
+      ),
     );
 
     return semanticLabel == null ? card : Semantics(label: semanticLabel, container: true, child: card);
@@ -436,10 +448,10 @@ class QSectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(top: 24, bottom: 10),
+        padding: const EdgeInsets.only(top: 28, bottom: 12),
         child: Row(
           children: [
-            Expanded(child: Text(title, style: Theme.of(context).textTheme.titleMedium, semanticsLabel: title)),
+            Expanded(child: Text(title, style: Theme.of(context).textTheme.titleLarge, semanticsLabel: title, maxLines: 2, overflow: TextOverflow.ellipsis)),
             ?trailing,
           ],
         ),

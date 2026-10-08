@@ -6,8 +6,11 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:qistas/app/app.dart';
+import 'package:qistas/app/chrome.dart';
 import 'package:qistas/app/providers.dart';
+import 'package:qistas/core/config.dart';
 import 'package:qistas/core/design/widgets.dart';
 import 'package:qistas/core/l10n/translations.dart';
 import 'package:qistas/core/storage/token_store.dart';
@@ -15,6 +18,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'fake_api.dart';
 import 'samples.dart';
+import 'visual.dart';
 
 typedef Route = FutureOr<FakeResponse> Function(RequestOptions options);
 
@@ -75,7 +79,13 @@ Future<void> pumpApp(
   Size size = const Size(412, 915),
   double textScale = 1,
   Map<String, Object> preferences = const {},
+  bool realFonts = false,
+  List<Override> overrides = const [],
 }) async {
+  if (realFonts) await loadBrandFonts();
+  for (final code in AppConfig.locales) {
+    await initializeDateFormatting(code);
+  }
   SharedPreferences.setMockInitialValues({'onboarded': true, 'language': language, ...preferences});
   final prefs = await SharedPreferences.getInstance();
 
@@ -94,7 +104,8 @@ Future<void> pumpApp(
         tokenStoreProvider.overrideWithValue(MemoryTokenStore(signedIn ? 'qst_test-token' : null)),
         httpAdapterProvider.overrideWithValue(server.adapter),
         splashDurationProvider.overrideWithValue(Duration.zero),
-        webFontsProvider.overrideWithValue(false),
+        brandFontsProvider.overrideWithValue(realFonts),
+        ...overrides,
         // The words are read from disk at once, so a test never waits on asset loading that fake time cannot advance.
         translationsProvider.overrideWith((ref) {
           final language = ref.watch(localeProvider);
@@ -104,7 +115,7 @@ Future<void> pumpApp(
           return Future.value(Translations(language, {for (final entry in table.entries) entry.key: entry.value.toString()}));
         }),
       ],
-      child: const QistasApp(),
+      child: RepaintBoundary(key: screenshotKey, child: const QistasApp()),
     ),
   );
   await settle(tester);
@@ -140,6 +151,14 @@ Future<void> tapButton(WidgetTester tester, String label) async {
   final finder = find.widgetWithText(QButton, label);
   expect(finder, findsWidgets, reason: 'no "$label" button on screen');
   await tester.ensureVisible(finder.first);
+  await tester.tap(finder.first);
+  await settle(tester);
+}
+
+/// Opens settings from the initials at the top of a screen, the way a person does.
+Future<void> openSettings(WidgetTester tester) async {
+  final finder = find.byType(AccountButton);
+  expect(finder, findsWidgets, reason: 'no account button on screen');
   await tester.tap(finder.first);
   await settle(tester);
 }

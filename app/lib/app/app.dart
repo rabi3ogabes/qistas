@@ -17,7 +17,7 @@ class QistasApp extends ConsumerWidget {
     final router = ref.watch(routerProvider);
     final language = ref.watch(localeProvider);
     final mode = ref.watch(themeModeProvider);
-    final webFonts = ref.watch(webFontsProvider);
+    final brandFonts = ref.watch(brandFontsProvider);
     // While a new language loads, the previous words stay on screen: no flash of English.
     final translations = ref.watch(translationsProvider).valueOrNull ?? const Translations.english();
 
@@ -28,8 +28,8 @@ class QistasApp extends ConsumerWidget {
       locale: Locale(language),
       supportedLocales: [for (final code in AppConfig.locales) Locale(code)],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
-      theme: QistasTheme.of(Brightness.light, language, webFonts: webFonts),
-      darkTheme: QistasTheme.of(Brightness.dark, language, webFonts: webFonts),
+      theme: QistasTheme.of(Brightness.light, language, brandFonts: brandFonts),
+      darkTheme: QistasTheme.of(Brightness.dark, language, brandFonts: brandFonts),
       themeMode: mode,
       builder: (context, child) => TranslationsScope(
         translations: translations,

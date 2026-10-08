@@ -200,10 +200,10 @@ void main() {
       expect(find.textContaining('You are offline'), findsNothing);
     });
 
-    testWidgets('signs out from More and returns to sign-in', (tester) async {
+    testWidgets('signs out from Settings and returns to sign-in', (tester) async {
       await pumpApp(tester, workspaceServer(routes: {'POST /auth/logout': always(json(200, {'data': <String, dynamic>{}}))}));
 
-      await tapText(tester, 'More', last: true);
+      await openSettings(tester);
       await tapButton(tester, 'Sign out');
       await tester.tap(find.widgetWithText(TextButton, 'Sign out'));
       await settle(tester);

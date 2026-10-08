@@ -742,16 +742,46 @@ components:
         collection_rate: {type: [string, "null"]}
         due_today:
           type: array
+          items: {$ref: "#/components/schemas/DueInstallment"}
+        expected_this_month: {$ref: "#/components/schemas/Money", description: What falls due this calendar month, paid or not.}
+        collected_last_month: {$ref: "#/components/schemas/Money", description: Net money received last calendar month, to compare with this month.}
+        overdue_list:
+          type: array
+          description: The oldest unpaid instalments that fell due before today (at most 25), each with how many days late.
+          items:
+            allOf:
+              - {$ref: "#/components/schemas/DueInstallment"}
+              - type: object
+                properties:
+                  days_late: {type: integer, minimum: 1}
+        upcoming:
+          type: array
+          description: Unpaid instalments falling due in the next seven days, soonest first (at most 25).
+          items:
+            allOf:
+              - {$ref: "#/components/schemas/DueInstallment"}
+              - type: object
+                properties:
+                  days_until: {type: integer, minimum: 1}
+        daily_collected:
+          type: array
+          description: The last fourteen days including today, oldest first, for a small chart. Net of voids.
           items:
             type: object
             properties:
-              installment_id: {type: string}
-              contract_id: {type: string}
-              contract_reference: {type: string}
-              customer_id: {type: string}
-              customer_name: {type: string}
-              amount_due: {$ref: "#/components/schemas/Money"}
-              due_date: {type: string, format: date}
+              date: {type: string, format: date}
+              amount: {$ref: "#/components/schemas/Money"}
+    DueInstallment:
+      type: object
+      properties:
+        installment_id: {type: string}
+        contract_id: {type: string}
+        contract_reference: {type: string}
+        customer_id: {type: string}
+        customer_name: {type: string}
+        customer_phone: {type: string}
+        amount_due: {$ref: "#/components/schemas/Money"}
+        due_date: {type: string, format: date}
     CustomerInput:
       type: object
       required: [name, phone]

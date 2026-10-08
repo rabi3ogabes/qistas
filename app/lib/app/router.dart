@@ -15,6 +15,7 @@ import '../features/dashboard/dashboard_screen.dart';
 import '../features/intro/onboarding_screen.dart';
 import '../features/intro/splash_screen.dart';
 import '../features/payments/payments_screen.dart';
+import '../features/search/search_screen.dart';
 import '../features/settings/settings_screen.dart';
 import 'providers.dart';
 import 'shell.dart';
@@ -61,6 +62,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
       GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),
       GoRoute(path: '/plans', builder: (_, _) => const PlansScreen()),
+      GoRoute(path: '/search', builder: (_, _) => const SearchScreen()),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => AppShell(shell: shell),
         branches: [
@@ -83,7 +85,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               builder: (_, _) => const ContractsScreen(),
               routes: [
                 GoRoute(path: 'new', builder: (_, state) => ContractFormScreen(customerId: state.uri.queryParameters['customer'])),
-                GoRoute(path: ':id', builder: (_, state) => ContractDetailScreen(id: state.pathParameters['id']!)),
+                GoRoute(path: ':id', builder: (_, state) => ContractDetailScreen(id: state.pathParameters['id']!, recordPayment: state.uri.queryParameters['pay'] == '1')),
               ],
             ),
           ]),

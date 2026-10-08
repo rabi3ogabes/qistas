@@ -216,6 +216,15 @@ void main() {
       expect(board.overdue, Money.parse('300.00'));
       expect(board.activeCustomers, 4);
       expect(board.dueToday.single.reference, 'C-0007');
+      expect(board.dueToday.single.phone, '+966501234567');
+      expect(board.overdueList.single.daysLate, 6);
+      expect(board.upcoming.single.daysUntil, 2);
+      expect(board.daily, hasLength(14));
+      expect(board.expectedThisMonth, Money.parse('1920.00'));
+      expect(board.toMatchLastMonth, Money.parse('300.00'));
+      expect(board.beatLastMonth, isFalse);
+      expect(board.collectionFraction, closeTo(0.625, 0.0001));
+      expect(board.needsYou.map((d) => d.reference), ['C-0003', 'C-0007']);
       expect(board.collectionRate, '62.5');
     });
 

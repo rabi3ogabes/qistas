@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\DemoAccountsController;
 use App\Http\Controllers\Admin\HomeController;
 use App\Http\Controllers\Admin\TestWorkspaceController;
 use Illuminate\Support\Facades\Route;
@@ -15,3 +16,5 @@ Route::prefix('test')->name('test.')->controller(TestWorkspaceController::class)
     Route::post('/leave', 'leave')->name('leave');
     Route::post('/plan', 'plan')->name('plan');
 });
+
+Route::post('/demo/prune', [DemoAccountsController::class, 'prune'])->name('demo.prune');

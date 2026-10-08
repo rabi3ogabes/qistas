@@ -24,8 +24,9 @@ final splashDurationProvider = Provider<Duration>((ref) => const Duration(millis
 
 final splashDoneProvider = FutureProvider<void>((ref) => Future<void>.delayed(ref.watch(splashDurationProvider)));
 
-/// Fonts come from Google Fonts at run time; tests turn this off so nothing touches the network.
-final webFontsProvider = Provider<bool>((ref) => true);
+/// The app draws its type in the bundled brand fonts; tests turn this off and use the test font, which is wide
+/// enough that a layout that survives it survives real text.
+final brandFontsProvider = Provider<bool>((ref) => true);
 
 // ------------------------------------------------------------------ preferences
 

@@ -6,7 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
 import '../../app/shell.dart';
-import '../../core/api/api_exception.dart';
+import '../../core/design/luxe.dart';
 import '../../core/design/tokens.dart';
 import '../../core/design/widgets.dart';
 import '../../core/l10n/formats.dart';
@@ -14,6 +14,7 @@ import '../../core/l10n/translations.dart';
 import '../../core/ui/paged.dart';
 import '../../data/models.dart';
 import '../billing/upgrade_sheet.dart';
+import '../common/add_flows.dart';
 
 class ContractsList extends PagedNotifier<Contract> {
   String _status = 'active';
@@ -38,28 +39,6 @@ final contractsListProvider = NotifierProvider<ContractsList, PagedState<Contrac
 
 /// One contract with its schedule and its payments.
 final contractProvider = FutureProvider.autoDispose.family<Contract, String>((ref, id) => ref.watch(apiProvider).contract(id));
-
-/// Opening a contract on a full plan answers with the upgrade sheet, never with an empty form.
-Future<void> addContract(BuildContext context, WidgetRef ref, {String? customerId}) async {
-  final contracts = ref.read(accountProvider)?.entitlement('active_contracts');
-
-  if (contracts != null && !contracts.allowsMore) {
-    await showUpgradeSheet(
-      context,
-      UpgradeRequired(
-        code: contracts.enabled ? 'limit_reached' : 'feature_locked',
-        message: context.t('Your plan includes up to :limit active contracts. Upgrade to open more, or wait until a contract is settled to free up a place.', {'limit': contracts.limit ?? 0}),
-        feature: 'active_contracts',
-        limit: contracts.limit,
-        used: contracts.used,
-      ),
-    );
-
-    return;
-  }
-
-  await context.push(customerId == null ? '/contracts/new' : '/contracts/new?customer=$customerId');
-}
 
 class ContractsScreen extends ConsumerStatefulWidget {
   const ContractsScreen({super.key});
@@ -209,6 +188,8 @@ class ContractRow extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     final next = contract.next;
     final owed = contract.owed;
+    final fraction = contract.paidFraction;
+    final name = contract.customerName;
 
     return QCard(
       onTap: () => context.push('/contracts/${contract.id}'),
@@ -218,36 +199,55 @@ class ContractRow extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // The reference and its state wrap onto a second line before they crowd the amount.
+              if (name != null) ...[InitialsAvatar(name, size: 46), const SizedBox(width: 14)],
               Expanded(
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  crossAxisAlignment: WrapCrossAlignment.center,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Directionality(textDirection: TextDirection.ltr, child: Text(contract.reference, style: text.titleSmall)),
-                    ContractStateBadge(contract.state),
+                    if (name != null) Text(name, style: text.titleSmall, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    // The reference and its state wrap onto a second line before they crowd the amount.
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Directionality(textDirection: TextDirection.ltr, child: Text(contract.reference, style: name == null ? text.titleSmall : text.bodySmall?.copyWith(color: c.inkMuted))),
+                        ContractStateBadge(contract.state),
+                      ],
+                    ),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              if (owed != null) EndAmount(child: MoneyText(owed, currency, style: text.titleSmall)),
+              if (owed != null)
+                EndAmount(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      MoneyText(owed, currency, style: text.titleSmall),
+                      Text(context.t('Still owed'), style: text.bodySmall?.copyWith(color: c.inkMuted)),
+                    ],
+                  ),
+                ),
             ],
           ),
-          if (contract.customerName != null) ...[
-            const SizedBox(height: 4),
-            Text(contract.customerName!, style: text.bodyMedium?.copyWith(color: c.inkMuted), maxLines: 1, overflow: TextOverflow.ellipsis),
+          if (fraction != null && contract.status != 'cancelled') ...[
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(value: fraction, minHeight: 6, color: contract.state == 'settled' ? c.positive : c.accent, backgroundColor: c.surfaceAlt),
+            ),
           ],
           if (next != null && contract.isRunning) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Row(
               children: [
-                Icon(Icons.event_outlined, size: 16, color: contract.isLate ? c.danger : c.inkMuted),
+                Icon(contract.isLate ? Icons.schedule : Icons.event_outlined, size: 16, color: contract.isLate ? c.danger : c.inkMuted),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     context.t('Next: :amount on :date', {'amount': next.remaining.format(currency), 'date': formatDay(next.dueDate, language)}),
-                    style: text.bodySmall?.copyWith(color: contract.isLate ? c.danger : c.inkMuted),
+                    style: text.bodySmall?.copyWith(color: contract.isLate ? c.danger : c.inkMuted, fontWeight: contract.isLate ? FontWeight.w600 : null),
                   ),
                 ),
               ],

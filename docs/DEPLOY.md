@@ -148,4 +148,8 @@ and builds and starts the production container.
 
 * Real e-mail delivery needs an SMTP account (see the table above).
 * Security headers and a Content-Security-Policy for the app are planned (task 15 in the plan).
-* The admin console, the REST API, billing through Stripe and the Flutter mobile app are still being built.
+* Billing through Stripe is not connected yet: `BILLING_GATEWAY=fake` shows a pretend checkout.
+* The Android app is a test build signed with a debug key (see `app/README.md`); store releases need a release key.
+* The admin overview (`/admin`) counts workspaces, plans, people and new sign-ups (never customer data), and shows
+  whether the database, e-mail and demo settings are in order. It is where an admin opens a test workspace, enters the
+  demo, and clears expired demo accounts.

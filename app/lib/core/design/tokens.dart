@@ -157,6 +157,10 @@ class QistasMetrics {
   static const double radiusLg = 20;
   static const double radiusXl = 28;
 
+  /// Buttons and fields: a little rounder than a card's corner suggests, a little taller than a thumb needs.
+  static const double radiusButton = 14;
+  static const double buttonHeight = 52;
+
   /// The smallest thing a finger should have to hit.
   static const double touchTarget = 48;
 

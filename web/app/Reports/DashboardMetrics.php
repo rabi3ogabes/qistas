@@ -8,6 +8,7 @@ use App\Models\Tenant;
 use App\Models\Transaction;
 use App\Support\Money;
 use App\Tenancy\CurrentTenant;
+use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -29,13 +30,22 @@ final class DashboardMetrics
 {
     public const DUE_TODAY_LIMIT = 50;
 
+    /** How many late or coming instalments the briefing lists; the rest are one tap away in the contracts. */
+    public const LIST_LIMIT = 25;
+
+    private const ROW_COLUMNS = [
+        'installments.id', 'installments.amount', 'installments.paid_amount', 'installments.due_date',
+        'contracts.id as contract_id', 'contracts.number as contract_number',
+        'customers.id as customer_id', 'customers.name as customer_name', 'customers.phone as customer_phone',
+    ];
+
     public function __construct(private readonly CurrentTenant $current) {}
 
     /**
      * @return array{
      *     outstanding: string, overdue: string, collected_this_month: string, active_customers: int,
      *     collection_rate: ?string,
-     *     due_today: list<array{installment_id: string, contract_id: string, contract_reference: string, customer_id: string, customer_name: string, amount_due: string, due_date: string}>
+     *     due_today: list<array{installment_id: string, contract_id: string, contract_reference: string, customer_id: string, customer_name: string, customer_phone: string, amount_due: string, due_date: string}>
      * }
      */
     public function for(Tenant $tenant, ?CarbonInterface $now = null): array
@@ -96,7 +106,7 @@ final class DashboardMetrics
         return Money::round(Money::div(Money::mul($this->money($row->paid ?? 0), '100'), $due), 1);
     }
 
-    /** @return list<array{installment_id: string, contract_id: string, contract_reference: string, customer_id: string, customer_name: string, amount_due: string, due_date: string}> */
+    /** @return list<array<string, string>> */
     private function dueToday(CarbonInterface $now): array
     {
         return Installment::query()
@@ -110,19 +120,123 @@ final class DashboardMetrics
             ->limit(self::DUE_TODAY_LIMIT)
             // toBase() applies the tenant scope first, then gives plain rows rather than half-filled models.
             ->toBase()
-            ->get(['installments.id', 'installments.amount', 'installments.paid_amount', 'installments.due_date',
-                'contracts.id as contract_id', 'contracts.number as contract_number',
-                'customers.id as customer_id', 'customers.name as customer_name'])
-            ->map(fn (object $row): array => [
-                'installment_id' => $row->id,
-                'contract_id' => $row->contract_id,
-                'contract_reference' => 'C-'.str_pad((string) $row->contract_number, 4, '0', STR_PAD_LEFT),
-                'customer_id' => $row->customer_id,
-                'customer_name' => $row->customer_name,
-                'amount_due' => Money::sub($this->money($row->amount), $this->money($row->paid_amount), 2),
-                'due_date' => substr((string) $row->due_date, 0, 10),
-            ])
+            ->get(self::ROW_COLUMNS)
+            ->map(fn (object $row): array => $this->row($row))
             ->all();
+    }
+
+    /**
+     * What an app needs to start the day well, beyond the headline figures: who is late (oldest first) and who is
+     * about to be, how this month compares with last, and the last two weeks of takings for a small chart.
+     *
+     * @return array{
+     *     expected_this_month: string, collected_last_month: string,
+     *     overdue_list: list<array<string, mixed>>, upcoming: list<array<string, mixed>>,
+     *     daily_collected: list<array{date: string, amount: string}>
+     * }
+     */
+    public function briefing(Tenant $tenant, ?CarbonInterface $now = null): array
+    {
+        $now ??= now();
+
+        return $this->current->use($tenant, fn () => [
+            'expected_this_month' => $this->expectedInMonth($now),
+            'collected_last_month' => $this->collectedInMonth($now->copy()->subMonthNoOverflow()),
+            'overdue_list' => $this->lateRows($now),
+            'upcoming' => $this->comingRows($now),
+            'daily_collected' => $this->dailyCollected($now),
+        ]);
+    }
+
+    private function expectedInMonth(CarbonInterface $now): string
+    {
+        return $this->money(
+            Installment::query()
+                ->join('contracts', 'contracts.id', '=', 'installments.contract_id')
+                ->where('contracts.status', '!=', 'cancelled')
+                ->whereDate('installments.due_date', '>=', $now->copy()->startOfMonth()->toDateString())
+                ->whereDate('installments.due_date', '<=', $now->copy()->endOfMonth()->toDateString())
+                ->sum('installments.amount'),
+        );
+    }
+
+    /** @return list<array<string, mixed>> the oldest unpaid instalments first, each with how many days late it is */
+    private function lateRows(CarbonInterface $now): array
+    {
+        return $this->openInstallments()
+            ->whereDate('installments.due_date', '<', $now->toDateString())
+            ->orderBy('installments.due_date')
+            ->orderByRaw('LOWER(customers.name)')
+            ->limit(self::LIST_LIMIT)
+            ->toBase()
+            ->get(self::ROW_COLUMNS)
+            ->map(fn (object $row): array => $this->row($row) + ['days_late' => $this->daysBetween($row->due_date, $now)])
+            ->all();
+    }
+
+    /** @return list<array<string, mixed>> what falls due in the next seven days, soonest first */
+    private function comingRows(CarbonInterface $now): array
+    {
+        return $this->openInstallments()
+            ->whereDate('installments.due_date', '>', $now->toDateString())
+            ->whereDate('installments.due_date', '<=', $now->copy()->addDays(7)->toDateString())
+            ->orderBy('installments.due_date')
+            ->orderByRaw('LOWER(customers.name)')
+            ->limit(self::LIST_LIMIT)
+            ->toBase()
+            ->get(self::ROW_COLUMNS)
+            ->map(fn (object $row): array => $this->row($row) + ['days_until' => $this->daysBetween($row->due_date, $now)])
+            ->all();
+    }
+
+    /** @return list<array{date: string, amount: string}> the last fourteen days including today, oldest first */
+    private function dailyCollected(CarbonInterface $now): array
+    {
+        $first = $now->copy()->subDays(13)->startOfDay();
+
+        $totals = Transaction::query()
+            ->whereBetween('paid_at', [$first, $now->copy()->endOfDay()])
+            ->toBase()
+            ->selectRaw('DATE(paid_at) as day, SUM(amount) as total')
+            ->groupByRaw('DATE(paid_at)')
+            ->get()
+            ->mapWithKeys(fn (object $row): array => [substr((string) $row->day, 0, 10) => $this->money($row->total)]);
+
+        return collect(range(0, 13))->map(function (int $offset) use ($first, $totals): array {
+            $date = $first->copy()->addDays($offset)->toDateString();
+
+            return ['date' => $date, 'amount' => $totals->get($date, '0.00')];
+        })->all();
+    }
+
+    /** @return Builder<Installment> unpaid instalments of contracts that are not cancelled, with their customer */
+    private function openInstallments(): Builder
+    {
+        return Installment::query()
+            ->join('contracts', 'contracts.id', '=', 'installments.contract_id')
+            ->join('customers', 'customers.id', '=', 'contracts.customer_id')
+            ->where('contracts.status', '!=', 'cancelled')
+            ->where('installments.status', '!=', 'paid');
+    }
+
+    private function daysBetween(mixed $dueDate, CarbonInterface $now): int
+    {
+        return (int) abs(Carbon::parse(substr((string) $dueDate, 0, 10))->startOfDay()->diffInDays($now->copy()->startOfDay()));
+    }
+
+    /** @return array<string, string> */
+    private function row(object $row): array
+    {
+        return [
+            'installment_id' => $row->id,
+            'contract_id' => $row->contract_id,
+            'contract_reference' => 'C-'.str_pad((string) $row->contract_number, 4, '0', STR_PAD_LEFT),
+            'customer_id' => $row->customer_id,
+            'customer_name' => $row->customer_name,
+            'customer_phone' => (string) $row->customer_phone,
+            'amount_due' => Money::sub($this->money($row->amount), $this->money($row->paid_amount), 2),
+            'due_date' => substr((string) $row->due_date, 0, 10),
+        ];
     }
 
     /**

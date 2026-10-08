@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'tokens.dart';
 
 /// Builds the app's [ThemeData] from the Qistas tokens, for a language and a brightness.
 ///
 /// Type follows the website: Cormorant Garamond for headings and Geist for text in Latin scripts, IBM Plex Sans
-/// Arabic for Arabic, Noto Nastaliq Urdu for Urdu. Pass `webFonts: false` (tests) to use the platform font and
-/// never touch the network.
+/// Arabic for Arabic, Noto Nastaliq Urdu for Urdu. The fonts are bundled with the app (assets/fonts, built by
+/// tool/fonts.py), so type looks the same offline as online. Pass `brandFonts: false` (tests) to draw with the
+/// platform font instead.
 class QistasTheme {
   const QistasTheme._();
 
-  static ThemeData of(Brightness brightness, String language, {bool webFonts = true}) {
+  static ThemeData of(Brightness brightness, String language, {bool brandFonts = true}) {
     final dark = brightness == Brightness.dark;
     final c = dark ? QistasColors.dark : QistasColors.light;
 
@@ -39,11 +39,11 @@ class QistasTheme {
       scrim: c.primary,
     );
 
-    final text = _textTheme(ThemeData(brightness: brightness).textTheme, language, c, webFonts);
-    final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(QistasMetrics.radiusMd));
+    final text = _textTheme(ThemeData(brightness: brightness).textTheme, language, c, brandFonts);
+    final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(QistasMetrics.radiusButton));
     final border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(QistasMetrics.radiusMd),
-      borderSide: BorderSide(color: c.ink.withValues(alpha: 0.22)),
+      borderRadius: BorderRadius.circular(QistasMetrics.radiusButton),
+      borderSide: BorderSide(color: c.ink.withValues(alpha: 0.16)),
     );
 
     return ThemeData(
@@ -94,18 +94,19 @@ class QistasTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size(64, QistasMetrics.touchTarget + 4),
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          minimumSize: const Size(64, QistasMetrics.buttonHeight),
+          padding: const EdgeInsets.symmetric(horizontal: 22),
           shape: shape,
-          textStyle: text.labelLarge,
+          elevation: 0,
+          textStyle: text.labelLarge?.copyWith(letterSpacing: 0.2),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(64, QistasMetrics.touchTarget + 4),
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          minimumSize: const Size(64, QistasMetrics.buttonHeight),
+          padding: const EdgeInsets.symmetric(horizontal: 22),
           foregroundColor: c.ink,
-          side: BorderSide(color: c.ink.withValues(alpha: 0.22)),
+          side: BorderSide(color: c.ink.withValues(alpha: 0.18)),
           shape: shape,
           textStyle: text.labelLarge,
         ),
@@ -113,7 +114,7 @@ class QistasTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           minimumSize: const Size(64, QistasMetrics.touchTarget),
-          foregroundColor: dark ? c.accentText : c.info,
+          foregroundColor: c.accentText,
           textStyle: text.labelLarge,
         ),
       ),
@@ -167,34 +168,36 @@ class QistasTheme {
     );
   }
 
-  static TextTheme _textTheme(TextTheme base, String language, QistasColors c, bool webFonts) {
+  static const String _latin = 'Geist';
+  static const String _display = 'CormorantGaramond';
+  static const String _arabic = 'IBMPlexSansArabic';
+  static const String _urdu = 'NotoNastaliqUrdu';
+
+  static TextTheme _textTheme(TextTheme base, String language, QistasColors c, bool brandFonts) {
     final themed = base.apply(bodyColor: c.ink, displayColor: c.ink);
-    if (!webFonts) return _scale(themed, language);
+    if (!brandFonts) return _scale(themed, language);
 
-    final TextTheme body;
-    final TextStyle Function(TextStyle) heading;
+    // Text in the reader's script, with another script's letters and the digits drawn from the matching family.
+    final (String body, String heading, List<String> fallback) = switch (language) {
+      'ar' => (_arabic, _arabic, [_latin]),
+      'ur' => (_urdu, _urdu, [_latin]),
+      _ => (_latin, _display, [_arabic]),
+    };
+    final weight = language == 'ar' ? FontWeight.w700 : FontWeight.w600;
 
-    switch (language) {
-      case 'ar':
-        body = GoogleFonts.ibmPlexSansArabicTextTheme(themed);
-        heading = (s) => GoogleFonts.ibmPlexSansArabic(textStyle: s, fontWeight: FontWeight.w700);
-      case 'ur':
-        body = GoogleFonts.notoNastaliqUrduTextTheme(themed);
-        heading = (s) => GoogleFonts.notoNastaliqUrdu(textStyle: s, fontWeight: FontWeight.w700);
-      default:
-        body = GoogleFonts.getTextTheme('Geist', themed);
-        heading = (s) => GoogleFonts.cormorantGaramond(textStyle: s, fontWeight: FontWeight.w600);
-    }
+    TextStyle? head(TextStyle? style) => style?.copyWith(fontFamily: heading, fontFamilyFallback: fallback, fontWeight: weight);
+
+    final text = themed.apply(fontFamily: body, fontFamilyFallback: fallback);
 
     return _scale(
-      body.copyWith(
-        displayLarge: heading(body.displayLarge!),
-        displayMedium: heading(body.displayMedium!),
-        displaySmall: heading(body.displaySmall!),
-        headlineLarge: heading(body.headlineLarge!),
-        headlineMedium: heading(body.headlineMedium!),
-        headlineSmall: heading(body.headlineSmall!),
-        titleLarge: heading(body.titleLarge!),
+      text.copyWith(
+        displayLarge: head(text.displayLarge),
+        displayMedium: head(text.displayMedium),
+        displaySmall: head(text.displaySmall),
+        headlineLarge: head(text.headlineLarge),
+        headlineMedium: head(text.headlineMedium),
+        headlineSmall: head(text.headlineSmall),
+        titleLarge: head(text.titleLarge),
       ),
       language,
     );

@@ -19,7 +19,7 @@ class Subscription extends Model
     use HasUuids;
 
     /** Statuses that keep the paid plan in force. */
-    private const IN_FORCE = ['active', 'trialing', 'past_due'];
+    public const IN_FORCE = ['active', 'trialing', 'past_due'];
 
     /** @return BelongsTo<Tenant, $this> */
     public function tenant(): BelongsTo

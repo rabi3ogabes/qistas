@@ -104,11 +104,21 @@ Map<String, dynamic> contractJson({String status = 'active', String state = 'act
 
 Map<String, dynamic> contractPageJson() => pageJson([contractJson()], page: 1, last: 1, total: 1);
 
+Map<String, dynamic> dueJson({String contract = 'k1', String reference = 'C-0007', String name = 'Ahmad Salem', String amount = '275.00', String due = '2026-10-07', int? late, int? until}) => {
+      'installment_id': 'i-$reference-$due', 'contract_id': contract, 'contract_reference': reference, 'customer_id': 'c1',
+      'customer_name': name, 'customer_phone': '+966501234567', 'amount_due': amount, 'due_date': due,
+      'days_late': ?late,
+      'days_until': ?until,
+    };
+
 Map<String, dynamic> dashboardJson() => {
       'currency': 'SAR', 'outstanding': '5000.00', 'overdue': '300.00', 'collected_this_month': '1200.00', 'active_customers': 4,
-      'collection_rate': '62.5',
-      'due_today': [
-        {'installment_id': 'i1', 'contract_id': 'k1', 'contract_reference': 'C-0007', 'customer_id': 'c1', 'customer_name': 'Ahmad Salem', 'amount_due': '275.00', 'due_date': '2026-10-07'},
+      'collection_rate': '62.5', 'expected_this_month': '1920.00', 'collected_last_month': '1500.00',
+      'due_today': [dueJson()],
+      'overdue_list': [dueJson(contract: 'k2', reference: 'C-0003', name: 'Youssef Mansour', amount: '180.00', due: '2026-10-01', late: 6)],
+      'upcoming': [dueJson(contract: 'k3', reference: 'C-0002', name: 'نورة السبيعي', amount: '600.00', due: '2026-10-09', until: 2)],
+      'daily_collected': [
+        for (var day = 0; day < 14; day++) {'date': '2026-09-${(24 + day).clamp(1, 30).toString().padLeft(2, '0')}', 'amount': day % 3 == 0 ? '150.00' : '0.00'},
       ],
     };
 

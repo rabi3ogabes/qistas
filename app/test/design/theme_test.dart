@@ -22,8 +22,8 @@ void main() {
 
   group('the theme', () {
     test('uses the Qistas tokens in light and dark', () {
-      final light = QistasTheme.of(Brightness.light, 'en', webFonts: false);
-      final dark = QistasTheme.of(Brightness.dark, 'en', webFonts: false);
+      final light = QistasTheme.of(Brightness.light, 'en', brandFonts: false);
+      final dark = QistasTheme.of(Brightness.dark, 'en', brandFonts: false);
 
       expect(light.scaffoldBackgroundColor, QistasColors.light.bg);
       expect(dark.scaffoldBackgroundColor, QistasColors.dark.bg);
@@ -33,7 +33,7 @@ void main() {
     });
 
     test('keeps every control at least 48 dp tall', () {
-      final theme = QistasTheme.of(Brightness.light, 'en', webFonts: false);
+      final theme = QistasTheme.of(Brightness.light, 'en', brandFonts: false);
 
       expect(theme.filledButtonTheme.style!.minimumSize!.resolve({})!.height, greaterThanOrEqualTo(48));
       expect(theme.outlinedButtonTheme.style!.minimumSize!.resolve({})!.height, greaterThanOrEqualTo(48));
@@ -42,8 +42,8 @@ void main() {
     });
 
     test('gives Urdu more line height than Latin', () {
-      final latin = QistasTheme.of(Brightness.light, 'en', webFonts: false).textTheme.bodyMedium!.height!;
-      final urdu = QistasTheme.of(Brightness.light, 'ur', webFonts: false).textTheme.bodyMedium!.height!;
+      final latin = QistasTheme.of(Brightness.light, 'en', brandFonts: false).textTheme.bodyMedium!.height!;
+      final urdu = QistasTheme.of(Brightness.light, 'ur', brandFonts: false).textTheme.bodyMedium!.height!;
 
       expect(urdu, greaterThan(latin));
     });

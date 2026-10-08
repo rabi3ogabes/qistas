@@ -15,6 +15,25 @@ schedule preview, which is a port of the server's generator and is checked again
   (Actions → Mobile app → `qistas-app-web`).
 - It points at https://qistas-puce.vercel.app and signs in with the same email and password as the website.
 
+## What it does for a business owner
+
+The app is built around one question, "who do I need to deal with today?", and keeps the answer one tap away.
+
+- **A briefing, not a list of numbers.** The dashboard greets the owner by name, says how many instalments need them
+  today (late ones first), shows what is still to collect with the last fourteen days of takings, how the month is going
+  against the last one, and what falls due this week.
+- **Act where you read.** Each late or due instalment has **Remind** and **Record payment** on the spot. Remind writes
+  the message in the app's language (friendly when only due, firmer when late) and sends it through WhatsApp, SMS or a
+  call, or copies it. A number written the local way is completed with the business's own country code.
+- **The gold plus.** In the middle of the bottom bar, one tap from anywhere: record a payment (asks who paid), a new
+  customer, a new contract, search.
+- **A moment after a payment.** What was received, what is left, how much of the contract is paid, and the receipt one tap
+  away on WhatsApp.
+- **Search** across customers and contracts by name, phone or contract number, remembering the last things opened.
+- **Fresh when you come back.** After more than two minutes in the background the figures are fetched again.
+- **Right-to-left done properly.** Arabic and Urdu mirror the whole layout, keep amounts and numbers readable, and use
+  wording that reads correctly for any count.
+
 ## Run it
 
 ```sh
@@ -32,6 +51,12 @@ flutter test           # unit, data, design and widget tests
 python tool/i18n.py --sync   # translations: fails if any sentence lacks one
 ```
 
+To *look* at the screens without a phone or emulator, render them with the real fonts and shadows into PNG files:
+
+```sh
+QISTAS_SCREENSHOTS=build/shots flutter test test/visual     # skipped when the variable is not set
+```
+
 ## How it is built
 
 | Part | Where |
@@ -40,6 +65,10 @@ python tool/i18n.py --sync   # translations: fails if any sentence lacks one
 | Typed calls and models (money is never a `double`) | `lib/data`, `lib/core/money.dart` |
 | Instalment schedule (matches the server to the cent) | `lib/domain/schedule_generator.dart` |
 | Design tokens (the website's colours), widgets, light and dark | `lib/core/design` |
+| The luxe layer: hero panel, count-up money, progress ring, sparkline, reveal motion | `lib/core/design/luxe.dart` |
+| Brand fonts, bundled so the app never waits on a download (Geist, Cormorant Garamond, IBM Plex Sans Arabic, Noto Nastaliq Urdu, all SIL OFL) | `assets/fonts`, `tool/fonts.py` |
+| Bottom bar, quick actions, search and account buttons | `lib/app/chrome.dart`, `lib/app/shell.dart` |
+| Reminders, receipts, search, payment moment | `lib/features/reminders`, `lib/features/search`, `lib/features/payments` |
 | Words in five languages, right-to-left for Arabic and Urdu | `lib/core/l10n`, `assets/i18n/*.json` |
 | Screens | `lib/features/*` |
 | Session, router, shell | `lib/app` |

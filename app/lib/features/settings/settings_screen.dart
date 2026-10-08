@@ -57,7 +57,8 @@ class SettingsScreen extends ConsumerWidget {
     final mode = ref.watch(themeModeProvider);
 
     return SectionScaffold(
-      title: context.t('More'),
+      title: context.t('Settings'),
+      showAccount: false,
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
         child: Column(

@@ -368,6 +368,14 @@ class Contract {
 
   bool get isLate => state == 'late';
 
+  /// 0 to 1: how much of what is to be collected has been. Null when the server did not say what was paid.
+  double? get paidFraction {
+    final paid = this.paid;
+    if (paid == null || !total.isPositive) return null;
+
+    return (paid.cents.toDouble() / total.cents.toDouble()).clamp(0.0, 1.0);
+  }
+
   /// More money may still be taken on it.
   bool get takesPayments => status != 'cancelled' && (owed == null || owed!.isPositive);
 }
@@ -417,23 +425,71 @@ class Customer {
   final List<Contract> contracts;
 }
 
+/// One instalment somebody still owes: what, who, since when or until when.
 @immutable
-class DueToday {
-  const DueToday({required this.contractId, required this.reference, required this.customerName, required this.amount, required this.dueDate});
+class DueItem {
+  const DueItem({
+    required this.installmentId,
+    required this.contractId,
+    required this.reference,
+    required this.customerId,
+    required this.customerName,
+    required this.phone,
+    required this.amount,
+    required this.dueDate,
+    this.daysLate,
+    this.daysUntil,
+  });
 
-  factory DueToday.fromJson(Map<String, dynamic> json) => DueToday(
+  factory DueItem.fromJson(Map<String, dynamic> json) => DueItem(
+        installmentId: (json['installment_id'] ?? '').toString(),
         contractId: json['contract_id'].toString(),
         reference: (json['contract_reference'] ?? '').toString(),
+        customerId: (json['customer_id'] ?? '').toString(),
         customerName: (json['customer_name'] ?? '').toString(),
+        phone: (json['customer_phone'] ?? '').toString(),
         amount: _money(json['amount_due']),
         dueDate: (json['due_date'] ?? '').toString(),
+        daysLate: (json['days_late'] as num?)?.toInt(),
+        daysUntil: (json['days_until'] as num?)?.toInt(),
       );
 
+  final String installmentId;
   final String contractId;
+
+  /// C-0012.
   final String reference;
+  final String customerId;
   final String customerName;
+
+  /// As the customer was entered; empty when none was given.
+  final String phone;
+
+  /// What is still owed on this instalment.
   final Money amount;
+
+  /// YYYY-MM-DD.
   final String dueDate;
+
+  /// Whole days past the due date; only on the overdue list.
+  final int? daysLate;
+
+  /// Whole days to go; only on the coming-up list.
+  final int? daysUntil;
+
+  bool get isOverdue => (daysLate ?? 0) > 0;
+
+  bool get hasPhone => phone.replaceAll(RegExp(r'[^\d]'), '').length >= 7;
+}
+
+/// What was taken on one day, for the small chart.
+@immutable
+class DayTotal {
+  const DayTotal(this.date, this.amount);
+
+  /// YYYY-MM-DD.
+  final String date;
+  final Money amount;
 }
 
 @immutable
@@ -443,9 +499,14 @@ class Dashboard {
     required this.outstanding,
     required this.overdue,
     required this.collectedThisMonth,
+    required this.collectedLastMonth,
+    required this.expectedThisMonth,
     required this.activeCustomers,
     required this.collectionRate,
     required this.dueToday,
+    required this.overdueList,
+    required this.upcoming,
+    required this.daily,
   });
 
   factory Dashboard.fromJson(Map<String, dynamic> json) => Dashboard(
@@ -453,20 +514,55 @@ class Dashboard {
         outstanding: _money(json['outstanding']),
         overdue: _money(json['overdue']),
         collectedThisMonth: _money(json['collected_this_month']),
+        collectedLastMonth: _money(json['collected_last_month']),
+        expectedThisMonth: _money(json['expected_this_month']),
         activeCustomers: (json['active_customers'] as num?)?.toInt() ?? 0,
         collectionRate: _text(json['collection_rate']),
-        dueToday: _list(json['due_today']).map(DueToday.fromJson).toList(),
+        dueToday: _list(json['due_today']).map(DueItem.fromJson).toList(),
+        overdueList: _list(json['overdue_list']).map(DueItem.fromJson).toList(),
+        upcoming: _list(json['upcoming']).map(DueItem.fromJson).toList(),
+        daily: [for (final day in _list(json['daily_collected'])) DayTotal(day['date'].toString(), _money(day['amount']))],
       );
 
   final String currency;
   final Money outstanding;
   final Money overdue;
   final Money collectedThisMonth;
+  final Money collectedLastMonth;
+
+  /// What falls due this calendar month, paid or not.
+  final Money expectedThisMonth;
   final int activeCustomers;
 
   /// Percent as the server computed it, or null when nothing falls due this month.
   final String? collectionRate;
-  final List<DueToday> dueToday;
+
+  /// The share of this month's instalments already paid, 0 to 1, or null when none fall due.
+  double? get collectionFraction {
+    final rate = double.tryParse(collectionRate ?? '');
+
+    return rate == null ? null : (rate / 100).clamp(0, 1).toDouble();
+  }
+
+  final List<DueItem> dueToday;
+
+  /// Oldest first.
+  final List<DueItem> overdueList;
+
+  /// Soonest first, the next seven days.
+  final List<DueItem> upcoming;
+
+  /// The last fourteen days, oldest first.
+  final List<DayTotal> daily;
+
+  /// Everything that wants a nudge or a payment today: late first, then due today.
+  List<DueItem> get needsYou => [...overdueList, ...dueToday];
+
+  /// This month has already taken as much as the whole of last month.
+  bool get beatLastMonth => collectedLastMonth.isPositive && collectedThisMonth >= collectedLastMonth;
+
+  /// How much more this month must take to match last month; zero when it already has (or last month took nothing).
+  Money get toMatchLastMonth => beatLastMonth || !collectedLastMonth.isPositive ? Money.zero : collectedLastMonth - collectedThisMonth;
 }
 
 @immutable

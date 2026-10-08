@@ -23,6 +23,9 @@ String formatDay(String iso, String language) {
   return westernDigits(DateFormat.yMMMd(language).format(date));
 }
 
+/// "Thursday, 8 October" in the reader's language: the greeting's date.
+String formatLongDay(DateTime day, String language) => westernDigits(DateFormat.MMMMEEEEd(language).format(day.toLocal()));
+
 /// A moment in the reader's own time zone: "7 Oct 2026".
 String formatMoment(DateTime moment, String language) => westernDigits(DateFormat.yMMMd(language).format(moment.toLocal()));
 
