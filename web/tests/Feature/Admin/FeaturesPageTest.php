@@ -146,12 +146,14 @@ describe('what the page tells the admin before they act', function () {
 
     it('lists the workspaces let in early, and how to add one', function () {
         $tenant = workspaceOn('free');
+        // A name that needs escaping in HTML, always: the page shows it escaped, and a random name only sometimes would.
+        $tenant->forceFill(['name' => "O'Brien & Sons <Ltd>"])->save();
         app(FeatureControl::class)->grantBeta(Feature::ExportCsv, $tenant, 'Pilot shop', null, null);
 
         $html = cockpit()->getContent();
         $row = rowOf($html, 'export_csv');
 
-        expect($row)->toContain($tenant->name)->and($row)->toContain('Pilot shop')->and($row)->toContain(route('admin.features.beta.store', 'export_csv'));
+        expect($row)->toContain(e($tenant->name))->not->toContain('<Ltd>')->and($row)->toContain('Pilot shop')->and($row)->toContain(route('admin.features.beta.store', 'export_csv'));
     });
 
     it('keeps the recent changes, who made them and why', function () {
