@@ -5,21 +5,46 @@ what a rival already does, where Qistas can beat it, and what stands between Qis
 
 ## 1. What was read, and what could not be seen
 
-Read in full: the competitor's product page, its user guide and four help articles
-(<https://omar1985.com/explanations/installment-and-accounting.html> and the pages it links to). The app is
-**"تقسيط ومحاسبة" (Installment and Accounting)** by omar1985.com.
+Read: the competitor's product page, user guide and four help articles (<https://omar1985.com/explanations/installment-and-accounting.html>
+and the pages it links to); **both Google Play listings** (opened in a browser on 9 Oct 2026, region Saudi Arabia, English); the Play
+screenshots; and the YouTube page of its promo video. The app is **"تقسيط ومحاسبة" / Installment & Accounting** by Omar1985.
 
-Not seen: its store listing. A web search found no Google Play page for it, so **its rating, download count and store rank are
-unknown to me**. Other rivals that did show up in the search (App Store listings only, not examined): *أقساط (Aksat)* for shop
-owners and collectors, *قسطي*, and *فاتورتك (Your Invoice)*. A real market scan (ranks, ratings, reviews, in Saudi Arabia, the UAE,
-Egypt and Iraq) needs the stores themselves or an ASO tool; it is the first thing to do before spending on launch.
+Not seen: the App Store (it appears to have no iOS app: its pages and Play are all Android), the audio of the video, and any paid-search or
+install-source data. Other rivals that showed up in a web search (App Store listings, not examined): *أقساط (Aksat)*, *قسطي*, *فاتورتك (Your Invoice)*.
+
+## 1b. Its store numbers (Google Play, 9 Oct 2026)
+
+| | Free: *Installment & Accounting* (`com.omar1985`) | Paid: *Installment & Accounting Pro* (`com.omar1985.taqseedPro`) |
+|---|---|---|
+| Rating | **4.4** from 335 reviews | **4.9** from 206 reviews |
+| Downloads | **50K+** | 1K+ |
+| Price | free, **contains ads** | **SAR 114.99, one time** (a paid app) |
+| Content rating | 12+ | 3+ |
+| Last update | 4 Oct 2026 | 10 Aug 2026 |
+| Data safety | may collect location and personal info; **"Data can't be deleted"** | no data collected; "you can request that data be deleted" |
+| Screenshots | four, dated 2018 to 2019, a green and gold form-heavy look | same |
+
+What this proves: **there is real demand and real willingness to pay** (50 thousand installs of a free ad-supported app, a thousand people paying about
+30 US dollars once) in a category with one dominant, visibly dated product. It also shows how it is marketed: a 54-second whiteboard video from
+February 2019 (9.7 thousand views in seven years, a channel with 34 subscribers), four old screenshots and a plain keyword title. The app is not
+beating anyone on craft; it ranks because it has been there a long time and answers the search.
+
+**What its reviewers ask for** (quoted from the listings; each is a chance for Qistas):
+
+| Review | Qistas answer |
+|---|---|
+| "can I use the paid app on 2 or more devices because I've business partner" (Apr 2024) | Cloud ledger with owner, manager, accountant, collector and viewer roles from day one. Say so on the first screenshot. |
+| "add an option for change of clients sequence" (Apr 2024) | Sort and pin customers (by name, balance owed, next due date, last paid). Small. |
+| "add one more option in quarterly installments plan, I mean 6 month payment schedule" (Jul 2024) | Qistas schedules today are weekly, every two weeks and monthly only. Add **every 2 months, quarterly, every 6 months and yearly** (idea 10). |
+| "In a part of scheduled Contract it is not working ... error message of Advance amount can not make debt to be zero or less" (Jan 2025) | A confusing error. Qistas should explain the rule where it happens ("the down payment covers the whole price, so there is nothing to schedule: record it as a cash sale"). |
+| "add the option of discount" (2021) | Early settlement, brief item B3. |
 
 ## 2. What the competitor does (as its own pages state)
 
 | Area | Detail |
 |---|---|
 | Platform | **Android only.** It runs on a PC only through an Android emulator (the guide says 4 GB of RAM). No web, no iOS. |
-| Where data lives | **On the phone.** Free: ads, a backup file you must move yourself. Pro: one-time purchase, no ads, automatic Google-account backup. "Pro with Online": subscription through Google Play, server storage, several devices, up to **three** members, daily backups, a deletion log. Uploading local data to the server is manual. |
+| Where data lives | **On the phone.** Free: ads, a backup file you must move yourself. Pro: one-time purchase (SAR 114.99), no ads, automatic Google-account backup. "Pro with Online": subscription through Google Play, server storage, several devices, up to **three** members, daily backups, a deletion log. Uploading local data to the server is manual. |
 | Model | **Investors** (the people who fund a contract) and **customers**; a customer can hold contracts with several investors. Investor account with deposits and withdrawals. |
 | Contracts | Three kinds: **scheduled** (fixed instalments), **open** (no schedule, payments as they come), **cash** (one or a few payments). Convert to open, archive, edit. |
 | Entries | Each payment is "له" (customer paid, green) or "عليه" (customer owes, red). Badges: down payment, refunded, **early-settlement discount**, unpaid. |
@@ -54,6 +79,9 @@ no-dues certificate, exports and accountant pack, branches, collector routes, **
 | 6 | **Archive** for settled and cancelled contracts, and an **activity log** the owner can read ("who deleted what") | The audit data exists; showing it is a trust feature. | S |
 | 7 | **"Your data is yours"**: one-tap full export (Excel and PDF) and a monthly backup file e-mailed to the owner | Answers the competitor's backup anxiety head-on and costs little. | S |
 | 8 | **Works offline in the field** (the brief's G4, brought forward as a simple read-only cache plus queued receipts) | Collectors work where the signal is bad. Payments already carry an idempotency key, so retries are safe. | M |
+| 10 | **More instalment frequencies**: every 2 months, quarterly, every 6 months, yearly | A competitor reviewer asked for exactly this; farm, land and vehicle sales are often quarterly or half-yearly. It touches the schedule maths, which is cross-checked against `shared/schedule-vectors.json` in the web and the app, so both change together. | S |
+| 11 | **Sort and pin customers** | Another review. | S |
+| 12 | **Reports with the lender's logo and signature, shared as a PDF** (their listing leads with this) | Planned as the brief's F2 and F5; move them up, because the competitor sells it in its first bullet. | M |
 | 9 | **Ask for a rating at a happy moment** (after the third recorded payment, once, never after an error) | Ratings drive store rank; timing decides whether they are 5 stars. | S |
 
 ## 5. What stands between today and a ranked store listing
@@ -89,7 +117,7 @@ Lead with the Arabic listing for Saudi Arabia, then the UAE, Egypt and Iraq, the
 
 No one can promise first place: rank in a store follows installs, how fast they arrive, ratings, retention and uninstalls, and
 the rivals' own strength; none of that can be bought or set from the code. What can be done is to remove every reason to be
-rejected or rated down, ship the features that make owners open the app daily, and measure. A realistic target is a **top-10
+rejected or rated down, ship the features that make owners open the app daily, and measure. The leader in this niche has about 50 thousand installs and 335 reviews after years on the store, so the bar to be seen is within reach: a few thousand installs and a few hundred good reviews would put Qistas in the same conversation. A realistic target is a **top-10
 place in Finance for the keywords تقسيط, أقساط and دفتر ديون in one country within 90 days of launch**, then widen. Weekly numbers
 to watch: installs per day, day-1 and day-7 retention, crash-free rate, rating and review count, and conversion from free to Pro.
 
