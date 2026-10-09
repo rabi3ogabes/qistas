@@ -85,6 +85,17 @@ return [
     ],
 
     /*
+    | Scheduled work on a host with no scheduler and no queue worker. Something outside (a GitHub workflow, Vercel Cron,
+    | any pinger) calls /internal/cron every few minutes with `Authorization: Bearer <CRON_SECRET>`. With no secret the
+    | endpoint is closed (503). max_seconds caps how long one call works through the queue (a job already running is
+    | never cut short, so keep it well under the host's request limit).
+    */
+    'cron' => [
+        'secret' => env('CRON_SECRET'),
+        'max_seconds' => (int) env('CRON_MAX_SECONDS', 50),
+    ],
+
+    /*
     | A developer aid, honoured only in the local environment: feature keys (comma separated) whose switches the
     | Feature control page treats as ordinary, so the cockpit can be tried while every real feature is still core.
     | Production ignores it.

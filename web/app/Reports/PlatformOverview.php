@@ -2,6 +2,7 @@
 
 namespace App\Reports;
 
+use App\Models\CronRun;
 use App\Models\Subscription;
 use App\Sandbox\DemoAccess;
 use Illuminate\Support\Facades\DB;
@@ -117,6 +118,41 @@ final class PlatformOverview
                 : __('Off. The sign-in page has no demo buttons.'),
         ];
 
+        $checks[] = $this->cronCheck();
+
         return $checks;
+    }
+
+    /**
+     * Whether scheduled work is running: off until a secret exists and a first run has happened (nothing is wrong
+     * yet), ok while the last run is under 15 minutes old and went well, warn when it has gone quiet or failed.
+     *
+     * @return array{key: string, status: string, title: string, detail: string}
+     */
+    private function cronCheck(): array
+    {
+        $check = fn (string $status, string $detail): array => ['key' => 'cron', 'status' => $status, 'title' => __('Scheduled work'), 'detail' => $detail];
+
+        if ((string) config('qistas.cron.secret') === '') {
+            return $check('off', __('Not set up yet. Set CRON_SECRET, and the CRON_URL and CRON_SECRET repository secrets, to run scheduled work every five minutes.'));
+        }
+
+        $last = CronRun::query()->orderByDesc('started_at')->first();
+
+        if ($last === null) {
+            return $check('off', __('Waiting for the first run. The Scheduler workflow on GitHub calls this site every five minutes once its secrets are set.'));
+        }
+
+        $when = $last->started_at->utc()->format('Y-m-d H:i').' UTC';
+
+        if ($last->outcome === 'failed') {
+            return $check('warn', __('The last run failed (:when). Run php artisan qistas:cron-status for what went wrong.', ['when' => $when]));
+        }
+
+        if ($last->started_at->lt(now()->subMinutes(15))) {
+            return $check('warn', __('The last run was over 15 minutes ago (:when). Check the Scheduler workflow on GitHub.', ['when' => $when]));
+        }
+
+        return $check('ok', __('Last ran :when.', ['when' => $when]));
     }
 }

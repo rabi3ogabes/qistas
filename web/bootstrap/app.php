@@ -35,6 +35,12 @@ return Application::configure(basePath: dirname(__DIR__))
             Route::middleware(['web', 'auth', 'admin'])
                 ->prefix('admin')->name('admin.')
                 ->group(base_path('routes/admin.php'));
+
+            // Machine-to-machine endpoints (the cron call): no session, no cookies, no CSRF; each guards itself with a
+            // secret, and the rate limit keeps the secret from being guessed at speed.
+            Route::middleware('throttle:30,1')
+                ->prefix('internal')
+                ->group(base_path('routes/internal.php'));
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {

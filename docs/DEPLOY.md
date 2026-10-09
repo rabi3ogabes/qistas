@@ -113,9 +113,30 @@ Everything else has a safe default (production mode, secure cookies, trusted pro
 | `QISTAS_DEMO_HOURS`, `QISTAS_DEMO_PER_HOUR`, `QISTAS_DEMO_MAX` | `12`, `8`, `300` | How long a demo account lasts, how many demos one address may start per hour, and how many demo accounts may exist at once. |
 | `BILLING_GATEWAY` | `fake` | `fake` shows a pretend checkout; `stripe` needs `STRIPE_SECRET` and `STRIPE_WEBHOOK_SECRET`. |
 | `QISTAS_DEFAULT_CURRENCY` | `USD` | Currency for new workspaces whose country is not recognised. |
+| `CRON_SECRET` | none | Switches on scheduled work (see below). Any long random string. With none, `/internal/cron` answers 503 and nothing runs. |
+| `CRON_MAX_SECONDS` | `50` | How long one scheduler call works through waiting jobs before it stops and leaves the rest for the next call. |
 
 > **Containers on Vercel.** This uses Vercel's container Functions (`web/Dockerfile.vercel`). The same image runs on
 > Render, Fly.io, Railway, Google Cloud Run or any server with Docker: give it the same two variables.
+
+### Scheduled work (optional)
+
+The site has no scheduler and no queue worker of its own. Instead, something outside calls `/internal/cron` every few
+minutes; each call does one bounded slice of work (whatever is due in the Laravel scheduler, then the jobs waiting on
+the database queue). Nothing needs this to run today; later features will use it.
+
+1. Choose a long random string and set it as `CRON_SECRET` in Vercel. Redeploy.
+2. In the GitHub repository, open *Settings, Secrets and variables, Actions* and add two **repository secrets**:
+   `CRON_URL` (the full address, for example `https://qistas-puce.vercel.app/internal/cron`) and `CRON_SECRET` (the same
+   string as in Vercel). The *Scheduler* workflow (`.github/workflows/cron.yml`) then calls it every five minutes. Until
+   both exist it does nothing and shows a grey notice.
+3. Check it: the admin overview's "Is everything set up?" shows *Scheduled work* as good after the first call, or run
+   `php artisan qistas:cron-status`.
+
+The endpoint takes `GET` (what Vercel Cron sends) or `POST`, and only with `Authorization: Bearer <CRON_SECRET>`: a
+wrong or missing secret is a 401 and does nothing, two calls at once give the second a 409, and it is rate-limited. If
+the owner prefers Vercel Cron, point it at the same address; GitHub's schedule can run a few minutes late, which is why
+a gap of up to 15 minutes is not reported as a problem.
 
 ### What happened to the brand prototype
 
