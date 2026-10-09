@@ -29,15 +29,32 @@ What this proves: **there is real demand and real willingness to pay** (50 thous
 February 2019 (9.7 thousand views in seven years, a channel with 34 subscribers), four old screenshots and a plain keyword title. The app is not
 beating anyone on craft; it ranks because it has been there a long time and answers the search.
 
-**What its reviewers ask for** (quoted from the listings; each is a chance for Qistas):
+## 1c. What customers actually said: all 49 written reviews
 
-| Review | Qistas answer |
-|---|---|
-| "can I use the paid app on 2 or more devices because I've business partner" (Apr 2024) | Cloud ledger with owner, manager, accountant, collector and viewer roles from day one. Say so on the first screenshot. |
-| "add an option for change of clients sequence" (Apr 2024) | Sort and pin customers (by name, balance owed, next due date, last paid). Small. |
-| "add one more option in quarterly installments plan, I mean 6 month payment schedule" (Jul 2024) | Qistas schedules today are weekly, every two weeks and monthly only. Add **every 2 months, quarterly, every 6 months and yearly** (idea 10). |
-| "In a part of scheduled Contract it is not working ... error message of Advance amount can not make debt to be zero or less" (Jan 2025) | A confusing error. Qistas should explain the rule where it happens ("the down payment covers the whole price, so there is nothing to schedule: record it as a cash sale"). |
-| "add the option of discount" (2021) | Early settlement, brief item B3. |
+Play shows 33 written reviews for the free app and 16 for the paid one (the 335 and 206 above count star ratings too). All 49 were read on
+9 Oct 2026, 2019 to 2026, in Arabic, English and a little Urdu-style English; the developer's replies were read too. "Helpful" is the number of
+other readers who agreed. Reviewer names suggest users in the Gulf and Egypt, Pakistan and India, and East Africa (to be checked in analytics, not assumed).
+
+**Who they are:** instalment dealers and small lenders ("very useful app for installment dealers", 13 helpful), shopkeepers, people who lend
+on notebooks, many with a business partner or an employee. Praise is about **time saved** ("it saved a lot of time and effort", 11 helpful),
+simplicity and being "comprehensive". 17 reviews are plain praise with no request, 2 are noise, and 30 ask for something (a review can speak to more than one need, so the counts below add up to more than 30).
+
+| # | Need | Reviews | Said in their words | Qistas today / answer |
+|---|---|---|---|---|
+| 1 | **"Keep my data safe, and let me and my partner reach it from anywhere"** | 9 | "should be cloud-based to prevent data loss if the phone is lost" · "login with a password to secure the data" · "everyone should have an account … backup is not enough if the phone or app is lost" (5 helpful) · "can I use the paid app on 2 or more devices, I have a business partner" · "can I add an employee … someone to follow operations" · "wish for a server of the customer's choice" · "can it be used on a laptop / on Windows" (3) · **"after the last update I lost my data"** (1 star, 5 helpful) | **The strongest card Qistas holds.** Cloud ledger from the first screen, accounts with password and two-step sign-in, five roles, web as well as phone, daily server backups. Say it first in the listing and the first screenshot. Add: app lock, export, and an update that can never lose data. |
+| 2 | **"Remind my customers for me"** | 3 | "kindly add **auto SMS** feature" (asked on both apps, 8 helpful) · "a reminder for each instalment's due date instead of a list of customers who haven't paid since" | Brief D1 to D3 (automatic WhatsApp reminders and one-tap promise to pay) and the daily briefing. Move up. Offer SMS as well as WhatsApp for customers who do not use it. |
+| 3 | **"Use it in my own language, whatever my phone's language"** | 3 | "please add Arabic as an option in settings" (11 helpful) · "when I change to Arabic it stays English because of the phone's language" | Qistas already has a language button on every screen, independent of the phone. Put the five scripts in the listing and screenshots. |
+| 4 | **"Tell me the price and the limits plainly"** | 5 | "3500 for a period or life time?" · "full version 4300, for how much time?" · "is there a limit on the number of customers in the free version?" · "is it really free or a trial that closes later?" · "please discount me if your price is very high" | Free tier of the leader: **10 customers**, with ads; Pro is a one-time **SAR 114.99**. Qistas Free today is **5** customers, which loses the comparison a reviewer will make. Consider **10** (the plan limit is an admin setting), no ads ever, a one-line pricing page ("Free for 10 customers; Pro monthly; cancel any time; your data export is always free") and **regional prices** for countries where the same number is a week's income. |
+| 5 | **More flexible terms** | 5 | "add **weekly** collection" (8 helpful; done by the developer) · "why no advance payment?" (5 helpful; done) · "**quarterly / 6-month** schedule" · "scheduled contract won't save: advance cannot make the debt zero or less" · "add the option of **discount**" for early payment (13 helpful) | Weekly, two-weekly, monthly and down payments exist; early settlement is brief B3. **Add every 2 months, quarterly, every 6 months and yearly**, and make the down-payment rule explain itself instead of showing a bare error. |
+| 6 | **Reports they can hand to the customer** | 2 | "add a **running-balance column** in the report, so the customer and I can match against the last balance" · "an option that tells the **total profit and total investment of the investor**" (5 helpful) | PDF statement with running balance (brief F2). Investor ledger with totals and profit share (new idea 3). |
+| 7 | **Basic control** | 4 | "kindly add delete and edit option" · "change the clients' sequence" · "a **barcode reader** to add products" · "cash-out (withdraw) options" | Edit and delete with an audit trail; sort and pin customers; barcode is for the brief's product items (A4), later. |
+| 8 | **Someone answers** | 3 | "technical support should be available and easy to reach" · "when is the new update coming?" · the lost-data review got "do you have a problem now?" and no fix | Support in the app (WhatsApp chat), a published "What's new", and a rule that a data-loss report is answered the same day. Trust is won or lost here. |
+
+**What the replies show about the developer:** answers are polite but slow (some a year later), the roadmap is "soon", and several requests stayed
+open for years (cloud and multi-user came in 2026). A product that is visibly alive, answers within a day and ships the top three requests above will look different at once.
+
+**Not to copy:** ads in the free version (the leader still scores 4.4 with them, but "Contains ads" caps trust for a money app), "Data can't be deleted" in its Data
+safety, and the PC-by-emulator answer.
 
 ## 2. What the competitor does (as its own pages state)
 
@@ -83,6 +100,11 @@ no-dues certificate, exports and accountant pack, branches, collector routes, **
 | 10 | **More instalment frequencies**: every 2 months, quarterly, every 6 months, yearly | A competitor reviewer asked for exactly this; farm, land and vehicle sales are often quarterly or half-yearly. It touches the schedule maths, which is cross-checked against `shared/schedule-vectors.json` in the web and the app, so both change together. | S |
 | 11 | **Sort and pin customers** | Another review. | S |
 | 12 | **Reports with the lender's logo and signature, shared as a PDF** (their listing leads with this) | Planned as the brief's F2 and F5; move them up, because the competitor sells it in its first bullet. | M |
+| 13 | **Free tier at least as large as the leader's** (10 customers), no ads, and a plain one-line pricing page; regional prices | Pricing questions are the fourth most common review theme. | S |
+| 14 | **Per-instalment reminder alarms** and **auto SMS** as well as WhatsApp | Asked for on both apps. | M |
+| 15 | **Running-balance column** in every statement; **investor totals** (invested, profit, remaining) | Asked for in reviews. | S |
+| 16 | **Never lose data on an update**: a version check and a restore point before any migration, and a public "What's new" | The only 1-star review in the paid app is a lost-data report. | M |
+| 17 | **In-app support** (WhatsApp chat) with a same-day promise | Theme 8. | S |
 
 ## 5. What stands between today and a ranked store listing
 
