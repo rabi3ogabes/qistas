@@ -5,6 +5,7 @@ import { contractPlanner } from './contract-planner';
 import { initTheme } from './theme';
 import { initSheets } from './sheet';
 import { initLanguageSwitchers } from './language';
+import { initAdminNav } from './admin-nav';
 
 window.Alpine = Alpine;
 Alpine.data('planCalculator', planCalculator);
@@ -20,6 +21,7 @@ Alpine.data('billingInterval', () => ({
 initTheme();
 initSheets();
 initLanguageSwitchers();
+initAdminNav();
 Alpine.start();
 
 // The admin's Feature control page brings its own script, and only that page downloads it.

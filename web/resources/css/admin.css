@@ -1,28 +1,33 @@
-/* The admin area: a top bar and one wide column; the test-mode controls. Colours come from the theme tokens. */
+/*
+ * The admin area: a menu panel on the RIGHT (a slide-in panel on a phone) and one wide column beside it; the test-mode
+ * controls. The panel is a fixed midnight surface in both light and dark mode (a second neutral layer: it frames the
+ * page instead of competing with it), with ivory text, and gold only for the page that is open. The page's own colours
+ * come from the theme tokens. The panel sits on the physical right in every language, as the owner asked.
+ */
 
 .admin-body {
+    --rail-w: 17.5rem;
+    --bar-h: 3.5rem;
     min-block-size: 100dvh;
     background: var(--q-bg);
     color: var(--q-ink);
 }
 
-.admin-top {
+/* ---------- The phone's bar: the brand and the button that opens the menu ---------- */
+
+.admin-bar {
     position: sticky;
     inset-block-start: 0;
     z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    block-size: calc(var(--bar-h) + env(safe-area-inset-top));
+    padding: env(safe-area-inset-top) max(1rem, env(safe-area-inset-right)) 0 max(1rem, env(safe-area-inset-left));
     background: color-mix(in srgb, var(--q-bg) 92%, transparent);
     border-block-end: 1px solid var(--q-line);
     backdrop-filter: saturate(1.4) blur(10px);
-}
-
-.admin-top-inner {
-    display: flex;
-    align-items: center;
-    gap: .75rem 1.25rem;
-    flex-wrap: wrap;
-    max-inline-size: 76rem;
-    margin-inline: auto;
-    padding: max(.625rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) .625rem max(1rem, env(safe-area-inset-left));
 }
 
 .admin-brand {
@@ -30,53 +35,397 @@
     border-radius: 8px;
 }
 
-.admin-badge {
-    padding: .1875rem .625rem;
+.admin-menu-button {
+    display: inline-grid;
+    place-items: center;
+    inline-size: 2.75rem;
+    block-size: 2.75rem;
+    border: 1px solid var(--q-line);
     border-radius: 999px;
-    background: var(--q-tint-sand);
-    color: var(--q-accent-text);
-    font-size: .8125rem;
+    background: var(--q-surface);
+    color: var(--q-ink);
+    transition: border-color var(--q-t-fast) var(--q-ease-out), background-color var(--q-t-fast) var(--q-ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .admin-menu-button:hover {
+        border-color: var(--q-accent);
+    }
+}
+
+/* ---------- The menu panel ---------- */
+
+.admin-rail {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    visibility: hidden;
+    pointer-events: none;
+    transition: visibility 0s linear var(--q-t-slow);
+}
+
+.admin-rail:target,
+.admin-rail[data-open] {
+    visibility: visible;
+    pointer-events: auto;
+    transition-delay: 0s;
+}
+
+.admin-scrim {
+    position: absolute;
+    inset: 0;
+    background: rgb(7 22 52 / .55);
+    opacity: 0;
+    transition: opacity var(--q-t-base) var(--q-ease-out);
+}
+
+.admin-rail:target .admin-scrim,
+.admin-rail[data-open] .admin-scrim {
+    opacity: 1;
+}
+
+.rail {
+    --rail-ink: #F7F3EA;
+    --rail-muted: rgb(247 243 234 / .68);
+    --rail-faint: rgb(247 243 234 / .5);
+    --rail-line: rgb(247 243 234 / .12);
+    --rail-hover: rgb(247 243 234 / .07);
+    --rail-current: rgb(247 243 234 / .13);
+    --rail-gold: #D4AE68;
+    /* The logo is drawn in the theme's ink; on the midnight panel it is ivory and gold. */
+    --q-logo-ink: #F7F3EA;
+    --q-logo-accent: #D4AE68;
+
+    position: absolute;
+    inset-block: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    inline-size: min(20rem, 88vw);
+    padding: max(1.25rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: linear-gradient(180deg, #0D2552 0%, #0A1B3C 55%, #081530 100%);
+    border-left: 1px solid rgb(247 243 234 / .08);
+    box-shadow: -24px 0 56px -24px rgb(3 10 26 / .55);
+    color: var(--rail-ink);
+    translate: 100% 0;
+    transition: translate var(--q-t-slow) var(--q-ease-drawer);
+}
+
+.admin-rail:target .rail,
+.admin-rail[data-open] .rail {
+    translate: 0 0;
+}
+
+.rail-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .625rem .75rem;
+    padding: .25rem .5rem 0;
+}
+
+.rail-brand {
+    grid-column: 1;
+    justify-self: start;
+    display: inline-flex;
+    border-radius: 8px;
+}
+
+.rail-badge {
+    grid-column: 1 / -1;
+    justify-self: start;
+    padding: .125rem .625rem;
+    border: 1px solid rgb(212 174 104 / .45);
+    border-radius: 999px;
+    color: var(--rail-gold);
+    font-size: .75rem;
     font-weight: 600;
 }
 
-.admin-nav {
-    display: flex;
-    gap: .25rem;
-    flex-wrap: wrap;
-    margin-inline-start: auto;
+.rail-close {
+    grid-column: 2;
+    grid-row: 1;
+    display: inline-grid;
+    place-items: center;
+    inline-size: 2.5rem;
+    block-size: 2.5rem;
+    border-radius: 999px;
+    color: var(--rail-muted);
+    transition: background-color var(--q-t-fast) var(--q-ease-out), color var(--q-t-fast) var(--q-ease-out);
 }
 
-.admin-nav a {
+.rail-nav {
+    display: grid;
+    gap: .25rem;
+}
+
+/* The places to go next sit apart, under a hairline, and are quieter. */
+.rail-nav-quiet {
+    padding-block-start: 1.25rem;
+    border-block-start: 1px solid var(--rail-line);
+}
+
+.rail-nav a {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    min-block-size: 2.75rem;
     padding: .5rem .75rem;
-    border-radius: var(--q-r-sm);
-    color: var(--q-ink-muted);
+    border-radius: var(--q-r-md);
+    color: var(--rail-muted);
     font-size: .9375rem;
     font-weight: 500;
     text-decoration: none;
     transition: background-color var(--q-t-fast) var(--q-ease-out), color var(--q-t-fast) var(--q-ease-out);
 }
 
-.admin-nav a[aria-current="page"] {
-    background: var(--q-surface);
-    color: var(--q-ink);
+.rail-nav a > .i {
+    flex: none;
+    color: var(--rail-faint);
+    transition: color var(--q-t-fast) var(--q-ease-out);
+}
+
+.rail-nav a > span {
+    min-inline-size: 0;
+}
+
+.rail-nav a > .rail-out {
+    margin-inline-start: auto;
+    opacity: .6;
+}
+
+/* The page that is open: a lifted bar, and the one place gold is used. */
+.rail-nav a[aria-current="page"] {
+    background: var(--rail-current);
+    color: var(--rail-ink);
     font-weight: 600;
-    box-shadow: var(--q-shadow-1);
+}
+
+.rail-nav a[aria-current="page"] > .i {
+    color: var(--rail-gold);
 }
 
 @media (hover: hover) and (pointer: fine) {
-    .admin-nav a:hover {
-        color: var(--q-ink);
+    .rail-nav a:hover,
+    .rail-close:hover {
+        background: var(--rail-hover);
+        color: var(--rail-ink);
+    }
+
+    .rail-nav a:hover > .i {
+        color: var(--rail-ink);
+    }
+
+    .rail-nav a[aria-current="page"]:hover > .i {
+        color: var(--rail-gold);
     }
 }
 
-.admin-menu .menu-panel {
-    inset-inline-end: 0;
-    inset-inline-start: auto;
-    min-inline-size: 15rem;
+.rail a:focus-visible,
+.rail button:focus-visible,
+.rail summary:focus-visible {
+    outline: 2px solid var(--rail-gold);
+    outline-offset: 2px;
 }
 
-.admin-menu .menu-panel form {
+/* The person's own corner: who they are, language, light or dark, sign out. */
+.rail-foot {
+    display: grid;
+    gap: .75rem;
+    margin-block-start: auto;
+    padding-block-start: 1rem;
+    border-block-start: 1px solid var(--rail-line);
+}
+
+.rail-foot form {
     margin: 0;
+}
+
+.rail-account {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: .5rem .625rem;
+    border-radius: var(--q-r-md);
+    color: var(--rail-ink);
+    text-decoration: none;
+    transition: background-color var(--q-t-fast) var(--q-ease-out);
+}
+
+.rail-account[aria-current="page"] {
+    background: var(--rail-current);
+}
+
+.rail-account .avatar {
+    display: grid;
+    place-items: center;
+    flex: none;
+    inline-size: 2.5rem;
+    block-size: 2.5rem;
+    border-radius: 50%;
+    background: var(--rail-gold);
+    color: #0B1F44;
+    font-weight: 700;
+}
+
+.rail-who {
+    display: grid;
+    flex: 1;
+    min-inline-size: 0;
+    line-height: 1.3;
+}
+
+.rail-name,
+.rail-mail {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rail-name {
+    font-size: .9375rem;
+    font-weight: 600;
+}
+
+.rail-mail {
+    color: var(--rail-muted);
+    font-size: .8125rem;
+}
+
+.rail-shield {
+    flex: none;
+    color: var(--rail-faint);
+}
+
+.rail-tools {
+    display: flex;
+    gap: .5rem;
+}
+
+.rail-tool,
+.rail-signout {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgb(247 243 234 / .18);
+    background: var(--rail-hover);
+    color: var(--rail-ink);
+    font: inherit;
+    cursor: pointer;
+    transition: background-color var(--q-t-fast) var(--q-ease-out), border-color var(--q-t-fast) var(--q-ease-out);
+}
+
+.rail-tool {
+    flex: none;
+    inline-size: 2.5rem;
+    block-size: 2.5rem;
+    border-radius: 999px;
+}
+
+.rail-signout {
+    inline-size: 100%;
+    gap: .5rem;
+    min-block-size: 2.5rem;
+    border-radius: var(--q-r-md);
+    font-size: .9375rem;
+    font-weight: 600;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .rail-account:hover,
+    .rail-tool:hover,
+    .rail-signout:hover {
+        background: var(--rail-current);
+    }
+}
+
+/* The language button, restyled for the dark panel: it keeps its shape and its gold, loses the white. */
+.rail .lang {
+    flex: 1;
+    min-inline-size: 0;
+}
+
+.rail .lang-btn {
+    inline-size: 100%;
+    justify-content: space-between;
+    background: var(--rail-hover);
+    border-color: rgb(247 243 234 / .18);
+    box-shadow: none;
+    color: var(--rail-ink);
+}
+
+.rail .lang-globe {
+    color: var(--rail-gold);
+}
+
+.rail .lang-chevron {
+    color: var(--rail-muted);
+}
+
+.rail .lang-name {
+    display: inline;
+    margin-inline-end: auto;
+}
+
+.rail .lang-code {
+    display: none;
+}
+
+.rail .lang-panel {
+    inset-inline: 0;
+    inline-size: auto;
+    min-inline-size: 13.5rem;
+}
+
+.rail .lang[open] > .lang-btn {
+    border-color: var(--rail-gold);
+}
+
+/* ---------- The wide screen: the panel is always there, on the right, and the page makes room for it ---------- */
+
+@media (min-width: 64rem) {
+    .admin-bar {
+        display: none;
+    }
+
+    .admin-shell {
+        padding-right: var(--rail-w);
+    }
+
+    .admin-rail {
+        inset: 0 0 0 auto;
+        inline-size: var(--rail-w);
+        visibility: visible;
+        pointer-events: auto;
+        transition: none;
+    }
+
+    .admin-scrim,
+    .rail-close {
+        display: none;
+    }
+
+    .rail {
+        inline-size: 100%;
+        translate: none;
+        transition: none;
+        box-shadow: none;
+    }
+}
+
+html.admin-nav-open {
+    overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rail,
+    .admin-scrim,
+    .admin-rail {
+        transition-duration: 0s;
+    }
 }
 
 .admin-main {
@@ -447,7 +796,7 @@
     gap: 1.25rem;
 }
 
-/* The counts, the search and the filters stay in view while the list scrolls (when the top bar is one line). */
+/* The counts, the search and the filters stay in view while the list scrolls (on a wide screen, where nothing else is stuck to the top). */
 .fc-bar {
     display: flex;
     flex-wrap: wrap;
@@ -463,7 +812,7 @@
 @media (min-width: 52rem) {
     .fc-bar {
         position: sticky;
-        inset-block-start: 4.25rem;
+        inset-block-start: 1rem;
         z-index: 10;
         backdrop-filter: blur(10px);
     }
