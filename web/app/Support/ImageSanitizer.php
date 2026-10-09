@@ -16,9 +16,10 @@ final class ImageSanitizer
     public const MAX_PIXELS = 40_000_000;
 
     /**
+     * @param  int|null  $maxWidth  when given with [$maxHeight], a larger picture is scaled down to fit, keeping its proportions
      * @return string|null The clean picture, or null when [$bytes] cannot be opened as a [$mime] picture.
      */
-    public static function clean(string $bytes, string $mime): ?string
+    public static function clean(string $bytes, string $mime, ?int $maxWidth = null, ?int $maxHeight = null): ?string
     {
         if (! function_exists('imagecreatefromstring')) {
             throw new RuntimeException('The GD extension is needed to store pictures.');
@@ -40,6 +41,10 @@ final class ImageSanitizer
             $image = self::upright($image, self::orientation($bytes));
         }
 
+        if ($maxWidth !== null && $maxHeight !== null) {
+            $image = self::fit($image, $maxWidth, $maxHeight);
+        }
+
         ob_start();
         $written = $mime === 'image/png'
             ? self::png($image)
@@ -47,6 +52,31 @@ final class ImageSanitizer
         $clean = (string) ob_get_clean();
 
         return $written && $clean !== '' ? $clean : null;
+    }
+
+    /** Scales a picture down (never up) until it fits the box, keeping its proportions and its transparency. */
+    private static function fit(GdImage $image, int $maxWidth, int $maxHeight): GdImage
+    {
+        $width = imagesx($image);
+        $height = imagesy($image);
+        $scale = min($maxWidth / $width, $maxHeight / $height, 1);
+
+        if ($scale >= 1) {
+            return $image;
+        }
+
+        imagealphablending($image, false);
+        imagesavealpha($image, true);
+        $scaled = imagescale($image, max(1, (int) round($width * $scale)), max(1, (int) round($height * $scale)), IMG_BICUBIC);
+
+        if (! $scaled instanceof GdImage) {
+            return $image;
+        }
+
+        imagealphablending($scaled, false);
+        imagesavealpha($scaled, true);
+
+        return $scaled;
     }
 
     private static function png(GdImage $image): bool

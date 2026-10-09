@@ -95,6 +95,9 @@ class AppServiceProvider extends ServiceProvider
         // Only a super admin changes what the platform has on, off or in beta; an admin may look.
         Gate::define('manage-platform-features', fn (User $user): bool => $user->platform_role === 'super_admin');
 
+        // The same for the look of the product (colours, pictures, welcome banners).
+        Gate::define('manage-appearance', fn (User $user): bool => $user->platform_role === 'super_admin');
+
         // @feature('key') ... @endfeature: shown only when the feature is on for the current workspace (not plan-locked,
         // not switched off by the platform). Nothing is shown outside a workspace.
         Blade::if('feature', function (string $key): bool {

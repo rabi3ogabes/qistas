@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\BrandAssetController;
 use App\Http\Controllers\DemoLoginController;
 use App\Http\Controllers\RobotsController;
 use App\Http\Controllers\SchedulePreviewController;
@@ -15,6 +16,9 @@ Route::get('/terms', [SiteController::class, 'terms'])->name('terms');
 Route::get('/privacy', [SiteController::class, 'privacy'])->name('privacy');
 Route::get('/sitemap.xml', SitemapController::class)->name('sitemap');
 Route::get('/robots.txt', RobotsController::class)->name('robots');
+
+// A brand picture chosen in the admin: its address never changes, so it can be cached for good.
+Route::get('/brand-assets/{asset}', BrandAssetController::class)->whereUuid('asset')->name('brand.asset');
 Route::post('/schedule-preview', SchedulePreviewController::class)->middleware('throttle:schedule-preview')->name('schedule.preview');
 
 // "Try the demo" (off unless config qistas.demo_login.enabled): a throw-away account per press, rate limited.

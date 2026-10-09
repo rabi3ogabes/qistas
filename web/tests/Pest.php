@@ -22,6 +22,8 @@ use Tests\TestCase;
 | the test run, so views render without the manifest.
 */
 
+require_once __DIR__.'/Support/Fixtures.php';
+
 pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)
     ->beforeEach(fn () => $this->withoutVite())
