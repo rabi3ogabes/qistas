@@ -73,9 +73,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:
-      contents: write # to move the rolling release tag and attach the APK
+      contents: write # to tag the version, publish its release and attach the APK
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the release notes list the app's changes since the previous version's tag
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -87,36 +89,76 @@ jobs:
           cache: true
       - run: flutter pub get
       - name: Build the APK
+        id: build
         run: |
           VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //; s/+.*//')
           flutter build apk --release --build-name="$VERSION" --build-number="${{ github.run_number }}" --dart-define=APP_VERSION="$VERSION"
           cp build/app/outputs/flutter-apk/app-release.apk ../qistas-app.apk
+          cp build/app/outputs/flutter-apk/app-release.apk "../qistas-app-$VERSION.apk"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
           name: qistas-app-android
-          path: qistas-app.apk
+          path: qistas-app-${{ steps.build.outputs.version }}.apk
           retention-days: 30
       # Only builds of main are published; a pull request just proves that it builds.
-      - name: Move the rolling release tag to this commit
+      # Every version of the app (app/pubspec.yaml) gets a release of its own, tagged app-v<version>, with its APK and
+      # what changed since the previous version. Building the same version again refreshes that version's release.
+      - name: Write the release notes
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         working-directory: .
+        env:
+          VERSION: ${{ steps.build.outputs.version }}
         run: |
+          PREVIOUS=$(git tag --list 'app-v*' --sort=-v:refname | grep -vx "app-v$VERSION" | head -n 1)
+          RANGE="$GITHUB_SHA"
+          if [ -n "$PREVIOUS" ]; then RANGE="$PREVIOUS..$GITHUB_SHA"; fi
+          {
+            echo "**Qistas app $VERSION** for Android (build ${{ github.run_number }})."
+            echo
+            echo "**Install:** download \`qistas-app-$VERSION.apk\` on the phone, open it and allow installation from this source when asked."
+            echo "This is a test build signed with a debug key: if you already have an older one, uninstall it first."
+            echo "It talks to https://qistas-puce.vercel.app, so you sign in with the same account as on the website."
+            echo
+            if [ -n "$PREVIOUS" ]; then echo "### What changed since ${PREVIOUS#app-v}"; else echo "### What is in this version"; fi
+            git log --no-merges --pretty='- %s' "$RANGE" -- app/ | head -n 40
+            echo
+            echo "Commit: $GITHUB_SHA"
+          } > release-notes.md
+          cat release-notes.md
+      - name: Tag this version
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        working-directory: .
+        env:
+          VERSION: ${{ steps.build.outputs.version }}
+        run: |
+          git tag -f "app-v$VERSION" "$GITHUB_SHA"
+          git push -f origin "app-v$VERSION"
           git tag -f app-latest "$GITHUB_SHA"
           git push -f origin app-latest
-      - name: Publish to the "Qistas app (latest)" release
+      - name: Publish the version's own release
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: app-v${{ steps.build.outputs.version }}
+          name: Qistas app ${{ steps.build.outputs.version }}
+          make_latest: "true"
+          fail_on_unmatched_files: true
+          files: qistas-app-${{ steps.build.outputs.version }}.apk
+          body_path: release-notes.md
+      # The address https://github.com/rabi3ogabes/qistas/releases/download/app-latest/qistas-app.apk keeps working and
+      # always gives the newest build; the version's own release above is the one marked "Latest".
+      - name: Keep the newest-build link working
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: app-latest
-          name: Qistas app (latest)
-          make_latest: "true"
+          name: Qistas app (newest build)
+          make_latest: "false"
           fail_on_unmatched_files: true
           files: qistas-app.apk
           body: |
-            The newest Android build of the Qistas app, made from the latest commit on `main`.
-
-            **Install:** download `qistas-app.apk` on the phone, open it and allow installation from this source when asked.
-            This is a test build signed with a debug key: if you already have an older one, uninstall it first.
-            It talks to https://qistas-puce.vercel.app, so you sign in with the same account as on the website.
+            Always the newest Android build of the Qistas app (now ${{ steps.build.outputs.version }}), at a link that never changes.
+            Each version also has a release of its own, with what changed: see the releases tagged `app-v…`.
 
             Commit: ${{ github.sha }}
