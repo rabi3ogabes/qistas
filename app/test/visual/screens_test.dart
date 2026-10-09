@@ -74,6 +74,12 @@ void main() {
     await snapshot(tester, 'settings');
   });
 
+  picture('settings in Arabic, dark', (tester) async {
+    await pumpApp(tester, workspaceServer(account: accountJson(plan: 'pro')), realFonts: true, size: tall, language: 'ar', preferences: {'theme_mode': 'dark'});
+    await openSettings(tester);
+    await snapshot(tester, 'settings-ar-dark');
+  });
+
   picture('quick actions', (tester) async {
     await pumpApp(tester, workspaceServer(), realFonts: true);
     await tapTooltip(tester, 'Quick actions');

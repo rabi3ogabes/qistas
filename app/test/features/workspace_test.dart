@@ -224,7 +224,7 @@ void main() {
       await pumpApp(tester, workspaceServer(routes: {'POST /auth/logout': always(json(200, {'data': <String, dynamic>{}}))}));
 
       await openSettings(tester);
-      await tapButton(tester, 'Sign out');
+      await tapText(tester, 'Sign out');
       await tester.tap(find.widgetWithText(TextButton, 'Sign out'));
       await settle(tester);
 
