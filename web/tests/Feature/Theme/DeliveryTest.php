@@ -120,6 +120,15 @@ describe('the logo', function () {
             ->and($this->actingAs($this->admin)->get('/admin')->getContent())->not->toContain($img)->toContain('#q-lockup');
     });
 
+    it('keeps its proportions at the header’s height, whatever size it was uploaded at', function () {
+        $logo = app(BrandImages::class)->store(UploadedFile::fake()->image('logo.png', 600, 200), 'logo', $this->admin);
+        publishLook($this->admin, ['images' => ['logo' => $logo->id]]);
+
+        preg_match('/<header class="site-header.*?<\/header>/s', $this->get('/')->getContent(), $header);
+
+        expect($header[0])->toContain('src="'.$logo->url().'" alt="'.config('qistas.app_name').'" width="90" height="30"');
+    });
+
     it('has a dark-mode version when one is chosen', function () {
         $logo = app(BrandImages::class)->store(UploadedFile::fake()->image('logo.png', 300, 100), 'logo', $this->admin);
         $dark = app(BrandImages::class)->store(UploadedFile::fake()->image('logo-dark.png', 300, 100), 'logo_dark', $this->admin);
@@ -139,6 +148,21 @@ describe('the logo on a dark panel', function () {
         preg_match('/<aside class="auth-aside".*?<\/aside>/s', $this->get('/login')->getContent(), $aside);
 
         expect($aside[0])->toContain('src="'.$dark->url().'"')->not->toContain('src="'.$logo->url().'"');
+    });
+});
+
+describe('the hero picture', function () {
+    it('sits behind the home page’s headline when one is chosen, under a veil that keeps the words readable', function () {
+        $hero = app(BrandImages::class)->store(UploadedFile::fake()->image('hero.jpg', 1600, 900), 'hero', $this->admin);
+
+        preg_match('/<section class="hero[^"]*".*?<\/section>/s', $this->get('/')->getContent(), $plain);
+        expect($plain[0])->not->toContain('hero-pic');
+
+        publishLook($this->admin, ['images' => ['hero' => $hero->id]]);
+        preg_match('/<section class="hero[^"]*".*?<\/section>/s', $this->get('/')->getContent(), $section);
+
+        expect($section[0])->toStartWith('<section class="hero hero-has-pic"')
+            ->toMatch('/<img class="hero-pic" src="'.preg_quote($hero->url(), '/').'" alt="" width="1600" height="900"[^>]*fetchpriority="high"/');
     });
 });
 

@@ -16,6 +16,7 @@ final class AppearanceView
      * @param  array{light: array<string, string>, dark: array<string, string>}  $tokens
      * @param  array<string, string>  $images  slot => asset id
      * @param  array<string, array<string, mixed>>  $banners  surface => banner as saved
+     * @param  array<string, array{0: int, 1: int}>  $sizes  slot => [width, height] of its picture
      */
     public function __construct(
         private readonly int $version,
@@ -23,6 +24,7 @@ final class AppearanceView
         private readonly bool $custom,
         private readonly array $images,
         private readonly array $banners,
+        private readonly array $sizes = [],
     ) {}
 
     public static function factory(): self
@@ -54,6 +56,16 @@ final class AppearanceView
         $id = $this->images[$slot] ?? null;
 
         return is_string($id) && $id !== '' ? route('brand.asset', ['asset' => $id]) : null;
+    }
+
+    /**
+     * The width and height of the picture in this slot, so a page can keep its place while it loads.
+     *
+     * @return array{0: int, 1: int}|null
+     */
+    public function imageSize(string $slot): ?array
+    {
+        return $this->imageUrl($slot) !== null ? ($this->sizes[$slot] ?? null) : null;
     }
 
     /** @return array<string, string> */
@@ -108,12 +120,13 @@ final class AppearanceView
     /** @return array<string, mixed> */
     public function toArray(): array
     {
-        return ['version' => $this->version, 'tokens' => $this->tokens, 'custom' => $this->custom, 'images' => $this->images, 'banners' => $this->banners];
+        return ['version' => $this->version, 'tokens' => $this->tokens, 'custom' => $this->custom, 'images' => $this->images, 'banners' => $this->banners, 'sizes' => $this->sizes];
     }
 
     /** @param  array<string, mixed>  $data */
     public static function fromArray(array $data): self
     {
-        return new self((int) $data['version'], $data['tokens'], (bool) $data['custom'], $data['images'], $data['banners']);
+        // 'sizes' came later than the rest: a look cached before it simply has none.
+        return new self((int) $data['version'], $data['tokens'], (bool) $data['custom'], $data['images'], $data['banners'], $data['sizes'] ?? []);
     }
 }

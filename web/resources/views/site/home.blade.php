@@ -10,9 +10,17 @@
     $freeHighlights = $freeOffer
         ? collect([Feature::Customers, Feature::ActiveContracts])->map(fn ($f) => $freeOffer->feature($f))->filter(fn ($r) => $r['enabled'])->pluck('summary')
         : collect();
+
+    // The hero picture an admin chose in Appearance, behind the headline under a veil of the hero colours.
+    $look = rescue(fn () => app(\App\Theme\Appearance::class)->live(), null, false);
+    $heroPicture = $look?->imageUrl('hero');
+    [$heroWidth, $heroHeight] = $look?->imageSize('hero') ?? [null, null];
 @endphp
 <x-layouts.site :title="__('Every instalment, to the cent.')" path="/">
-    <section class="hero">
+    <section class="hero{{ $heroPicture ? ' hero-has-pic' : '' }}">
+        @if ($heroPicture)
+            <img class="hero-pic" src="{{ $heroPicture }}" alt="" width="{{ $heroWidth ?? 1600 }}" height="{{ $heroHeight ?? 900 }}" decoding="async" fetchpriority="high">
+        @endif
         <div class="container hero-grid">
             <div>
                 <h1 class="display">{{ __('Every instalment, to the cent.') }}</h1>

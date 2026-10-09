@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 use LogicException;
 
@@ -51,6 +52,12 @@ class AppearanceVersion extends Model
             'pins' => 'array', 'tokens' => 'array', 'images' => 'array', 'banners' => 'array', 'repaired' => 'array',
             'version' => 'integer', 'published_at' => 'datetime',
         ];
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function publishedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'published_by_user_id');
     }
 
     /** @return array<string, mixed> */

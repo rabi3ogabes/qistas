@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AppearanceController;
 use App\Http\Controllers\Admin\DemoAccountsController;
 use App\Http\Controllers\Admin\FeaturesController;
 use App\Http\Controllers\Admin\HomeController;
@@ -33,5 +34,21 @@ Route::prefix('features')->name('features.')->controller(FeaturesController::cla
         Route::put('{key}/plans/{plan}', 'plan')->name('plan');
         Route::post('{key}/beta', 'betaStore')->name('beta.store');
         Route::delete('{key}/beta/{override}', 'betaDestroy')->name('beta.destroy');
+    });
+});
+
+// Appearance: the colours, pictures and welcome banners of the website, the web app and the Android app. Anyone on the
+// platform team may look; only a super admin changes (the 'manage-appearance' gate, checked in the controller).
+Route::prefix('appearance')->name('appearance.')->controller(AppearanceController::class)->group(function () {
+    Route::get('/', 'index')->name('index');
+    Route::get('palette', 'palette')->middleware('throttle:120,1')->name('palette');
+
+    Route::middleware('throttle:60,1')->group(function () {
+        Route::post('draft', 'save')->name('draft');
+        Route::post('publish', 'publish')->name('publish');
+        Route::post('pictures/{slot}', 'picture')->where('slot', '[a-z_]+')->name('picture');
+        Route::post('versions/{version}/restore', 'restore')->whereNumber('version')->name('restore');
+        Route::post('reset', 'reset')->name('reset');
+        Route::post('discard', 'discard')->name('discard');
     });
 });

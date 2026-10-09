@@ -9,8 +9,8 @@ use App\Models\AppearanceVersion;
 use App\Models\User;
 use App\Support\Audit;
 use App\Support\Locale;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -131,10 +131,49 @@ final class Appearance
         return $this->release($by, 'appearance.reset', 'Back to the Qistas look', [], ThemeEngine::BASE, [], [], $this->latest()?->banners() ?? []);
     }
 
+    /** Throws away what was not published: the draft becomes what everyone sees again. */
+    public function discardDraft(User $by): void
+    {
+        $latest = $this->latest();
+        $draft = $this->draft();
+        $draft->forceFill(['pins' => $latest?->pins() ?? [], 'images' => $latest?->images() ?? [], 'banners' => $latest?->banners() ?? []])->save();
+
+        Audit::record('appearance.discarded', $draft, ['version' => $latest?->version], userId: $by->getKey());
+    }
+
+    /** Whether the draft holds anything that is not published yet. */
+    public function hasUnpublishedChanges(): bool
+    {
+        $draft = $this->draft();
+        $latest = $this->latest();
+
+        return self::fingerprint($draft->pins(), $draft->images(), $draft->banners())
+            !== self::fingerprint($latest?->pins() ?? [], $latest?->images() ?? [], $latest?->banners() ?? []);
+    }
+
     /** @return Collection<int, AppearanceVersion> the published versions, newest first */
     public function history(int $limit = 20): Collection
     {
         return AppearanceVersion::query()->where('status', 'published')->orderByDesc('version')->limit($limit)->get();
+    }
+
+    /** The same look gives the same string, whatever order its keys were saved in. */
+    private static function fingerprint(mixed ...$parts): string
+    {
+        return (string) json_encode(array_map(self::sorted(...), $parts));
+    }
+
+    private static function sorted(mixed $value): mixed
+    {
+        if (! is_array($value)) {
+            return $value;
+        }
+
+        if (! array_is_list($value)) {
+            ksort($value);
+        }
+
+        return array_map(self::sorted(...), $value);
     }
 
     private function latest(): ?AppearanceVersion
@@ -150,7 +189,10 @@ final class Appearance
             return AppearanceView::factory();
         }
 
-        return new AppearanceView((int) $latest->version, $latest->tokens ?? ThemeEngine::BASE, $latest->pins() !== [], $latest->images(), $latest->banners());
+        $sizes = AppearanceAsset::query()->whereKey(array_values($latest->images()))->get(['id', 'slot', 'width', 'height'])
+            ->mapWithKeys(fn (AppearanceAsset $asset): array => [$asset->slot => [(int) $asset->width, (int) $asset->height]])->all();
+
+        return new AppearanceView((int) $latest->version, $latest->tokens ?? ThemeEngine::BASE, $latest->pins() !== [], $latest->images(), $latest->banners(), $sizes);
     }
 
     /**

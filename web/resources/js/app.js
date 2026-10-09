@@ -29,3 +29,6 @@ Alpine.start();
 // The admin's Feature control page brings its own script, and only that page downloads it.
 const cockpit = document.querySelector('[data-cockpit]');
 if (cockpit) import('./admin-features').then(({ initFeatureControl }) => initFeatureControl(cockpit));
+
+// So does the Appearance page.
+if (document.querySelector('[data-studio]')) import('./admin-appearance').then(({ initAppearanceStudio }) => initAppearanceStudio());

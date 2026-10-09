@@ -21,6 +21,7 @@
 @import './demo.css';
 @import './language.css';
 @import './banner.css';
+@import './studio.css';
 
 @source '../views';
 @source '../js';

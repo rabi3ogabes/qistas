@@ -56,6 +56,13 @@
         color: var(--q-on-primary);
         padding-block: clamp(3rem, 8vw, 6.5rem) clamp(3.5rem, 8vw, 6.5rem);
     }
+    /* A chosen hero picture lies under a veil of the hero colours, so the headline stays readable on any photograph. */
+    .hero-has-pic { position: relative; isolation: isolate; background: var(--q-hero-to); }
+    .hero-pic { position: absolute; inset: 0; z-index: -2; inline-size: 100%; block-size: 100%; object-fit: cover; }
+    .hero-has-pic::before {
+        content: ""; position: absolute; inset: 0; z-index: -1;
+        background: linear-gradient(165deg, color-mix(in srgb, var(--q-hero-from) 94%, transparent), color-mix(in srgb, var(--q-hero-to) 78%, transparent));
+    }
     .hero-grid { display: grid; gap: clamp(2rem, 5vw, 4rem); align-items: center; }
     @media (min-width: 960px) { .hero-grid { grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); } }
     .hero h1 { margin: 0; max-width: 14ch; font-size: clamp(2.75rem, 7.2vw, 5rem); color: var(--q-on-primary); }

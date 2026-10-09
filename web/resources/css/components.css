@@ -5,7 +5,9 @@
 
 @layer components {
     /* ---------- A logo picture chosen in the admin (the drawn logo needs none of this) ---------- */
-    .q-logo-img { display: block; inline-size: auto; max-inline-size: 100%; object-fit: contain; }
+    /* The width comes from the img's width attribute (its proportions at the asked height); the cap keeps an older page
+       without one from showing a logo at its full size. */
+    .q-logo-img { display: block; max-inline-size: 100%; max-block-size: 2.5rem; object-fit: contain; }
     .q-logo-dark { display: none; }
     :root[data-q-mode="dark"] .q-logo-light { display: none; }
     :root[data-q-mode="dark"] .q-logo-dark { display: block; }
