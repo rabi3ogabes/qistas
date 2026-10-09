@@ -1,7 +1,7 @@
 # Qistas Feature Programme: Build Brief
 
 > **Audience:** Claude (Claude Code), building inside the existing repository.
-> **Owner:** the Qistas product owner. **Status:** draft for owner review. Nothing here is built yet.
+> **Owner:** the Qistas product owner. **Status:** Milestone M0 (Foundation) is built and live (see [m0-foundation.md](m0-foundation.md)); the rest is still to build, in the order of Part 9.
 > **Goal:** turn Qistas from an instalment *tracker* into the app that **collects the money for the owner**, so that a business owner chooses it over the alternatives, pays the membership every month, and never wants to leave.
 > **One rule above all others:** *every feature has an admin on/off switch* (Part 3). A feature that cannot be switched off from the admin console is not finished.
 
@@ -676,7 +676,7 @@ These six are **platform capabilities** (`scope: platform`): they appear in the 
 
 | Milestone | Contents | Exit criteria |
 |---|---|---|
-| **M0 Foundation** | 0.1–0.6 | Feature control live in `/admin/features` with a fake feature proven end to end; storage, PDF, settings, cron endpoint working; catalogue-integrity test green |
+| **M0 Foundation** ✓ *built 9 Oct 2026, see [m0-foundation.md](m0-foundation.md)* | 0.1–0.6 | Feature control live in `/admin/features` with a fake feature proven end to end; storage, PDF, settings, cron endpoint working; catalogue-integrity test green |
 | **M1 Core instalment operations** | B3 early settlement, F1 certificate, B1 targeting, B2 proof, C4 watchlist, C5 write-off, C1 late fees, C2 reschedule | An owner can settle early, charge and waive fees, reschedule, and write off, each switchable, ledger totals reconcile |
 | **M2 Terms and paperwork** | A1, A4, A5, A6, A3, A2, F5 | A contract is created with payday and holiday-aware dates, items, guarantor, and signed on a phone as a branded PDF |
 | **M3 Autopilot** | D1, D2, D3, C3, B5, D4 | A reminder cadence reaches a real WhatsApp test number, a button tap creates a promise, a customer opens the portal. *Needs the WhatsApp account* |
