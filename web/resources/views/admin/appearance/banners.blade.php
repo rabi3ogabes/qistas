@@ -120,6 +120,7 @@
                     @error("{$key}.tone")<p class="field-error">{{ $message }}</p>@enderror
                 </fieldset>
 
+                @unless ($eventMode ?? false)
                 <div class="field">
                     <label for="b-{{ $surface }}-starts">{{ __('First day') }} <span class="field-optional">{{ __('optional') }}</span></label>
                     <input id="b-{{ $surface }}-starts" type="date" name="{{ "banners[{$surface}][starts_on]" }}" value="{{ old("{$key}.starts_on", $banner['starts_on'] ?? '') }}" @error("{$key}.starts_on") aria-invalid="true" @enderror data-b="starts_on">
@@ -130,6 +131,7 @@
                     <input id="b-{{ $surface }}-ends" type="date" name="{{ "banners[{$surface}][ends_on]" }}" value="{{ old("{$key}.ends_on", $banner['ends_on'] ?? '') }}" @error("{$key}.ends_on") aria-invalid="true" @enderror data-b="ends_on">
                     @error("{$key}.ends_on")<p class="field-error">{{ $message }}</p>@enderror
                 </div>
+                @endunless
 
                 <div class="banner-options">
                     <label class="check">

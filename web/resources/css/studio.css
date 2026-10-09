@@ -179,7 +179,7 @@
     .preset[aria-pressed="true"]:hover { border-color: var(--q-accent); }
 }
 
-.colour-grid { display: grid; gap: 1.75rem 2rem; }
+.colour-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.75rem 2rem; }
 @media (min-width: 40rem) { .colour-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 .colour-field { display: grid; align-content: start; gap: .5rem; }
@@ -215,6 +215,8 @@
 .colour-well:focus-visible { outline: 2px solid var(--q-info); outline-offset: 2px; }
 .colour-input input[type="text"] {
     flex: 1;
+    /* A share of the row, never the input's own natural width (which would push a phone's page sideways). */
+    inline-size: 100%;
     min-inline-size: 0;
     padding: .375rem .25rem;
     border: 0;
@@ -269,7 +271,7 @@
 
 /* ---------- Pictures ---------- */
 
-.pic-grid { display: grid; gap: 1rem; }
+.pic-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
 @media (min-width: 46rem) { .pic-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 .pic {
@@ -408,11 +410,11 @@
     .lang-tabs [role="tab"]:not([aria-selected="true"]):hover { border-color: color-mix(in srgb, var(--q-ink) 30%, var(--q-line)); color: var(--q-ink); }
 }
 
-.banner-words { display: grid; gap: 1rem; margin-block-end: 1.75rem; }
+.banner-words { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; margin-block-end: 1.75rem; }
 .banner-words .field { gap: .3125rem; }
 .banner-words textarea { min-block-size: 4.5rem; }
 
-.banner-grid { display: grid; gap: 1.25rem 1.5rem; }
+.banner-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem 1.5rem; }
 @media (min-width: 40rem) {
     .banner-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .banner-link, .tone-field, .banner-options { grid-column: 1 / -1; }

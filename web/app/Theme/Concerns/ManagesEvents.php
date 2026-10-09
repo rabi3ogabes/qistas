@@ -89,11 +89,7 @@ trait ManagesEvents
     {
         return $this->scheduledEvents()
             ->filter(fn (AppearanceEvent $event): bool => $event->isOnAt($now) && $event->appliesTo($country, $surface))
-            ->sort(function (AppearanceEvent $a, AppearanceEvent $b): int {
-                $reach = fn (AppearanceEvent $e): int => $e->countries === [] ? PHP_INT_MAX : count($e->countries);
-
-                return [$reach($a), $b->starts_on->toDateString(), (string) $b->updated_at] <=> [$reach($b), $a->starts_on->toDateString(), (string) $a->updated_at];
-            })
+            ->sort(fn (AppearanceEvent $a, AppearanceEvent $b): int => $a->rank() <=> $b->rank())
             ->first();
     }
 

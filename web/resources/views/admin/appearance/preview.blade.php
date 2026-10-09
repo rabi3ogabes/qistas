@@ -9,8 +9,10 @@
     $vars = fn (array $tokens): string => collect($tokens)->map(fn ($hex, $token) => '--q-'.Str::kebab($token).': '.$hex.';')->implode(' ');
 
     // One banner as the preview shows it: the English words, and the place's settings.
-    $previewBanner = function (string $surface) use ($banners): array {
-        $b = $banners[$surface] ?? [];
+    // An event's editor previews its banners over the usual ones; the Appearance page previews the draft's.
+    $previewBanners ??= $banners;
+    $previewBanner = function (string $surface) use ($previewBanners): array {
+        $b = $previewBanners[$surface] ?? [];
         $en = $b['text']['en'] ?? [];
 
         return [
@@ -42,6 +44,33 @@
             </div>
         </div>
     </div>
+
+    @if ($previewAs ?? true)
+        {{-- What a visitor from a country sees on a date: the published look with the event for them, if any. --}}
+        <details class="sp-as" data-preview-as data-look-url="{{ route('admin.appearance.look') }}">
+            <summary><x-icon name="globe" :size="16" /> {{ __('Preview as a visitor') }}</summary>
+            <div class="sp-as-body">
+                <div class="field">
+                    <label for="sp-as-country">{{ __('From') }}</label>
+                    <select id="sp-as-country" data-as-country>
+                        <option value="">{{ __('Anywhere else') }}</option>
+                        @foreach (($countryNames ?? []) as $code => $countryName)
+                            <option value="{{ $code }}">{{ $countryName }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="sp-as-date">{{ __('On') }}</label>
+                    <input id="sp-as-date" type="date" value="{{ now('Asia/Riyadh')->toDateString() }}" data-as-date>
+                </div>
+                <button type="button" class="btn btn-sm" data-as-show>{{ __('Show') }}</button>
+            </div>
+        </details>
+        <div class="sp-as-note" data-as-note hidden>
+            <p data-as-note-text aria-live="polite"></p>
+            <button type="button" class="btn btn-ghost btn-sm" data-as-back>{{ __('Back to the draft') }}</button>
+        </div>
+    @endif
 
     <div class="sp-canvas" id="sp-body" data-mode="light" data-sp-canvas>
         {{-- The website --}}

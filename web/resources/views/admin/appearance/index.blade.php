@@ -22,6 +22,8 @@
         'becomes' => __(':from becomes :to'), 'tokens' => $tokenNames, 'modes' => $modeNames,
         'unsaved' => __('Unsaved changes. Save the draft or publish.'), 'draft' => __('You have changes that are not published yet.'),
         'showPreview' => __('Show'), 'hidePreview' => __('Hide'),
+        'asEvent' => __('A visitor from :country on :date sees “:event”.'), 'asUsual' => __('A visitor from :country on :date sees the usual look.'),
+        'anywhere' => __('anywhere else'),
         'showing' => __('Showing'), 'off' => __('Off'), 'starts' => __('Starts :date'), 'ended' => __('Ended'),
         'cancel' => __('Cancel'),
         'discardTitle' => __('Throw away unpublished changes?'), 'discardBody' => __('The draft goes back to what everyone sees now. Pictures you uploaded stay in history.'), 'discard' => __('Discard'),
@@ -77,6 +79,7 @@
                 <a href="#colours"><x-icon name="palette" :size="16" /> {{ __('Colours') }}</a>
                 <a href="#pictures"><x-icon name="image" :size="16" /> {{ __('Pictures') }}</a>
                 <a href="#banners"><x-icon name="megaphone" :size="16" /> {{ __('Welcome banners') }}</a>
+                <a href="#events"><x-icon name="calendar" :size="16" /> {{ __('Events') }}</a>
                 <a href="#history"><x-icon name="history" :size="16" /> {{ __('History') }}</a>
             </nav>
 
@@ -115,6 +118,7 @@
                 <form id="studio-discard" method="post" action="{{ route('admin.appearance.discard') }}" hidden>@csrf</form>
             @endif
 
+            @include('admin.appearance.events')
             @include('admin.appearance.history')
         </div>
 

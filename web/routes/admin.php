@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AppearanceController;
+use App\Http\Controllers\Admin\AppearanceEventController;
 use App\Http\Controllers\Admin\DemoAccountsController;
 use App\Http\Controllers\Admin\FeaturesController;
 use App\Http\Controllers\Admin\HomeController;
@@ -50,5 +51,21 @@ Route::prefix('appearance')->name('appearance.')->controller(AppearanceControlle
         Route::post('versions/{version}/restore', 'restore')->whereNumber('version')->name('restore');
         Route::post('reset', 'reset')->name('reset');
         Route::post('discard', 'discard')->name('discard');
+    });
+
+    // Event themes: a national day's or a season's look for some countries and some days.
+    Route::get('look', [AppearanceEventController::class, 'look'])->middleware('throttle:120,1')->name('look');
+
+    Route::prefix('events')->name('events.')->controller(AppearanceEventController::class)->group(function () {
+        Route::get('new', 'create')->name('create');
+        Route::get('{event}', 'edit')->whereUuid('event')->name('edit');
+
+        Route::middleware('throttle:60,1')->group(function () {
+            Route::post('/', 'store')->name('store');
+            Route::post('pictures/{slot}', 'picture')->where('slot', '[a-z_]+')->name('picture');
+            Route::put('{event}', 'update')->whereUuid('event')->name('update');
+            Route::post('{event}/stop', 'stop')->whereUuid('event')->name('stop');
+            Route::delete('{event}', 'destroy')->whereUuid('event')->name('destroy');
+        });
     });
 });

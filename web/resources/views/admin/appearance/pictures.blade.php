@@ -17,7 +17,9 @@
     <div class="pic-grid">
         @foreach ($slots as $slot => [$label, $hint, $empty])
             @php
-                $picture = $pictures[$slot] ?? null;
+                // In an event's editor a slot shows the event's own picture; an empty slot keeps the usual one.
+                $picture = ($eventMode ?? false) ? (($slotPictures ?? collect())[$slot] ?? null) : ($pictures[$slot] ?? null);
+                $empty = ($eventMode ?? false) ? __('The usual picture is kept.') : $empty;
                 $url = $picture ? route('brand.asset', ['asset' => $picture->id]) : null;
                 [$maxWidth, $maxHeight] = BrandImages::SLOTS[$slot];
                 $invalid = $errors->has("pictures.{$slot}");
@@ -27,6 +29,10 @@
                     <img src="{{ $url ?? '' }}" alt="{{ $label }}" @if ($picture) width="{{ $picture->width }}" height="{{ $picture->height }}" @endif @unless ($url) hidden @endunless data-pic-img>
                     <span class="pic-empty" @if ($url) hidden @endif data-pic-empty><x-icon name="image" :size="20" /> {{ $empty }}</span>
                 </div>
+                @if ($eventMode ?? false)
+                    {{-- The event keeps the picture by its id when the form is saved. --}}
+                    <input type="hidden" name="images[{{ $slot }}]" value="{{ old("images.{$slot}", $picture?->id ?? '') }}" data-pic-id>
+                @endif
                 <div class="pic-body">
                     <p class="pic-title">{{ $label }}</p>
                     <p class="field-hint">{{ $hint }}</p>

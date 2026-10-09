@@ -30,5 +30,6 @@ Alpine.start();
 const cockpit = document.querySelector('[data-cockpit]');
 if (cockpit) import('./admin-features').then(({ initFeatureControl }) => initFeatureControl(cockpit));
 
-// So does the Appearance page.
+// So do the Appearance page and an event's editor.
 if (document.querySelector('[data-studio]')) import('./admin-appearance').then(({ initAppearanceStudio }) => initAppearanceStudio());
+if (document.querySelector('[data-event-editor]')) import('./admin-events').then(({ initEventEditor }) => initEventEditor());

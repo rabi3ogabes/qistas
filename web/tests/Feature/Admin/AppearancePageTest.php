@@ -177,16 +177,19 @@ describe('saving the draft', function () {
             'banners' => ['website' => ['enabled' => '1', 'cta_url' => 'javascript:alert(1)', 'text' => ['en' => ['title' => 'Kept <b>words</b>']]]],
         ]);
 
-        $this->actingAs($admin)->from('/admin/appearance')->post('/admin/appearance/draft', $sent)
-            ->assertRedirect('/admin/appearance')
-            ->assertSessionHasErrors(['colours.primary', 'banners.website.cta_url', 'banners.website.text.en.title']);
-
+        // Asking the test session for its errors would use them up before the page is drawn, so the page is read first.
+        $this->actingAs($admin)->from('/admin/appearance')->post('/admin/appearance/draft', $sent)->assertRedirect('/admin/appearance');
         $html = $this->actingAs($admin)->get('/admin/appearance')->getContent();
 
-        expect($html)->toContain('Use a colour written like #0B1F44.')
+        // The message beside the colour field itself (the same words also travel in the page's script strings).
+        expect($html)->toMatch('/<p class="field-error" data-colour-error\s*>Use a colour written like #0B1F44\.<\/p>/')
+            ->toMatch('/<p class="field-error">Use a page of this site \(starting with \/\) or a secure address \(https:\/\/\)\.<\/p>/')
             ->toContain('value="red;} body{display:none"')
             ->toContain('value="Kept &lt;b&gt;words&lt;/b&gt;"')
             ->and(app(Appearance::class)->draft()->pins())->toBe([]);
+
+        $this->actingAs($admin)->post('/admin/appearance/draft', $sent)
+            ->assertSessionHasErrors(['colours.primary', 'banners.website.cta_url', 'banners.website.text.en.title']);
     });
 
     it('takes a picture sent with the form, and removes one when asked', function () {

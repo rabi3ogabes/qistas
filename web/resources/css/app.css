@@ -22,6 +22,7 @@
 @import './language.css';
 @import './banner.css';
 @import './studio.css';
+@import './events.css';
 
 @source '../views';
 @source '../js';

@@ -5,11 +5,14 @@ namespace App\Http\Controllers\Admin;
 use App\Models\AppearanceAsset;
 use App\Models\AppearanceVersion;
 use App\Models\User;
+use App\Support\Countries;
 use App\Support\Locale;
 use App\Theme\Appearance;
 use App\Theme\AppearanceRefused;
 use App\Theme\BrandImages;
 use App\Theme\Color;
+use App\Theme\EventCalendar;
+use App\Theme\EventPresets;
 use App\Theme\PaletteReport;
 use App\Theme\Presets;
 use App\Theme\ThemeEngine;
@@ -43,6 +46,8 @@ final class AppearanceController
 
         // Only what the page shows of each picture; the stored bytes stay in the database.
         $pictures = AppearanceAsset::query()->whereKey(array_values($draft->images()))->get(['id', 'slot', 'width', 'height'])->keyBy('slot');
+        $events = $this->appearance->events();
+        $countryNames = Countries::options();
 
         return view('admin.appearance.index', [
             'canChange' => Gate::allows('manage-appearance'),
@@ -56,6 +61,15 @@ final class AppearanceController
             'liveVersion' => $history->first(),
             'history' => $history,
             'unpublished' => $this->appearance->hasUnpublishedChanges(),
+            'eventRows' => EventCalendar::rows($events, now()),
+            'timeline' => EventCalendar::timeline($events, now()),
+            'eventPresets' => collect(EventPresets::LIST)->map(fn (array $preset, string $key): array => [
+                'key' => $key,
+                'dates' => EventPresets::nextDates($key),
+                'countries' => array_map(fn (string $code): string => $countryNames[$code] ?? $code, $preset['countries']),
+                'colours' => $preset['colours'],
+            ])->values()->all(),
+            'countryNames' => $countryNames,
         ]);
     }
 

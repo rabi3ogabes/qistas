@@ -104,6 +104,23 @@ class AppearanceEvent extends Model
         return CarbonImmutable::parse($this->starts_on->toDateString().' 00:00:00', $this->timezone)->utc();
     }
 
+    /**
+     * Whether this event is shown instead of [$other] where both are on: the one aimed at fewer countries (everyone is
+     * the widest), then the one that started later, then the one changed last.
+     */
+    public function outranks(self $other): bool
+    {
+        return $this->rank() < $other->rank();
+    }
+
+    /** @return array{0: int, 1: int, 2: int} the smaller wins; a later start and a later edit are negated to sort first */
+    public function rank(): array
+    {
+        $reach = ($this->countries ?? []) === [] ? PHP_INT_MAX : count($this->countries);
+
+        return [$reach, -(int) $this->starts_on->format('Ymd'), -(int) ($this->updated_at?->getTimestamp() ?? 0)];
+    }
+
     /** How many days it lasts, first and last included. */
     public function days(): int
     {

@@ -18,9 +18,10 @@
 <section id="colours" class="studio-panel" aria-labelledby="colours-title">
     <header class="studio-panel-head">
         <h2 id="colours-title">{{ __('Colours') }}</h2>
-        <p>{{ __('Start from a ready-made look or choose four colours. Everything else, the whole dark mode included, is made from them.') }}</p>
+        <p>{{ ($eventMode ?? false) ? __('Leave a colour empty to keep the usual one: only the colours you set change during the event, the whole dark mode included.') : __('Start from a ready-made look or choose four colours. Everything else, the whole dark mode included, is made from them.') }}</p>
     </header>
 
+    @unless ($eventMode ?? false)
     <div class="presets" role="group" aria-label="{{ __('Ready-made looks') }}">
         @foreach (Presets::LIST as $key => $preset)
             <button type="submit" class="preset" name="preset" value="{{ $key }}" data-preset='@json($preset['colours'])' aria-pressed="{{ $preset['colours'] == $current ? 'true' : 'false' }}">
@@ -31,6 +32,7 @@
             </button>
         @endforeach
     </div>
+    @endunless
 
     <div class="colour-grid">
         @foreach ($fields as $name => [$label, $hint, $pairLabel])

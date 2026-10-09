@@ -99,12 +99,18 @@ export function initAppearanceStudio() {
         dirty: false,
         submitting: false,
         uploads: 0,
+        view: 'website',
+        // "Preview as a visitor": what the server says a visitor from a country sees on a date, shown instead of the draft.
+        as: null,
+        // In an event's editor: the pictures are kept with the event when it is saved, and its colours lie over these.
+        eventMode: root.hasAttribute('data-event-editor'),
+        baseColours: parse(root.dataset.baseColours) ?? {},
     };
 
     // ------------------------------------------------------------------ the preview
 
     function applyPalette() {
-        const tokens = state.palette?.[state.mode];
+        const tokens = (state.as?.tokens ?? state.palette)?.[state.mode];
         if (tokens) {
             for (const [token, hex] of Object.entries(tokens)) canvas.style.setProperty(`--q-${kebab(token)}`, hex);
         }
@@ -113,12 +119,14 @@ export function initAppearanceStudio() {
     }
 
     function showView(view) {
+        state.view = view;
         preview.querySelectorAll('[data-sp-view]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.spView === view)));
         canvas.querySelectorAll('[data-sp-surface]').forEach((el) => { el.hidden = el.dataset.spSurface !== view; });
+        if (state.as) showAs();
     }
 
     function showPictures() {
-        const usable = (slot) => (state.removed[slot] ? null : state.pictures[slot]);
+        const usable = (slot) => (state.as ? state.as.pictures[slot] : (state.removed[slot] ? null : state.pictures[slot]));
         const logo = (state.mode === 'dark' && usable('logo_dark')) || usable('logo');
 
         canvas.querySelectorAll('[data-sp-logo]').forEach((holder) => {
@@ -155,6 +163,89 @@ export function initAppearanceStudio() {
         fold(narrow.matches);
         narrow.addEventListener('change', (e) => fold(e.matches));
         showView('website');
+        initPreviewAs();
+    }
+
+    // ------------------------------------------------------------------ preview as a visitor
+
+    const asBox = preview.querySelector('[data-preview-as]');
+    const asNote = preview.querySelector('[data-as-note]');
+    let asRequest = null;
+
+    /** Draws the visitor's look on the stage: its palette, pictures, and the banner of the place on show. */
+    function showAs() {
+        if (!state.as) return;
+        applyPalette();
+        const banner = canvas.querySelector(`[data-sp-banner="${state.view}"]`);
+        const b = state.as.banners?.[state.view] ?? null;
+        canvas.querySelectorAll('[data-sp-banner]').forEach((el) => { if (el !== banner) el.hidden = true; });
+        if (!banner) return;
+        banner.hidden = !b;
+        if (!b) return;
+        banner.removeAttribute('data-off');
+        banner.lang = document.documentElement.lang || 'en';
+        banner.dir = document.documentElement.dir || 'ltr';
+        banner.dataset.tone = b.tone || 'gold';
+        banner.querySelector('[data-sp-title]').textContent = b.title;
+        const message = banner.querySelector('[data-sp-message]');
+        message.textContent = b.message || '';
+        message.hidden = !b.message;
+        const cta = banner.querySelector('[data-sp-cta]');
+        cta.textContent = b.cta_label || '';
+        cta.hidden = !(b.cta_label && b.cta_url);
+        banner.querySelector('[data-sp-close]').hidden = !b.dismissible;
+        const pic = banner.querySelector('[data-sp-banner-pic]');
+        if (b.image_url) pic.src = b.image_url;
+        pic.hidden = !b.image_url;
+    }
+
+    async function fetchAs() {
+        const country = asBox.querySelector('[data-as-country]');
+        const date = asBox.querySelector('[data-as-date]').value;
+        if (!date) return;
+        asRequest?.abort();
+        asRequest = new AbortController();
+        const query = new URLSearchParams({ country: country.value, date, surface: state.view });
+
+        try {
+            const response = await fetch(`${asBox.dataset.lookUrl}?${query}`, { headers: { Accept: 'application/json' }, credentials: 'same-origin', signal: asRequest.signal });
+            const body = await response.json().catch(() => ({}));
+            if (!response.ok || !body.data) return;
+            const d = body.data;
+            state.as = {
+                tokens: d.tokens,
+                pictures: { logo: d.logo_url, logo_dark: d.logo_dark_url, hero: d.hero_url, banner: d.banner_picture_url },
+                banners: { ...(state.as?.banners ?? {}), [state.view]: d.banner },
+            };
+            const where = country.value ? country.selectedOptions[0].textContent.trim() : text.anywhere;
+            const day = new Intl.DateTimeFormat(document.documentElement.lang || undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(`${date}T12:00:00`));
+            asNote.querySelector('[data-as-note-text]').textContent = d.event
+                ? text.asEvent.replace(':country', where).replace(':date', day).replace(':event', d.event.name)
+                : text.asUsual.replace(':country', where).replace(':date', day);
+            asNote.hidden = false;
+            preview.setAttribute('data-as', '');
+            showAs();
+        } catch (error) {
+            if (error.name !== 'AbortError') { /* the stage keeps what it shows */ }
+        }
+    }
+
+    /** Back to the draft being edited. */
+    function leaveAs() {
+        if (!state.as) return;
+        state.as = null;
+        asNote.hidden = true;
+        preview.removeAttribute('data-as');
+        applyPalette();
+        Object.keys(state.lang).forEach(updateBanner);
+    }
+
+    function initPreviewAs() {
+        if (!asBox || !asNote) return;
+        asBox.querySelector('[data-as-show]').addEventListener('click', fetchAs);
+        asNote.querySelector('[data-as-back]').addEventListener('click', leaveAs);
+        // Looking at another place while previewing asks again for that place.
+        preview.querySelectorAll('[data-sp-view]').forEach((b) => b.addEventListener('click', () => { if (state.as) fetchAs(); }));
     }
 
     // ------------------------------------------------------------------ colours
@@ -228,7 +319,8 @@ export function initAppearanceStudio() {
         paletteTimer = window.setTimeout(async () => {
             paletteRequest?.abort();
             paletteRequest = new AbortController();
-            const query = new URLSearchParams(currentColours());
+            // An event's colours lie over the usual ones, so what is not set is the usual colour, not the factory one.
+            const query = new URLSearchParams({ ...state.baseColours, ...currentColours() });
 
             try {
                 const response = await fetch(`${root.dataset.paletteUrl}?${query}`, {
@@ -376,7 +468,15 @@ export function initAppearanceStudio() {
             state.pictures[slot] = body.data.url;
             state.removed[slot] = false;
             pictureMessage(pic, { status: text.uploaded });
-            setPublishState('draft');
+            const kept = pic.querySelector('[data-pic-id]');
+            if (kept) {
+                // An event keeps the picture by its id when the form is saved: until then it is an unsaved change.
+                kept.value = body.data.id;
+                markDirty();
+            } else {
+                setPublishState('draft');
+            }
+            leaveAs();
             showPictures();
             Object.keys(state.lang).forEach(updateBanner);
         } catch {
@@ -539,6 +639,8 @@ export function initAppearanceStudio() {
     function initSaving() {
         form.addEventListener('input', (event) => {
             if (!event.target.matches('[data-pic-input]')) markDirty();
+            // Editing again shows the draft being edited, not what a visitor sees.
+            leaveAs();
         });
         form.addEventListener('change', (event) => {
             if (!event.target.matches('[data-pic-input]')) markDirty();
@@ -587,6 +689,17 @@ export function initAppearanceStudio() {
                     restore.submit();
                 }
             }, true);
+        });
+
+        // Any other button that cannot be taken back (stopping or deleting an event) carries its own question.
+        root.querySelectorAll('button[data-confirm]').forEach((button) => {
+            button.addEventListener('click', async (event) => {
+                event.preventDefault();
+                if (await ask(button.dataset.confirm, button.dataset.confirmBody || '', button.dataset.confirmLabel || button.textContent.trim())) {
+                    state.submitting = true;
+                    button.form?.submit();
+                }
+            });
         });
     }
 
