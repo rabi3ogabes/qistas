@@ -115,6 +115,9 @@ Everything else has a safe default (production mode, secure cookies, trusted pro
 | `QISTAS_DEFAULT_CURRENCY` | `USD` | Currency for new workspaces whose country is not recognised. |
 | `CRON_SECRET` | none | Switches on scheduled work (see below). Any long random string. With none, `/internal/cron` answers 503 and nothing runs. |
 | `CRON_MAX_SECONDS` | `50` | How long one scheduler call works through waiting jobs before it stops and leaves the rest for the next call. |
+| `FILESYSTEM_DISK` | `local` | Set `s3` to keep customers' files (ID photos, proofs of payment, PDFs) in an S3-compatible bucket. Without it they go to a private folder on the server's own disk, which is **not durable on Vercel** (the disk is thrown away). Nothing stores a customer's file yet, so this is for when the first feature that does is switched on. |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`, `AWS_BUCKET` | none | The bucket's keys, for `FILESYSTEM_DISK=s3`. Supabase Storage works: create a **private** bucket and use its S3 keys. |
+| `AWS_ENDPOINT`, `AWS_USE_PATH_STYLE_ENDPOINT` | none, `false` | For an S3-compatible service other than Amazon (Supabase: `https://<project>.supabase.co/storage/v1/s3` and `true`). |
 
 > **Containers on Vercel.** This uses Vercel's container Functions (`web/Dockerfile.vercel`). The same image runs on
 > Render, Fly.io, Railway, Google Cloud Run or any server with Docker: give it the same two variables.
@@ -137,6 +140,15 @@ The endpoint takes `GET` (what Vercel Cron sends) or `POST`, and only with `Auth
 wrong or missing secret is a 401 and does nothing, two calls at once give the second a 409, and it is rate-limited. If
 the owner prefers Vercel Cron, point it at the same address; GitHub's schedule can run a few minutes late, which is why
 a gap of up to 15 minutes is not reported as a problem.
+
+### Files and PDFs (optional)
+
+Private file storage (`App\Support\Files`) and the PDF renderer (`App\Documents\PdfRenderer`) are built and tested, and
+no feature uses them yet. A file is kept per workspace, checked by what its bytes are, stripped of hidden location data (a
+picture) and only ever handed out through a link that expires within five minutes. The image needs the `gd` extension (it
+is installed in `web/Dockerfile.vercel`). The PDF renderer carries its own fonts (`web/resources/fonts`, with their licences),
+so it needs nothing from the host. To look at a sample: `php artisan qistas:pdf-preview ar` writes
+`storage/app/previews/sample-ar.pdf`.
 
 ### What happened to the brand prototype
 
