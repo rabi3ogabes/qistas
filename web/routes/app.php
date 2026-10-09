@@ -5,6 +5,7 @@ use App\Http\Controllers\Workspace\BillingController;
 use App\Http\Controllers\Workspace\ContractController;
 use App\Http\Controllers\Workspace\CustomerController;
 use App\Http\Controllers\Workspace\DashboardController;
+use App\Http\Controllers\Workspace\FileController;
 use App\Http\Controllers\Workspace\PaymentController;
 use App\Http\Controllers\Workspace\ToolsController;
 use Illuminate\Support\Facades\Route;
@@ -13,6 +14,9 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', DashboardController::class)->name('dashboard');
 
 Route::get('billing', BillingController::class)->name('billing');
+
+// A stored file (an ID photo, a proof of payment): a member whose role may see it is sent to a link that expires in minutes.
+Route::get('files/{file}', [FileController::class, 'show'])->name('files.show');
 
 // The settings of the features that are on for this workspace (empty until a feature declares one).
 Route::get('settings/tools', [ToolsController::class, 'show'])->name('settings.tools');

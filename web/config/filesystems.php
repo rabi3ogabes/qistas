@@ -38,6 +38,36 @@ return [
             'report' => false,
         ],
 
+        /*
+        | Private storage for what a workspace keeps (ID photos, proofs of payment, PDFs): see App\Support\Files.
+        | With FILESYSTEM_DISK=s3 it is an S3-compatible bucket (Amazon S3, or Supabase Storage through its S3
+        | endpoint: set AWS_ENDPOINT and AWS_USE_PATH_STYLE_ENDPOINT=true). Otherwise it is a private folder that is
+        | only ever served through links that expire within minutes. The folder does not survive on a host whose disk
+        | is thrown away (Vercel): use a bucket there.
+        */
+        'files' => env('FILESYSTEM_DISK') === 's3'
+            ? [
+                'driver' => 's3',
+                'key' => env('AWS_ACCESS_KEY_ID'),
+                'secret' => env('AWS_SECRET_ACCESS_KEY'),
+                'region' => env('AWS_DEFAULT_REGION'),
+                'bucket' => env('AWS_BUCKET'),
+                'endpoint' => env('AWS_ENDPOINT'),
+                'use_path_style_endpoint' => filter_var(env('AWS_USE_PATH_STYLE_ENDPOINT', false), FILTER_VALIDATE_BOOL),
+                'visibility' => 'private',
+                'throw' => false,
+                'report' => false,
+            ]
+            : [
+                'driver' => 'local',
+                'root' => storage_path('app/files'),
+                'serve' => true,
+                'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/files-storage',
+                'visibility' => 'private',
+                'throw' => false,
+                'report' => false,
+            ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

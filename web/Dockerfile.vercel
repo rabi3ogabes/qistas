@@ -17,7 +17,7 @@ RUN npm run build
 # ---------- 2. PHP with the extensions the app needs ----------
 FROM dunglas/frankenphp:1-php8.4-bookworm AS base
 RUN cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
-    && install-php-extensions intl zip bcmath pdo_pgsql pdo_sqlite opcache
+    && install-php-extensions intl zip bcmath pdo_pgsql pdo_sqlite opcache gd
 WORKDIR /app
 
 # ---------- 3. PHP dependencies and the application ----------
