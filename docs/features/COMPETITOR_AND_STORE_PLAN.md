@@ -79,10 +79,10 @@ no-dues certificate, exports and accountant pack, branches, collector routes, **
 | 6 | **Archive** for settled and cancelled contracts, and an **activity log** the owner can read ("who deleted what") | The audit data exists; showing it is a trust feature. | S |
 | 7 | **"Your data is yours"**: one-tap full export (Excel and PDF) and a monthly backup file e-mailed to the owner | Answers the competitor's backup anxiety head-on and costs little. | S |
 | 8 | **Works offline in the field** (the brief's G4, brought forward as a simple read-only cache plus queued receipts) | Collectors work where the signal is bad. Payments already carry an idempotency key, so retries are safe. | M |
+| 9 | **Ask for a rating at a happy moment** (after the third recorded payment, once, never after an error) | Ratings drive store rank; timing decides whether they are 5 stars. | S |
 | 10 | **More instalment frequencies**: every 2 months, quarterly, every 6 months, yearly | A competitor reviewer asked for exactly this; farm, land and vehicle sales are often quarterly or half-yearly. It touches the schedule maths, which is cross-checked against `shared/schedule-vectors.json` in the web and the app, so both change together. | S |
 | 11 | **Sort and pin customers** | Another review. | S |
 | 12 | **Reports with the lender's logo and signature, shared as a PDF** (their listing leads with this) | Planned as the brief's F2 and F5; move them up, because the competitor sells it in its first bullet. | M |
-| 9 | **Ask for a rating at a happy moment** (after the third recorded payment, once, never after an error) | Ratings drive store rank; timing decides whether they are 5 stars. | S |
 
 ## 5. What stands between today and a ranked store listing
 
