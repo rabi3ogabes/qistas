@@ -3,7 +3,7 @@
     // The logo chosen in the admin's Appearance page, when there is one (and its version for dark backgrounds);
     // otherwise the drawn Qistas logo. The admin console passes brand=false and always shows the Qistas logo. On a dark
     // panel (on-dark) only the dark-background version is used when there is one. Never fails a page.
-    $look = $brand ? rescue(fn () => app(\App\Theme\Appearance::class)->live(), null, false) : null;
+    $look = $brand ? rescue(fn () => app(\App\Theme\Appearance::class)->current(request()), null, false) : null;
 
     // A picture with the width that keeps its proportions at this height (a reset's height:auto would otherwise win).
     $pictureOf = function (string $slot) use ($look, $height): ?array {

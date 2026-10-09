@@ -73,8 +73,11 @@ paths:
       description: |
         The full palette the server resolved from the colours the admin chose (26 tokens, light and dark: the app never
         derives colours itself), the logo, and the welcome banner meant for the Android app in the request's language
-        (English when that language has no words of its own; `null` when there is none to show today). Public. Send the
-        `ETag` back as `If-None-Match` to get `304` when nothing changed.
+        (English when that language has no words of its own; `null` when there is none to show today). When an event
+        theme is on for the asker's country (the signed-in workspace's, else the phone's language region), the look is
+        the event's and `event` says until when; `base` then carries the usual look to go back to when the event ends,
+        even offline. Public, but answered `private` (it depends on who asks). Send the `ETag` back as `If-None-Match`
+        to get `304` when nothing changed.
       security: []
       parameters: [{$ref: "#/components/parameters/AcceptLanguage"}]
       responses:
@@ -853,7 +856,32 @@ components:
                 tone: {type: string, enum: [gold, navy, sand, sky]}
                 dismissible: {type: boolean}
                 image_url: {type: [string, "null"], format: uri}
+                ends_on: {type: [string, "null"], format: date, description: "Its last day, so a kept banner stops on time offline."}
                 key: {type: string, description: Changes whenever the banner changes; remember a dismissal by it.}
+        event:
+          description: The event theme being worn, or null for the usual look.
+          oneOf:
+            - type: "null"
+            - type: object
+              properties:
+                id: {type: string, format: uuid}
+                name: {type: string}
+                ends_on: {type: string, format: date, description: Its last day, in its own time zone.}
+                until: {type: string, format: date-time, description: The first moment after its last day (UTC).}
+        base:
+          description: While an event is on, the usual look to go back to when it ends; null otherwise.
+          oneOf:
+            - type: "null"
+            - type: object
+              properties:
+                tokens:
+                  type: object
+                  properties:
+                    light: {$ref: "#/components/schemas/Palette"}
+                    dark: {$ref: "#/components/schemas/Palette"}
+                logo_url: {type: [string, "null"], format: uri}
+                logo_dark_url: {type: [string, "null"], format: uri}
+                banner: {description: "The usual banner for the Android app, shaped like `banner` above, or null."}
     Palette:
       type: object
       description: The theme engine's 26 colour tokens, each "#RRGGBB".

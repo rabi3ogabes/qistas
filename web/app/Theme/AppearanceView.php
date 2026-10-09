@@ -151,7 +151,7 @@ final class AppearanceView
      * The welcome banner for a place and a language, or null when there is none to show today. A language with no
      * title of its own shows the English words.
      *
-     * @return array{title: string, message: string, cta_label: string, cta_url: string|null, tone: string, dismissible: bool, image_url: string|null, key: string}|null
+     * @return array{title: string, message: string, cta_label: string, cta_url: string|null, tone: string, dismissible: bool, image_url: string|null, ends_on: string|null, key: string}|null
      */
     public function banner(string $surface, string $language, ?CarbonInterface $now = null): ?array
     {
@@ -185,6 +185,8 @@ final class AppearanceView
             'tone' => (string) ($banner['tone'] ?? 'gold'),
             'dismissible' => (bool) ($banner['dismissible'] ?? true),
             'image_url' => ($banner['image'] ?? false) ? $this->imageUrl('banner') : null,
+            // Its last day, so the Android app stops showing a kept banner on time even without a connection.
+            'ends_on' => is_string($banner['ends_on'] ?? null) && $banner['ends_on'] !== '' ? $banner['ends_on'] : null,
             // Remembers a dismissal: it changes when the banner's words, dates or look change, and not otherwise.
             'key' => substr(sha1((string) json_encode($banner)), 0, 12),
         ];

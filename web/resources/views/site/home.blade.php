@@ -12,7 +12,7 @@
         : collect();
 
     // The hero picture an admin chose in Appearance, behind the headline under a veil of the hero colours.
-    $look = rescue(fn () => app(\App\Theme\Appearance::class)->live(), null, false);
+    $look = rescue(fn () => app(\App\Theme\Appearance::class)->current(request()), null, false);
     $heroPicture = $look?->imageUrl('hero');
     [$heroWidth, $heroHeight] = $look?->imageSize('hero') ?? [null, null];
 @endphp

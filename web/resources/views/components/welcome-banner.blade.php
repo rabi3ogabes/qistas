@@ -5,7 +5,7 @@
 --}}
 @props(['surface'])
 @php
-    $look = rescue(fn () => app(\App\Theme\Appearance::class)->live(), null, false);
+    $look = rescue(fn () => app(\App\Theme\Appearance::class)->current(request(), $surface), null, false);
     $banner = $look?->banner($surface, app()->getLocale());
     $external = $banner !== null && is_string($banner['cta_url']) && str_starts_with($banner['cta_url'], 'https://');
 @endphp

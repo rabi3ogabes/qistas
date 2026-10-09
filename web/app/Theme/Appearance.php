@@ -246,7 +246,7 @@ final class Appearance
 
         Cache::forget(self::CACHE_KEY);
         $this->live = null;
-        $this->current = [];
+        $this->current = null;
 
         return $row;
     }

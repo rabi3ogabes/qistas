@@ -36,16 +36,34 @@ trait ManagesEvents
     private const EVENT_MAX_DAYS = 400;
 
     /**
-     * The look for each place, once worked out in this request.
+     * The look for each place, once worked out for a request (keyed by the request itself, so a later request, in a
+     * long-running worker or a test, never sees an earlier visitor's look).
      *
-     * @var array<string, AppearanceView>
+     * @var \WeakMap<Request, array<string, AppearanceView>>|null
      */
-    private array $current = [];
+    private ?\WeakMap $current = null;
 
-    /** What this request's visitor sees on [$surface]: the live look, with today's event for their country if any. */
-    public function current(Request $request, string $surface): AppearanceView
+    /**
+     * What this request's visitor sees on [$surface] (by default the place the request is for: /app is the web app, the
+     * API is the Android app, anything else the website): the live look, with today's event for their country if any.
+     */
+    public function current(Request $request, ?string $surface = null): AppearanceView
     {
-        return $this->current[$surface] ??= $this->lookFor(Visitor::country($request), $surface);
+        $surface ??= match (true) {
+            $request->is('app', 'app/*') => 'webapp',
+            $request->is('api/*') => 'mobile',
+            default => 'website',
+        };
+
+        $this->current ??= new \WeakMap;
+        $looks = $this->current[$request] ?? [];
+
+        if (! isset($looks[$surface])) {
+            $looks[$surface] = $this->lookFor(Visitor::country($request), $surface);
+            $this->current[$request] = $looks;
+        }
+
+        return $looks[$surface];
     }
 
     /** The look a visitor from [$country] sees on [$surface] at [$now]. */
@@ -193,7 +211,7 @@ trait ManagesEvents
     private function forgetEvents(): void
     {
         Cache::forget(self::EVENTS_CACHE_KEY);
-        $this->current = [];
+        $this->current = null;
     }
 
     /**
