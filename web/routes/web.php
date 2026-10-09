@@ -7,6 +7,7 @@ use App\Http\Controllers\SchedulePreviewController;
 use App\Http\Controllers\SecurityController;
 use App\Http\Controllers\SiteController;
 use App\Http\Controllers\SitemapController;
+use App\Http\Controllers\ThemeCssController;
 use Illuminate\Support\Facades\Route;
 
 // The public website.
@@ -16,6 +17,9 @@ Route::get('/terms', [SiteController::class, 'terms'])->name('terms');
 Route::get('/privacy', [SiteController::class, 'privacy'])->name('privacy');
 Route::get('/sitemap.xml', SitemapController::class)->name('sitemap');
 Route::get('/robots.txt', RobotsController::class)->name('robots');
+
+// The colours chosen in the admin, as CSS variables (linked by every page of the website and the web app).
+Route::get('/theme.css', ThemeCssController::class)->name('theme.css');
 
 // A brand picture chosen in the admin: its address never changes, so it can be cached for good.
 Route::get('/brand-assets/{asset}', BrandAssetController::class)->whereUuid('asset')->name('brand.asset');

@@ -66,6 +66,30 @@ paths:
                 properties:
                   data: {type: array, items: {$ref: "#/components/schemas/Plan"}}
         "429": {$ref: "#/components/responses/RateLimited"}
+  /appearance:
+    get:
+      tags: [Appearance]
+      summary: The look chosen in the admin, for the app to wear
+      description: |
+        The full palette the server resolved from the colours the admin chose (26 tokens, light and dark: the app never
+        derives colours itself), the logo, and the welcome banner meant for the Android app in the request's language
+        (English when that language has no words of its own; `null` when there is none to show today). Public. Send the
+        `ETag` back as `If-None-Match` to get `304` when nothing changed.
+      security: []
+      parameters: [{$ref: "#/components/parameters/AcceptLanguage"}]
+      responses:
+        "200":
+          description: The look.
+          headers:
+            ETag: {schema: {type: string}}
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/Appearance"}
+        "304": {description: The app already has this look.}
+        "429": {$ref: "#/components/responses/RateLimited"}
   /demo:
     get:
       tags: [Account]
@@ -805,6 +829,36 @@ components:
         used: {type: [integer, "null"]}
         remaining: {type: [integer, "null"]}
         unlimited: {type: boolean}
+    Appearance:
+      type: object
+      properties:
+        version: {type: integer, description: "0 for the factory look, then 1, 2, 3 for each published version."}
+        custom: {type: boolean, description: Whether any colour differs from the factory look.}
+        tokens:
+          type: object
+          properties:
+            light: {$ref: "#/components/schemas/Palette"}
+            dark: {$ref: "#/components/schemas/Palette"}
+        logo_url: {type: [string, "null"], format: uri}
+        logo_dark_url: {type: [string, "null"], format: uri, description: The logo for dark backgrounds.}
+        banner:
+          oneOf:
+            - type: "null"
+            - type: object
+              properties:
+                title: {type: string}
+                message: {type: string}
+                cta_label: {type: string}
+                cta_url: {type: [string, "null"], description: "A page of the site (starting with /) or an https address."}
+                tone: {type: string, enum: [gold, navy, sand, sky]}
+                dismissible: {type: boolean}
+                image_url: {type: [string, "null"], format: uri}
+                key: {type: string, description: Changes whenever the banner changes; remember a dismissal by it.}
+    Palette:
+      type: object
+      description: The theme engine's 26 colour tokens, each "#RRGGBB".
+      additionalProperties: {type: string, pattern: "^#[0-9A-F]{6}$"}
+      example: {primary: "#0B1F44", onPrimary: "#F7F3EA", accent: "#C9A25B", bg: "#F7F3EA"}
     Plan:
       type: object
       properties:

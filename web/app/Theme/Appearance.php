@@ -36,10 +36,13 @@ final class Appearance
 
     private const CACHE_KEY = 'appearance.live';
 
+    /** The live look, once read in this request. */
+    private ?AppearanceView $live = null;
+
     /** What everyone sees now: the newest published version, or the factory look. */
     public function live(): AppearanceView
     {
-        return AppearanceView::fromArray(Cache::rememberForever(self::CACHE_KEY, fn (): array => $this->build()->toArray()));
+        return $this->live ??= AppearanceView::fromArray(Cache::rememberForever(self::CACHE_KEY, fn (): array => $this->build()->toArray()));
     }
 
     /** The working copy the admin edits (made from what is live the first time). */
@@ -197,6 +200,7 @@ final class Appearance
         }
 
         Cache::forget(self::CACHE_KEY);
+        $this->live = null;
 
         return $row;
     }

@@ -19,12 +19,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
     <meta name="robots" content="noindex">
     <meta name="color-scheme" content="light dark">
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F7F3EA">
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#071634">
     <title>{{ $title ? $title.' · ' : '' }}{{ config('qistas.app_name') }}</title>
     <link rel="icon" type="image/svg+xml" href="{{ asset('brand/favicon.svg') }}">
     @include('partials.mode-script')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <x-brand-head />
 </head>
 <body>
     <x-demo-banner />
@@ -32,7 +31,7 @@
     <div class="auth-page">
         <aside class="auth-aside" aria-hidden="false">
             <span class="plumb" aria-hidden="true"></span>
-            <a class="auth-brand" href="{{ route('home') }}" aria-label="{{ config('qistas.app_name') }}"><x-logo :height="38" /></a>
+            <a class="auth-brand" href="{{ route('home') }}" aria-label="{{ config('qistas.app_name') }}"><x-logo :height="38" on-dark /></a>
             <div>
                 <p class="auth-tagline display">{{ __('The just balance.') }}</p>
                 <p class="auth-aside-note">{{ __('Customers, contracts and payments, kept to the cent.') }}</p>

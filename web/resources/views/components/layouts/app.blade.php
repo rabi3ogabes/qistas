@@ -12,12 +12,11 @@
     <meta name="robots" content="noindex">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="color-scheme" content="light dark">
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F7F3EA">
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#071634">
     <title>{{ $title }} · {{ config('qistas.app_name') }}</title>
     <link rel="icon" type="image/svg+xml" href="{{ asset('brand/favicon.svg') }}">
     @include('partials.mode-script')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <x-brand-head />
 </head>
 <body class="app-body">
     <x-demo-banner />

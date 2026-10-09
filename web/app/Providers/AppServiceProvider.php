@@ -15,6 +15,7 @@ use App\Settings\SettingsRegistry;
 use App\Support\AppFirstTranslationLoader;
 use App\Tenancy\CurrentTenant;
 use App\Tenancy\TenantScope;
+use App\Theme\Appearance;
 use Illuminate\Contracts\Validation\UncompromisedVerifier;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Client\Factory as HttpFactory;
@@ -43,6 +44,9 @@ class AppServiceProvider extends ServiceProvider
 
         // The settings features declare for the workspace owner (see App\Settings). One per application instance.
         $this->app->singleton(SettingsRegistry::class);
+
+        // One per request: the live look is read once however many parts of a page ask for it.
+        $this->app->scoped(Appearance::class);
 
         // What the admin's tools know about each feature. The enum answers; in the local environment a developer may
         // unlock some core switches to try the cockpit (QISTAS_PREVIEW_UNLOCK), and nowhere else.

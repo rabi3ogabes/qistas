@@ -36,7 +36,7 @@
 
     {{-- On a phone the menu is a panel that slides in from the right; this bar holds the button that opens it. --}}
     <header class="admin-bar">
-        <a class="admin-brand" href="{{ route('admin.home') }}" aria-label="{{ config('qistas.app_name') }}"><x-logo :height="26" /></a>
+        <a class="admin-brand" href="{{ route('admin.home') }}" aria-label="{{ config('qistas.app_name') }}"><x-logo :height="26" :brand="false" /></a>
         <a class="admin-menu-button" href="#admin-nav" aria-controls="admin-nav" aria-label="{{ __('Menu') }}"><x-icon name="menu" :size="22" /></a>
     </header>
 
@@ -53,7 +53,7 @@
 
             <div class="rail">
                 <div class="rail-head">
-                    <a class="rail-brand" href="{{ route('admin.home') }}" aria-label="{{ config('qistas.app_name') }}"><x-logo :height="30" /></a>
+                    <a class="rail-brand" href="{{ route('admin.home') }}" aria-label="{{ config('qistas.app_name') }}"><x-logo :height="30" :brand="false" /></a>
                     <span class="rail-badge">{{ __('Admin area') }}</span>
                     <a href="#main" class="rail-close" aria-label="{{ __('Close the menu') }}"><x-icon name="x" :size="20" /></a>
                 </div>
