@@ -38,6 +38,8 @@
                 <a href="{{ route('home') }}">{{ __('Website') }}</a>
             </nav>
 
+            <x-language-switcher />
+
             <details class="menu admin-menu">
                 <summary class="user-chip" aria-label="{{ __('Account') }}">
                     <span class="avatar" aria-hidden="true">{{ mb_strtoupper(mb_substr($user->name, 0, 1)) }}</span>
@@ -45,9 +47,6 @@
                     <x-icon name="chevronDown" :size="16" />
                 </summary>
                 <div class="menu-panel" role="menu">
-                    @foreach (\App\Support\Locale::options() as $code => $name)
-                        <a class="menu-item" role="menuitem" lang="{{ $code }}" href="{{ request()->fullUrlWithQuery(['lang' => $code]) }}" @if ($code === app()->getLocale()) aria-current="true" @endif>{{ $name }}</a>
-                    @endforeach
                     <button type="button" class="menu-item" data-q-mode-toggle>
                         <x-icon name="moon" class="i-moon" /><x-icon name="sun" class="i-sun" /> <span>{{ __('Switch between light and dark') }}</span>
                     </button>

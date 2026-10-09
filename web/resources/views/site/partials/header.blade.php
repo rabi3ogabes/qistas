@@ -16,20 +16,7 @@
         </nav>
 
         <div class="site-actions">
-            <details class="menu hide-sm">
-                <summary class="lang-trigger" aria-label="{{ __('Language') }}">
-                    <x-icon name="globe" :size="18" />
-                    <span>{{ \App\Support\Locale::options()[app()->getLocale()] }}</span>
-                    <x-icon name="chevronDown" :size="14" />
-                </summary>
-                <div class="menu-panel" role="menu">
-                    @foreach (\App\Support\Locale::options() as $code => $name)
-                        <a class="menu-item" role="menuitem" lang="{{ $code }}" hreflang="{{ $code }}"
-                           href="{{ request()->fullUrlWithQuery(['lang' => $code]) }}"
-                           @if ($code === app()->getLocale()) aria-current="true" @endif>{{ $name }}</a>
-                    @endforeach
-                </div>
-            </details>
+            <x-language-switcher />
 
             <button type="button" class="icon-btn hide-sm" data-q-mode-toggle aria-label="{{ __('Switch between light and dark') }}">
                 <x-icon name="moon" class="i-moon" /><x-icon name="sun" class="i-sun" />
@@ -56,12 +43,6 @@
                     @guest
                         <a class="menu-item" role="menuitem" href="{{ route('login') }}">{{ __('Sign in') }}</a>
                     @endguest
-                    <hr class="menu-rule">
-                    @foreach (\App\Support\Locale::options() as $code => $name)
-                        <a class="menu-item" role="menuitem" lang="{{ $code }}" hreflang="{{ $code }}"
-                           href="{{ request()->fullUrlWithQuery(['lang' => $code]) }}"
-                           @if ($code === app()->getLocale()) aria-current="true" @endif>{{ $name }}</a>
-                    @endforeach
                     <hr class="menu-rule">
                     <button type="button" class="menu-item" data-q-mode-toggle>
                         <x-icon name="moon" class="i-moon" /><x-icon name="sun" class="i-sun" />

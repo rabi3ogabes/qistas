@@ -41,6 +41,7 @@
         </aside>
 
         <main class="auth-main">
+            <div class="auth-lang"><x-language-switcher /></div>
             <div @class(['auth-card', 'is-wide' => $wide])>
                 <a class="auth-brand" href="{{ route('home') }}" aria-label="{{ config('qistas.app_name') }}"><x-logo :height="34" /></a>
 

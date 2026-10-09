@@ -1,0 +1,79 @@
+/*
+ * The language button. A pill with a hairline of gold, the current language in its own script, and a short calm list
+ * that opens beneath it (or above it, at the foot of the sidebar). Logical properties throughout, so it mirrors in
+ * Arabic and Urdu without a second stylesheet.
+ */
+
+@layer components {
+    .lang { position: relative; flex: none; }
+
+    .lang > summary { list-style: none; }
+    .lang > summary::-webkit-details-marker { display: none; }
+
+    .lang-btn {
+        display: inline-flex; align-items: center; gap: .5rem;
+        min-block-size: 2.5rem; padding-inline: .75rem .875rem;
+        background: var(--q-surface); color: var(--q-ink);
+        border: 1px solid color-mix(in srgb, var(--q-accent) 42%, var(--q-line)); border-radius: 999px;
+        box-shadow: var(--q-shadow-1);
+        font-size: .875rem; font-weight: 600; line-height: 1; cursor: pointer;
+        transition: border-color var(--q-t-fast) var(--q-ease-out), background-color var(--q-t-fast) var(--q-ease-out), box-shadow var(--q-t-fast) var(--q-ease-out);
+    }
+    .lang-globe { color: var(--q-accent-text); }
+    .lang-chevron { color: var(--q-ink-muted); transition: rotate var(--q-t-base) var(--q-ease-out); }
+    .lang[open] > .lang-btn { border-color: var(--q-accent); box-shadow: var(--q-shadow-2); }
+    .lang[open] .lang-chevron { rotate: 180deg; }
+
+    /* On a phone the pill carries the short code, so it never crowds a header. */
+    .lang-name { display: none; }
+    .lang-code { display: inline; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+    @media (min-width: 640px) {
+        .lang-name { display: inline; }
+        .lang-code { display: none; }
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .lang-btn:hover { border-color: var(--q-accent); }
+    }
+    @media (pointer: coarse) { .lang-btn { min-block-size: 2.75rem; } }
+
+    .lang-panel {
+        position: absolute; inset-inline-end: 0; inset-block-start: calc(100% + .5rem); z-index: 50;
+        inline-size: max-content; min-inline-size: 13.5rem; max-inline-size: calc(100vw - 2rem);
+        padding: .5rem; background: var(--q-surface);
+        border: 1px solid var(--q-line); border-radius: var(--q-r-lg); box-shadow: var(--q-shadow-2);
+        transform-origin: top; animation: lang-pop var(--q-t-base) var(--q-ease-out);
+    }
+    .lang[data-placement="up"] .lang-panel { inset-block-start: auto; inset-block-end: calc(100% + .5rem); transform-origin: bottom; }
+    .lang[data-placement="start"] .lang-panel { inset-inline-end: auto; inset-inline-start: 0; }
+
+    @keyframes lang-pop { from { opacity: 0; scale: .97; translate: 0 -.25rem; } }
+    @media (prefers-reduced-motion: reduce) {
+        .lang-panel { animation: none; }
+        .lang-chevron, .lang-btn { transition: none; }
+    }
+
+    .lang-title { margin: 0; padding: .25rem .75rem .5rem; color: var(--q-ink-muted); font-size: .8125rem; font-weight: 500; }
+    .lang-list { display: grid; gap: .125rem; margin: 0; padding: 0; list-style: none; }
+
+    .lang-option {
+        display: flex; align-items: center; gap: .75rem;
+        min-block-size: 2.75rem; padding: .5rem .75rem; border-radius: var(--q-r-md);
+        color: var(--q-ink); text-decoration: none;
+        transition: background-color var(--q-t-fast) var(--q-ease-out);
+    }
+    .lang-option-name { flex: 1; font-size: 1.0625rem; font-weight: 500; line-height: 1.3; }
+    .lang-option-code { color: var(--q-ink-muted); font-size: .75rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+    .lang-check { color: var(--q-accent-text); }
+    .lang-option[aria-current="true"] { background: var(--q-tint-sand); }
+    .lang-option[aria-current="true"] .lang-option-name { font-weight: 600; }
+    @media (hover: hover) and (pointer: fine) { .lang-option:hover { background: var(--q-surface-alt); } .lang-option[aria-current="true"]:hover { background: var(--q-tint-sand); } }
+
+    /* Where it sits */
+    .auth-lang { position: absolute; inset-block-start: max(1rem, env(safe-area-inset-top)); inset-inline-end: max(1.25rem, env(safe-area-inset-right)); z-index: 5; }
+    .app-top .lang { margin-inline-start: auto; }
+    .app-side-foot .lang-btn { inline-size: 100%; justify-content: space-between; }
+    .app-side-foot .lang-name, .app-side-foot .lang-code { margin-inline-end: auto; }
+    .app-side-foot .lang-name { display: inline; }
+    .app-side-foot .lang-code { display: none; }
+}

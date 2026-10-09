@@ -19,6 +19,7 @@
 @import './app-shell.css';
 @import './admin.css';
 @import './demo.css';
+@import './language.css';
 
 @source '../views';
 @source '../js';

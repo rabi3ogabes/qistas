@@ -32,8 +32,6 @@
     .site-actions { display: flex; align-items: center; gap: .5rem; margin-inline-start: auto; }
     .site-actions .icon-btn { display: inline-grid; place-items: center; width: 2.5rem; height: 2.5rem; border: 0; border-radius: var(--q-r-sm); background: none; color: var(--q-ink); cursor: pointer; }
     @media (hover: hover) and (pointer: fine) { .site-actions .icon-btn:hover { background: var(--q-surface-alt); } }
-    .lang-trigger { display: inline-flex; align-items: center; gap: .375rem; height: 2.5rem; padding-inline: .625rem; border-radius: var(--q-r-sm); font-size: .875rem; font-weight: 500; }
-    @media (hover: hover) and (pointer: fine) { .lang-trigger:hover { background: var(--q-surface-alt); } }
     .hide-sm, .hide-xs { display: none; }
     @media (min-width: 640px) { .hide-xs { display: inline-flex; } }
     .show-sm { display: inline-grid; }

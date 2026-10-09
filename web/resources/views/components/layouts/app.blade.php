@@ -57,6 +57,8 @@
                     <a class="btn btn-gold btn-block btn-sm" href="{{ url('/app/billing') }}">{{ __('Upgrade your plan') }}</a>
                 @endif
 
+                <x-language-switcher placement="up" />
+
                 <details class="menu menu-up">
                     <summary class="user-chip">
                         <span class="avatar" aria-hidden="true">{{ mb_strtoupper(mb_substr($user->name, 0, 1)) }}</span>
@@ -71,9 +73,6 @@
                         @if ($user->isPlatformAdmin())
                             <a class="menu-item" role="menuitem" href="{{ route('admin.home') }}"><x-icon name="sliders" :size="18" /> {{ __('Admin area') }}</a>
                         @endif
-                        @foreach (\App\Support\Locale::options() as $code => $name)
-                            <a class="menu-item" role="menuitem" lang="{{ $code }}" href="{{ request()->fullUrlWithQuery(['lang' => $code]) }}" @if ($code === app()->getLocale()) aria-current="true" @endif>{{ $name }}</a>
-                        @endforeach
                         <button type="button" class="menu-item" data-q-mode-toggle>
                             <x-icon name="moon" class="i-moon" /><x-icon name="sun" class="i-sun" /> <span>{{ __('Switch between light and dark') }}</span>
                         </button>
@@ -91,6 +90,7 @@
                 <p class="workspace-name">{{ $tenant->name }}</p>
                 <span @class(['badge', 'badge-pro' => ! $isFree])>{{ $plan->name }}</span>
             </div>
+            <x-language-switcher />
         </header>
 
         <main id="main" class="app-main">
@@ -128,9 +128,6 @@
                     @if ($isFree)
                         <a class="menu-item menu-cta" role="menuitem" href="{{ url('/app/billing') }}">{{ __('Upgrade your plan') }}</a>
                     @endif
-                    @foreach (\App\Support\Locale::options() as $code => $name)
-                        <a class="menu-item" role="menuitem" lang="{{ $code }}" href="{{ request()->fullUrlWithQuery(['lang' => $code]) }}" @if ($code === app()->getLocale()) aria-current="true" @endif>{{ $name }}</a>
-                    @endforeach
                     <button type="button" class="menu-item" data-q-mode-toggle><x-icon name="moon" class="i-moon" /><x-icon name="sun" class="i-sun" /> <span>{{ __('Switch between light and dark') }}</span></button>
                     <form method="POST" action="{{ route('logout') }}">@csrf
                         <button class="menu-item" role="menuitem"><x-icon name="x" :size="18" /> {{ __('Sign out') }}</button>
