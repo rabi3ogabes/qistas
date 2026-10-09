@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 // owner_user_id and status are set by trusted code only.
-#[Fillable(['name', 'slug', 'country', 'currency'])]
+#[Fillable(['name', 'slug', 'country', 'currency', 'timezone'])]
 class Tenant extends Model
 {
     /** @use HasFactory<TenantFactory> */
@@ -29,6 +29,27 @@ class Tenant extends Model
     protected function casts(): array
     {
         return ['is_test' => 'boolean', 'is_demo' => 'boolean'];
+    }
+
+    /**
+     * The workspace's own time zone: the one it chose, else its country's, else UTC. A stored name that is not a real
+     * zone is ignored rather than trusted.
+     */
+    public function localTimezone(): string
+    {
+        $stored = (string) $this->getAttribute('timezone');
+
+        if ($stored !== '' && in_array($stored, \DateTimeZone::listIdentifiers(), true)) {
+            return $stored;
+        }
+
+        return (string) config('qistas.timezones.'.strtoupper((string) $this->country), 'UTC');
+    }
+
+    /** [$moment] on the workspace's own clock. */
+    public function localTime(CarbonInterface $moment): CarbonInterface
+    {
+        return $moment->setTimezone($this->localTimezone());
     }
 
     /** @return BelongsToMany<User, $this> */

@@ -35,6 +35,7 @@ final class RegisterTenantOwner
                 'slug' => $this->uniqueSlug($data['business_name']),
                 'country' => $country,
                 'currency' => config("qistas.countries.{$country}", config('qistas.currency_default')),
+                'timezone' => config("qistas.timezones.{$country}", 'UTC'),
             ]);
             $tenant->owner_user_id = $user->id;
             $tenant->save();

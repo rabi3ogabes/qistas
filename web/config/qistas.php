@@ -42,6 +42,22 @@ return [
         'CA' => 'CAD', 'AU' => 'AUD', 'NG' => 'NGN', 'KE' => 'KES', 'ZA' => 'ZAR',
     ],
 
+    /*
+    | The time zone a new workspace starts with, by country (IANA names). The owner can change it later; a workspace
+    | with none stored uses this too. Every country above must be here (a test checks), and anything else is UTC.
+    */
+    'timezones' => [
+        'SA' => 'Asia/Riyadh', 'AE' => 'Asia/Dubai', 'QA' => 'Asia/Qatar', 'KW' => 'Asia/Kuwait', 'BH' => 'Asia/Bahrain',
+        'OM' => 'Asia/Muscat', 'EG' => 'Africa/Cairo', 'JO' => 'Asia/Amman', 'LB' => 'Asia/Beirut', 'IQ' => 'Asia/Baghdad',
+        'MA' => 'Africa/Casablanca', 'DZ' => 'Africa/Algiers', 'TN' => 'Africa/Tunis', 'LY' => 'Africa/Tripoli',
+        'SD' => 'Africa/Khartoum', 'YE' => 'Asia/Aden', 'SY' => 'Asia/Damascus', 'MR' => 'Africa/Nouakchott',
+        'TR' => 'Europe/Istanbul', 'PK' => 'Asia/Karachi', 'IN' => 'Asia/Kolkata', 'BD' => 'Asia/Dhaka',
+        'MY' => 'Asia/Kuala_Lumpur', 'ID' => 'Asia/Jakarta', 'FR' => 'Europe/Paris', 'ES' => 'Europe/Madrid',
+        'DE' => 'Europe/Berlin', 'IT' => 'Europe/Rome', 'GB' => 'Europe/London', 'US' => 'America/New_York',
+        'CA' => 'America/Toronto', 'AU' => 'Australia/Sydney', 'NG' => 'Africa/Lagos', 'KE' => 'Africa/Nairobi',
+        'ZA' => 'Africa/Johannesburg',
+    ],
+
     'billing' => [
         // fake: instant local checkout for development and tests. stripe: real Stripe Checkout.
         'gateway' => env('BILLING_GATEWAY', 'fake'),
