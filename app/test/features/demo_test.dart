@@ -76,7 +76,8 @@ void main() {
       expect(server.calls('POST /demo/admin'), 1);
       expect(jsonDecode(server.requestsTo('POST /demo/admin').single.data as String), containsPair('device_name', isA<String>()));
       expect(find.text('Dashboard'), findsWidgets);
-      expect(find.textContaining('Demo workspace', findRichText: true), findsOneWidget);
+      expect(find.textContaining('Demo workspace', findRichText: true), findsNothing, reason: 'the strip carries no explanation');
+      expect(find.textContaining('Sample data, cleared', findRichText: true), findsNothing);
       expect(find.text('Create my free account'), findsOneWidget);
     });
 
@@ -91,7 +92,8 @@ void main() {
 
       expect(server.calls('POST /demo/user'), 1);
       expect(find.text('Free'), findsWidgets);
-      expect(find.textContaining('Demo workspace', findRichText: true), findsOneWidget);
+      expect(find.textContaining('Demo workspace', findRichText: true), findsNothing);
+      expect(find.text('Create my free account'), findsOneWidget);
     });
 
     testWidgets('one press makes one account, however many fingers', (tester) async {
@@ -162,10 +164,10 @@ void main() {
       expect(find.text('Create your free account'), findsOneWidget);
     });
 
-    testWidgets('a customer’s own workspace is never called a demo', (tester) async {
+    testWidgets('a customer’s own workspace is never offered the demo’s way out', (tester) async {
       await pumpApp(tester, workspaceServer());
 
-      expect(find.textContaining('Demo workspace', findRichText: true), findsNothing);
+      expect(find.text('Create my free account'), findsNothing);
       expect(Account.fromJson(accountJson()).isDemo, isFalse);
     });
   });

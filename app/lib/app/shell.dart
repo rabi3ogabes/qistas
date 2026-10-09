@@ -153,27 +153,17 @@ class _Notices extends ConsumerWidget {
         if (account != null && account.isDemo)
           strip(
             color: c.tintSand,
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 4,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Text.rich(
-                  TextSpan(children: [
-                    TextSpan(text: context.t('Demo workspace'), style: const TextStyle(fontWeight: FontWeight.w700)),
-                    TextSpan(text: '  ${context.t('Sample data, cleared a few hours after you started. Nothing here is real.')}'),
-                  ]),
-                  style: small?.copyWith(color: c.ink),
-                ),
-                TextButton(
-                  onPressed: () async {
-                    final router = GoRouter.of(context);
-                    await ref.read(authProvider.notifier).signOut();
-                    router.go('/register');
-                  },
-                  child: Text(context.t('Create my free account')),
-                ),
-              ],
+            // Only the way to a real account: the demo says what it is on the way in, so the strip does not repeat it.
+            child: Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: TextButton(
+                onPressed: () async {
+                  final router = GoRouter.of(context);
+                  await ref.read(authProvider.notifier).signOut();
+                  router.go('/register');
+                },
+                child: Text(context.t('Create my free account')),
+              ),
             ),
           ),
         if (account != null && account.isTest)
