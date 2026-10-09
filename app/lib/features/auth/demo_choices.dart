@@ -94,6 +94,7 @@ class _Choice extends StatelessWidget {
       button: true,
       enabled: !disabled,
       label: '${persona.label}. ${persona.description}',
+      onTap: disabled ? null : onPressed,
       excludeSemantics: true,
       child: Material(
         color: highlighted ? c.tintSand : c.surface,

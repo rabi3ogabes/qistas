@@ -6,3 +6,21 @@ const Map<String, String> languageNames = {
   'es': 'Español',
   'ur': 'اردو',
 };
+
+/// A word of welcome in each language, shown on its card in the language picker.
+const Map<String, String> languageGreetings = {
+  'en': 'Welcome',
+  'ar': 'أهلًا بك',
+  'fr': 'Bienvenue',
+  'es': 'Bienvenido',
+  'ur': 'خوش آمدید',
+};
+
+/// The language's mark on the small round button: its first letters, or its first letter in its own script.
+const Map<String, String> languageMonograms = {
+  'en': 'En',
+  'ar': 'ع',
+  'fr': 'Fr',
+  'es': 'Es',
+  'ur': 'ار',
+};

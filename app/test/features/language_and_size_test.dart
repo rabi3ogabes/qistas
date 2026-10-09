@@ -42,7 +42,10 @@ void main() {
       await pumpApp(tester, workspaceServer());
 
       await openSettings(tester);
-      await tapText(tester, 'Français');
+      await tester.tap(find.byKey(const ValueKey('settings-language')));
+      await settle(tester);
+      await tester.tap(find.byKey(const ValueKey('language-fr')));
+      await settle(tester);
       expect(find.text('Tableau de bord'), findsWidgets);
 
       final saved = await SharedPreferences.getInstance();

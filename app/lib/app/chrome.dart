@@ -130,6 +130,8 @@ class _NavItem extends StatelessWidget {
       button: true,
       selected: selected,
       label: destination.label,
+      // Hiding the ink's semantics hides its tap too: the item carries its own, so a screen reader can open it.
+      onTap: onTap,
       excludeSemantics: true,
       child: InkResponse(
         onTap: onTap,
@@ -176,6 +178,7 @@ class _AddButton extends StatelessWidget {
         child: Semantics(
           button: true,
           label: context.t('Quick actions'),
+          onTap: onPressed,
           excludeSemantics: true,
           child: GestureDetector(
             onTap: onPressed,

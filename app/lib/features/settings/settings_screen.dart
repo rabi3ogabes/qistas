@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../app/language_button.dart';
 import '../../app/providers.dart';
 import '../../app/shell.dart';
 import '../../core/config.dart';
@@ -67,23 +68,22 @@ class SettingsScreen extends ConsumerWidget {
               child: ListTile(leading: const Icon(Icons.tune_rounded), title: Text(context.t('Instalment tools')), trailing: const Icon(Icons.chevron_right), onTap: () => context.push('/tools')),
             ),
           ],
-          QSectionTitle(context.t('Language')),
+          QSectionTitle(context.t('Preferences')),
           QCard(
             padding: const EdgeInsets.symmetric(vertical: 4),
-            child: RadioGroup<String>(
-              groupValue: language,
-              onChanged: (value) {
-                if (value != null) ref.read(localeProvider.notifier).choose(value);
-              },
-              child: Column(
+            child: ListTile(
+              key: const ValueKey('settings-language'),
+              leading: const Icon(Icons.translate_rounded),
+              title: Text(context.t('Language')),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  for (final code in AppConfig.locales)
-                    RadioListTile<String>(
-                      value: code,
-                      title: Text(languageNames[code] ?? code),
-                    ),
+                  Text(languageNames[language] ?? language, style: text.bodyMedium?.copyWith(color: c.inkMuted)),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.chevron_right),
                 ],
               ),
+              onTap: () => showLanguageSheet(context),
             ),
           ),
           QSectionTitle(context.t('Appearance')),
