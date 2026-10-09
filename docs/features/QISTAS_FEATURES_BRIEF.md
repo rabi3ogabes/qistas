@@ -1,7 +1,7 @@
 # Qistas Feature Programme: Build Brief
 
 > **Audience:** Claude (Claude Code), building inside the existing repository.
-> **Owner:** the Qistas product owner. **Status:** Milestone M0 (Foundation) is built and live (see [m0-foundation.md](m0-foundation.md)); the rest is still to build, in the order of Part 9.
+> **Owner:** the Qistas product owner. **Status:** Milestone M0 (Foundation) is built and live (see [m0-foundation.md](m0-foundation.md)); the rest is still to build, in the order of Part 9. A competitor review and the road to the app stores is in [COMPETITOR_AND_STORE_PLAN.md](COMPETITOR_AND_STORE_PLAN.md).
 > **Goal:** turn Qistas from an instalment *tracker* into the app that **collects the money for the owner**, so that a business owner chooses it over the alternatives, pays the membership every month, and never wants to leave.
 > **One rule above all others:** *every feature has an admin on/off switch* (Part 3). A feature that cannot be switched off from the admin console is not finished.
 
