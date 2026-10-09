@@ -1,7 +1,5 @@
-{{-- Across the top of a demo visitor's workspace: it is sample data that goes away, and a real account is one press away. --}}
-<div class="test-banner" role="note">
-    <strong>{{ __('Demo workspace') }}</strong>
-    <span class="test-banner-note">{{ __('Sample data, cleared a few hours after you started. Nothing here is real.') }}</span>
+{{-- Across the top of a demo visitor's workspace: a real account is one press away. It carries no explanation on purpose: the demo says what it is on the way in. --}}
+<div class="test-banner test-banner-end">
     <form method="POST" action="{{ route('demo.leave') }}">
         @csrf
         <button class="btn btn-gold btn-sm">{{ __('Create my free account') }}</button>

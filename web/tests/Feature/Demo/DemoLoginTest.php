@@ -117,19 +117,22 @@ describe('with demo sign-in on', function () {
         expect(AuditLog::where('action', 'demo.started')->exists())->toBeTrue();
     });
 
-    it('marks the workspace as a demo, with a way to a real account', function () {
+    it('gives a demo visitor a way to a real account, without a banner explaining the demo', function () {
         $this->post('/demo/admin');
 
         $this->get('/app')->assertOk()
-            ->assertSee('Demo workspace')
             ->assertSee(route('demo.leave'), false)
-            ->assertSee('Create my free account');
+            ->assertSee('Create my free account')
+            ->assertDontSee('Demo workspace')
+            ->assertDontSee('Sample data, cleared a few hours after you started');
     });
 
-    it('does not mark a customer’s own workspace as a demo', function () {
+    it('does not offer a customer’s own workspace the demo’s way out', function () {
         [$owner] = owner();
 
-        $this->actingAs($owner)->get('/app')->assertOk()->assertDontSee('Demo workspace');
+        $this->actingAs($owner)->get('/app')->assertOk()
+            ->assertDontSee(route('demo.leave'), false)
+            ->assertDontSee('Create my free account');
     });
 
     it('lets a demo visitor leave for the sign-up page, deleting what they made', function () {

@@ -434,6 +434,12 @@
     gap: .5rem;
 }
 
+/* The demo's strip holds only its button, at the end of the line. */
+.test-banner-end {
+    justify-content: flex-end;
+    padding-block: .375rem;
+}
+
 /* ---------- Feature control ---------- */
 
 .fc {
