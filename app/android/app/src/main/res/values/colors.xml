@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#0B1F44</color>
+    <!-- The canvas of the app (QistasColors.bg), so the launch screen hands over to the app without a flash. -->
+    <color name="launch_canvas">#F7F3EA</color>
+</resources>

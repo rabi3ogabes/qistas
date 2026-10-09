@@ -3,7 +3,7 @@ description: "Qistas: customers, contracts and payments for instalment businesse
 publish_to: 'none'
 
 # build-name+build-number. CI overrides the build number with the run number.
-version: 1.2.1+4
+version: 1.3.0+5
 
 environment:
   sdk: ^3.11.0
@@ -69,12 +69,19 @@ flutter:
         - asset: assets/fonts/NotoNastaliqUrdu-SemiBold.ttf
           weight: 600
 
-# `dart run flutter_launcher_icons` writes the Android, iOS, web and Windows icons from the Qistas mark.
+# `python tool/icons.py` draws the layers, then `dart run flutter_launcher_icons` writes the Android, iOS and web icons:
+# on Android an adaptive icon (navy background, the mark in front) with a single-colour layer for themed icons.
 flutter_launcher_icons:
-  android: true
+  android: "ic_launcher"
   ios: true
   image_path: assets/icon/app_icon.png
   remove_alpha_ios: true
+  min_sdk_android: 21
+  adaptive_icon_background: "#0B1F44"
+  adaptive_icon_foreground: assets/icon/foreground.png
+  adaptive_icon_monochrome: assets/icon/monochrome.png
+  # The layers already keep the mark inside the launcher's safe zone (tool/icons.py), so no extra inset.
+  adaptive_icon_foreground_inset: 0
   web:
     generate: true
     image_path: assets/icon/app_icon.png

@@ -1,12 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Modify this file to customize your launch splash screen -->
+<!-- The launch screen, drawn by Android before the app's first frame: the app's own canvas colour (ivory, or navy in
+     dark mode) with the mark where the app's splash puts it, a little above the middle, so nothing jumps. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@android:color/white" />
-
-    <!-- You can insert your own image assets here -->
-    <!-- <item>
-        <bitmap
-            android:gravity="center"
-            android:src="@mipmap/launch_image" />
-    </item> -->
+    <item android:drawable="@color/launch_canvas" />
+    <item android:bottom="58dp">
+        <bitmap android:gravity="center" android:src="@drawable/launch_mark" />
+    </item>
 </layer-list>
