@@ -118,6 +118,7 @@ Everything else has a safe default (production mode, secure cookies, trusted pro
 | `FILESYSTEM_DISK` | `local` | Set `s3` to keep customers' files (ID photos, proofs of payment, PDFs) in an S3-compatible bucket. Without it they go to a private folder on the server's own disk, which is **not durable on Vercel** (the disk is thrown away). Nothing stores a customer's file yet, so this is for when the first feature that does is switched on. |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`, `AWS_BUCKET` | none | The bucket's keys, for `FILESYSTEM_DISK=s3`. Supabase Storage works: create a **private** bucket and use its S3 keys. |
 | `AWS_ENDPOINT`, `AWS_USE_PATH_STYLE_ENDPOINT` | none, `false` | For an S3-compatible service other than Amazon (Supabase: `https://<project>.supabase.co/storage/v1/s3` and `true`). |
+| `QISTAS_GEO_HEADER` | none | The header the CDN puts the visitor's country in, so an event theme meant for some countries (Appearance → Seasonal events) reaches visitors who are not signed in. On Vercel: `X-Vercel-IP-Country`; behind Cloudflare: `CF-IPCountry`. Without it, a visitor's country comes from their browser's language region (ar-SA is Saudi Arabia), and a signed-in person always counts as their business's country. Set it only to a header the CDN itself writes on every request. |
 
 > **Containers on Vercel.** This uses Vercel's container Functions (`web/Dockerfile.vercel`). The same image runs on
 > Render, Fly.io, Railway, Google Cloud Run or any server with Docker: give it the same two variables.
