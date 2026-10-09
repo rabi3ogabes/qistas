@@ -92,6 +92,21 @@ class QistasApi {
 
   Future<Dashboard> dashboard() async => Dashboard.fromJson(_data(await _client.get('/dashboard')));
 
+  // -------------------------------------------------------------------- tools
+
+  /// What the owner can set for this workspace, and whether this person may change it.
+  Future<({List<Tool> tools, bool canEdit})> tools() async {
+    final body = await _client.get('/settings/tools');
+    final meta = body['meta'];
+
+    return (
+      tools: [for (final tool in (body['data'] as List<dynamic>? ?? const [])) Tool.fromJson(tool as Map<String, dynamic>)],
+      canEdit: meta is Map && meta['can_edit'] == true,
+    );
+  }
+
+  Future<Tool> saveTool(String key, Object? value) async => Tool.fromJson(_data(await _client.put('/settings/tools/${Uri.encodeComponent(key)}', body: {'value': value})));
+
   // ---------------------------------------------------------------- customers
 
   Future<Paged<Customer>> customers({String query = '', int page = 1}) async => Paged.fromJson(

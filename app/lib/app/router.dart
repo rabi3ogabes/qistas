@@ -17,6 +17,7 @@ import '../features/intro/splash_screen.dart';
 import '../features/payments/payments_screen.dart';
 import '../features/search/search_screen.dart';
 import '../features/settings/settings_screen.dart';
+import '../features/settings/tools_screen.dart';
 import 'providers.dart';
 import 'shell.dart';
 
@@ -62,6 +63,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
       GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),
       GoRoute(path: '/plans', builder: (_, _) => const PlansScreen()),
+      GoRoute(path: '/tools', builder: (_, _) => const ToolsScreen()),
       GoRoute(path: '/search', builder: (_, _) => const SearchScreen()),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => AppShell(shell: shell),

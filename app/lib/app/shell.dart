@@ -11,6 +11,7 @@ import '../core/l10n/translations.dart';
 import '../data/models.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import 'chrome.dart';
+import 'language_button.dart';
 import 'providers.dart';
 
 /// How long the app may sit in the background before coming back to it refreshes what it shows.
@@ -220,7 +221,7 @@ class SectionScaffold extends StatelessWidget {
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(
           title: Text(title),
-          actions: [...actions, const SearchButton(), if (showAccount) const AccountButton(), const SizedBox(width: 8)],
+          actions: [...actions, const Padding(padding: EdgeInsetsDirectional.only(end: 4), child: LanguageButton(compact: true)), const SearchButton(), if (showAccount) const AccountButton(), const SizedBox(width: 8)],
         ),
         body: ContentColumn(padding: EdgeInsets.zero, child: body),
         floatingActionButton: floating,

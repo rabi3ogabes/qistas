@@ -92,6 +92,40 @@ void main() {
     await snapshot(tester, 'reminder');
   });
 
+  picture('language sheet', (tester) async {
+    await pumpApp(tester, workspaceServer(), realFonts: true);
+    await tapTooltip(tester, 'Language');
+    await snapshot(tester, 'language-sheet');
+  });
+
+  picture('language sheet in Arabic', (tester) async {
+    await pumpApp(tester, workspaceServer(), realFonts: true, language: 'ar');
+    await tapTooltip(tester, 'اللغة');
+    await snapshot(tester, 'language-sheet-ar');
+  });
+
+  picture('instalment tools', (tester) async {
+    final tools = {
+      'data': [
+        {'key': 'reminders.enabled', 'feature': 'reminders', 'type': 'switch', 'label': 'Send reminders', 'help': 'Remind customers before an instalment is due.', 'value': true},
+        {'key': 'reports.window_days', 'feature': 'advanced_reports', 'type': 'int', 'label': 'Report window', 'help': 'How many days a report looks back.', 'value': 30},
+        {
+          'key': 'reports.number_style', 'feature': 'advanced_reports', 'type': 'select', 'label': 'Number style', 'help': 'How amounts are written in reports.', 'value': 'western',
+          'options': [
+            {'value': 'western', 'label': '1,234'},
+            {'value': 'eastern', 'label': '١٬٢٣٤'},
+          ],
+        },
+      ],
+      'meta': {'can_edit': true},
+    };
+    await pumpApp(tester, workspaceServer(routes: {'GET /settings/tools': always(json(200, tools))}), realFonts: true, size: tall);
+    await openSettings(tester);
+    await snapshot(tester, 'settings-with-tools');
+    await tapText(tester, 'Instalment tools');
+    await snapshot(tester, 'tools');
+  });
+
   picture('payment recorded', (tester) async {
     final server = workspaceServer(routes: {'POST /contracts/k1/payments': always(json(201, {'data': lineJson()}))});
     await pumpApp(tester, server, realFonts: true);

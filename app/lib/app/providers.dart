@@ -85,6 +85,7 @@ final apiClientProvider = Provider<ApiClient>((ref) => ApiClient(
       tokens: ref.watch(tokenStoreProvider),
       language: () => ref.read(localeProvider),
       onUnauthorized: () => ref.read(authProvider.notifier).sessionEnded(),
+      onFeatureUnavailable: () => ref.read(authProvider.notifier).refresh(),
       adapter: ref.watch(httpAdapterProvider),
     ));
 

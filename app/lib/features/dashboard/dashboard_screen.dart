@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/chrome.dart';
+import '../../app/language_button.dart';
 import '../../app/providers.dart';
 import '../../core/design/luxe.dart';
 import '../../core/design/tokens.dart';
@@ -127,6 +128,7 @@ class _Greeting extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: 8),
+          const LanguageButton(compact: true),
           const SearchButton(),
           const AccountButton(),
         ],

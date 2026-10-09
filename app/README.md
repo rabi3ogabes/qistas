@@ -33,6 +33,12 @@ The app is built around one question, "who do I need to deal with today?", and k
 - **Fresh when you come back.** After more than two minutes in the background the figures are fetched again.
 - **Right-to-left done properly.** Arabic and Urdu mirror the whole layout, keep amounts and numbers readable, and use
   wording that reads correctly for any count.
+- **A language button of its own.** A small pill with a globe and the current language sits on every screen, sign-in
+  included, and opens a list of the five languages each in its own script. It is not a row in a menu; Settings keeps
+  its plain list as well.
+- **Instalment tools.** Settings shows an *Instalment tools* page when the platform has tools switched on for the
+  workspace. The server describes each tool (a switch, a number or a choice), so a new one needs no new screen. The
+  owner and managers change them; everyone else can look.
 
 ## Run it
 
@@ -79,6 +85,10 @@ Things worth knowing:
   translation of a sentence where there is one and fails on any that is missing, and `test/l10n` checks the same.
 - **Plan limits.** The app never decides by plan name. It reads the entitlements the server sends, shows the limit
   *before* a form that would be refused, and turns every `402` into the upgrade sheet.
+- **Platform switches.** Each entitlement carries a `status`: `on`, `plan_locked` (shown locked, with the way to
+  upgrade) or `platform_off` (the platform has it switched off: shown nowhere, nothing to buy). A `403
+  feature_unavailable` makes the app read the account again, at most once in ten seconds. A server that sends no
+  `status` hides nothing.
 - **Store rule.** On iOS and Android there is no purchase link: Pro is activated on the website and shows up in the
   app by itself. Only the web build offers a link to the billing page.
 - **Payments are safe to retry.** Each attempt carries an `Idempotency-Key`; a double tap or a dropped connection

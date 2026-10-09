@@ -8,18 +8,11 @@ import '../../app/shell.dart';
 import '../../core/config.dart';
 import '../../core/design/tokens.dart';
 import '../../core/design/widgets.dart';
+import '../../core/l10n/languages.dart';
 import '../../core/l10n/translations.dart';
 import '../../data/models.dart';
 import '../billing/upgrade_sheet.dart';
-
-/// Each language written in itself, so a person can always find their own.
-const Map<String, String> languageNames = {
-  'en': 'English',
-  'ar': 'العربية',
-  'fr': 'Français',
-  'es': 'Español',
-  'ur': 'اردو',
-};
+import 'tools_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -55,6 +48,8 @@ class SettingsScreen extends ConsumerWidget {
     final account = ref.watch(accountProvider);
     final language = ref.watch(localeProvider);
     final mode = ref.watch(themeModeProvider);
+    // The owner's tools are listed only when the platform has some switched on for this workspace.
+    final hasTools = ref.watch(toolsProvider).valueOrNull?.tools.isNotEmpty ?? false;
 
     return SectionScaffold(
       title: context.t('Settings'),
@@ -65,6 +60,13 @@ class SettingsScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
           if (account != null) _AccountCard(account: account),
+          if (hasTools) ...[
+            QSectionTitle(context.t('Workspace')),
+            QCard(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: ListTile(leading: const Icon(Icons.tune_rounded), title: Text(context.t('Instalment tools')), trailing: const Icon(Icons.chevron_right), onTap: () => context.push('/tools')),
+            ),
+          ],
           QSectionTitle(context.t('Language')),
           QCard(
             padding: const EdgeInsets.symmetric(vertical: 4),

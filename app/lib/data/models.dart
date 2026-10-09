@@ -27,11 +27,16 @@ class Entitlement {
     required this.used,
     required this.remaining,
     required this.unlimited,
+    this.status = 'on',
+    this.detail,
   });
 
   factory Entitlement.fromJson(Map<String, dynamic> json) => Entitlement(
         type: (json['type'] ?? 'toggle').toString(),
         enabled: json['enabled'] == true,
+        // An older server sends no status: what it says is enabled is on, and nothing is hidden for want of one.
+        status: (json['status'] ?? (json['enabled'] == false ? 'plan_locked' : 'on')).toString(),
+        detail: json['detail']?.toString(),
         limit: (json['limit'] as num?)?.toInt(),
         used: (json['used'] as num?)?.toInt(),
         remaining: (json['remaining'] as num?)?.toInt(),
@@ -44,6 +49,17 @@ class Entitlement {
   /// toggle, limit or quota.
   final String type;
   final bool enabled;
+
+  /// on, plan_locked (the plan lacks it: show it locked with a way to upgrade) or platform_off (the platform has it
+  /// switched off: show nothing, there is nothing to buy).
+  final String status;
+
+  /// Why, when another feature is the reason (`dependency:<key>`).
+  final String? detail;
+
+  bool get isOn => status == 'on';
+
+  bool get isPlatformOff => status == 'platform_off';
   final int? limit;
   final int? used;
   final int? remaining;
@@ -56,7 +72,7 @@ class Entitlement {
   double? get fraction => !enabled || limit == null || limit == 0 ? null : ((used ?? 0) / limit!).clamp(0, 1).toDouble();
 
   Map<String, dynamic> toJson() => {
-        'type': type, 'enabled': enabled, 'limit': limit, 'used': used, 'remaining': remaining, 'unlimited': unlimited,
+        'type': type, 'status': status, 'detail': detail, 'enabled': enabled, 'limit': limit, 'used': used, 'remaining': remaining, 'unlimited': unlimited,
       };
 }
 
@@ -133,6 +149,10 @@ class Account {
 
   /// A feature the server did not mention is treated as allowed: the server still decides, and answers 402.
   Entitlement entitlement(String feature) => entitlements[feature] ?? Entitlement.open;
+
+  /// Whether to draw a feature at all: false only when the platform has switched it off. A feature the plan lacks is
+  /// still drawn, locked, with the way to upgrade.
+  bool shows(String feature) => !entitlement(feature).isPlatformOff;
 
   bool get isFree => planKey == 'free';
 
@@ -696,4 +716,33 @@ class SignedIn {
 
   final String token;
   final Account account;
+}
+
+/// One thing the owner can set for the workspace, described by the server so that a new tool needs no new screen:
+/// a switch, a whole number or one of a few choices.
+@immutable
+class Tool {
+  const Tool({required this.key, required this.type, required this.label, required this.help, required this.value, this.options = const []});
+
+  factory Tool.fromJson(Map<String, dynamic> json) => Tool(
+        key: json['key'].toString(),
+        type: (json['type'] ?? 'switch').toString(),
+        label: (json['label'] ?? '').toString(),
+        help: (json['help'] ?? '').toString(),
+        value: json['value'],
+        options: [
+          for (final option in (json['options'] as List<dynamic>? ?? const [])) (value: _map(option)['value'].toString(), label: _map(option)['label'].toString()),
+        ],
+      );
+
+  final String key;
+
+  /// switch, int or select.
+  final String type;
+  final String label;
+  final String help;
+  final Object? value;
+
+  /// For a select: what may be chosen.
+  final List<({String value, String label})> options;
 }

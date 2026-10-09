@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/language_button.dart';
 import '../../app/providers.dart';
 import '../../core/design/qistas_symbol.dart';
 import '../../core/design/tokens.dart';
 import '../../core/design/widgets.dart';
 import '../../core/l10n/translations.dart';
-import '../auth/auth_shell.dart';
 
 /// Three screens on the first launch: what Qistas is for, said plainly, then a way in.
 class OnboardingScreen extends ConsumerStatefulWidget {
@@ -54,7 +54,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 children: [
                   const QistasSymbol(height: 40),
                   const Spacer(),
-                  const LanguageMenu(),
+                  const LanguageButton(compact: true),
+                  const SizedBox(width: 4),
                   TextButton(onPressed: () => _finish('/login'), child: Text(context.t('Skip'))),
                 ],
               ),

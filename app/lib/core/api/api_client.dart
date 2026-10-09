@@ -16,10 +16,12 @@ class ApiClient {
     required TokenStore tokens,
     required String Function() language,
     required void Function() onUnauthorized,
+    void Function()? onFeatureUnavailable,
     HttpClientAdapter? adapter,
   })  : _tokens = tokens,
         _language = language,
         _onUnauthorized = onUnauthorized,
+        _onFeatureUnavailable = onFeatureUnavailable,
         _dio = Dio(BaseOptions(
           baseUrl: baseUrl.endsWith('/') ? baseUrl : '$baseUrl/',
           connectTimeout: const Duration(seconds: 15),
@@ -36,6 +38,10 @@ class ApiClient {
   final TokenStore _tokens;
   final String Function() _language;
   final void Function() _onUnauthorized;
+  final void Function()? _onFeatureUnavailable;
+
+  /// When a switch was last reported, so a screen that keeps asking cannot make the app ask the server forever.
+  DateTime? _featureReportedAt;
 
   Future<Map<String, dynamic>> get(String path, {Map<String, dynamic>? query}) =>
       _send('GET', path, query: query);
@@ -86,6 +92,10 @@ class ApiClient {
 
     if (status == 401 && token != null) await _signOutOnce(token);
 
+    // The platform has switched that feature off: tell the app once in a while, so it reads what is on now and removes
+    // the screen that offered it. (A plan that lacks a feature is the 402 below, and stays on screen, locked.)
+    if (status == 403 && code == 'feature_unavailable') _reportFeatureUnavailable();
+
     if (status == 402) {
       throw UpgradeRequired(
         code: code,
@@ -104,6 +114,15 @@ class ApiClient {
       fields: _fields(details['fields']),
       retryAfter: (details['retry_after'] as num?)?.toInt(),
     );
+  }
+
+  void _reportFeatureUnavailable() {
+    final now = DateTime.now();
+    final last = _featureReportedAt;
+    if (_onFeatureUnavailable == null || (last != null && now.difference(last) < const Duration(seconds: 10))) return;
+
+    _featureReportedAt = now;
+    _onFeatureUnavailable();
   }
 
   /// The token the app was last signed out for, so that five requests failing together sign it out once.
