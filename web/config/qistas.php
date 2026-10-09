@@ -43,6 +43,14 @@ return [
     ],
 
     /*
+    | The request header that carries the visitor's country, set by the CDN in front of the app (for example
+    | "X-Vercel-IP-Country" on Vercel or "CF-IPCountry" behind Cloudflare). Event themes use it for visitors who are not
+    | signed in. Leave it empty unless the CDN sets it on every request and strips it from the browser's own: a header a
+    | browser could send itself must never decide anything.
+    */
+    'geo_header' => env('QISTAS_GEO_HEADER'),
+
+    /*
     | The time zone a new workspace starts with, by country (IANA names). The owner can change it later; a workspace
     | with none stored uses this too. Every country above must be here (a test checks), and anything else is UTC.
     */

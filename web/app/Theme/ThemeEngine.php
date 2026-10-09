@@ -276,7 +276,7 @@ final class ThemeEngine
     {
         if (isset($ex['primary'])) {
             $L['heroFrom'] = isset($ex['heroFrom']) ? $L['heroFrom'] : $L['primary'];
-            $L['heroTo'] = isset($ex['heroTo']) ? $L['heroTo'] : Color::lighten($L['primary'], 0.1);
+            $L['heroTo'] = isset($ex['heroTo']) ? $L['heroTo'] : self::heroEnd($L['primary']);
             $L['action'] = isset($ex['action']) ? $L['action'] : $L['primary'];
             $L['logoInk'] = isset($ex['logoInk']) ? $L['logoInk'] : $L['primary'];
         }
@@ -304,6 +304,38 @@ final class ThemeEngine
         if (isset($ex['info']) && ! isset($ex['onInfo'])) {
             $L['onInfo'] = Color::readableOn($L['info']);
         }
+    }
+
+    /**
+     * The light end of the hero gradient: the main colour lightened by 10 %. Beyond the reference engine: a main colour
+     * whose green carries much of its brightness (a national-day green) becomes so bright at 10 % that no text colour
+     * reads on both the main colour and the end, and the look could never be published; then the end is lightened only
+     * as far as one text colour still reads on both. Every look the reference can make readable takes the first return,
+     * so the shared vectors hold.
+     */
+    private static function heroEnd(string $primary): string
+    {
+        $readsOnBoth = function (string $end) use ($primary): bool {
+            $text = Color::readableOnAll([$primary, $end]);
+
+            return Color::contrast($text, $primary) >= 4.5 && Color::contrast($text, $end) >= 4.5;
+        };
+
+        $end = Color::lighten($primary, 0.1);
+
+        if ($readsOnBoth($end) || ! $readsOnBoth($primary)) {
+            return $end;
+        }
+
+        for ($step = 9; $step >= 1; $step--) {
+            $softer = Color::lighten($primary, $step / 100);
+
+            if ($readsOnBoth($softer)) {
+                return $softer;
+            }
+        }
+
+        return $primary;
     }
 
     /**

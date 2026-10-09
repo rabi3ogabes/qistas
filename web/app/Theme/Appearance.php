@@ -9,6 +9,7 @@ use App\Models\AppearanceVersion;
 use App\Models\User;
 use App\Support\Audit;
 use App\Support\Locale;
+use App\Theme\Concerns\ManagesEvents;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Cache;
@@ -26,6 +27,8 @@ use InvalidArgumentException;
  */
 final class Appearance
 {
+    use ManagesEvents;
+
     /** The three places a welcome banner can appear. */
     public const SURFACES = ['website', 'webapp', 'mobile'];
 
@@ -192,7 +195,7 @@ final class Appearance
         $sizes = AppearanceAsset::query()->whereKey(array_values($latest->images()))->get(['id', 'slot', 'width', 'height'])
             ->mapWithKeys(fn (AppearanceAsset $asset): array => [$asset->slot => [(int) $asset->width, (int) $asset->height]])->all();
 
-        return new AppearanceView((int) $latest->version, $latest->tokens ?? ThemeEngine::BASE, $latest->pins() !== [], $latest->images(), $latest->banners(), $sizes);
+        return new AppearanceView((int) $latest->version, $latest->tokens ?? ThemeEngine::BASE, $latest->pins() !== [], $latest->images(), $latest->banners(), $sizes, $latest->pins());
     }
 
     /**
@@ -243,6 +246,7 @@ final class Appearance
 
         Cache::forget(self::CACHE_KEY);
         $this->live = null;
+        $this->current = [];
 
         return $row;
     }

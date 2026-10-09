@@ -43,6 +43,48 @@ Nothing is needed from you for this part.
 
 You get a new APK on its own GitHub release, "Qistas app 1.3.0".
 
+**Progress (10 Oct):** the icon and launch screen, the strip removal, the language cards and the new Settings are done
+and pushed. "The app follows your Appearance page" comes after the event themes below, so the app respects events from
+the start.
+
+---
+
+## Part 1B — Seasonal event themes (added 10 Oct, built before the app learns your look)
+
+Dress Qistas for a national day or a season, **only for the countries you choose and only on the days you choose**;
+everyone else keeps the usual look.
+
+**Example:** Saudi National Day.
+- Choose the ready-made "Saudi National Day" event. It fills in:
+  - the name
+  - the country (Saudi Arabia)
+  - green and white colours that pass the readability checks
+  - a greeting banner in all five languages
+  - the next 23 September
+- Change the dates to "today, for 2 days" if you like, and press **Schedule**.
+- Visitors and users in Saudi Arabia see the green look and the greeting on the website, the web app and the Android
+  app on those days. Everyone else sees nothing different. On the day after, it ends by itself.
+
+**What you control for each event**
+- **Who:** one country, several, or everyone. A signed-in user counts as their business's country; a visitor counts as
+  the country they browse from.
+- **When:** first day to last day, in that country's own time, so midnight in Riyadh is midnight in Riyadh.
+- **Where:** the website, the web app, the Android app, any mix.
+- **What:** the colours (or keep the usual ones), the logo and pictures (or keep the usual ones), and a welcome banner
+  for each place.
+
+**Smart touches**
+- Ready-made events:
+  - Saudi National Day and Founding Day
+  - National days of the UAE, Kuwait, Qatar, Bahrain and Oman
+  - White Friday
+  - Ramadan and the two Eids (you set those dates each year, because they follow the moon)
+- A **timeline** of the next twelve months, with today marked. Each event shows *On now*, *Starts in 3 days* or *Ended*.
+- **Preview as:** pick a country and a date, and see exactly what that visitor would see.
+- **Overlap warnings:** if two events meet, the page says which one people will see. The more specific one wins: a
+  Saudi-only event beats one for everyone.
+- **Stop** an event at any moment. Every change is recorded in the audit log.
+
 ---
 
 ## Part 2 — Pro inside the app, on the same account

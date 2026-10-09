@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Theme;
 
+use App\Models\AppearanceEvent;
 use Carbon\CarbonInterface;
 
 /**
- * The look everyone sees right now: the palette, the pictures and the welcome banners of the newest published version
- * (or the factory look). A plain value, so it can be cached and handed to a page, a stylesheet or the API.
+ * A look as a visitor sees it: the palette, the pictures and the welcome banners of the newest published version (or
+ * the factory look), with today's event laid over it when one is meant for them. A plain value, so it can be cached and
+ * handed to a page, a stylesheet or the API.
  */
 final class AppearanceView
 {
@@ -17,6 +19,8 @@ final class AppearanceView
      * @param  array<string, string>  $images  slot => asset id
      * @param  array<string, array<string, mixed>>  $banners  surface => banner as saved
      * @param  array<string, array{0: int, 1: int}>  $sizes  slot => [width, height] of its picture
+     * @param  array<string, mixed>  $pins  the colours the published version chose (an event's are laid over them)
+     * @param  array{id: string, name: string, revision: int, ends_on: string, until: string, colours: bool}|null  $event  the event worn, if any
      */
     public function __construct(
         private readonly int $version,
@@ -25,6 +29,8 @@ final class AppearanceView
         private readonly array $images,
         private readonly array $banners,
         private readonly array $sizes = [],
+        private readonly array $pins = [],
+        private readonly ?array $event = null,
     ) {}
 
     public static function factory(): self
@@ -48,6 +54,73 @@ final class AppearanceView
     public function hasCustomColours(): bool
     {
         return $this->custom;
+    }
+
+    /** @return array<string, mixed> */
+    public function pins(): array
+    {
+        return $this->pins;
+    }
+
+    /**
+     * The event this look is wearing: which one, its revision, its last day and the moment it ends (UTC), and whether
+     * it changes the colours. Null for the usual look.
+     *
+     * @return array{id: string, name: string, revision: int, ends_on: string, until: string, colours: bool}|null
+     */
+    public function event(): ?array
+    {
+        return $this->event;
+    }
+
+    /**
+     * The query of this look's stylesheet address: the published version, and the event and its revision when the
+     * event has colours of its own. A new publish or an edited event changes the address, so nobody keeps a stale one.
+     *
+     * @return array{v: int, e?: string}
+     */
+    public function cssQuery(): array
+    {
+        $query = ['v' => $this->version];
+
+        if ($this->event !== null && $this->event['colours']) {
+            $query['e'] = $this->event['id'].'.'.$this->event['revision'];
+        }
+
+        return $query;
+    }
+
+    /**
+     * This look dressed for [$event] on [$surface]: its colours (already laid over this look's and repaired), its
+     * pictures over this look's, and its banner for this place when it has one switched on.
+     *
+     * @param  array{light: array<string, string>, dark: array<string, string>}  $tokens
+     * @param  array<string, array{0: int, 1: int}>  $sizes
+     */
+    public function withEvent(AppearanceEvent $event, string $surface, array $tokens, array $sizes): self
+    {
+        $colours = ($event->pins()['light'] ?? []) !== [];
+        $banners = $this->banners;
+        $banner = $event->banners()[$surface] ?? null;
+
+        if (is_array($banner) && ($banner['enabled'] ?? false)) {
+            // The event's days decide when it shows, not dates of its own.
+            $banners[$surface] = array_replace($banner, ['starts_on' => null, 'ends_on' => null]);
+        }
+
+        return new self(
+            $this->version,
+            $colours ? $tokens : $this->tokens,
+            $this->custom || $colours,
+            array_replace($this->images, $event->images()),
+            $banners,
+            array_replace($this->sizes, $sizes),
+            $this->pins,
+            [
+                'id' => $event->id, 'name' => $event->name, 'revision' => $event->revision,
+                'ends_on' => $event->ends_on->toDateString(), 'until' => $event->until()->toIso8601String(), 'colours' => $colours,
+            ],
+        );
     }
 
     /** The address of the picture in this slot, or null when there is none. */
@@ -120,13 +193,13 @@ final class AppearanceView
     /** @return array<string, mixed> */
     public function toArray(): array
     {
-        return ['version' => $this->version, 'tokens' => $this->tokens, 'custom' => $this->custom, 'images' => $this->images, 'banners' => $this->banners, 'sizes' => $this->sizes];
+        return ['version' => $this->version, 'tokens' => $this->tokens, 'custom' => $this->custom, 'images' => $this->images, 'banners' => $this->banners, 'sizes' => $this->sizes, 'pins' => $this->pins];
     }
 
     /** @param  array<string, mixed>  $data */
     public static function fromArray(array $data): self
     {
-        // 'sizes' came later than the rest: a look cached before it simply has none.
-        return new self((int) $data['version'], $data['tokens'], (bool) $data['custom'], $data['images'], $data['banners'], $data['sizes'] ?? []);
+        // 'sizes' and 'pins' came later than the rest: a look cached before them simply has none.
+        return new self((int) $data['version'], $data['tokens'], (bool) $data['custom'], $data['images'], $data['banners'], $data['sizes'] ?? [], $data['pins'] ?? []);
     }
 }

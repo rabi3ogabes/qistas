@@ -119,3 +119,17 @@ describe('the colour maths', function () {
         expect(Color::contrast('#000000', '#FFFFFF'))->toEqualWithDelta(21.0, 1e-9)->and(Color::contrast('#777777', '#777777'))->toBe(1.0);
     });
 });
+
+describe('a bright green main colour', function () {
+    it('stays publishable: the hero gradient keeps one text colour readable from end to end', function (string $green) {
+        $raw = ThemeEngine::resolve(['light' => ['primary' => $green]], repair: false);
+        $fixed = ThemeEngine::autoFix($raw);
+        $light = $fixed['tokens']['light'];
+
+        expect(array_filter(ThemeEngine::validate($fixed['tokens']), fn (array $check) => ! $check['pass'] && $check['blocking']))->toBe([])
+            ->and(Color::contrast($light['onPrimary'], $light['heroTo']))->toBeGreaterThanOrEqual(4.5)
+            ->and(Color::contrast($light['onPrimary'], $light['primary']))->toBeGreaterThanOrEqual(4.5)
+            // Still a gradient: the end is lighter than the start, only less so.
+            ->and(Color::luminance($light['heroTo']))->toBeGreaterThan(Color::luminance($light['heroFrom']));
+    })->with(['Saudi green' => '#006C35', 'Emirati green' => '#00732F', 'Kuwaiti green' => '#007A3D']);
+});
