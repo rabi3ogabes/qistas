@@ -1,0 +1,83 @@
+/*
+ * The welcome banner an admin writes in Appearance. Four tones, all drawn from the theme tokens, so a chosen brand
+ * colours them too: gold (a warm sand plate with a gold hairline), navy (the hero gradient), sand (a quiet panel) and sky.
+ * One line on a wide screen, stacked on a phone; logical properties, so it mirrors in Arabic and Urdu.
+ */
+
+@layer components {
+    .welcome {
+        transition: opacity var(--q-t-base) var(--q-ease-out), translate var(--q-t-base) var(--q-ease-out);
+    }
+    .welcome[hidden] { display: none; }
+    .welcome[data-closing] { opacity: 0; translate: 0 -.25rem; }
+
+    .welcome-inner {
+        display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1.25rem;
+        padding: .875rem 1rem .875rem 1.125rem;
+        border: 1px solid var(--q-line); border-radius: var(--q-r-lg);
+        background: var(--q-surface); color: var(--q-ink);
+        box-shadow: var(--q-shadow-1);
+    }
+
+    .welcome-pic {
+        flex: none; inline-size: 4.5rem; block-size: 3rem;
+        border-radius: var(--q-r-md); object-fit: cover;
+    }
+
+    .welcome-words { flex: 1 1 16rem; min-inline-size: 0; }
+    .welcome-title { margin: 0; font-size: 1rem; font-weight: 600; line-height: 1.35; text-wrap: balance; }
+    .welcome-message { margin: .125rem 0 0; color: var(--q-ink-muted); font-size: .9375rem; line-height: 1.5; text-wrap: pretty; }
+
+    .welcome-cta { flex: none; }
+
+    .welcome-close {
+        display: inline-grid; place-items: center; flex: none;
+        inline-size: 2.5rem; block-size: 2.5rem; margin-inline-start: auto;
+        border: 0; border-radius: 999px; background: transparent; color: inherit; opacity: .72; cursor: pointer;
+        transition: background-color var(--q-t-fast) var(--q-ease-out), opacity var(--q-t-fast) var(--q-ease-out);
+    }
+    .welcome-close:focus-visible { outline: 2px solid var(--q-accent); outline-offset: 2px; }
+    @media (hover: hover) and (pointer: fine) {
+        .welcome-close:hover { opacity: 1; background: color-mix(in srgb, currentColor 10%, transparent); }
+    }
+
+    /* Tones */
+    .welcome[data-tone="gold"] .welcome-inner {
+        background: var(--q-tint-sand);
+        border-color: color-mix(in srgb, var(--q-accent) 45%, transparent);
+    }
+    .welcome[data-tone="gold"] .welcome-cta { --btn-bg: var(--q-action); --btn-fg: var(--q-on-action); }
+
+    .welcome[data-tone="navy"] .welcome-inner {
+        background: linear-gradient(120deg, var(--q-hero-from), var(--q-hero-to));
+        border-color: transparent; color: var(--q-on-primary);
+    }
+    .welcome[data-tone="navy"] .welcome-message { color: color-mix(in srgb, var(--q-on-primary) 82%, transparent); }
+    .welcome[data-tone="navy"] .welcome-cta { --btn-bg: var(--q-accent); --btn-fg: var(--q-on-accent); }
+
+    .welcome[data-tone="sand"] .welcome-inner { background: var(--q-surface-alt); box-shadow: none; }
+    .welcome[data-tone="sand"] .welcome-cta { --btn-bg: var(--q-action); --btn-fg: var(--q-on-action); }
+
+    .welcome[data-tone="sky"] .welcome-inner {
+        background: var(--q-tint-sky);
+        border-color: color-mix(in srgb, var(--q-info) 28%, transparent);
+    }
+    .welcome[data-tone="sky"] .welcome-cta { --btn-bg: var(--q-info); --btn-fg: var(--q-on-info); }
+
+    /* Where it sits */
+    .welcome[data-surface="website"] { padding-block: .875rem; }
+    .welcome[data-surface="website"] .welcome-inner { max-inline-size: calc(72rem - 2.5rem); margin-inline: max(1.25rem, env(safe-area-inset-left)) max(1.25rem, env(safe-area-inset-right)); }
+    @media (min-width: 74.5rem) { .welcome[data-surface="website"] .welcome-inner { margin-inline: auto; } }
+    .welcome[data-surface="webapp"] { margin-block-end: 1.5rem; }
+
+    /* On a phone the words wrap above the button, so the close button keeps to the top corner, where it is looked for. */
+    @media (max-width: 40rem) {
+        .welcome-inner { position: relative; }
+        .welcome-inner:has(.welcome-close) .welcome-words { padding-inline-end: 2.25rem; }
+        .welcome-close { position: absolute; inset-block-start: .375rem; inset-inline-end: .375rem; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .welcome { transition: none; }
+    }
+}

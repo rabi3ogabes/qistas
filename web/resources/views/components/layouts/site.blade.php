@@ -41,6 +41,7 @@
     <x-logo-defs />
     <a class="sr-only" href="#main">{{ __('Skip to content') }}</a>
     @include('site.partials.header')
+    <x-welcome-banner surface="website" />
     <main id="main">{{ $slot }}</main>
     @include('site.partials.footer')
 </body>

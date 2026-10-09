@@ -20,6 +20,7 @@
 @import './admin.css';
 @import './demo.css';
 @import './language.css';
+@import './banner.css';
 
 @source '../views';
 @source '../js';

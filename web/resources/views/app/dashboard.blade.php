@@ -14,6 +14,8 @@
         <x-slot:subtitle>{{ now()->translatedFormat('l, j F Y') }}</x-slot:subtitle>
     </x-page-head>
 
+    <x-welcome-banner surface="webapp" />
+
     @if ($gettingStarted)
         <section class="card card-pad checklist" aria-labelledby="start-title">
             <h2 id="start-title" class="checklist-title">{{ __('Get started') }}</h2>

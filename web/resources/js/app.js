@@ -6,6 +6,7 @@ import { initTheme } from './theme';
 import { initSheets } from './sheet';
 import { initLanguageSwitchers } from './language';
 import { initAdminNav } from './admin-nav';
+import { initWelcomeBanners } from './banner';
 
 window.Alpine = Alpine;
 Alpine.data('planCalculator', planCalculator);
@@ -22,6 +23,7 @@ initTheme();
 initSheets();
 initLanguageSwitchers();
 initAdminNav();
+initWelcomeBanners();
 Alpine.start();
 
 // The admin's Feature control page brings its own script, and only that page downloads it.
