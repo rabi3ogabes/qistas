@@ -92,6 +92,14 @@ class QistasApi {
 
   Future<Dashboard> dashboard() async => Dashboard.fromJson(_data(await _client.get('/dashboard')));
 
+  /// The look to wear (see LookController). [etag] is the tag of the look the app has: 304 means it is still current.
+  Future<({int status, Map<String, dynamic>? data, String? etag})> appearance({String? etag}) async {
+    final answer = await _client.getConditional('/appearance', etag: etag);
+    final data = answer.body['data'];
+
+    return (status: answer.status, data: data is Map<String, dynamic> ? data : null, etag: answer.etag);
+  }
+
   // -------------------------------------------------------------------- tools
 
   /// What the owner can set for this workspace, and whether this person may change it.

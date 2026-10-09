@@ -6,14 +6,17 @@ import 'package:dio/dio.dart';
 
 /// A canned answer.
 class FakeResponse {
-  const FakeResponse(this.status, this.body);
+  const FakeResponse(this.status, this.body, {this.headers = const {}});
 
   final int status;
   final String body;
+
+  /// Extra response headers, such as an ETag.
+  final Map<String, String> headers;
 }
 
 /// An answer in the API's own shape.
-FakeResponse json(int status, Object body) => FakeResponse(status, jsonEncode(body));
+FakeResponse json(int status, Object body, {Map<String, String> headers = const {}}) => FakeResponse(status, jsonEncode(body), headers: headers);
 
 FakeResponse apiError(int status, String code, String message, {Map<String, Object?> extra = const {}}) =>
     json(status, {
@@ -38,6 +41,7 @@ class FakeAdapter implements HttpClientAdapter {
 
     return ResponseBody.fromString(response.body, response.status, headers: {
       Headers.contentTypeHeader: ['application/json'],
+      for (final header in response.headers.entries) header.key.toLowerCase(): [header.value],
     });
   }
 

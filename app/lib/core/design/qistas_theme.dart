@@ -11,9 +11,10 @@ import 'tokens.dart';
 class QistasTheme {
   const QistasTheme._();
 
-  static ThemeData of(Brightness brightness, String language, {bool brandFonts = true}) {
+  /// [colors] are the chosen look's colours for this brightness (from the server); without them, the Qistas colours.
+  static ThemeData of(Brightness brightness, String language, {bool brandFonts = true, QistasColors? colors}) {
     final dark = brightness == Brightness.dark;
-    final c = dark ? QistasColors.dark : QistasColors.light;
+    final c = colors ?? (dark ? QistasColors.dark : QistasColors.light);
 
     final scheme = ColorScheme(
       brightness: brightness,

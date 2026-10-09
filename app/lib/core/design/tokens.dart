@@ -113,6 +113,44 @@ class QistasColors extends ThemeExtension<QistasColors> {
     heroTo: Color(0xFF0E2A5C),
   );
 
+  /// The colours the server sends (the theme engine's tokens, "#RRGGBB" by name). A token that is missing or is not a
+  /// colour keeps the [fallback]'s, so a bad answer can never leave a screen unreadable.
+  factory QistasColors.fromTokens(Map<String, dynamic> tokens, {required QistasColors fallback}) {
+    Color pick(String name, Color current) {
+      final value = tokens[name];
+      if (value is! String || !RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(value)) return current;
+
+      return Color(0xFF000000 | int.parse(value.substring(1), radix: 16));
+    }
+
+    return QistasColors(
+      primary: pick('primary', fallback.primary),
+      onPrimary: pick('onPrimary', fallback.onPrimary),
+      action: pick('action', fallback.action),
+      onAction: pick('onAction', fallback.onAction),
+      accent: pick('accent', fallback.accent),
+      onAccent: pick('onAccent', fallback.onAccent),
+      accentText: pick('accentText', fallback.accentText),
+      info: pick('info', fallback.info),
+      onInfo: pick('onInfo', fallback.onInfo),
+      bg: pick('bg', fallback.bg),
+      surface: pick('surface', fallback.surface),
+      surfaceAlt: pick('surfaceAlt', fallback.surfaceAlt),
+      ink: pick('ink', fallback.ink),
+      inkMuted: pick('inkMuted', fallback.inkMuted),
+      line: pick('line', fallback.line),
+      positive: pick('positive', fallback.positive),
+      warning: pick('warning', fallback.warning),
+      danger: pick('danger', fallback.danger),
+      tintSky: pick('tintSky', fallback.tintSky),
+      tintBlush: pick('tintBlush', fallback.tintBlush),
+      tintSand: pick('tintSand', fallback.tintSand),
+      tintMint: pick('tintMint', fallback.tintMint),
+      heroFrom: pick('heroFrom', fallback.heroFrom),
+      heroTo: pick('heroTo', fallback.heroTo),
+    );
+  }
+
   /// Every pair of colours that is ever drawn text-on-background, for the contrast test.
   List<(String, Color, Color)> get textPairs => [
         ('ink on bg', ink, bg),

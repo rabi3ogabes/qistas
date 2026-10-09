@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../core/design/tokens.dart';
 import '../core/design/widgets.dart';
 import '../core/l10n/translations.dart';
+import '../data/appearance.dart';
 import '../data/models.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import 'chrome.dart';
@@ -56,6 +57,8 @@ class _AppShellState extends ConsumerState<AppShell> with WidgetsBindingObserver
       if (left != null && DateTime.now().difference(left) > ref.read(staleAfterProvider)) {
         unawaited(ref.read(authProvider.notifier).refresh());
         ref.invalidate(dashboardProvider);
+        // An event may have started or ended, or the admin published a new look, while the app was away.
+        unawaited(ref.read(lookProvider.notifier).refresh());
       }
     }
   }

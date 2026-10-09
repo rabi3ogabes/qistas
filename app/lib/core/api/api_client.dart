@@ -46,6 +46,36 @@ class ApiClient {
   Future<Map<String, dynamic>> get(String path, {Map<String, dynamic>? query}) =>
       _send('GET', path, query: query);
 
+  /// A GET that sends back the tag of what the app already has: 304 means "keep it", and the answer's own tag comes
+  /// back with a 200 to send next time.
+  Future<({int status, Map<String, dynamic> body, String? etag})> getConditional(String path, {String? etag}) async {
+    final token = await _tokens.read();
+    final Response<String> response;
+
+    try {
+      response = await _dio.request<String>(
+        path.startsWith('/') ? path.substring(1) : path,
+        options: Options(method: 'GET', headers: {
+          'Accept': 'application/json',
+          'Accept-Language': _language(),
+          if (token != null) 'Authorization': 'Bearer $token',
+          if (etag != null && etag.isNotEmpty) 'If-None-Match': etag,
+        }),
+      );
+    } on DioException {
+      throw const ApiException.network();
+    }
+
+    final status = response.statusCode ?? 0;
+    if (status == 304) return (status: 304, body: const <String, dynamic>{}, etag: etag);
+    if (status >= 200 && status < 300) return (status: status, body: _decode(response.data), etag: response.headers.value('etag'));
+
+    final details = _decode(response.data)['error'];
+    final error = details is Map<String, dynamic> ? details : const <String, dynamic>{};
+
+    throw ApiException(status: status, code: (error['code'] ?? 'http_$status').toString(), message: (error['message'] ?? 'Something went wrong').toString());
+  }
+
   Future<Map<String, dynamic>> post(String path, {Object? body, Map<String, String>? headers}) =>
       _send('POST', path, body: body, headers: headers);
 

@@ -12,6 +12,7 @@ import '../../core/l10n/formats.dart';
 import '../../core/l10n/translations.dart';
 import '../../core/ui/errors.dart';
 import '../../data/models.dart';
+import '../appearance/welcome_banner.dart';
 import '../billing/upgrade_sheet.dart';
 import '../reminders/reminders.dart';
 
@@ -46,6 +47,7 @@ class DashboardScreen extends ConsumerWidget {
                 children: [
                   _Greeting(account: account, board: board.valueOrNull),
                   const SizedBox(height: 18),
+                  const WelcomeBannerCard(),
                   board.when(
                     loading: () => const _Loading(),
                     error: (error, _) => SizedBox(

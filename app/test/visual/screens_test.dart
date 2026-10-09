@@ -36,6 +36,29 @@ void main() {
     await snapshot(tester, 'dashboard');
   });
 
+  // The look of an event (Saudi National Day's green) and its welcome banner, as the server would send them.
+  final event = {
+    'version': 4, 'custom': true,
+    'tokens': {
+      'light': {'primary': '#006C35', 'onPrimary': '#F7F3EA', 'action': '#006C35', 'onAction': '#F7F3EA', 'accent': '#C8A951', 'onAccent': '#0B1F44', 'accentText': '#7A6224', 'info': '#0B6E4F', 'onInfo': '#FFFFFF', 'bg': '#F4F8F4', 'surface': '#FFFFFF', 'surfaceAlt': '#E8EFE8', 'heroFrom': '#006C35', 'heroTo': '#00863F'},
+      'dark': {'primary': '#1E6B45', 'onPrimary': '#F7F3EA', 'action': '#C8A951', 'onAction': '#0B1F44', 'accent': '#D4B865', 'onAccent': '#0B1F44', 'bg': '#06190F', 'surface': '#0D2A1B', 'surfaceAlt': '#123624', 'heroFrom': '#1F7A4D', 'heroTo': '#0F4A2D', 'line': '#1E4632'},
+    },
+    'banner': {'title': 'Happy Saudi National Day', 'message': 'Celebrating the Kingdom with you.', 'cta_label': 'See plans', 'cta_url': '/pricing', 'tone': 'navy', 'dismissible': true, 'image_url': null, 'ends_on': null, 'key': 'nd'},
+    'event': {'id': 'e1', 'name': 'Saudi National Day', 'ends_on': '2999-09-24', 'until': '2999-09-24T21:00:00+00:00'},
+    'base': null,
+  };
+
+  picture('dashboard dressed for an event', (tester) async {
+    await pumpApp(tester, workspaceServer(routes: {'GET /appearance': always(json(200, {'data': event}))}), realFonts: true, size: tall);
+    await snapshot(tester, 'dashboard-event');
+  });
+
+  picture('dashboard dressed for an event, Arabic, dark', (tester) async {
+    final arabic = {...event, 'banner': {...event['banner']! as Map<String, dynamic>, 'title': 'كل عام والوطن بخير', 'message': 'نحتفل معكم باليوم الوطني السعودي.', 'cta_label': 'الخطط'}};
+    await pumpApp(tester, workspaceServer(routes: {'GET /appearance': always(json(200, {'data': arabic}))}), realFonts: true, size: tall, language: 'ar', preferences: {'theme_mode': 'dark'});
+    await snapshot(tester, 'dashboard-event-ar-dark');
+  });
+
   picture('dashboard in Arabic', (tester) async {
     await pumpApp(tester, workspaceServer(), realFonts: true, size: tall, language: 'ar');
     await snapshot(tester, 'dashboard-ar');
