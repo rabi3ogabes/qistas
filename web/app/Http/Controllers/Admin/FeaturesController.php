@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Admin\FeatureCards;
 use App\Entitlements\Feature;
+use App\Entitlements\FeatureCatalogue;
 use App\Entitlements\FeatureControl;
 use App\Entitlements\FeatureControlException;
 use App\Entitlements\PlatformState;
@@ -17,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\View\View;
 
 /**
  * The admin's Feature control: every change to what the platform has on, off or in beta. Anyone on the platform team
@@ -25,11 +27,28 @@ use Illuminate\Validation\Rule;
  */
 final class FeaturesController
 {
-    public function __construct(private readonly FeatureControl $control, private readonly FeatureCards $cards) {}
+    public function __construct(
+        private readonly FeatureControl $control,
+        private readonly FeatureCards $cards,
+        private readonly FeatureCatalogue $catalogue,
+    ) {}
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse|View
     {
-        return response()->json($this->cards->build());
+        $board = $this->cards->build();
+
+        if ($request->expectsJson()) {
+            return response()->json($board);
+        }
+
+        $switchable = $this->catalogue->switchable();
+
+        return view('admin.features.index', [
+            'board' => $board,
+            'canChange' => Gate::allows('manage-platform-features'),
+            'anySwitchable' => $switchable !== [],
+            'anyAutomation' => array_any($switchable, fn (Feature $f) => $this->catalogue->touchesCustomers($f)),
+        ]);
     }
 
     public function state(Request $request, string $key): JsonResponse|RedirectResponse

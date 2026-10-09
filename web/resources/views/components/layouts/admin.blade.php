@@ -30,6 +30,7 @@
 
             <nav class="admin-nav" aria-label="{{ __('Main') }}">
                 <a href="{{ route('admin.home') }}" @if ($section === 'overview') aria-current="page" @endif>{{ __('Overview') }}</a>
+                <a href="{{ route('admin.features.index') }}" @if ($section === 'features') aria-current="page" @endif>{{ __('Feature control') }}</a>
                 @if ($hasWorkspace)
                     <a href="{{ route('app.dashboard') }}">{{ __('Open app') }}</a>
                 @endif

@@ -433,3 +433,512 @@
 .test-banner .tool-actions {
     gap: .5rem;
 }
+
+/* ---------- Feature control ---------- */
+
+.fc {
+    display: grid;
+    gap: 1.25rem;
+}
+
+/* The counts, the search and the filters stay in view while the list scrolls (when the top bar is one line). */
+.fc-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .75rem 1.5rem;
+    padding: .75rem 1.125rem;
+    background: color-mix(in srgb, var(--q-surface) 94%, transparent);
+    border: 1px solid var(--q-line);
+    border-radius: var(--q-r-lg);
+    box-shadow: var(--q-shadow-1);
+}
+
+@media (min-width: 52rem) {
+    .fc-bar {
+        position: sticky;
+        inset-block-start: 4.25rem;
+        z-index: 10;
+        backdrop-filter: blur(10px);
+    }
+}
+
+.fc-counts {
+    display: flex;
+    gap: 1.25rem;
+    margin: 0;
+    color: var(--q-ink-muted);
+    font-size: .875rem;
+    font-weight: 500;
+}
+
+.fc-counts span {
+    display: inline-flex;
+    align-items: baseline;
+    gap: .375rem;
+}
+
+.fc-counts span::before {
+    content: "";
+    align-self: center;
+    inline-size: .5rem;
+    block-size: .5rem;
+    border-radius: 50%;
+    background: var(--q-ink-muted);
+}
+
+.fc-counts [data-count="on"]::before { background: var(--q-positive); }
+.fc-counts [data-count="beta"]::before { background: var(--q-accent); }
+
+.fc-counts b {
+    color: var(--q-ink);
+    font-family: var(--q-font-display);
+    font-size: 1.5rem;
+    font-weight: 600;
+    font-variant-numeric: lining-nums tabular-nums;
+    line-height: 1;
+}
+
+.fc-find {
+    display: flex;
+    flex: 1 1 22rem;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .5rem .75rem;
+}
+
+.fc-find input[type="search"],
+.fc-reason,
+.fc-grant input,
+.fc-limit input,
+.fc-pause input,
+.fc-presets input,
+.fc-dialog textarea {
+    min-block-size: 2.5rem;
+    padding: .375rem .75rem;
+    background: var(--q-surface);
+    color: var(--q-ink);
+    border: 1px solid var(--q-line);
+    border-radius: var(--q-r-sm);
+    font: inherit;
+    font-size: .9375rem;
+}
+
+.fc-find input[type="search"] {
+    flex: 1 1 12rem;
+    max-inline-size: 18rem;
+}
+
+.fc-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .25rem;
+}
+
+.fc-filters button,
+.fc-chip {
+    min-block-size: 2.25rem;
+    padding: .25rem .75rem;
+    background: transparent;
+    color: var(--q-ink-muted);
+    border: 1px solid var(--q-line);
+    border-radius: 999px;
+    font: inherit;
+    font-size: .875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color var(--q-t-fast) var(--q-ease-out), color var(--q-t-fast) var(--q-ease-out), border-color var(--q-t-fast) var(--q-ease-out);
+}
+
+.fc-filters button[aria-pressed="true"],
+.fc-chip[aria-pressed="true"] {
+    background: var(--q-tint-sand);
+    border-color: color-mix(in srgb, var(--q-accent) 45%, transparent);
+    color: var(--q-accent-text);
+    font-weight: 600;
+}
+
+.fc-chip[aria-pressed="true"] {
+    background: var(--q-tint-mint);
+    border-color: transparent;
+    color: var(--q-positive);
+}
+
+.fc-chip:disabled {
+    cursor: not-allowed;
+    opacity: .6;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .fc-filters button:hover,
+    .fc-chip:not(:disabled):hover {
+        color: var(--q-ink);
+        border-color: var(--q-ink-muted);
+    }
+}
+
+/* One group of features: a heading you can fold, and one container holding its rows. */
+.fc-group > summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .25rem 1rem;
+    padding-block: .5rem;
+    list-style: none;
+    cursor: pointer;
+}
+
+.fc-group > summary::-webkit-details-marker { display: none; }
+
+.fc-group > summary::after {
+    content: "";
+    align-self: center;
+    margin-inline-start: auto;
+    inline-size: .5rem;
+    block-size: .5rem;
+    border-inline-end: 2px solid var(--q-ink-muted);
+    border-block-end: 2px solid var(--q-ink-muted);
+    rotate: 45deg;
+    transition: rotate var(--q-t-base) var(--q-ease-out);
+}
+
+.fc-group:not([open]) > summary::after { rotate: -45deg; }
+
+.fc-group h2 {
+    margin: 0;
+    font-family: var(--q-font-display);
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.fc-group-counts {
+    color: var(--q-ink-muted);
+    font-size: .875rem;
+    font-variant-numeric: lining-nums tabular-nums;
+}
+
+.fc-list {
+    margin: .375rem 0 0;
+    padding: 0;
+    list-style: none;
+    background: var(--q-surface);
+    border: 1px solid var(--q-line);
+    border-radius: var(--q-r-lg);
+    box-shadow: var(--q-shadow-1);
+    overflow: clip;
+}
+
+.fc-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: .625rem 1.5rem;
+    padding: 1.125rem 1.25rem;
+}
+
+.fc-row + .fc-row { border-block-start: 1px solid var(--q-line); }
+
+@media (max-width: 40rem) {
+    .fc-row { grid-template-columns: minmax(0, 1fr); padding-inline: 1rem; }
+}
+
+.fc-name {
+    margin: 0;
+    font-size: 1.0625rem;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.fc-desc {
+    margin: .25rem 0 0;
+    max-inline-size: 62ch;
+    color: var(--q-ink-muted);
+    font-size: .9375rem;
+    line-height: 1.5;
+}
+
+.fc-meta {
+    display: flex;
+    flex-wrap: wrap;
+    margin: .5rem 0 0;
+    padding: 0;
+    list-style: none;
+    color: var(--q-ink-muted);
+    font-size: .8125rem;
+    font-variant-numeric: lining-nums tabular-nums;
+}
+
+.fc-meta li + li::before {
+    content: "·";
+    margin-inline: .5rem;
+}
+
+.fc-flag { color: var(--q-warning); font-weight: 600; }
+
+/* The switch: three choices, one thumb that slides to the chosen one and takes its colour. */
+.fc-switch {
+    display: grid;
+    justify-items: end;
+    gap: .375rem;
+}
+
+@media (max-width: 40rem) {
+    .fc-switch { justify-items: stretch; }
+}
+
+.fc-seg {
+    --i: 0;
+    --fc-dir: 1;
+    --fc-thumb: var(--q-ink-muted);
+    --fc-on-thumb: #fff;
+    position: relative;
+    isolation: isolate;
+    display: inline-grid;
+    grid-template-columns: repeat(3, minmax(4.25rem, 1fr));
+    padding: .1875rem;
+    background: var(--q-surface-alt);
+    border: 1px solid var(--q-line);
+    border-radius: 999px;
+}
+
+[dir="rtl"] .fc-seg { --fc-dir: -1; }
+
+.fc-seg[data-state="beta"] { --i: 1; --fc-thumb: var(--q-accent); --fc-on-thumb: var(--q-on-accent, var(--q-ink)); }
+.fc-seg[data-state="on"] { --i: 2; --fc-thumb: var(--q-positive); }
+
+.fc-seg::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset-block: .1875rem;
+    inset-inline-start: .1875rem;
+    inline-size: calc((100% - .375rem) / 3);
+    border-radius: 999px;
+    background: var(--fc-thumb);
+    box-shadow: var(--q-shadow-1);
+    translate: calc(var(--i) * 100% * var(--fc-dir)) 0;
+    transition: translate var(--q-t-base) var(--q-ease-out), background-color var(--q-t-base) var(--q-ease-out);
+}
+
+.fc-seg button {
+    min-block-size: 2.25rem;
+    padding: 0 .75rem;
+    background: transparent;
+    color: var(--q-ink-muted);
+    border: 0;
+    border-radius: 999px;
+    font: inherit;
+    font-size: .875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color var(--q-t-base) var(--q-ease-out);
+}
+
+.fc-seg button[aria-checked="true"] { color: var(--fc-on-thumb); }
+
+.fc-seg button:disabled { cursor: not-allowed; }
+/* A switch that cannot be changed keeps its chosen state fully readable; only the other choices recede. */
+.fc-seg[aria-disabled="true"] button:not([aria-checked="true"]) { opacity: .5; }
+
+@media (pointer: coarse) {
+    .fc-seg button, .fc-filters button, .fc-chip { min-block-size: 2.75rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fc-seg::before, .fc-group > summary::after { transition: none; }
+}
+
+.fc-note {
+    margin: 0;
+    color: var(--q-ink-muted);
+    font-size: .8125rem;
+}
+
+/* The reason box is only for the page without JavaScript; with it, a dialog asks. */
+.fc-reason { display: none; inline-size: 100%; max-inline-size: 20rem; }
+.fc-reason[data-needed="true"] { display: block; }
+.fc[data-enhanced] .fc-reason { display: none; }
+
+.fc-error {
+    margin: 0;
+    color: var(--q-danger);
+    font-size: .875rem;
+}
+
+/* Folded away: what happens when it is off, the plans, early access and recent changes. */
+.fc-more { grid-column: 1 / -1; }
+
+.fc-more > summary {
+    inline-size: fit-content;
+    color: var(--q-accent-text);
+    font-size: .875rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.fc-panel {
+    display: grid;
+    gap: .5rem;
+    margin-block-start: .75rem;
+    padding-block-start: .75rem;
+    border-block-start: 1px dashed var(--q-line);
+}
+
+.fc-panel h4 {
+    margin: .75rem 0 0;
+    font-size: .9375rem;
+    font-weight: 600;
+}
+
+.fc-off, .fc-quiet {
+    margin: 0;
+    max-inline-size: 62ch;
+    color: var(--q-ink-muted);
+    font-size: .9375rem;
+}
+
+.fc-plans, .fc-beta, .fc-history {
+    display: grid;
+    gap: .5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.fc-plans li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem .75rem;
+}
+
+.fc-limit {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+}
+
+.fc-limit input { inline-size: 7rem; font-variant-numeric: tabular-nums; }
+.fc-unit { color: var(--q-ink-muted); font-size: .875rem; }
+
+.fc-beta li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem 1rem;
+}
+
+.fc-grant {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    align-items: end;
+    gap: .5rem .75rem;
+}
+
+.fc-grant label {
+    display: grid;
+    gap: .25rem;
+    color: var(--q-ink-muted);
+    font-size: .8125rem;
+}
+
+.fc-history li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .125rem .75rem;
+    font-size: .875rem;
+}
+
+.fc-history time { color: var(--q-ink-muted); font-variant-numeric: tabular-nums; }
+.fc-history q { color: var(--q-ink-muted); }
+
+.fc-presets { position: relative; }
+.fc-presets .menu-panel { display: grid; gap: .75rem; min-inline-size: min(22rem, 90vw); padding: .75rem; }
+.fc-presets .menu-panel form { display: grid; gap: .375rem; padding-block-end: .75rem; border-block-end: 1px solid var(--q-line); }
+.fc-presets .menu-panel form:last-child { padding-block-end: 0; border-block-end: 0; }
+
+.fc-pause { display: inline-flex; flex-wrap: wrap; gap: .5rem; }
+
+.fc-empty {
+    margin: 0;
+    padding: 2rem 1rem;
+    color: var(--q-ink-muted);
+    text-align: center;
+}
+
+/* What the script answers with: a notice with one way back, and a question before something that matters. */
+.fc-toasts {
+    position: fixed;
+    inset-inline: 0;
+    inset-block-end: max(1rem, env(safe-area-inset-bottom));
+    z-index: 40;
+    display: grid;
+    justify-items: center;
+    gap: .5rem;
+    padding-inline: 1rem;
+    pointer-events: none;
+}
+
+.fc-toast {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    max-inline-size: min(34rem, 100%);
+    padding: .625rem .75rem .625rem 1.125rem;
+    background: var(--q-ink);
+    color: var(--q-bg);
+    border-radius: 999px;
+    box-shadow: var(--q-shadow-2);
+    font-size: .9375rem;
+    pointer-events: auto;
+    animation: fc-rise var(--q-t-base) var(--q-ease-out);
+}
+
+.fc-toast[data-tone="error"] { background: var(--q-danger); color: #fff; }
+
+.fc-toast button {
+    padding: .375rem .875rem;
+    background: transparent;
+    color: inherit;
+    border: 1px solid color-mix(in srgb, currentColor 45%, transparent);
+    border-radius: 999px;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+@keyframes fc-rise {
+    from { opacity: 0; translate: 0 .5rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fc-toast { animation: none; }
+}
+
+.fc-dialog {
+    inline-size: min(32rem, calc(100% - 2rem));
+    padding: 1.5rem;
+    background: var(--q-surface);
+    color: var(--q-ink);
+    border: 1px solid var(--q-line);
+    border-radius: var(--q-r-lg);
+    box-shadow: var(--q-shadow-2);
+}
+
+.fc-dialog::backdrop { background: color-mix(in srgb, var(--q-ink) 45%, transparent); }
+
+.fc-dialog h2 {
+    margin: 0 0 .75rem;
+    font-family: var(--q-font-display);
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.fc-dialog-body { display: grid; gap: .5rem; color: var(--q-ink-muted); }
+.fc-dialog-body p, .fc-dialog-body ul { margin: 0; }
+.fc-dialog-body ul { padding-inline-start: 1.25rem; }
+.fc-dialog-reason { display: grid; gap: .25rem; margin-block-start: 1rem; font-size: .875rem; font-weight: 600; }
+.fc-dialog textarea { resize: vertical; }
+.fc-dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .5rem; margin-block-start: 1.25rem; }

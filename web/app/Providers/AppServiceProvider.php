@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Entitlements\Entitlements;
 use App\Entitlements\Feature;
+use App\Entitlements\FeatureCatalogue;
 use App\Entitlements\UsageMeters;
 use App\Listeners\AuditAuthEvents;
 use App\Models\Contract;
@@ -42,6 +43,18 @@ class AppServiceProvider extends ServiceProvider
 
         // The settings features declare for the workspace owner (see App\Settings). One per application instance.
         $this->app->singleton(SettingsRegistry::class);
+
+        // What the admin's tools know about each feature. The enum answers; in the local environment a developer may
+        // unlock some core switches to try the cockpit (QISTAS_PREVIEW_UNLOCK), and nowhere else.
+        $this->app->singleton(FeatureCatalogue::class, function ($app): FeatureCatalogue {
+            $unlocked = $app->environment('local')
+                ? array_filter(array_map('trim', explode(',', (string) config('qistas.preview_unlock'))))
+                : [];
+
+            return $unlocked === []
+                ? new FeatureCatalogue
+                : new FeatureCatalogue(locked: fn (Feature $feature): bool => $feature->isCore() && ! in_array($feature->value, $unlocked, true));
+        });
 
         // The passkey package registers sign-in endpoints on its own. They stay off until their UI ships.
         Passkeys::ignoreRoutes();

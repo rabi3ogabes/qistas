@@ -83,4 +83,11 @@ return [
         'per_hour' => (int) env('QISTAS_DEMO_PER_HOUR', 8), // per address
         'max_accounts' => (int) env('QISTAS_DEMO_MAX', 300),
     ],
+
+    /*
+    | A developer aid, honoured only in the local environment: feature keys (comma separated) whose switches the
+    | Feature control page treats as ordinary, so the cockpit can be tried while every real feature is still core.
+    | Production ignores it.
+    */
+    'preview_unlock' => env('QISTAS_PREVIEW_UNLOCK', ''),
 ];

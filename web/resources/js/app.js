@@ -19,3 +19,7 @@ Alpine.data('billingInterval', () => ({
 initTheme();
 initSheets();
 Alpine.start();
+
+// The admin's Feature control page brings its own script, and only that page downloads it.
+const cockpit = document.querySelector('[data-cockpit]');
+if (cockpit) import('./admin-features').then(({ initFeatureControl }) => initFeatureControl(cockpit));
