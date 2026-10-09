@@ -196,6 +196,10 @@ it('does not leave a workspace switched on', function () {
 it('lists at most fifty instalments due today, in customer-name order', function () {
     // Fixed, zero-padded names, made in reverse: the expected order is the same under every database collation
     // (random names are not: PostgreSQL's ignores spaces, PHP's does not), and creation order cannot fake it.
+    // Contract B (from beforeEach) is also due today, and its customer's name is random: name it too, so that it
+    // is the first of the 56 and the first fifty are exactly Customer 00 to Customer 49.
+    asTenant($this->tenant, fn () => $this->b->customer->forceFill(['name' => 'Customer 00'])->save());
+
     foreach (range(55, 1) as $number) {
         $customer = customerIn($this->tenant, ['name' => sprintf('Customer %02d', $number)]);
         openContract($this->tenant, ['customer_id' => $customer->id, 'type' => 'cash', 'principal' => '10.00', 'start_date' => '2026-10-07']);
@@ -204,5 +208,5 @@ it('lists at most fifty instalments due today, in customer-name order', function
     $due = metricsFor($this->tenant)['due_today'];
 
     expect($due)->toHaveCount(50)
-        ->and(array_column($due, 'customer_name'))->toBe(array_map(fn (int $n) => sprintf('Customer %02d', $n), range(1, 50)));
+        ->and(array_column($due, 'customer_name'))->toBe(array_map(fn (int $n) => sprintf('Customer %02d', $n), range(0, 49)));
 });
