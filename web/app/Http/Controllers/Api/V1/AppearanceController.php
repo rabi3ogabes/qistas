@@ -41,6 +41,13 @@ final class AppearanceController
         $response->setEtag(sha1((string) $response->getContent()));
         $response->headers->set('Cache-Control', 'private, max-age=300');
         $response->headers->set('Vary', 'Accept-Language, Authorization');
+
+        // The CDN compresses the answer and marks the tag ("abc" becomes "abc-gzip"); the app sends that back.
+        $sent = $request->headers->get('If-None-Match');
+        if (is_string($sent) && str_contains($sent, '-gzip"')) {
+            $request->headers->set('If-None-Match', str_replace('-gzip"', '"', $sent));
+        }
+
         $response->isNotModified($request);
 
         return $response;

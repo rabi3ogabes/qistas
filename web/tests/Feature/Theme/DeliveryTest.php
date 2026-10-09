@@ -226,4 +226,12 @@ describe('the appearance API', function () {
         publishLook($this->admin, ['colours' => ['primary' => '#7A1F2B']]);
         $this->getJson('/api/v1/appearance', ['If-None-Match' => $etag])->assertOk();
     });
+
+    it('recognises its tag after the CDN marked it as compressed', function () {
+        publishLook($this->admin, ['colours' => ['primary' => '#0F5132']]);
+        $etag = $this->getJson('/api/v1/appearance')->headers->get('ETag');
+
+        // Vercel answers gzip and rewrites "abc" as "abc-gzip"; the app then sends that back.
+        $this->getJson('/api/v1/appearance', ['If-None-Match' => substr($etag, 0, -1).'-gzip"'])->assertStatus(304);
+    });
 });
