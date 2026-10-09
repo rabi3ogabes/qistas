@@ -186,6 +186,7 @@ class _AccountCard extends StatelessWidget {
             children: [
               Expanded(child: Text(account.businessName, style: text.titleSmall, maxLines: 2, overflow: TextOverflow.ellipsis)),
               const SizedBox(width: 8),
+              if (account.isTest) ...[QBadge(context.t('Test workspace'), tone: QTone.info), const SizedBox(width: 6)],
               QBadge(account.planName, tone: account.isFree ? QTone.neutral : QTone.gold),
             ],
           ),

@@ -179,13 +179,33 @@ void main() {
   });
 
   group('the workspace', () {
-    testWidgets('marks an admin’s test workspace', (tester) async {
+    testWidgets('keeps an admin’s test workspace free of a strip on every screen, and marks it quietly in Settings', (tester) async {
       final account = accountJson();
       account['tenant'] = {...Map<String, dynamic>.from(account['tenant'] as Map), 'is_test': true};
       await pumpApp(tester, workspaceServer(account: account));
 
-      expect(find.textContaining('Test workspace', findRichText: true), findsOneWidget);
       expect(Account.fromJson(account).isTest, isTrue);
+      expect(find.textContaining('Sample data. Nothing here is real', findRichText: true), findsNothing);
+      expect(find.textContaining('Test workspace', findRichText: true), findsNothing);
+
+      await openSettings(tester);
+
+      expect(find.descendant(of: find.byType(QBadge), matching: find.text('Test workspace')), findsOneWidget);
+    });
+
+    testWidgets('marks nothing in Settings for a real workspace', (tester) async {
+      await pumpApp(tester, workspaceServer());
+      await openSettings(tester);
+
+      expect(find.text('Test workspace'), findsNothing);
+    });
+
+    testWidgets('still says when the e-mail is not confirmed', (tester) async {
+      final account = accountJson();
+      account['user'] = {...Map<String, dynamic>.from(account['user'] as Map), 'email_verified': false};
+      await pumpApp(tester, workspaceServer(account: account));
+
+      expect(find.textContaining('Verify your e-mail'), findsOneWidget);
     });
 
     testWidgets('shows a cached dashboard banner offline and recovers with Try again', (tester) async {

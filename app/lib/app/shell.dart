@@ -81,7 +81,7 @@ class _AppShellState extends ConsumerState<AppShell> with WidgetsBindingObserver
     final selected = shell.currentIndex < destinations.length ? shell.currentIndex : -1;
 
     final notices = _Notices(auth: auth, account: account);
-    final hasNotices = (account != null && (account.isDemo || account.isTest || !account.emailVerified)) || (auth?.offline ?? false);
+    final hasNotices = (account != null && (account.isDemo || !account.emailVerified)) || (auth?.offline ?? false);
     final wide = MediaQuery.sizeOf(context).width >= 840;
 
     final content = Column(
@@ -127,7 +127,8 @@ class _AppShellState extends ConsumerState<AppShell> with WidgetsBindingObserver
   }
 }
 
-/// What the whole app should know right now: it is a demo or a test, there is no connection, or the e-mail is unconfirmed.
+/// What the whole app should know right now: it is a demo, there is no connection, or the e-mail is unconfirmed. (An
+/// admin's test workspace is marked on the account card in Settings instead, not on every screen.)
 class _Notices extends ConsumerWidget {
   const _Notices({required this.auth, required this.account});
 
@@ -164,17 +165,6 @@ class _Notices extends ConsumerWidget {
                 },
                 child: Text(context.t('Create my free account')),
               ),
-            ),
-          ),
-        if (account != null && account.isTest)
-          strip(
-            color: c.tintSand,
-            child: Text.rich(
-              TextSpan(children: [
-                TextSpan(text: context.t('Test workspace'), style: const TextStyle(fontWeight: FontWeight.w700)),
-                TextSpan(text: '  ${context.t('Sample data. Nothing here is real, and no customer sees it.')}'),
-              ]),
-              style: small?.copyWith(color: c.ink),
             ),
           ),
         if (auth?.offline ?? false)
