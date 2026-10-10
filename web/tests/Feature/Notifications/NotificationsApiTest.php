@@ -33,6 +33,17 @@ describe('push tokens', function () {
         expect($tokens)->toHaveCount(1)->and($tokens[0]->user_id)->toBe($member->id);
     });
 
+    it('leaves the business it was in when another business registers the same phone', function () {
+        [$first] = apiOwner();
+        $this->postJson('/api/v1/push-tokens', ['token' => 'shared-phone', 'platform' => 'android'])->assertCreated();
+
+        [$second, $other] = apiOwner();
+        $this->postJson('/api/v1/push-tokens', ['token' => 'shared-phone', 'platform' => 'android'])->assertCreated();
+
+        $tokens = PushToken::withoutGlobalScopes()->where('token', 'shared-phone')->get();
+        expect($tokens)->toHaveCount(1)->and($tokens[0]->tenant_id)->toBe($other->id)->and($tokens[0]->user_id)->toBe($second->id);
+    });
+
     it('refuses a platform it does not know', function () {
         apiOwner();
 
