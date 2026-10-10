@@ -41,17 +41,23 @@ class FakeServer {
   FutureOr<FakeResponse> _answer(RequestOptions options) {
     if (offline) throw DioException.connectionError(requestOptions: options, reason: 'offline');
 
-    final path = options.path.startsWith('/') ? options.path : '/${options.path}';
+    final path = _pathOf(options.path);
     final handler = _routes['${options.method} $path'];
 
     return handler == null ? apiError(404, 'not_found', 'Nothing planned for ${options.method} $path') : handler(options);
   }
 
   /// How many times a route was called.
-  int calls(String route) => adapter.requests.where((r) => '${r.method} ${r.path.startsWith('/') ? r.path : '/${r.path}'}' == route).length;
+  int calls(String route) => adapter.requests.where((r) => '${r.method} ${_pathOf(r.path)}' == route).length;
 
-  List<RequestOptions> requestsTo(String route) =>
-      adapter.requests.where((r) => '${r.method} ${r.path.startsWith('/') ? r.path : '/${r.path}'}' == route).toList();
+  List<RequestOptions> requestsTo(String route) => adapter.requests.where((r) => '${r.method} ${_pathOf(r.path)}' == route).toList();
+
+  /// The path a request was for: a relative one as it is, an absolute link (a signed download) by its path alone.
+  static String _pathOf(String path) {
+    if (path.startsWith('http://') || path.startsWith('https://')) return Uri.parse(path).path;
+
+    return path.startsWith('/') ? path : '/$path';
+  }
 }
 
 FutureOr<FakeResponse> Function(RequestOptions) always(FakeResponse response) => (_) => response;

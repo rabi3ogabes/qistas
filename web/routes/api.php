@@ -1,8 +1,10 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AccountDeletionController;
+use App\Http\Controllers\Api\V1\ActivityController;
 use App\Http\Controllers\Api\V1\AppearanceController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\BackupController;
 use App\Http\Controllers\Api\V1\BusinessProfileController;
 use App\Http\Controllers\Api\V1\ContractController;
 use App\Http\Controllers\Api\V1\CustomerController;
@@ -86,6 +88,12 @@ Route::name('api.')->group(function (): void {
             Route::get('reports/transactions.pdf', [DocumentController::class, 'transactions'])->name('reports.transactions');
             Route::get('investors/{investor}/report.pdf', [DocumentController::class, 'investorReport'])->whereUuid('investor')->name('investors.report');
         });
+        // Backups and data, and the activity log (Win Plan PP10).
+        Route::get('backups', [BackupController::class, 'index'])->name('backups.index');
+        Route::post('exports', [BackupController::class, 'store'])->middleware('throttle:documents')->name('exports.store');
+        Route::get('exports/{export}', [BackupController::class, 'show'])->whereUuid('export')->name('exports.show');
+        Route::get('exports/{export}/download', [BackupController::class, 'download'])->whereUuid('export')->name('exports.download');
+        Route::get('activity', ActivityController::class)->name('activity');
         Route::get('settings/business-profile', [BusinessProfileController::class, 'show'])->name('settings.business-profile.show');
         Route::put('settings/business-profile', [BusinessProfileController::class, 'update'])->name('settings.business-profile.update');
         Route::post('settings/business-profile/{slot}', [BusinessProfileController::class, 'storeAsset'])->whereIn('slot', ['logo', 'signature'])->name('settings.business-profile.assets.store');

@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\SchedulePreviewController;
 use App\Http\Controllers\Workspace\AccountDeletionController;
+use App\Http\Controllers\Workspace\ActivityController;
+use App\Http\Controllers\Workspace\BackupController;
 use App\Http\Controllers\Workspace\BillingController;
 use App\Http\Controllers\Workspace\BusinessProfileController;
 use App\Http\Controllers\Workspace\ContractController;
@@ -55,6 +57,12 @@ Route::get('files/{file}', [FileController::class, 'show'])->name('files.show');
 
 // The settings of the features that are on for this workspace (empty until a feature declares one).
 Route::get('settings/tools', [ToolsController::class, 'show'])->name('settings.tools');
+// Backups and data, and the activity log (Win Plan PP10).
+Route::get('settings/backups', [BackupController::class, 'show'])->name('settings.backups');
+Route::post('exports', [BackupController::class, 'store'])->middleware('throttle:documents')->name('exports.store');
+Route::get('exports/{export}/download', [BackupController::class, 'download'])->whereUuid('export')->name('exports.download');
+Route::get('activity', ActivityController::class)->name('activity');
+
 // Who the documents come from, and how they look by default (Win Plan PP8).
 Route::get('settings/business', [BusinessProfileController::class, 'edit'])->name('settings.business');
 Route::put('settings/business', [BusinessProfileController::class, 'update'])->name('settings.business.update');

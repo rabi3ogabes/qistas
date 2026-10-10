@@ -16,8 +16,15 @@ import '../billing/upgrade_sheet.dart';
 
 /// Hands a file to the phone's share sheet (WhatsApp, email, a printer, any app). A provider, so tests see what was shared.
 final documentSharerProvider = Provider<Future<void> Function(String path, String subject)>(
-  (ref) => (path, subject) => SharePlus.instance.share(ShareParams(files: [XFile(path, mimeType: 'application/pdf')], subject: subject)),
+  (ref) => (path, subject) => SharePlus.instance.share(ShareParams(files: [XFile(path, mimeType: _mimeOf(path))], subject: subject)),
 );
+
+/// What a file is, from its name, so the app it is shared to knows how to open it.
+String _mimeOf(String path) => switch (path.split('.').last.toLowerCase()) {
+      'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'zip' => 'application/zip',
+      _ => 'application/pdf',
+    };
 
 /// Where a document is written before it is shared: the app's own temporary folder.
 final documentFolderProvider = Provider<Future<Directory> Function()>((ref) => getTemporaryDirectory);

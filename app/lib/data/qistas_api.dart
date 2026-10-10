@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import '../core/api/api_client.dart';
 import '../core/money.dart';
 import '../domain/schedule_generator.dart';
+import 'backups.dart';
 import 'documents.dart';
 import 'investors.dart';
 import 'models.dart';
@@ -145,6 +146,25 @@ class QistasApi {
   }
 
   Future<void> signOutDevice(String id) async => _client.delete('/devices/$id');
+
+  // ---------------------------------------------------------------- backups and the activity log (Win Plan PP10)
+
+  Future<BackupsOverview> backups() async => BackupsOverview.fromJson(await _client.get('/backups'));
+
+  /// Everything in one file ([format] xlsx or csv). Usually ready at once; a pending one is asked for again.
+  Future<WorkspaceExport> createExport(String format) async => WorkspaceExport.fromJson(_data(await _client.post('/exports', body: {'format': format})));
+
+  Future<WorkspaceExport> workspaceExport(String id) async => WorkspaceExport.fromJson(_data(await _client.get('/exports/$id')));
+
+  /// The file behind an export, through its five-minute link: its name and its bytes.
+  Future<({String filename, Uint8List bytes})> downloadExport(String id) async {
+    final link = _data(await _client.get('/exports/$id/download'));
+
+    return (filename: link['filename'] as String? ?? 'qistas.xlsx', bytes: await _client.getBytes(link['url'] as String));
+  }
+
+  Future<ActivityPage> activity({String? user, String? kind, int page = 1}) async =>
+      ActivityPage.fromJson(await _client.get('/activity', query: {'user': ?user, 'kind': ?kind, 'page': page}));
 
   // ---------------------------------------------------------------- documents (Win Plan PP8)
 

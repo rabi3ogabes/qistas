@@ -213,6 +213,26 @@
     .sold-total { justify-self: start; padding: 0; border: 0; background: none; font: inherit; font-size: .8125rem; cursor: pointer; }
     .discount-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 8rem); gap: .5rem; }
 
+    /* ---------- Backups and the activity log (Win Plan PP10) ---------- */
+    .backup-grid { display: grid; gap: 1rem; margin-bottom: 1rem; }
+    @media (min-width: 900px) { .backup-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); } }
+    .backup-status { display: flex; gap: 1rem; align-items: flex-start; }
+    .backup-mark { display: grid; place-items: center; flex: none; width: 2.75rem; height: 2.75rem; border-radius: 999px; background: var(--q-surface-alt); color: var(--q-ink-muted); }
+    .backup-mark[data-ok="true"] { background: color-mix(in srgb, var(--q-positive) 14%, transparent); color: var(--q-positive); }
+    .backup-when { margin: .125rem 0 .25rem; font-size: 1.375rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .backup-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .activity-filters { display: grid; gap: .75rem; margin-bottom: 1rem; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); align-items: end; }
+    .activity-filter-actions { display: flex; gap: .5rem; }
+    .activity-list { margin: 0; padding: 0; list-style: none; }
+    .activity-item { display: flex; gap: .875rem; align-items: flex-start; padding: .875rem 1.25rem; border-bottom: 1px solid color-mix(in srgb, var(--q-line) 70%, transparent); }
+    .activity-item:last-child { border-bottom: 0; }
+    .activity-icon { display: grid; place-items: center; flex: none; width: 2.25rem; height: 2.25rem; border-radius: 999px; background: var(--q-surface-alt); color: var(--q-ink-muted); }
+    .activity-icon[data-kind="payments"] { background: color-mix(in srgb, var(--q-positive) 12%, transparent); color: var(--q-positive); }
+    .activity-icon[data-kind="contracts"] { background: color-mix(in srgb, var(--q-info) 12%, transparent); color: var(--q-info); }
+    .activity-icon[data-kind="settings"], .activity-icon[data-kind="team"] { background: color-mix(in srgb, var(--q-accent) 16%, transparent); color: var(--q-accent-text); }
+    .activity-body { min-width: 0; }
+    .activity-what { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
+
     /* ---------- Documents (Win Plan PP8) ---------- */
     /* A document's button with its choices beside it: one click opens it, the panel changes it for this one document. */
     .doc-menu { position: relative; display: inline-flex; align-items: center; gap: .25rem; }

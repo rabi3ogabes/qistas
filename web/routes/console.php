@@ -13,3 +13,6 @@ Schedule::command('qistas:prune-demo')->everyFifteenMinutes()->withoutOverlappin
 
 // Businesses whose owners deleted them more than 30 days ago are erased (the owner can restore until then).
 Schedule::command('qistas:purge-deleted-accounts')->daily()->withoutOverlapping(30);
+
+// Every business's nightly copy (Win Plan PP10), a few businesses an hour so no run is long.
+Schedule::command('qistas:export-workspaces')->hourly()->withoutOverlapping(30);

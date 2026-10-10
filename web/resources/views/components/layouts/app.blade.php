@@ -2,6 +2,7 @@
     $user = auth()->user();
     $isFree = $plan->isFree();
     $hasTools = app(\App\Settings\SettingsRegistry::class)->definitionsFor($tenant) !== [];
+    $role = $user?->roleIn($tenant->id);
     $tabs = array_slice($nav, 0, 4);
 @endphp
 <!DOCTYPE html>
@@ -74,6 +75,8 @@
                         {{-- Always there: the page holds the phone-security rule as well as the instalment tools. --}}
                         <a class="menu-item" role="menuitem" href="{{ route('app.settings.tools') }}"><x-icon name="sliders" :size="18" /> {{ $hasTools ? __('Instalment tools') : __('Settings') }}</a>
                         <a class="menu-item" role="menuitem" href="{{ route('app.settings.business') }}"><x-icon name="fileText" :size="18" /> {{ __('Business profile') }}</a>
+                        @if ($role?->canExport())<a class="menu-item" role="menuitem" href="{{ route('app.settings.backups') }}"><x-icon name="cloud" :size="18" /> {{ __('Backups & data') }}</a>@endif
+                        @if ($role?->canManageSettings())<a class="menu-item" role="menuitem" href="{{ route('app.activity') }}"><x-icon name="history" :size="18" /> {{ __('Activity log') }}</a>@endif
                         <a class="menu-item" role="menuitem" href="{{ route('security') }}"><x-icon name="shield" :size="18" /> {{ __('Security') }}</a>
                         @if ($user->isPlatformAdmin())
                             <a class="menu-item" role="menuitem" href="{{ route('admin.home') }}"><x-icon name="sliders" :size="18" /> {{ __('Admin area') }}</a>
@@ -147,6 +150,8 @@
                     @endfeature
                     <a class="menu-item" role="menuitem" href="{{ route('app.settings.tools') }}"><x-icon name="sliders" :size="18" /> {{ $hasTools ? __('Instalment tools') : __('Settings') }}</a>
                         <a class="menu-item" role="menuitem" href="{{ route('app.settings.business') }}"><x-icon name="fileText" :size="18" /> {{ __('Business profile') }}</a>
+                        @if ($role?->canExport())<a class="menu-item" role="menuitem" href="{{ route('app.settings.backups') }}"><x-icon name="cloud" :size="18" /> {{ __('Backups & data') }}</a>@endif
+                        @if ($role?->canManageSettings())<a class="menu-item" role="menuitem" href="{{ route('app.activity') }}"><x-icon name="history" :size="18" /> {{ __('Activity log') }}</a>@endif
                     <a class="menu-item" role="menuitem" href="{{ route('security') }}"><x-icon name="shield" :size="18" /> {{ __('Security') }}</a>
                     @if ($isFree)
                         <a class="menu-item menu-cta" role="menuitem" href="{{ url('/app/billing') }}">{{ __('Upgrade your plan') }}</a>

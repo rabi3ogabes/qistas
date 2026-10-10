@@ -104,6 +104,11 @@ class SettingsScreen extends ConsumerWidget {
                 children: _divided([
                   // Who the statements and receipts come from (Win Plan PP8): everyone may look.
                   _Row(key: const ValueKey('settings-business'), icon: Icons.storefront_outlined, title: context.t('Business profile'), onTap: () => context.push('/settings/business')),
+                  // Backups and data, and the activity log (Win Plan PP10).
+                  if (account?.canExport ?? false)
+                    _Row(key: const ValueKey('settings-backups'), icon: Icons.cloud_done_outlined, title: context.t('Backups & data'), onTap: () => context.push('/settings/backups')),
+                  if (account?.canManageSettings ?? false)
+                    _Row(key: const ValueKey('settings-activity'), icon: Icons.history_rounded, title: context.t('Activity log'), onTap: () => context.push('/settings/activity')),
                   if (showsTeam)
                     _Row(key: const ValueKey('settings-team'), icon: Icons.groups_2_outlined, title: context.t('Team'), onTap: () => context.push('/team')),
                   if (investors)

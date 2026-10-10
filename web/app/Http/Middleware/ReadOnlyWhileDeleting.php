@@ -16,7 +16,8 @@ use Symfony\Component\HttpFoundation\Response;
 final class ReadOnlyWhileDeleting
 {
     /** Routes that must keep working during the 30 days. */
-    private const OPEN = ['api.account.deletion.*', 'app.account.delete.*', 'api.auth.logout', 'api.auth.logout-all'];
+    // Restoring, signing out and taking the books out (an owner closing the business wants their data) stay open.
+    private const OPEN = ['api.account.deletion.*', 'app.account.delete.*', 'api.auth.logout', 'api.auth.logout-all', 'api.exports.store', 'app.exports.store'];
 
     public function __construct(private readonly CurrentTenant $current) {}
 

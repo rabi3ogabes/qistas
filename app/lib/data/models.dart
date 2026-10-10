@@ -177,6 +177,9 @@ class Account {
   /// May change the business's own rules (its tools, the app-lock requirement).
   bool get canManageSettings => role == 'owner' || role == 'manager';
 
+  /// May take the whole of the books out (Win Plan PP10): the people who run the business and its accountant.
+  bool get canExport => role == 'owner' || role == 'manager' || role == 'accountant';
+
   Map<String, dynamic> toJson() => {
         'user': {'id': userId, 'name': name, 'email': email, 'email_verified': emailVerified, 'locale': locale, 'two_factor': twoFactor},
         'tenant': {'id': tenantId, 'name': businessName, 'country': country, 'currency': currency, 'role': role, 'is_test': isTest, 'is_demo': isDemo, 'require_app_lock': requireAppLock, 'deletion_scheduled_for': deletionScheduledFor},

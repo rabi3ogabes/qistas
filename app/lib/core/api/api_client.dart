@@ -88,6 +88,7 @@ class ApiClient {
     final Response<List<int>> response;
 
     try {
+      // A relative path goes to the API; an absolute one (a signed download link) is used as it is.
       response = await _dio.request<List<int>>(
         path.startsWith('/') ? path.substring(1) : path,
         queryParameters: query,

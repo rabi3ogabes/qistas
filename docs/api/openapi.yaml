@@ -53,6 +53,7 @@ tags:
   - name: Investors
   - name: Products
   - name: Documents
+  - name: Backups
 paths:
   /plans:
     get:
@@ -1466,6 +1467,117 @@ paths:
         "401": {$ref: "#/components/responses/Unauthenticated"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "422": {$ref: "#/components/responses/ValidationFailed"}
+  /backups:
+    get:
+      tags: [Backups]
+      summary: When the books were last copied, and the copies kept
+      description: Owners, managers and accountants, on any plan. Every business gets a copy every night; the newest seven are kept, encrypted. Downloads asked for are listed for a day.
+      responses:
+        "200":
+          description: The last nightly copy's time and the copies.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      last_backup_at: {type: string, format: date-time, nullable: true}
+                      copies: {type: array, items: {$ref: "#/components/schemas/WorkspaceExport"}}
+                  meta: {type: object, properties: {can_export: {type: boolean}, kept: {type: integer}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /exports:
+    post:
+      tags: [Backups]
+      summary: Everything in one file
+      description: |
+        Customers, contracts, instalments, payments, what was sold, investors and their entries, one sheet each: an Excel
+        file, or CSV files (each with a UTF-8 byte-order mark) in a zip. Works on every plan, including a lapsed one, and
+        while the business is being deleted. Answered 202; the file is usually ready at once (`status: ready`); a client
+        told `pending` asks `GET /exports/{export}` again. Owners, managers and accountants.
+      requestBody:
+        content: {application/json: {schema: {type: object, properties: {format: {type: string, enum: [xlsx, csv], default: xlsx}}}}}
+      responses:
+        "202":
+          description: The export.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/WorkspaceExport"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+  /exports/{export}:
+    parameters:
+      - {name: export, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [Backups]
+      summary: One export, to see whether it is ready
+      responses:
+        "200":
+          description: The export.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/WorkspaceExport"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /exports/{export}/download:
+    parameters:
+      - {name: export, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [Backups]
+      summary: A link to the file that works for five minutes
+      description: The link needs no sign-in (its signature is the permission), so the app can download it directly.
+      responses:
+        "200":
+          description: The link.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      url: {type: string, format: uri}
+                      expires_at: {type: string, format: date-time}
+                      filename: {type: string}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /activity:
+    get:
+      tags: [Backups]
+      summary: The activity log
+      description: |
+        What the business's people did, newest first, as a line in the asker's language: customers added, changed and
+        removed (which fields, never their values), contracts opened and cancelled, payments recorded and voided, investors,
+        products, the team and settings. Owners and managers.
+      parameters:
+        - {name: user, in: query, schema: {type: string, format: uuid}}
+        - {name: kind, in: query, schema: {type: string, enum: [customers, contracts, payments, investors, products, team, settings]}}
+        - {name: from, in: query, schema: {type: string, format: date}}
+        - {name: to, in: query, schema: {type: string, format: date}}
+        - {name: page, in: query, schema: {type: integer, minimum: 1}}
+      responses:
+        "200":
+          description: A page of entries, and the people to filter by.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {type: array, items: {$ref: "#/components/schemas/ActivityEntry"}}
+                  meta:
+                    type: object
+                    properties:
+                      current_page: {type: integer}
+                      last_page: {type: integer}
+                      total: {type: integer}
+                      people: {type: array, items: {type: object, properties: {id: {type: string, format: uuid}, name: {type: string}}}}
+                      kinds: {type: array, items: {type: string}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
 components:
   securitySchemes:
     bearer:
@@ -1659,6 +1771,26 @@ components:
         sku: {type: string, maxLength: 60}
         default_price: {$ref: "#/components/schemas/Money"}
         cost: {$ref: "#/components/schemas/Money"}
+    WorkspaceExport:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        kind: {type: string, enum: [nightly, manual]}
+        format: {type: string, enum: [xlsx, csv]}
+        status: {type: string, enum: [pending, ready, failed]}
+        size: {type: integer, description: Bytes of the file.}
+        row_counts: {type: object, additionalProperties: {type: integer}, description: "Rows per sheet: customers, contracts, instalments, payments, items, investors, investor_entries."}
+        created_at: {type: string, format: date-time}
+        expires_at: {type: string, format: date-time, nullable: true}
+    ActivityEntry:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        at: {type: string, format: date-time, description: On the business's own clock.}
+        action: {type: string, example: payment.recorded}
+        kind: {type: string, nullable: true, enum: [customers, contracts, payments, investors, products, team, settings]}
+        summary: {type: string, example: "Payment recorded: SAR 150.00 on C-0001"}
+        person: {type: object, nullable: true, properties: {id: {type: string, format: uuid}, name: {type: string}}}
     BusinessProfile:
       type: object
       properties:
