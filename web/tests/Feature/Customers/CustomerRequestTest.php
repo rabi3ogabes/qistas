@@ -56,5 +56,6 @@ it('trims whitespace and turns empty optional fields into nothing', function () 
 it('only ever offers fields the customer table lets a client set', function () {
     $fields = array_keys((new CustomerRequest)->rules());
 
-    expect($fields)->toEqualCanonicalizing(['name', 'phone', 'phone_secondary', 'email', 'national_id', 'address', 'notes', 'remove_national_id', 'job']);
+    // Tags are not a column: they are synced on their own, checked against the business's tags (Win Plan PP12).
+    expect($fields)->toEqualCanonicalizing(['name', 'phone', 'phone_secondary', 'email', 'national_id', 'address', 'notes', 'remove_national_id', 'job', 'tags', 'tags.*']);
 });

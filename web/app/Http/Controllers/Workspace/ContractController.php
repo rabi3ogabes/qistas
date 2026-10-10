@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Workspace;
 
+use App\Actions\ArchiveContract;
 use App\Actions\CancelContract;
 use App\Actions\ConvertToOpen;
 use App\Actions\CreateContract;
@@ -12,6 +13,7 @@ use App\Domain\Ledger\LedgerLines;
 use App\Domain\Ledger\OpenAccount;
 use App\Entitlements\Entitlements;
 use App\Entitlements\Feature;
+use App\Http\ApiException;
 use App\Http\Requests\CancelContractRequest;
 use App\Http\Requests\ChargeRequest;
 use App\Http\Requests\ContractRequest;
@@ -203,5 +205,26 @@ final class ContractController
 
         return redirect()->route('app.contracts.show', $contract)
             ->with('status', __('Contract :reference cancelled. Its history is kept.', ['reference' => $contract->reference()]));
+    }
+
+    /** Puts a settled or cancelled contract away (Win Plan PP12), or brings it back. */
+    public function archive(Request $request, Contract $contract, ArchiveContract $archive): RedirectResponse
+    {
+        Gate::authorize('archive', $contract);
+        try {
+            $archive->handle($contract, true, $request->user());
+        } catch (ApiException $e) {
+            return back()->withErrors(['contract' => $e->getMessage()]);
+        }
+
+        return back()->with('status', __('Contract :reference archived. It is under Archived in your contracts.', ['reference' => $contract->reference()]));
+    }
+
+    public function unarchive(Request $request, Contract $contract, ArchiveContract $archive): RedirectResponse
+    {
+        Gate::authorize('archive', $contract);
+        $archive->handle($contract, false, $request->user());
+
+        return back()->with('status', __('Contract :reference is back in your lists.', ['reference' => $contract->reference()]));
     }
 }

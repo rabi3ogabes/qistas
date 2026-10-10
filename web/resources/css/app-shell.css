@@ -213,6 +213,48 @@
     .sold-total { justify-self: start; padding: 0; border: 0; background: none; font: inherit; font-size: .8125rem; cursor: pointer; }
     .discount-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 8rem); gap: .5rem; }
 
+    /* ---------- Lists that stay short (Win Plan PP12) ---------- */
+    .list-tools { display: grid; gap: .75rem; margin-bottom: .75rem; }
+    @media (min-width: 760px) { .list-tools { grid-template-columns: minmax(0, 1fr) auto; align-items: center; } .list-tools .search { margin: 0; } }
+    .list-sort { display: flex; align-items: center; gap: .5rem; }
+    .list-sort label { color: var(--q-ink-muted); font-size: .875rem; white-space: nowrap; }
+    .list-sort select { min-width: 11rem; }
+    .tag-filter { display: flex; flex-wrap: wrap; align-items: center; gap: .375rem; margin: 0 0 1rem; }
+    .tag-manage { display: inline-flex; align-items: center; gap: .25rem; margin-inline-start: .25rem; font-size: .875rem; }
+    .tag-chip {
+        --tag: var(--q-ink-muted);
+        display: inline-flex; align-items: center; gap: .375rem; padding: .3125rem .75rem; border-radius: 999px;
+        border: 1px solid color-mix(in srgb, var(--tag) 30%, transparent); background: color-mix(in srgb, var(--tag) 10%, transparent);
+        color: color-mix(in srgb, var(--tag) 70%, var(--q-ink)); font-size: .8125rem; font-weight: 500; text-decoration: none; line-height: 1.2;
+    }
+    .tag-chip[data-colour="gold"] { --tag: var(--q-accent); }
+    .tag-chip[data-colour="green"] { --tag: var(--q-positive); }
+    .tag-chip[data-colour="blue"] { --tag: var(--q-info); }
+    .tag-chip[data-colour="red"] { --tag: var(--q-danger); }
+    .tag-chip[data-colour="purple"] { --tag: #7a5af5; }
+    .tag-chip[data-colour="none"] { --tag: var(--q-ink); }
+    a.tag-chip[aria-current="true"] { background: var(--tag); border-color: var(--tag); color: var(--q-surface); }
+    @media (hover: hover) and (pointer: fine) { a.tag-chip:not([aria-current="true"]):hover { border-color: var(--tag); } }
+    .tag-chip-sm { padding: .0625rem .5rem; font-size: .75rem; }
+    .tag-list { display: flex; flex-wrap: wrap; gap: .25rem; margin: 0; }
+    .customer-cell { display: grid; gap: .25rem; justify-items: start; }
+    @media (max-width: 639px) { .table-stack td .customer-cell { justify-items: end; } }
+    .i.pin-mark { display: inline-block; margin-inline-end: .25rem; color: var(--q-accent-text); vertical-align: -2px; }
+    .tag-pick { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .tag-choice { cursor: pointer; }
+    .tag-choice input { margin: 0; }
+    .tag-choice:has(input:checked) { background: color-mix(in srgb, var(--tag) 22%, transparent); border-color: var(--tag); }
+    .tag-rows { margin: 0; padding: 0; list-style: none; }
+    .tag-row { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; padding: .875rem 1.25rem; border-bottom: 1px solid color-mix(in srgb, var(--q-line) 70%, transparent); }
+    .tag-row:last-child { border-bottom: 0; }
+    .tag-edit { margin-inline-start: auto; }
+    .tag-edit[open] { flex-basis: 100%; margin-inline-start: 0; }
+    .tag-form { display: grid; gap: .5rem; margin-top: .5rem; }
+    .archived-contracts { padding: .875rem 1.25rem 1rem; border-top: 1px solid color-mix(in srgb, var(--q-line) 70%, transparent); }
+    .archived-contracts summary { display: inline-flex; align-items: center; gap: .375rem; cursor: pointer; }
+    .archived-list { display: grid; gap: .5rem; margin: .75rem 0 0; padding: 0; list-style: none; }
+    .archived-only { margin: 0; padding: .875rem 1.25rem 0; }
+
     /* ---------- Backups and the activity log (Win Plan PP10) ---------- */
     .backup-grid { display: grid; gap: 1rem; margin-bottom: 1rem; }
     @media (min-width: 900px) { .backup-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); } }

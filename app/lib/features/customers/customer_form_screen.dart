@@ -13,8 +13,10 @@ import '../../core/ui/errors.dart';
 import '../../data/models.dart';
 import '../../data/qistas_api.dart';
 import '../billing/upgrade_sheet.dart';
+import 'contact_picker.dart';
 import 'customer_detail_screen.dart';
 import 'customers_screen.dart';
+import 'tags.dart';
 
 /// Adds a customer, or changes one when [id] is given.
 class CustomerFormScreen extends ConsumerStatefulWidget {
@@ -43,6 +45,9 @@ class _CustomerFormScreenState extends ConsumerState<CustomerFormScreen> {
   bool _loading = false;
   bool _saving = false;
   bool _removeNationalId = false;
+
+  /// The tag ids chosen (Win Plan PP12).
+  final Set<String> _tags = {};
   Map<String, List<String>> _fields = const {};
   String? _problem;
 
@@ -79,6 +84,9 @@ class _CustomerFormScreenState extends ConsumerState<CustomerFormScreen> {
         _address.text = customer.address ?? '';
         _job.text = customer.job ?? '';
         _notes.text = customer.notes ?? '';
+        _tags
+          ..clear()
+          ..addAll(customer.tags.map((tag) => tag.id));
       });
     } on ApiException catch (e) {
       if (mounted) {
@@ -91,6 +99,31 @@ class _CustomerFormScreenState extends ConsumerState<CustomerFormScreen> {
   }
 
   String? _error(String field) => _fields[field]?.firstOrNull;
+
+  /// Fills the phone (and the name, when it is still empty) from the phone's contacts.
+  Future<void> _pickContact() async {
+    final picked = await ref.read(contactPickerProvider)();
+    if (picked == null || !mounted) return;
+
+    final country = ref.read(accountProvider)?.country ?? '';
+    setState(() {
+      _phone.text = internationalPhone(picked.phone, country);
+      if (_name.text.trim().isEmpty && picked.name.isNotEmpty) _name.text = picked.name;
+    });
+  }
+
+  Future<void> _addTag() async {
+    final tag = await showTagSheet(context);
+    if (tag != null && mounted) setState(() => _tags.add(tag.id));
+  }
+
+  /// The tags to send: only once the business's tags have loaded, so a slow network never takes a customer's off.
+  List<String>? get _tagsToSend {
+    if (!showsTags(ref.read(accountProvider))) return null;
+    if (!ref.read(customerTagsProvider).hasValue) return null;
+
+    return _tags.toList();
+  }
 
   Future<void> _save() async {
     if (_saving) return;
@@ -126,6 +159,7 @@ class _CustomerFormScreenState extends ConsumerState<CustomerFormScreen> {
       notes: _notes.text,
       job: _job.text,
       removeNationalId: _removeNationalId,
+      tags: _tagsToSend,
     );
 
     try {
@@ -172,6 +206,8 @@ class _CustomerFormScreenState extends ConsumerState<CustomerFormScreen> {
     }
 
     final hasId = _loaded?.nationalId != null;
+    final tagsOn = showsTags(ref.watch(accountProvider));
+    final tags = tagsOn ? ref.watch(customerTagsProvider).valueOrNull : null;
 
     return Scaffold(
       appBar: AppBar(title: Text(title)),
@@ -184,6 +220,8 @@ class _CustomerFormScreenState extends ConsumerState<CustomerFormScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (_problem != null) ...[QNotice(_problem!, icon: Icons.error_outline), const SizedBox(height: 16)],
+                  QButton(label: context.t('Pick from contacts'), kind: QButtonKind.quiet, icon: Icons.contacts_outlined, onPressed: _saving ? null : _pickContact),
+                  const SizedBox(height: 16),
                   QField(
                     controller: _name,
                     label: context.t('Full name'),
@@ -234,6 +272,25 @@ class _CustomerFormScreenState extends ConsumerState<CustomerFormScreen> {
                     enabled: !_saving,
                     maxLength: 120,
                   ),
+                  if (tags != null) ...[
+                    const SizedBox(height: 8),
+                    Text(context.t('Tags (optional)'), style: text.labelLarge),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final tag in tags)
+                          FilterChip(
+                            avatar: _tags.contains(tag.id) ? null : TagDot(tag.colour),
+                            label: Text(tag.name),
+                            selected: _tags.contains(tag.id),
+                            onSelected: _saving ? null : (on) => setState(() => on ? _tags.add(tag.id) : _tags.remove(tag.id)),
+                          ),
+                        ActionChip(avatar: const Icon(Icons.add_rounded, size: 18), label: Text(context.t('Add a tag')), onPressed: _saving ? null : _addTag),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   QField(
                     controller: _nationalId,

@@ -110,6 +110,8 @@ final class ActivityFeed
             'contract.created' => __('Contract opened: :reference', ['reference' => $reference]),
             'contract.cancelled' => __('Contract cancelled: :reference', ['reference' => $reference]),
             'contract.converted_to_open' => __('Contract made open: :reference', ['reference' => $reference]),
+            'contract.archived' => __('Contract archived: :reference', ['reference' => $reference]),
+            'contract.unarchived' => __('Contract back in the lists: :reference', ['reference' => $reference]),
             'payment.recorded' => ($c['type'] ?? '') === 'down_payment'
                 ? __('Down payment recorded: :amount on :reference', ['amount' => $amount, 'reference' => $reference])
                 : __('Payment recorded: :amount on :reference', ['amount' => $amount, 'reference' => $reference]),

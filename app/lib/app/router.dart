@@ -11,6 +11,7 @@ import '../features/contracts/contracts_screen.dart';
 import '../features/customers/customer_detail_screen.dart';
 import '../features/customers/customer_form_screen.dart';
 import '../features/customers/customers_screen.dart';
+import '../features/customers/tags.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import '../features/intro/onboarding_screen.dart';
 import '../features/intro/splash_screen.dart';
@@ -83,6 +84,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/settings/business', builder: (_, _) => const BusinessProfileScreen()),
       GoRoute(path: '/settings/backups', builder: (_, _) => const BackupsScreen()),
       GoRoute(path: '/settings/activity', builder: (_, _) => const ActivityLogScreen()),
+      GoRoute(path: '/settings/tags', builder: (_, _) => const TagsScreen()),
       GoRoute(
         path: '/investors',
         builder: (_, _) => const InvestorsScreen(),

@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\PlanController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\SchedulePreviewController;
+use App\Http\Controllers\Api\V1\TagController;
 use App\Http\Controllers\Api\V1\TeamController;
 use App\Http\Controllers\Api\V1\TokenController;
 use App\Http\Controllers\Api\V1\ToolsController;
@@ -102,6 +103,15 @@ Route::name('api.')->group(function (): void {
         Route::put('settings/documents', [BusinessProfileController::class, 'updatePreferences'])->name('settings.documents.update');
 
         Route::apiResource('customers', CustomerController::class);
+        // Lists that stay short (Win Plan PP12): pins, tags, archived contracts.
+        Route::post('customers/{customer}/pin', [CustomerController::class, 'pin'])->whereUuid('customer')->name('customers.pin');
+        Route::delete('customers/{customer}/pin', [CustomerController::class, 'unpin'])->whereUuid('customer')->name('customers.unpin');
+        Route::get('tags', [TagController::class, 'index'])->name('tags.index');
+        Route::post('tags', [TagController::class, 'store'])->name('tags.store');
+        Route::put('tags/{tag}', [TagController::class, 'update'])->whereUuid('tag')->name('tags.update');
+        Route::delete('tags/{tag}', [TagController::class, 'destroy'])->whereUuid('tag')->name('tags.destroy');
+        Route::post('contracts/{contract}/archive', [ContractController::class, 'archive'])->whereUuid('contract')->name('contracts.archive');
+        Route::post('contracts/{contract}/unarchive', [ContractController::class, 'unarchive'])->whereUuid('contract')->name('contracts.unarchive');
 
         Route::post('contracts/preview', SchedulePreviewController::class)->name('contracts.preview');
         Route::apiResource('contracts', ContractController::class)->only(['index', 'store', 'show']);

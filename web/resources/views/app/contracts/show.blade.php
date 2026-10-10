@@ -147,6 +147,15 @@
                         </details>
                     @endcan
                 @endif
+                @if ($contract->status !== 'active')
+                    @can('archive', $contract)
+                        <form method="POST" action="{{ route($contract->archived_at ? 'app.contracts.unarchive' : 'app.contracts.archive', $contract) }}">
+                            @csrf
+                            <button class="btn btn-ghost btn-sm" type="submit"><x-icon name="archive" :size="16" /> {{ $contract->archived_at ? __('Bring back to the lists') : __('Archive') }}</button>
+                        </form>
+                        @unless ($contract->archived_at)<p class="field-hint">{{ __('Archiving takes a finished contract out of your lists. It still counts for investors and stays in every report.') }}</p>@endunless
+                    @endcan
+                @endif
                 @error('contract')<p class="field-error" role="alert">{{ $message }}</p>@enderror
             </section>
         </div>

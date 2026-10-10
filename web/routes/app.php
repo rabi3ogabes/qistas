@@ -15,6 +15,7 @@ use App\Http\Controllers\Workspace\InvestorController;
 use App\Http\Controllers\Workspace\PaymentController;
 use App\Http\Controllers\Workspace\ProductController;
 use App\Http\Controllers\Workspace\SecurityPolicyController;
+use App\Http\Controllers\Workspace\TagController;
 use App\Http\Controllers\Workspace\TeamController;
 use App\Http\Controllers\Workspace\ToolsController;
 use Illuminate\Support\Facades\Route;
@@ -82,6 +83,15 @@ Route::middleware('throttle:documents')->group(function (): void {
 });
 
 Route::resource('customers', CustomerController::class);
+// Lists that stay short (Win Plan PP12): pins, tags, archived contracts.
+Route::post('customers/{customer}/pin', [CustomerController::class, 'pin'])->name('customers.pin');
+Route::delete('customers/{customer}/pin', [CustomerController::class, 'unpin'])->name('customers.unpin');
+Route::get('tags', [TagController::class, 'index'])->name('tags.index');
+Route::post('tags', [TagController::class, 'store'])->name('tags.store');
+Route::put('tags/{tag}', [TagController::class, 'update'])->whereUuid('tag')->name('tags.update');
+Route::delete('tags/{tag}', [TagController::class, 'destroy'])->whereUuid('tag')->name('tags.destroy');
+Route::post('contracts/{contract}/archive', [ContractController::class, 'archive'])->name('contracts.archive');
+Route::post('contracts/{contract}/unarchive', [ContractController::class, 'unarchive'])->name('contracts.unarchive');
 
 // The same engine that writes real contracts also answers the form's live preview.
 Route::post('contracts/preview', SchedulePreviewController::class)->middleware('throttle:contract-preview')->name('contracts.preview');

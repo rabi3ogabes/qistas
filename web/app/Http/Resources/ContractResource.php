@@ -71,6 +71,8 @@ class ContractResource extends JsonResource
             'created_at' => $this->moment($this->created_at),
             'settled_at' => $this->moment($this->settled_at),
             'cancelled_at' => $this->moment($this->cancelled_at),
+            'archived' => $this->archived_at !== null,
+            'archived_at' => $this->moment($this->archived_at),
             'customer' => $this->whenLoaded('customer', fn () => ['id' => $this->customer->id, 'name' => $this->customer->name]),
             // Who funded it, for the people who see investors (collectors do not).
             'investor' => $this->when(

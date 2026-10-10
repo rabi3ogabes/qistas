@@ -16,6 +16,7 @@ import '../../core/l10n/languages.dart';
 import '../../core/l10n/translations.dart';
 import '../../data/models.dart';
 import '../billing/upgrade_sheet.dart';
+import '../customers/tags.dart';
 import '../investors/investors_screen.dart';
 import '../products/products_screen.dart';
 import '../security/app_lock.dart';
@@ -66,6 +67,8 @@ class SettingsScreen extends ConsumerWidget {
     final investors = showsInvestors(account);
     // The products to pick from when opening a contract (Win Plan PP7).
     final products = showsContractDetails(account);
+    // Tags that group customers (Win Plan PP12).
+    final tags = showsTags(account);
 
     return SectionScaffold(
       title: context.t('Settings'),
@@ -115,6 +118,8 @@ class SettingsScreen extends ConsumerWidget {
                     _Row(key: const ValueKey('settings-investors'), icon: Icons.savings_outlined, title: context.t('Investors'), onTap: () => context.push('/investors')),
                   if (products)
                     _Row(key: const ValueKey('settings-products'), icon: Icons.inventory_2_outlined, title: context.t('Products'), onTap: () => context.push('/products')),
+                  if (tags)
+                    _Row(key: const ValueKey('settings-tags'), icon: Icons.sell_outlined, title: context.t('Customer tags'), onTap: () => context.push('/settings/tags')),
                   if (hasTools) _Row(icon: Icons.tune_rounded, title: context.t('Instalment tools'), onTap: () => context.push('/tools')),
                 ]),
               ),

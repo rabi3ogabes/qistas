@@ -26,6 +26,9 @@ initAdminNav();
 initWelcomeBanners();
 Alpine.start();
 
+// A list's "Sort by" applies as soon as it is chosen.
+document.querySelectorAll('select[data-autosubmit]').forEach((select) => select.addEventListener('change', () => select.form?.requestSubmit()));
+
 // The admin's Feature control page brings its own script, and only that page downloads it.
 const cockpit = document.querySelector('[data-cockpit]');
 if (cockpit) import('./admin-features').then(({ initFeatureControl }) => initFeatureControl(cockpit));

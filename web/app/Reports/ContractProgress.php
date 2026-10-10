@@ -72,14 +72,16 @@ final class ContractProgress
     /**
      * How many contracts each list holds, for the tabs: two queries however many contracts there are.
      *
-     * @return array{all: int, active: int, late: int, settled: int, cancelled: int}
+     * @return array{all: int, archived: int, active: int, late: int, settled: int, cancelled: int}
      */
     public function counts(): array
     {
-        $byStatus = Contract::query()->selectRaw('status, COUNT(*) as total')->groupBy('status')->toBase()->pluck('total', 'status');
+        // Archived contracts (Win Plan PP12) are counted on their own tab, not in the others.
+        $byStatus = Contract::query()->whereNull('archived_at')->selectRaw('status, COUNT(*) as total')->groupBy('status')->toBase()->pluck('total', 'status');
 
         return [
             'all' => (int) $byStatus->sum(),
+            'archived' => Contract::query()->whereNotNull('archived_at')->count(),
             'active' => (int) ($byStatus['active'] ?? 0),
             'late' => Contract::query()->inView('late')->count(),
             'settled' => (int) ($byStatus['settled'] ?? 0),

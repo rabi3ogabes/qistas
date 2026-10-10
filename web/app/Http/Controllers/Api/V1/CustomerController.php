@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Actions\CreateCustomer;
 use App\Actions\DeleteCustomer;
+use App\Entitlements\Entitlements;
+use App\Entitlements\Feature;
 use App\Http\Requests\CustomerRequest;
 use App\Http\Resources\CustomerResource;
 use App\Models\Contract;
@@ -16,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 
 /** The workspace's customers. Thin: the rules live in the actions, the policy and the request. */
 final class CustomerController
@@ -26,7 +29,12 @@ final class CustomerController
     {
         Gate::authorize('viewAny', Customer::class);
 
-        $page = Customer::query()->search((string) $request->query('q', ''))->orderByRaw('LOWER(name)')->paginate(PerPage::of($request))->withQueryString();
+        $filters = $request->validate(['sort' => ['nullable', Rule::in(Customer::SORTS)], 'tag' => ['nullable', 'uuid']]);
+
+        $page = Customer::query()->with('tags')->search((string) $request->query('q', ''))
+            ->when(! empty($filters['tag']), fn ($query) => $query->whereHas('tags', fn ($tags) => $tags->whereKey($filters['tag'])))
+            ->sorted($filters['sort'] ?? 'name')
+            ->paginate(PerPage::of($request))->withQueryString();
         $figures = $balances->forCustomers($page->pluck('id')->all());
 
         $page->getCollection()->each(function (Customer $customer) use ($figures): void {
@@ -41,7 +49,7 @@ final class CustomerController
     {
         $customer = $create->handle($this->current->get(), $request->validated(), $request->user());
 
-        return (new CustomerResource($customer))->response()->setStatusCode(201);
+        return (new CustomerResource($customer->load('tags')))->response()->setStatusCode(201);
     }
 
     public function show(Customer $customer, CustomerBalances $balances, ContractProgress $progress): CustomerResource
@@ -57,7 +65,7 @@ final class CustomerController
         $customer->setAttribute('running_contracts', $figures['running']);
         $customer->setRelation('contracts', $contracts);
 
-        return new CustomerResource($customer);
+        return new CustomerResource($customer->load('tags'));
     }
 
     public function update(CustomerRequest $request, Customer $customer): CustomerResource
@@ -72,9 +80,17 @@ final class CustomerController
             unset($data['national_id']); // blank means "keep the stored ID", not "erase it"
         }
 
+        // Tags only change when they were sent; sent empty, they are cleared.
+        $sentTags = array_key_exists('tags', $data);
+        $tags = $data['tags'] ?? [];
+        unset($data['tags']);
         $customer->update($data);
+        if ($sentTags) {
+            Entitlements::for($this->current->get())->assertEnabled(Feature::CustomerTags);
+            $customer->syncTags($tags);
+        }
 
-        return new CustomerResource($customer->refresh());
+        return new CustomerResource($customer->refresh()->load('tags'));
     }
 
     public function destroy(Customer $customer, DeleteCustomer $delete): Response
@@ -84,5 +100,22 @@ final class CustomerController
         $delete->handle($customer);
 
         return response()->noContent();
+    }
+
+    /** Keeps a regular at the top of every list (Win Plan PP12). */
+    public function pin(Customer $customer): CustomerResource
+    {
+        Gate::authorize('update', $customer);
+        $customer->forceFill(['pinned_at' => now()])->save();
+
+        return new CustomerResource($customer->load('tags'));
+    }
+
+    public function unpin(Customer $customer): CustomerResource
+    {
+        Gate::authorize('update', $customer);
+        $customer->forceFill(['pinned_at' => null])->save();
+
+        return new CustomerResource($customer->load('tags'));
     }
 }

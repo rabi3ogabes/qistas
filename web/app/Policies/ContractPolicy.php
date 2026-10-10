@@ -33,6 +33,12 @@ final class ContractPolicy
         return ($this->role($user)?->canDelete() ?? false) && $this->inActiveWorkspace($contract);
     }
 
+    /** Put a finished contract away, or bring it back (Win Plan PP12): anyone who writes; it changes no figure. */
+    public function archive(User $user, Contract $contract): bool
+    {
+        return ($this->role($user)?->canWrite() ?? false) && $this->inActiveWorkspace($contract);
+    }
+
     /** Turn a scheduled or cash contract into an open one: it changes the terms, so it is the owner's or a manager's. */
     public function convert(User $user, Contract $contract): bool
     {

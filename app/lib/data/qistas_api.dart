@@ -271,10 +271,39 @@ class QistasApi {
 
   // ---------------------------------------------------------------- customers
 
-  Future<Paged<Customer>> customers({String query = '', int page = 1}) async => Paged.fromJson(
-        await _client.get('/customers', query: {if (query.trim().isNotEmpty) 'q': query.trim(), 'page': page}),
+  /// [sort]: name (the default), balance, next_due or activity; pinned customers always come first. [tag] keeps only the
+  /// customers carrying it.
+  Future<Paged<Customer>> customers({String query = '', int page = 1, String sort = 'name', String? tag}) async => Paged.fromJson(
+        await _client.get('/customers', query: {
+          if (query.trim().isNotEmpty) 'q': query.trim(),
+          if (sort != 'name') 'sort': sort,
+          'tag': ?tag,
+          'page': page,
+        }),
         Customer.fromJson,
       );
+
+  /// Keeps a customer at the top of every list, or lets them go back to their place.
+  Future<Customer> pinCustomer(String id, {bool pinned = true}) async =>
+      Customer.fromJson(_data(pinned ? await _client.post('/customers/$id/pin') : await _client.delete('/customers/$id/pin')));
+
+  // ---------------------------------------------------------------- tags
+
+  /// The business's tags, by name, with how many customers carry each.
+  Future<List<CustomerTag>> tags() async {
+    final json = await _client.get('/tags');
+
+    return [for (final item in (json['data'] as List<dynamic>? ?? const [])) CustomerTag.fromJson(item as Map<String, dynamic>)];
+  }
+
+  Future<CustomerTag> createTag({required String name, String colour = 'grey'}) async =>
+      CustomerTag.fromJson(_data(await _client.post('/tags', body: {'name': name.trim(), 'colour': colour})));
+
+  Future<CustomerTag> updateTag(String id, {required String name, required String colour}) async =>
+      CustomerTag.fromJson(_data(await _client.put('/tags/$id', body: {'name': name.trim(), 'colour': colour})));
+
+  /// Lets go of a tag; the customers who carried it are unchanged otherwise.
+  Future<void> deleteTag(String id) async => _client.delete('/tags/$id');
 
   Future<Customer> customer(String id) async => Customer.fromJson(_data(await _client.get('/customers/$id')));
 
@@ -286,7 +315,7 @@ class QistasApi {
 
   // ---------------------------------------------------------------- contracts
 
-  /// [status]: active (the default), late, settled, cancelled or all.
+  /// [status]: active (the default), late, settled, cancelled, all, or archived (the only view archived contracts show in).
   Future<Paged<Contract>> contracts({String status = 'active', String query = '', int page = 1}) async => Paged.fromJson(
         await _client.get('/contracts', query: {'status': status, if (query.trim().isNotEmpty) 'q': query.trim(), 'page': page}),
         Contract.fromJson,
@@ -307,6 +336,10 @@ class QistasApi {
 
   Future<Contract> cancelContract(String id, {String? reason}) async =>
       Contract.fromJson(_data(await _client.post('/contracts/$id/cancel', body: {if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim()})));
+
+  /// Puts a settled or cancelled contract away, out of the lists, or brings it back (Win Plan PP12).
+  Future<Contract> archiveContract(String id, {bool archived = true}) async =>
+      Contract.fromJson(_data(await _client.post('/contracts/$id/${archived ? 'archive' : 'unarchive'}')));
 
   // ----------------------------------------------------------------- payments
 
@@ -388,6 +421,7 @@ class CustomerForm {
     this.notes = '',
     this.removeNationalId = false,
     this.job = '',
+    this.tags,
   });
 
   final String name;
@@ -402,6 +436,9 @@ class CustomerForm {
   /// Where they work (Win Plan PP7).
   final String job;
 
+  /// The tag ids they carry (Win Plan PP12). Null leaves their tags as they are; empty takes them all off.
+  final List<String>? tags;
+
   Map<String, dynamic> toJson() => {
         'name': name.trim(),
         'phone': phone.trim(),
@@ -411,6 +448,7 @@ class CustomerForm {
         'address': address.trim(),
         'notes': notes.trim(),
         'job': job.trim(),
+        'tags': ?tags,
         if (removeNationalId) 'remove_national_id': true,
       };
 }

@@ -46,13 +46,14 @@ use Illuminate\Support\Facades\DB;
  * @property string|null $investor_id who funded it; null only for contracts made before investors, until the main investor takes them on
  * @property Carbon|null $settled_at
  * @property Carbon|null $cancelled_at
+ * @property Carbon|null $archived_at a finished contract put away; hidden from the lists until asked for
  */
 class Contract extends Model
 {
     use BelongsToTenant, HasUuids;
 
     /** The lists a person can choose between. "late" is a running contract with an instalment past its date. */
-    public const VIEWS = ['active', 'late', 'settled', 'cancelled', 'all'];
+    public const VIEWS = ['active', 'late', 'settled', 'cancelled', 'all', 'archived'];
 
     /** The human-readable reference shown to people: the shop's own number when it has one, else e.g. C-0042. */
     public function reference(): string
@@ -74,6 +75,12 @@ class Contract extends Model
      */
     public function scopeInView(Builder $query, string $view): Builder
     {
+        // Archived contracts (finished ones put away, Win Plan PP12) show only when asked for.
+        if ($view === 'archived') {
+            return $query->whereNotNull('archived_at');
+        }
+        $query->whereNull('archived_at');
+
         return match ($view) {
             'all' => $query,
             'late' => $query->where('status', 'active')->whereExists(
@@ -168,6 +175,7 @@ class Contract extends Model
             'first_due_date' => 'date',
             'settled_at' => 'datetime',
             'cancelled_at' => 'datetime',
+            'archived_at' => 'datetime',
         ];
     }
 }

@@ -10,6 +10,11 @@
         <x-slot:subtitle><a class="link" href="{{ route('app.customers.index') }}">{{ __('All customers') }}</a></x-slot:subtitle>
         <x-document-menu id="customer-statement" :action="route('app.customers.statement', $customer)" :label="__('Statement')" :period="true" :sections="['overdue', 'signature']" />
         @can('update', $customer)
+            <form method="POST" action="{{ route($customer->pinned_at ? 'app.customers.unpin' : 'app.customers.pin', $customer) }}">
+                @csrf
+                @if ($customer->pinned_at) @method('DELETE') @endif
+                <button class="btn btn-quiet" type="submit" aria-pressed="{{ $customer->pinned_at ? 'true' : 'false' }}"><x-icon name="pin" :size="18" /> {{ $customer->pinned_at ? __('Unpin') : __('Pin to the top') }}</button>
+            </form>
             <a class="btn btn-quiet" href="{{ route('app.customers.edit', $customer) }}"><x-icon name="pencil" :size="18" /> {{ __('Edit') }}</a>
         @endcan
         @can('create', \App\Models\Contract::class)
@@ -27,6 +32,9 @@
                 @if ($customer->email)<a class="btn btn-quiet btn-sm" href="mailto:{{ $customer->email }}"><x-icon name="send" :size="16" /> {{ __('Email') }}</a>@endif
             </div>
 
+            @if ($customer->tags->isNotEmpty())
+                <p class="tag-list">@foreach ($customer->tags as $customerTag)<span class="tag-chip" data-colour="{{ $customerTag->colour }}">{{ $customerTag->name }}</span>@endforeach</p>
+            @endif
             <dl class="facts">
                 <div><dt>{{ __('Phone') }}</dt><dd class="money" dir="ltr">{{ $customer->phone }}</dd></div>
                 @if ($customer->phone_secondary)<div><dt>{{ __('Second phone') }}</dt><dd class="money" dir="ltr">{{ $customer->phone_secondary }}</dd></div>@endif
@@ -64,6 +72,8 @@
                     @endcan
                 </div>
             @else
+                @php($current = $contracts->whereNull('archived_at'))
+                @if ($current->isNotEmpty())
                 <div class="table-wrap">
                     <table class="table table-stack">
                         <thead>
@@ -75,7 +85,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach ($contracts as $contract)
+                            @foreach ($current as $contract)
                                 <tr>
                                     <td data-label="{{ __('Contract') }}"><a class="cell-link" href="{{ url('/app/contracts/'.$contract->id) }}">{{ $contract->reference() }}</a></td>
                                     <td data-label="{{ __('Status') }}"><span class="badge {{ $statusTone[$contract->status] ?? '' }}">{{ $statusLabel[$contract->status] ?? $contract->status }}</span></td>
@@ -86,6 +96,20 @@
                         </tbody>
                     </table>
                 </div>
+                @else
+                    <p class="muted archived-only">{{ __('Every contract for this customer is archived.') }}</p>
+                @endif
+                @php($archived = $contracts->whereNotNull('archived_at'))
+                @if ($archived->isNotEmpty())
+                    <details class="archived-contracts">
+                        <summary class="link"><x-icon name="archive" :size="16" /> {{ __('Archived contracts: :count', ['count' => $archived->count()]) }}</summary>
+                        <ul class="archived-list">
+                            @foreach ($archived as $contract)
+                                <li><a class="cell-link" href="{{ url('/app/contracts/'.$contract->id) }}">{{ $contract->reference() }}</a> <span class="badge">{{ $statusLabel[$contract->status] ?? $contract->status }}</span></li>
+                            @endforeach
+                        </ul>
+                    </details>
+                @endif
             @endif
         </section>
     </div>

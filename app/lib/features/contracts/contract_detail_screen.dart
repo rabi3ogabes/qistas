@@ -79,6 +79,23 @@ class _ContractDetailScreenState extends ConsumerState<ContractDetailScreen> {
     }
   }
 
+  /// Win Plan PP12: puts a finished contract away, out of the lists, or brings it back. Nothing else changes, so no
+  /// confirmation is asked: bringing it back is one tap away.
+  Future<void> _archive(Contract contract) async {
+    final archive = !contract.archived;
+    try {
+      await ref.read(apiProvider).archiveContract(contract.id, archived: archive);
+      refreshAfterMoney(ref, contractId: contract.id, customerId: contract.customerId);
+      if (!mounted) return;
+      final message = archive
+          ? context.t('Contract :reference archived. It is under Archived in your contracts.', {'reference': contract.reference})
+          : context.t('Contract :reference is back in your lists.', {'reference': contract.reference});
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    } on ApiException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMessage(context, e))));
+    }
+  }
+
   /// Win Plan PP4: shows exactly what becoming open does, and does it only when confirmed.
   Future<void> _convert(Contract contract) async {
     final api = ref.read(apiProvider);
@@ -161,6 +178,13 @@ class _ContractDetailScreenState extends ConsumerState<ContractDetailScreen> {
         actions: [
           if (loaded != null)
             IconButton(tooltip: context.t('Statement'), icon: const Icon(Icons.description_outlined), onPressed: () => showDocumentSheet(context, DocumentRequest.contract(loaded.id, loaded.reference))),
+          // Only a finished contract can be put away (a running one still has money to collect).
+          if (loaded != null && (account?.canWrite ?? false) && !loaded.isRunning)
+            IconButton(
+              tooltip: loaded.archived ? context.t('Bring back to the lists') : context.t('Archive'),
+              icon: Icon(loaded.archived ? Icons.unarchive_outlined : Icons.archive_outlined),
+              onPressed: () => _archive(loaded),
+            ),
         ],
       ),
       body: contract.when(
@@ -176,9 +200,19 @@ class _ContractDetailScreenState extends ConsumerState<ContractDetailScreen> {
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
             child: ContentColumn(
               padding: EdgeInsets.zero,
-              child: data.isOpen
-                  ? OpenAccountBody(contract: data, account: account, onCancel: () => _cancel(data))
-                  : _Body(contract: data, account: account, onRecord: () => _record(data), onCancel: () => _cancel(data), onConvert: () => _convert(data)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (data.archived) ...[
+                    QNotice(context.t('Archiving takes a finished contract out of your lists. It still counts for investors and stays in every report.'), tone: QTone.info, icon: Icons.archive_outlined),
+                    const SizedBox(height: 12),
+                  ],
+                  if (data.isOpen)
+                    OpenAccountBody(contract: data, account: account, onCancel: () => _cancel(data))
+                  else
+                    _Body(contract: data, account: account, onRecord: () => _record(data), onCancel: () => _cancel(data), onConvert: () => _convert(data)),
+                ],
+              ),
             ),
           ),
         ),

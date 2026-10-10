@@ -39,11 +39,12 @@ class EndAmount extends StatelessWidget {
 }
 
 class QCard extends StatelessWidget {
-  const QCard({super.key, required this.child, this.padding = const EdgeInsets.all(16), this.onTap, this.semanticLabel});
+  const QCard({super.key, required this.child, this.padding = const EdgeInsets.all(16), this.onTap, this.onLongPress, this.semanticLabel});
 
   final Widget child;
   final EdgeInsetsGeometry padding;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
   final String? semanticLabel;
 
   @override
@@ -62,7 +63,9 @@ class QCard extends StatelessWidget {
         type: MaterialType.transparency,
         child: ClipRRect(
           borderRadius: radius,
-          child: onTap == null ? Padding(padding: padding, child: child) : InkWell(onTap: onTap, child: Padding(padding: padding, child: child)),
+          child: onTap == null && onLongPress == null
+              ? Padding(padding: padding, child: child)
+              : InkWell(onTap: onTap, onLongPress: onLongPress, child: Padding(padding: padding, child: child)),
         ),
       ),
     );

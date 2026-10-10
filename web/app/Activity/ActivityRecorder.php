@@ -23,7 +23,7 @@ use Illuminate\Database\Eloquent\Model;
 final class ActivityRecorder
 {
     /** Columns that change on their own, never by someone's choice. */
-    private const QUIET = ['updated_at', 'created_at', 'deleted_at', 'created_by_user_id'];
+    private const QUIET = ['updated_at', 'created_at', 'deleted_at', 'created_by_user_id', 'pinned_at', 'last_activity_at'];
 
     public static function register(): void
     {

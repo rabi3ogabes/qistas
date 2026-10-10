@@ -4,7 +4,8 @@
 
     $statusTone = ['active' => 'badge-info', 'late' => 'badge-bad', 'settled' => 'badge-ok', 'cancelled' => ''];
     $statusLabel = ['active' => __('Active'), 'late' => __('Late'), 'settled' => __('Settled'), 'cancelled' => __('Cancelled')];
-    $lists = ['active' => __('Active'), 'late' => __('Late'), 'settled' => __('Settled'), 'cancelled' => __('Cancelled'), 'all' => __('All')];
+    $lists = ['active' => __('Active'), 'late' => __('Late'), 'settled' => __('Settled'), 'cancelled' => __('Cancelled'), 'all' => __('All')]
+        + ($counts['archived'] > 0 || $view === 'archived' ? ['archived' => __('Archived')] : []);
 @endphp
 <x-layouts.app :title="__('Contracts')" section="contracts">
     <x-page-head :title="__('Contracts')">

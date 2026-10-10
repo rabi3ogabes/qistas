@@ -379,6 +379,7 @@ class Contract {
     this.discountAmount,
     this.discountType = 'none',
     this.items = const [],
+    this.archived = false,
   });
 
   factory Contract.fromJson(Map<String, dynamic> json) {
@@ -415,6 +416,7 @@ class Contract {
       discountAmount: _moneyOrNull(json['discount_amount']),
       discountType: (json['discount_type'] ?? 'none').toString(),
       items: _list(json['items']).map(ContractItem.fromJson).toList(),
+      archived: json['archived'] == true,
       notes: _text(json['notes']),
       customerId: _text(customer['id']),
       customerName: _text(customer['name']),
@@ -478,6 +480,9 @@ class Contract {
   /// What was sold, item by item.
   final List<ContractItem> items;
 
+  /// Put away by the shop once finished (Win Plan PP12): out of the lists, still in every report.
+  final bool archived;
+
   /// What the customer pays for it less what it cost: null until the cost is known.
   Money? get margin => costPrice == null ? null : principal - (discountAmount ?? Money.zero) + markupAmount - costPrice!;
 
@@ -527,6 +532,8 @@ class Customer {
     required this.runningContracts,
     required this.contracts,
     this.job,
+    this.pinned = false,
+    this.tags = const [],
   });
 
   factory Customer.fromJson(Map<String, dynamic> json) => Customer(
@@ -542,6 +549,8 @@ class Customer {
         runningContracts: (json['running_contracts'] as num?)?.toInt(),
         contracts: _list(json['contracts']).map(Contract.fromJson).toList(),
         job: _text(json['job']),
+        pinned: json['pinned'] == true,
+        tags: _list(json['tags']).map(CustomerTag.fromJson).toList(),
       );
 
   final String id;
@@ -560,6 +569,35 @@ class Customer {
   final Money? owed;
   final int? runningContracts;
   final List<Contract> contracts;
+
+  /// Kept at the top of every list (Win Plan PP12).
+  final bool pinned;
+  final List<CustomerTag> tags;
+}
+
+/// A label that groups customers, such as "Shop 2" or "Government staff" (Win Plan PP12).
+@immutable
+class CustomerTag {
+  const CustomerTag({required this.id, required this.name, this.colour = 'grey', this.customers});
+
+  factory CustomerTag.fromJson(Map<String, dynamic> json) => CustomerTag(
+        id: json['id'].toString(),
+        name: (json['name'] ?? '').toString(),
+        colour: (json['colour'] ?? 'grey').toString(),
+        customers: (json['customers'] as num?)?.toInt(),
+      );
+
+  /// The colours a tag can take, in the order they are offered.
+  static const colours = ['grey', 'gold', 'green', 'blue', 'red', 'purple'];
+
+  final String id;
+  final String name;
+
+  /// One of [colours].
+  final String colour;
+
+  /// How many customers carry it; only in the list of tags.
+  final int? customers;
 }
 
 /// One instalment somebody still owes: what, who, since when or until when.

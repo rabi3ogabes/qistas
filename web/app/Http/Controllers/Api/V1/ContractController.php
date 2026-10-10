@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Actions\ArchiveContract;
 use App\Actions\CancelContract;
 use App\Actions\ConvertToOpen;
 use App\Actions\CreateContract;
@@ -60,6 +61,21 @@ final class ContractController
         Gate::authorize('view', $contract);
 
         return $this->one($contract);
+    }
+
+    /** Puts a settled or cancelled contract away (Win Plan PP12), or brings it back. */
+    public function archive(Request $request, Contract $contract, ArchiveContract $archive): ContractResource
+    {
+        Gate::authorize('archive', $contract);
+
+        return $this->one($archive->handle($contract, true, $request->user()));
+    }
+
+    public function unarchive(Request $request, Contract $contract, ArchiveContract $archive): ContractResource
+    {
+        Gate::authorize('archive', $contract);
+
+        return $this->one($archive->handle($contract, false, $request->user()));
     }
 
     public function cancel(CancelContractRequest $request, Contract $contract, CancelContract $cancel): ContractResource

@@ -10,6 +10,22 @@
     <x-field wide name="email" type="email" :label="__('Email (optional)')" :value="$customer->email" inputmode="email" autocapitalize="none" autocomplete="off" dir="ltr" />
     <x-field wide name="job" :label="__('Job or employer (optional)')" :value="$customer->job" autocomplete="off" maxlength="120" />
 
+    @if (($tags ?? collect())->isNotEmpty())
+        @php($chosen = collect(old('tags', $customer->exists ? $customer->tags->pluck('id')->all() : [])))
+        <fieldset class="field field-wide">
+            <legend>{{ __('Tags (optional)') }}</legend>
+            <input type="hidden" name="tags" value="">
+            <div class="tag-pick">
+                @foreach ($tags as $option)
+                    <label class="tag-chip tag-choice" data-colour="{{ $option->colour }}">
+                        <input type="checkbox" name="tags[]" value="{{ $option->id }}" @checked($chosen->contains($option->id))> {{ $option->name }}
+                    </label>
+                @endforeach
+            </div>
+            @error('tags')<p class="field-error" role="alert">{{ $message }}</p>@enderror
+        </fieldset>
+    @endif
+
     @if ($editing && $customer->maskedNationalId())
         <x-field wide name="national_id" :label="__('National ID')" autocomplete="off"
                  :hint="__('Stored as :id. Leave blank to keep it, or type a new one to replace it.', ['id' => $customer->maskedNationalId()])" />

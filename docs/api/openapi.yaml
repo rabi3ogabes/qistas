@@ -277,6 +277,8 @@ paths:
       tags: [Customers]
       summary: List customers, alphabetically
       parameters:
+        - {name: sort, in: query, schema: {type: string, enum: [name, balance, next_due, activity], default: name}, description: "Pinned customers always come first; then by name, what they owe (most first), next due date (soonest first, nothing due last) or last activity (newest first)."}
+        - {name: tag, in: query, schema: {type: string, format: uuid}, description: Only customers with this tag.}
         - {name: q, in: query, schema: {type: string}, description: Part of a name, phone number or e-mail.}
         - {$ref: "#/components/parameters/Page"}
         - {$ref: "#/components/parameters/PerPage"}
@@ -367,7 +369,7 @@ paths:
         - name: status
           in: query
           description: Which list. `late` is a running contract with an overdue instalment. An unknown value means `active`.
-          schema: {type: string, enum: [active, late, settled, cancelled, all], default: active}
+          schema: {type: string, enum: [active, late, settled, cancelled, all, archived], default: active}
         - {name: q, in: query, schema: {type: string}, description: "A reference (C-0012, 12) or part of the customer's name, phone or e-mail."}
         - {$ref: "#/components/parameters/Page"}
         - {$ref: "#/components/parameters/PerPage"}
@@ -1578,6 +1580,105 @@ paths:
         "401": {$ref: "#/components/responses/Unauthenticated"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "422": {$ref: "#/components/responses/ValidationFailed"}
+  /customers/{customer}/pin:
+    parameters:
+      - {name: customer, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      tags: [Customers]
+      summary: Pin a customer to the top of every list
+      responses:
+        "200":
+          description: The customer.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/Customer"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+    delete:
+      tags: [Customers]
+      summary: Unpin a customer
+      responses:
+        "200":
+          description: The customer.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/Customer"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /tags:
+    get:
+      tags: [Customers]
+      summary: The business's tags, with how many customers have each
+      responses:
+        "200":
+          description: The tags, by name.
+          content: {application/json: {schema: {type: object, properties: {data: {type: array, items: {$ref: "#/components/schemas/Tag"}}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+    post:
+      tags: [Customers]
+      summary: Add a tag
+      description: Anyone who writes. Needs the `customer_tags` feature. A name is unique in the business whatever its case.
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/TagInput"}}}
+      responses:
+        "201":
+          description: The tag.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/Tag"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/FeatureUnavailable"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+  /tags/{tag}:
+    parameters:
+      - {name: tag, in: path, required: true, schema: {type: string, format: uuid}}
+    put:
+      tags: [Customers]
+      summary: Rename or recolour a tag
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/TagInput"}}}
+      responses:
+        "200":
+          description: The tag.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/Tag"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/FeatureUnavailable"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+    delete:
+      tags: [Customers]
+      summary: Let go of a tag; its customers are unchanged
+      responses:
+        "204": {description: Removed.}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/FeatureUnavailable"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /contracts/{contract}/archive:
+    parameters:
+      - {name: contract, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      tags: [Contracts]
+      summary: Put a settled or cancelled contract away
+      description: It leaves the lists (it shows under `status=archived`) and changes nothing else; investors still count it. A running contract is refused with `contract_running`.
+      responses:
+        "200":
+          description: The contract.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/Contract"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+  /contracts/{contract}/unarchive:
+    parameters:
+      - {name: contract, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      tags: [Contracts]
+      summary: Bring an archived contract back to the lists
+      responses:
+        "200":
+          description: The contract.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/Contract"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
 components:
   securitySchemes:
     bearer:
@@ -1771,6 +1872,19 @@ components:
         sku: {type: string, maxLength: 60}
         default_price: {$ref: "#/components/schemas/Money"}
         cost: {$ref: "#/components/schemas/Money"}
+    Tag:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        colour: {type: string, enum: [grey, gold, green, blue, red, purple]}
+        customers: {type: integer, description: How many customers have it (listing only).}
+    TagInput:
+      type: object
+      required: [name]
+      properties:
+        name: {type: string, maxLength: 40}
+        colour: {type: string, enum: [grey, gold, green, blue, red, purple], default: grey}
     WorkspaceExport:
       type: object
       properties:
@@ -2034,6 +2148,8 @@ components:
         address: {type: [string, "null"]}
         notes: {type: [string, "null"]}
         remove_national_id: {type: boolean, description: "Only when changing a customer."}
+        job: {type: [string, "null"], maxLength: 120}
+        tags: {type: [array, "null"], items: {type: string, format: uuid}, description: "The customer's tags, all of them each time (empty clears them). Needs the customer_tags feature."}
     Customer:
       type: object
       properties:
@@ -2045,6 +2161,10 @@ components:
         national_id: {type: [string, "null"], description: "Only ever masked: the last three digits."}
         address: {type: [string, "null"]}
         notes: {type: [string, "null"]}
+        job: {type: [string, "null"]}
+        pinned: {type: boolean, description: Pinned customers come first in every list.}
+        tags: {type: array, items: {$ref: "#/components/schemas/Tag"}}
+        last_activity_at: {type: [string, "null"], format: date-time, description: Their newest contract or payment, else when they were added.}
         created_at: {type: string, format: date-time}
         owed: {$ref: "#/components/schemas/Money"}
         running_contracts: {type: integer}
@@ -2186,6 +2306,8 @@ components:
         created_at: {type: string, format: date-time}
         settled_at: {type: [string, "null"], format: date-time}
         cancelled_at: {type: [string, "null"], format: date-time}
+        archived: {type: boolean, description: A finished contract put away; hidden from the lists until status=archived.}
+        archived_at: {type: [string, "null"], format: date-time}
         customer:
           type: object
           properties:

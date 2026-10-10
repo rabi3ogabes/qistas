@@ -18,6 +18,7 @@ import '../contracts/contracts_screen.dart';
 import '../documents/document_options_sheet.dart';
 import '../reminders/reminders.dart';
 import 'customers_screen.dart';
+import 'tags.dart';
 
 
 
@@ -39,6 +40,14 @@ class CustomerDetailScreen extends ConsumerWidget {
         actions: [
           if (customer.hasValue)
             IconButton(tooltip: context.t('Statement'), icon: const Icon(Icons.description_outlined), onPressed: () => showDocumentSheet(context, DocumentRequest.customer(id, customer.requireValue.name))),
+          if (account?.canWrite == true && customer.hasValue)
+            IconButton(
+              tooltip: customer.requireValue.pinned ? context.t('Unpin') : context.t('Pin to the top'),
+              isSelected: customer.requireValue.pinned,
+              icon: const Icon(Icons.push_pin_outlined),
+              selectedIcon: const Icon(Icons.push_pin_rounded),
+              onPressed: () => _pin(context, ref, customer.requireValue),
+            ),
           if (account?.canWrite == true && customer.hasValue)
             IconButton(tooltip: context.t('Edit'), icon: const Icon(Icons.edit_outlined), onPressed: () async {
               await context.push('/customers/$id/edit');
@@ -62,6 +71,22 @@ class CustomerDetailScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _pin(BuildContext context, WidgetRef ref, Customer customer) async {
+    final pin = !customer.pinned;
+    try {
+      await ref.read(apiProvider).pinCustomer(customer.id, pinned: pin);
+      ref.invalidate(customerProvider(customer.id));
+      unawaited(ref.read(customersListProvider.notifier).refresh());
+      if (!context.mounted) return;
+      final message = pin
+          ? context.t(':name is pinned to the top of your lists.', {'name': customer.name})
+          : context.t(':name is no longer pinned.', {'name': customer.name});
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    } on ApiException catch (e) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMessage(context, e))));
+    }
   }
 }
 
@@ -115,6 +140,10 @@ class _Body extends ConsumerWidget {
     final email = customer.email;
     final owed = customer.owed;
     final running = customer.runningContracts ?? 0;
+    final tags = showsTags(account) ? customer.tags : const <CustomerTag>[];
+    // Finished contracts the shop put away wait at the bottom, folded (Win Plan PP12).
+    final current = [for (final contract in customer.contracts) if (!contract.archived) contract];
+    final archived = [for (final contract in customer.contracts) if (contract.archived) contract];
     var order = 0;
 
     final hasDetails = customer.phoneSecondary != null || email != null || customer.address != null || customer.job != null || customer.nationalId != null || customer.notes != null || hasPhone;
@@ -161,6 +190,11 @@ class _Body extends ConsumerWidget {
             ),
           ),
         ),
+        if (tags.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 14),
+            child: Wrap(spacing: 6, runSpacing: 6, children: [for (final tag in tags) TagChip(tag)]),
+          ),
         if (hasPhone || email != null)
           Reveal(
             order: order++,
@@ -187,8 +221,22 @@ class _Body extends ConsumerWidget {
               if (customer.contracts.isEmpty)
                 QCard(child: Text(context.t('Open a contract to set up this customer’s instalment plan.'), style: text.bodyMedium?.copyWith(color: c.inkMuted)))
               else
-                for (final contract in customer.contracts)
+                for (final contract in current)
                   Padding(padding: const EdgeInsets.only(bottom: 10), child: ContractRow(contract: contract, currency: currency, language: language)),
+              if (archived.isNotEmpty)
+                Theme(
+                  data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                  child: ExpansionTile(
+                    tilePadding: const EdgeInsets.symmetric(horizontal: 4),
+                    childrenPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.archive_outlined, color: c.inkMuted),
+                    title: Text(context.t('Archived contracts: :count', {'count': archived.length}), style: text.titleSmall?.copyWith(color: c.inkMuted)),
+                    children: [
+                      for (final contract in archived)
+                        Padding(padding: const EdgeInsets.only(bottom: 10), child: ContractRow(contract: contract, currency: currency, language: language)),
+                    ],
+                  ),
+                ),
             ],
           ),
         ),

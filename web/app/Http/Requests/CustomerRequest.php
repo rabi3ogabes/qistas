@@ -4,8 +4,10 @@ namespace App\Http\Requests;
 
 use App\Models\Customer;
 use App\Support\Digits;
+use App\Tenancy\CurrentTenant;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 /** Validation and authorisation for adding or editing a customer, shared by the web app and the API. */
 class CustomerRequest extends FormRequest
@@ -31,6 +33,9 @@ class CustomerRequest extends FormRequest
             'address' => ['nullable', 'string', 'max:1000'],
             'notes' => ['nullable', 'string', 'max:5000'],
             'job' => ['nullable', 'string', 'max:120'],
+            // Tags of this business only (Win Plan PP12); the whole list each time, an empty one clears them.
+            'tags' => ['sometimes', 'nullable', 'array', 'max:20'],
+            'tags.*' => ['uuid', 'distinct', Rule::exists('tags', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
             // Only when editing: clear the stored national ID. A blank ID field means "keep what is stored".
             'remove_national_id' => ['nullable', 'boolean'],
         ];

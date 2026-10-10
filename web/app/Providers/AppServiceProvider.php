@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Activity\ActivityRecorder;
+use App\Activity\LastActivity;
 use App\Entitlements\Entitlements;
 use App\Entitlements\Feature;
 use App\Entitlements\FeatureCatalogue;
@@ -102,6 +103,8 @@ class AppServiceProvider extends ServiceProvider
 
         // The everyday work of a business, for its activity log (Win Plan PP10).
         ActivityRecorder::register();
+        // Each customer's last activity, to sort the list by (Win Plan PP12).
+        LastActivity::register();
 
         // Only a super admin changes what the platform has on, off or in beta; an admin may look.
         Gate::define('manage-platform-features', fn (User $user): bool => $user->platform_role === 'super_admin');

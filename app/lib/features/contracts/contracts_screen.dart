@@ -77,6 +77,8 @@ class _ContractsScreenState extends ConsumerState<ContractsScreen> {
       'settled': context.t('Settled'),
       'cancelled': context.t('Cancelled'),
       'all': context.t('All'),
+      // Finished contracts the shop has put away (Win Plan PP12); "All" leaves them out.
+      'archived': context.t('Archived'),
     };
 
     return SectionScaffold(

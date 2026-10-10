@@ -36,6 +36,11 @@ final class CreateCustomer
             $customer->created_by_user_id = $by?->id;
             $customer->save();
 
+            if (! empty($data['tags'])) {
+                Entitlements::for($tenant)->assertEnabled(Feature::CustomerTags);
+                $customer->syncTags($data['tags']);
+            }
+
             return $customer;
         }));
     }
