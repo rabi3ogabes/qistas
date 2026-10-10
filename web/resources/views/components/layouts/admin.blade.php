@@ -6,6 +6,7 @@
     // The pages of the admin area, then the places a person goes next. One list each, so a new page is one line.
     $manage = array_values(array_filter([
         ['overview', __('Overview'), route('admin.home'), 'home'],
+        ['businesses', __('Businesses'), route('admin.businesses.index'), 'accounts'],
         ['features', __('Feature control'), route('admin.features.index'), 'sliders'],
         \Illuminate\Support\Facades\Route::has('admin.appearance.index') ? ['appearance', __('Appearance'), route('admin.appearance.index'), 'palette'] : null,
     ]));

@@ -105,6 +105,9 @@ class AppServiceProvider extends ServiceProvider
         // The same for the look of the product (colours, pictures, welcome banners).
         Gate::define('manage-appearance', fn (User $user): bool => $user->platform_role === 'super_admin');
 
+        // And for putting a business on another plan: it gives away, or takes back, what people pay for.
+        Gate::define('manage-plans', fn (User $user): bool => $user->platform_role === 'super_admin');
+
         // Where each signed-in device was last seen from (Win Plan PP16); written only when it changes.
         Event::listen(TokenAuthenticated::class, function (TokenAuthenticated $event): void {
             $ip = request()->ip();

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AppearanceController;
 use App\Http\Controllers\Admin\AppearanceEventController;
+use App\Http\Controllers\Admin\BusinessController;
 use App\Http\Controllers\Admin\DemoAccountsController;
 use App\Http\Controllers\Admin\FeaturesController;
 use App\Http\Controllers\Admin\HomeController;
@@ -21,6 +22,13 @@ Route::prefix('test')->name('test.')->controller(TestWorkspaceController::class)
 });
 
 Route::post('/demo/prune', [DemoAccountsController::class, 'prune'])->name('demo.prune');
+
+// Every real business, its owner and plan; a super admin puts one on another plan (with a reason, audited).
+Route::prefix('businesses')->name('businesses.')->controller(BusinessController::class)->group(function () {
+    Route::get('/', 'index')->name('index');
+    Route::get('{tenant}', 'show')->whereUuid('tenant')->name('show');
+    Route::put('{tenant}/plan', 'changePlan')->whereUuid('tenant')->middleware('throttle:30,1')->name('plan');
+});
 
 // Feature control: what the platform has on, off or in beta. Anyone on the platform team may look; only a super admin
 // changes (the 'manage-platform-features' gate, checked in the controller).
