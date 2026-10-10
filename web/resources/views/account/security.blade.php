@@ -32,6 +32,32 @@
         </form>
     @endif
 
+    {{-- Win Plan PP16: the phones signed in with the app, when and where each was last seen; any one can be signed out. --}}
+    <section class="devices" aria-labelledby="devices-title">
+        <h2 id="devices-title" class="devices-title">{{ __('Phones signed in') }}</h2>
+        @if ($devices->isEmpty())
+            <p class="field-hint">{{ __('No phone is signed in with the app.') }}</p>
+        @else
+            <ul class="devices-list">
+                @foreach ($devices as $device)
+                    <li>
+                        <span class="devices-name">
+                            <strong>{{ $device->name }}</strong>
+                            <span class="field-hint">
+                                {{ $device->last_used_at ? __('Last seen :when', ['when' => $device->last_used_at->diffForHumans()]) : __('Not used since signing in') }}@if ($device->getAttribute('last_used_ip')) · <span dir="ltr">{{ $device->getAttribute('last_used_ip') }}</span>@endif
+                            </span>
+                        </span>
+                        <form method="POST" action="{{ route('security.devices.destroy', $device->id) }}">
+                            @csrf
+                            @method('DELETE')
+                            <button class="btn btn-quiet btn-sm">{{ __('Sign out') }}</button>
+                        </form>
+                    </li>
+                @endforeach
+            </ul>
+        @endif
+    </section>
+
     @if ($user->tenants()->exists())
         <p style="margin-top:2rem"><a href="{{ route('app.account.delete.show') }}">{{ __('Delete my account') }}</a></p>
     @endif

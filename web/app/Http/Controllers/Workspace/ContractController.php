@@ -7,6 +7,7 @@ use App\Actions\ConvertToOpen;
 use App\Actions\CreateContract;
 use App\Actions\RecordCharge;
 use App\Domain\Investors\MainInvestor;
+use App\Domain\Ledger\LedgerLines;
 use App\Domain\Ledger\OpenAccount;
 use App\Entitlements\Entitlements;
 use App\Entitlements\Feature;
@@ -112,8 +113,8 @@ final class ContractController
         }
 
         $installments = Installment::query()->where('contract_id', $contract->id)->orderBy('number')->get();
-        $lines = Transaction::query()->where('contract_id', $contract->id)->with('createdBy')
-            ->orderByDesc('paid_at')->orderByDesc('created_at')->orderByDesc('id')->get();
+        $lines = LedgerLines::withReversals(Transaction::query()->where('contract_id', $contract->id)->with('createdBy')
+            ->orderByDesc('paid_at')->orderByDesc('created_at')->orderByDesc('id')->get());
 
         $owed = $installments->reduce(fn (string $carry, Installment $i) => Money::add($carry, $i->remaining()), '0');
         $paid = $installments->reduce(fn (string $carry, Installment $i) => Money::add($carry, $i->paid_amount), '0');
@@ -139,8 +140,8 @@ final class ContractController
     /** An open contract's page: the balance, "they took" and "they paid", and the account with the balance after each line. */
     private function showOpen(Contract $contract): View
     {
-        $lines = Transaction::query()->where('contract_id', $contract->id)->with('createdBy')
-            ->orderByDesc('paid_at')->orderByDesc('created_at')->orderByDesc('id')->get();
+        $lines = LedgerLines::withReversals(Transaction::query()->where('contract_id', $contract->id)->with('createdBy')
+            ->orderByDesc('paid_at')->orderByDesc('created_at')->orderByDesc('id')->get());
         $balances = OpenAccount::runningBalances($contract);
         $counted = $lines->filter(fn (Transaction $line) => isset($balances[$line->id]));
 

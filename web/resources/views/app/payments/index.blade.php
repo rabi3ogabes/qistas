@@ -24,7 +24,6 @@
                             <th scope="col">{{ __('Customer') }}</th>
                             <th scope="col">{{ __('Contract') }}</th>
                             <th scope="col">{{ __('Details') }}</th>
-                            <th scope="col">{{ __('Taken by') }}</th>
                             <th scope="col" class="num">{{ __('Amount') }}</th>
                         </tr>
                     </thead>
@@ -34,7 +33,7 @@
                                 $kind = match (true) {
                                     $line->type === 'reversal' => 'reversal',
                                     $line->type === 'down_payment' => 'down_payment',
-                                    isset($reversed[$line->id]) => 'voided',
+                                    $line->getAttribute('voided') => 'voided',
                                     default => 'payment',
                                 };
                             @endphp
@@ -50,9 +49,9 @@
                                         @endif
                                         @if ($kind === 'voided')<span class="badge badge-bad">{{ __('Voided') }}</span>@endif
                                     </span>
-                                    @if ($line->note)<span class="cell-sub">{{ $line->note }}</span>@endif
+                                    @if ($line->note && $kind !== 'reversal')<span class="cell-sub">{{ $line->note }}</span>@endif
+                                    @include('app.payments._who', ['line' => $line])
                                 </td>
-                                <td data-label="{{ __('Taken by') }}">{{ $line->createdBy?->name ?? '—' }}</td>
                                 <td data-label="{{ __('Amount') }}" @class(['num', 'money', 'voided' => $kind === 'voided'])>{{ Format::money($line->amount, $currency) }}</td>
                             </tr>
                         @endforeach

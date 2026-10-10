@@ -192,6 +192,9 @@
     .planner .calc-schedule { max-height: 16rem; }
     .planner .calc-balance { margin: 0; }
 
+    /* Who did what under a ledger line; a void reads in the danger colour, quietly. */
+    .who-void { color: color-mix(in srgb, var(--q-danger) 80%, var(--q-ink-muted)); }
+
     /* ---------- Open contracts ---------- */
     /* "They took" and "they paid": the same form twice, told apart by a quiet tint along the top. */
     .tab-entry { border-top: 3px solid var(--q-line); }

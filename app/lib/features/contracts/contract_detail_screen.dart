@@ -602,11 +602,26 @@ class PaymentLine extends StatelessWidget {
                 ),
                 if (showContract && line.customerName != null) Text(line.customerName!, style: text.bodyMedium, maxLines: 1, overflow: TextOverflow.ellipsis),
                 if (showContract && line.contractReference != null) Directionality(textDirection: TextDirection.ltr, child: Text(line.contractReference!, style: text.bodySmall?.copyWith(color: c.inkMuted))),
-                Text(
-                  [formatMoment(line.paidAt, language), if (line.takenBy != null) line.takenBy!].join('  ·  '),
-                  style: text.bodySmall?.copyWith(color: c.inkMuted),
-                ),
-                if (line.note != null) Padding(padding: const EdgeInsets.only(top: 2), child: Text(line.note!, style: text.bodySmall?.copyWith(color: c.inkMuted))),
+                Text(formatMoment(line.paidAt, language), style: text.bodySmall?.copyWith(color: c.inkMuted)),
+                // Who did what (Win Plan PP16).
+                if (line.recordedBy != null)
+                  Text(
+                    line.recordedAt == null
+                        ? context.t('Recorded by :name', {'name': line.recordedBy!})
+                        : context.t('Recorded by :name, :when', {'name': line.recordedBy!, 'when': formatMomentLong(line.recordedAt!, language)}),
+                    style: text.bodySmall?.copyWith(color: c.inkMuted),
+                  ),
+                if (line.voided && line.reversalBy != null)
+                  Text(
+                    [
+                      line.reversalAt == null
+                          ? context.t('Voided by :name', {'name': line.reversalBy!})
+                          : context.t('Voided by :name, :when', {'name': line.reversalBy!, 'when': formatMomentLong(line.reversalAt!, language)}),
+                      ?line.reversalReason,
+                    ].join(': '),
+                    style: text.bodySmall?.copyWith(color: c.danger),
+                  ),
+                if (line.note != null && !line.isReversal) Padding(padding: const EdgeInsets.only(top: 2), child: Text(line.note!, style: text.bodySmall?.copyWith(color: c.inkMuted))),
                 if (onVoid != null)
                   TextButton(
                     onPressed: onVoid,

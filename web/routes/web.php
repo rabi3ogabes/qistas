@@ -43,6 +43,7 @@ Route::view('/account/suspended', 'account.suspended')->name('account.suspended'
 Route::middleware(['auth', 'account.active', 'password.confirm'])->prefix('account')->group(function () {
     Route::get('/security', [SecurityController::class, 'show'])->name('security');
     Route::get('/security/recovery-codes', [SecurityController::class, 'recoveryCodes'])->name('security.recovery-codes');
+    Route::delete('/security/devices/{device}', [SecurityController::class, 'signOutDevice'])->name('security.devices.destroy');
 });
 
 // Unknown addresses go through the web group too, so the not-found page speaks the reader's language.

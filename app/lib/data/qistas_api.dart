@@ -117,6 +117,16 @@ class QistasApi {
 
   Future<Tool> saveTool(String key, Object? value) async => Tool.fromJson(_data(await _client.put('/settings/tools/${Uri.encodeComponent(key)}', body: {'value': value})));
 
+  // ------------------------------------------------------------------ devices
+
+  Future<List<Device>> devices() async {
+    final json = await _client.get('/devices');
+
+    return [for (final item in (json['data'] as List<dynamic>? ?? const [])) Device.fromJson(item as Map<String, dynamic>)];
+  }
+
+  Future<void> signOutDevice(String id) async => _client.delete('/devices/$id');
+
   // ---------------------------------------------------------------- investors
 
   Future<InvestorsPage> investors() async => InvestorsPage.fromJson(_data(await _client.get('/investors')));

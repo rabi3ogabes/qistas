@@ -33,6 +33,15 @@ class TransactionResource extends JsonResource
             'balance_after' => $this->when($this->getAttribute('balance_after') !== null, fn () => $this->money($this->getAttribute('balance_after'))),
             'reverses_transaction_id' => $this->reverses_transaction_id,
             'created_by' => $this->whenLoaded('createdBy', fn () => $this->createdBy === null ? null : ['id' => $this->createdBy->id, 'name' => $this->createdBy->name]),
+            // Who did what (Win Plan PP16): who wrote the line and when, and for a voided one who voided it and why.
+            'recorded_by' => $this->whenLoaded('createdBy', fn () => $this->createdBy === null ? null : ['id' => $this->createdBy->id, 'name' => $this->createdBy->name]),
+            'recorded_at' => $this->moment($this->created_at),
+            'reversal' => $this->when($this->getAttribute('reversal') !== null, fn () => [
+                'id' => $this->getAttribute('reversal')->id,
+                'by' => $this->getAttribute('reversal')->createdBy === null ? null : ['id' => $this->getAttribute('reversal')->createdBy->id, 'name' => $this->getAttribute('reversal')->createdBy->name],
+                'reason' => $this->getAttribute('reversal')->note,
+                'at' => $this->moment($this->getAttribute('reversal')->created_at),
+            ]),
             'customer' => $this->whenLoaded('customer', fn () => $this->customer === null ? null : ['id' => $this->customer->id, 'name' => $this->customer->name]),
             'contract' => $this->whenLoaded('contract', fn () => [
                 'id' => $this->contract->id,

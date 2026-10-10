@@ -3,7 +3,7 @@ description: "Qistas: customers, contracts and payments for instalment businesse
 publish_to: 'none'
 
 # build-name+build-number. CI overrides the build number with the run number.
-version: 1.7.0+9
+version: 1.8.0+10
 
 environment:
   sdk: ^3.11.0

@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\ContractController;
 use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\DemoController;
+use App\Http\Controllers\Api\V1\DeviceController;
 use App\Http\Controllers\Api\V1\InvestorController;
 use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\PaymentController;
@@ -79,6 +80,8 @@ Route::name('api.')->group(function (): void {
         Route::post('contracts/{contract}/convert-to-open', [ContractController::class, 'convert'])->name('contracts.convert');
 
         Route::get('payments', [PaymentController::class, 'index'])->name('payments.index');
+        // What a payment would cover, worked out by the allocator and never written (Win Plan PP16).
+        Route::post('contracts/{contract}/payments/preview', [PaymentController::class, 'preview'])->name('contracts.payments.preview');
         Route::post('contracts/{contract}/payments', [PaymentController::class, 'store'])->middleware('throttle:api-money')->name('contracts.payments.store');
         Route::post('payments/{transaction}/void', [PaymentController::class, 'void'])->middleware('throttle:api-money')->name('payments.void');
 
@@ -87,6 +90,9 @@ Route::name('api.')->group(function (): void {
             Route::get('tokens', [TokenController::class, 'index'])->name('tokens.index');
             Route::post('tokens', [TokenController::class, 'store'])->name('tokens.store');
             Route::delete('tokens/{token}', [TokenController::class, 'destroy'])->name('tokens.destroy');
+            // The phones and browsers signed in to my account, and signing one out (Win Plan PP16).
+            Route::get('devices', [DeviceController::class, 'index'])->name('devices.index');
+            Route::delete('devices/{device}', [DeviceController::class, 'destroy'])->name('devices.destroy');
         });
     });
 });

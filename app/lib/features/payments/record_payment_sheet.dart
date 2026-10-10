@@ -11,6 +11,7 @@ import '../../core/money.dart';
 import '../../core/ui/errors.dart';
 import '../../data/models.dart';
 import '../../data/qistas_api.dart';
+import '../../domain/payment_coverage.dart';
 import '../billing/upgrade_sheet.dart';
 
 /// How a customer paid, in words.
@@ -197,7 +198,9 @@ class _RecordPaymentSheetState extends ConsumerState<RecordPaymentSheet> {
                 suffix: owed != null && owed.isPositive
                     ? TextButton(onPressed: _saving ? null : () => setState(() => _amount.text = owed.toDecimalString()), child: Text(context.t('Pay in full')))
                     : null,
+                onChanged: (_) => setState(() {}),
               ),
+              _CoveragePreview(contract: widget.contract, amount: Money.parseTyped(_amount.text), currency: widget.currency),
               const SizedBox(height: 16),
               Text(context.t('Paid by'), style: text.labelLarge),
               const SizedBox(height: 8),
@@ -230,6 +233,48 @@ class _RecordPaymentSheetState extends ConsumerState<RecordPaymentSheet> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// What the amount typed will cover, worked out as the server will (Win Plan PP16): "#2 in full", "#3: 25.00 of 275.00".
+class _CoveragePreview extends StatelessWidget {
+  const _CoveragePreview({required this.contract, required this.amount, required this.currency});
+
+  final Contract contract;
+  final Money? amount;
+  final String currency;
+
+  @override
+  Widget build(BuildContext context) {
+    final amount = this.amount;
+    final coverage = amount == null || contract.installments.isEmpty ? null : paymentCoverage(contract.installments, amount);
+    if (coverage == null) return const SizedBox.shrink();
+    final c = context.qc;
+    final text = Theme.of(context).textTheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final covered in coverage.covers)
+                QBadge(
+                  covered.settles
+                      ? context.t('#:number in full', {'number': covered.number})
+                      : context.t('#:number: :amount of :total', {'number': covered.number, 'amount': covered.amount.format(currency), 'total': covered.total.format(currency)}),
+                  tone: covered.settles ? QTone.ok : QTone.warn,
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(context.t('Still owed after: :amount', {'amount': coverage.owedAfter.format(currency)}), style: text.bodySmall?.copyWith(color: c.inkMuted)),
+        ],
       ),
     );
   }

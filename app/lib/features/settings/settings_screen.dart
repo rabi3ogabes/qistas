@@ -125,6 +125,14 @@ class SettingsScreen extends ConsumerWidget {
                     external: true,
                     onTap: () => _open('/security'),
                   ),
+                  const _Divider(),
+                  _Row(
+                    key: const ValueKey('settings-devices'),
+                    icon: Icons.devices_rounded,
+                    title: context.t('Devices'),
+                    subtitle: context.t('Phones signed in to your account'),
+                    onTap: () => context.push('/devices'),
+                  ),
                   if (!kIsWeb) ...[
                     const _Divider(),
                     _Row(

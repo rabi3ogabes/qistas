@@ -50,3 +50,13 @@
     .codes li { padding: .625rem .75rem; border: 1px solid var(--q-line); border-radius: var(--q-r-sm); background: var(--q-surface); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .875rem; text-align: center; }
     code { padding: .125rem .375rem; border-radius: 6px; background: var(--q-surface-alt); font-size: .875em; overflow-wrap: anywhere; }
 }
+
+/* Phones signed in (Win Plan PP16): one row each, the name and when it was last seen, and a way to sign it out. */
+.devices { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--q-line); }
+.devices-title { margin: 0 0 .75rem; font-size: 1.0625rem; }
+.devices-list { display: grid; gap: .5rem; margin: 0; padding: 0; list-style: none; }
+.devices-list li { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .75rem 0; border-bottom: 1px solid color-mix(in srgb, var(--q-line) 70%, transparent); }
+.devices-list li:last-child { border-bottom: 0; }
+.devices-list form { margin: 0; flex: none; }
+.devices-name { display: grid; gap: .125rem; min-width: 0; }
+.devices-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

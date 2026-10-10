@@ -252,10 +252,16 @@ class LedgerLine {
     required this.contractStatus,
     this.tag,
     this.balanceAfter,
+    this.recordedBy,
+    this.recordedAt,
+    this.reversalBy,
+    this.reversalReason,
+    this.reversalAt,
   });
 
   factory LedgerLine.fromJson(Map<String, dynamic> json) {
     final contract = _map(json['contract']);
+    final reversal = _map(json['reversal']);
 
     return LedgerLine(
       id: json['id'].toString(),
@@ -274,6 +280,11 @@ class LedgerLine {
       contractStatus: _text(contract['status']),
       tag: _text(json['tag']),
       balanceAfter: _moneyOrNull(json['balance_after']),
+      recordedBy: _text(_map(json['recorded_by'])['name']) ?? _text(_map(json['created_by'])['name']),
+      recordedAt: _moment(json['recorded_at']),
+      reversalBy: _text(_map(reversal['by'])['name']),
+      reversalReason: _text(reversal['reason']),
+      reversalAt: _moment(reversal['at']),
     );
   }
 
@@ -303,6 +314,15 @@ class LedgerLine {
 
   /// On an open contract: the balance once this line was written. Null for lines from before it became open.
   final Money? balanceAfter;
+
+  /// Who wrote the line and when (Win Plan PP16); [paidAt] is when the money moved.
+  final String? recordedBy;
+  final DateTime? recordedAt;
+
+  /// On a voided line: who voided it, why and when.
+  final String? reversalBy;
+  final String? reversalReason;
+  final DateTime? reversalAt;
 
   bool get isReversal => type == 'reversal' || type == 'charge_reversal';
 
@@ -860,4 +880,28 @@ class Team {
   final int used;
 
   bool get isFull => limit != null && used >= limit!;
+}
+
+/// A phone or browser signed in to my account (Win Plan PP16): each sign-in is its own token, named after the device.
+@immutable
+class Device {
+  const Device({required this.id, required this.name, required this.current, this.lastUsedAt, this.lastUsedIp, this.signedInAt});
+
+  factory Device.fromJson(Map<String, dynamic> json) => Device(
+        id: json['id'].toString(),
+        name: (json['name'] ?? '').toString(),
+        current: json['current'] == true,
+        lastUsedAt: _moment(json['last_used_at']),
+        lastUsedIp: _text(json['last_used_ip']),
+        signedInAt: _moment(json['signed_in_at']),
+      );
+
+  final String id;
+  final String name;
+
+  /// This very device.
+  final bool current;
+  final DateTime? lastUsedAt;
+  final String? lastUsedIp;
+  final DateTime? signedInAt;
 }

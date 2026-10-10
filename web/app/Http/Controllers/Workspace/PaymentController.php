@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Workspace;
 
 use App\Actions\RecordPayment;
 use App\Actions\VoidTransaction;
+use App\Domain\Ledger\LedgerLines;
 use App\Http\Requests\PaymentRequest;
 use App\Http\Requests\VoidPaymentRequest;
 use App\Models\Contract;
@@ -25,6 +26,7 @@ final class PaymentController
 
         $lines = Transaction::query()->moneyIn()->with(['customer', 'contract', 'createdBy'])
             ->orderByDesc('paid_at')->orderByDesc('created_at')->orderByDesc('id')->paginate(25);
+        LedgerLines::withReversals($lines->getCollection());
 
         return view('app.payments.index', [
             'lines' => $lines,

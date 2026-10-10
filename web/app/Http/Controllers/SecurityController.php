@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -10,7 +11,18 @@ final class SecurityController
 {
     public function show(Request $request): View
     {
-        return view('account.security', ['user' => $request->user()]);
+        return view('account.security', [
+            'user' => $request->user(),
+            // The phones signed in with the app (Win Plan PP16); API tokens for other software are not sign-ins.
+            'devices' => $request->user()->tokens()->where('abilities', 'like', '%"app"%')->orderByDesc('last_used_at')->orderByDesc('created_at')->get(),
+        ]);
+    }
+
+    public function signOutDevice(Request $request, string $device): RedirectResponse
+    {
+        $request->user()->tokens()->where('abilities', 'like', '%"app"%')->whereKey($device)->firstOrFail()->delete();
+
+        return redirect()->route('security')->with('status', __('That phone is signed out.'));
     }
 
     /** Behind password confirmation: recovery codes are as good as a password for getting in. */

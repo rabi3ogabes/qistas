@@ -531,6 +531,46 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "422": {$ref: "#/components/responses/ValidationFailed"}
+  /contracts/{contract}/payments/preview:
+    post:
+      tags: [Payments]
+      summary: What a payment would cover, before it is taken
+      description: >-
+        Worked out by the allocator that records payments (oldest instalment first) and never written. The same amount
+        recorded next covers exactly these instalments. More than is owed answers 422, as recording would. On an open
+        contract `covers` is empty and the amount comes off the balance.
+      parameters:
+        - {name: contract, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, required: [amount], properties: {amount: {$ref: "#/components/schemas/Money"}}}
+      responses:
+        "200":
+          description: The instalments it pays, what is left on the last one, and what is owed after.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      covers:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            number: {type: integer}
+                            due_date: {type: string, format: date}
+                            amount: {$ref: "#/components/schemas/Money"}
+                            settles: {type: boolean, description: The instalment is paid in full.}
+                      left_on_last: {type: [string, "null"], description: "What stays owed on the last instalment it touches."}
+                      owed_after: {$ref: "#/components/schemas/Money"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
   /contracts/{contract}/payments:
     post:
       tags: [Payments]
@@ -929,6 +969,44 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "422": {$ref: "#/components/responses/ValidationFailed"}
+  /devices:
+    get:
+      tags: [Account]
+      summary: The phones and browsers signed in to my account
+      description: Each sign-in is its own token named after the device. API access tokens for other software are not listed. Needs a signed-in device (an "app" token).
+      responses:
+        "200":
+          description: My sign-ins, most recently seen first; `current` is the one asking.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: {type: integer}
+                        name: {type: string}
+                        current: {type: boolean}
+                        last_used_at: {type: [string, "null"], format: date-time}
+                        last_used_ip: {type: [string, "null"]}
+                        signed_in_at: {type: string, format: date-time}
+                        expires_at: {type: [string, "null"], format: date-time}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /devices/{device}:
+    delete:
+      tags: [Account]
+      summary: Sign one of my devices out
+      description: Revokes that sign-in only. Someone else's, or an API access token, is a 404.
+      parameters:
+        - {name: device, in: path, required: true, schema: {type: integer}}
+      responses:
+        "204": {description: Signed out.}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "404": {$ref: "#/components/responses/NotFound"}
   /team:
     get:
       tags: [Team]
@@ -1683,6 +1761,16 @@ components:
         type: {type: string, enum: [payment, down_payment, reversal, charge, charge_reversal]}
         tag: {type: [string, "null"], enum: [advance, refund, early_discount, unpaid, null]}
         balance_after: {type: string, description: "On an open contract's ledger: the balance once this line was written."}
+        recorded_by: {type: [object, "null"], properties: {id: {type: string}, name: {type: string}}, description: Who wrote the line; null for lines the system wrote.}
+        recorded_at: {type: string, format: date-time, description: When the line was written (paid_at is when the money moved).}
+        reversal:
+          type: object
+          description: On a voided line, who voided it, when and why.
+          properties:
+            id: {type: string, format: uuid}
+            by: {type: [object, "null"], properties: {id: {type: string}, name: {type: string}}}
+            reason: {type: [string, "null"]}
+            at: {type: string, format: date-time}
         method: {type: string}
         amount: {$ref: "#/components/schemas/Money"}
         paid_at: {type: string, format: date-time}

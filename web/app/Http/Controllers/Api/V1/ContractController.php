@@ -6,6 +6,7 @@ use App\Actions\CancelContract;
 use App\Actions\ConvertToOpen;
 use App\Actions\CreateContract;
 use App\Actions\RecordCharge;
+use App\Domain\Ledger\LedgerLines;
 use App\Domain\Ledger\OpenAccount;
 use App\Http\Requests\CancelContractRequest;
 use App\Http\Requests\ChargeRequest;
@@ -102,10 +103,8 @@ final class ContractController
         $installments = Installment::query()->where('contract_id', $contract->id)->orderBy('number')->get();
         $lines = Transaction::query()->where('contract_id', $contract->id)->with('createdBy')
             ->orderByDesc('paid_at')->orderByDesc('created_at')->orderByDesc('id')->get();
-        $reversed = $lines->pluck('reverses_transaction_id')->filter()->flip();
         $after = $contract->isOpen() ? OpenAccount::runningBalances($contract) : [];
-        $lines->each(fn (Transaction $line) => $line->setAttribute('voided', in_array($line->type, ['payment', 'charge'], true) && $reversed->has($line->id))
-            ->setAttribute('balance_after', $after[$line->id] ?? null));
+        LedgerLines::withReversals($lines)->each(fn (Transaction $line) => $line->setAttribute('balance_after', $after[$line->id] ?? null));
 
         $contract->load(['customer', 'investor']);
         $this->attachProgress(collect([$contract]));

@@ -31,6 +31,7 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\NotPwnedVerifier;
 use Illuminate\Validation\Rules\Password;
 use Laravel\Passkeys\Passkeys;
+use Laravel\Sanctum\Events\TokenAuthenticated;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -103,6 +104,14 @@ class AppServiceProvider extends ServiceProvider
 
         // The same for the look of the product (colours, pictures, welcome banners).
         Gate::define('manage-appearance', fn (User $user): bool => $user->platform_role === 'super_admin');
+
+        // Where each signed-in device was last seen from (Win Plan PP16); written only when it changes.
+        Event::listen(TokenAuthenticated::class, function (TokenAuthenticated $event): void {
+            $ip = request()->ip();
+            if ($ip !== null && $event->token->getAttribute('last_used_ip') !== $ip) {
+                $event->token->forceFill(['last_used_ip' => $ip])->save();
+            }
+        });
 
         // @feature('key') ... @endfeature: shown only when the feature is on for the current workspace (not plan-locked,
         // not switched off by the platform). Nothing is shown outside a workspace.

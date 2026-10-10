@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Actions\RecordPayment;
 use App\Actions\VoidTransaction;
+use App\Domain\Ledger\LedgerLines;
+use App\Domain\Ledger\PaymentPreview;
 use App\Http\Requests\PaymentRequest;
 use App\Http\Requests\VoidPaymentRequest;
 use App\Http\Resources\TransactionResource;
@@ -32,8 +34,7 @@ final class PaymentController
             ->orderByDesc('paid_at')->orderByDesc('created_at')->orderByDesc('id')
             ->paginate(PerPage::of($request))->withQueryString();
 
-        $reversed = Transaction::query()->whereIn('reverses_transaction_id', $page->pluck('id'))->pluck('reverses_transaction_id')->flip();
-        $page->getCollection()->each(fn (Transaction $line) => $line->setAttribute('voided', $line->type === 'payment' && $reversed->has($line->id)));
+        LedgerLines::withReversals($page->getCollection());
 
         return TransactionResource::collection($page);
     }
@@ -51,6 +52,17 @@ final class PaymentController
         return $this->show($payment)->response()->setStatusCode($payment->wasRecentlyCreated ? 201 : 200);
     }
 
+    /** What the amount would cover, worked out by the allocator that records payments, and never written. */
+    public function preview(Request $request, Contract $contract, PaymentPreview $preview): JsonResponse
+    {
+        Gate::authorize('view', $contract);
+        $data = $request->validate(['amount' => ['required', 'string', 'regex:/^\d{1,14}(\.\d{1,2})?$/', 'not_regex:/^0+(\.0+)?$/']], [
+            'amount.*' => __('Enter an amount greater than zero, with at most two decimals.'),
+        ]);
+
+        return response()->json(['data' => $preview->for($contract, $data['amount'])]);
+    }
+
     public function void(VoidPaymentRequest $request, Transaction $transaction, VoidTransaction $void): JsonResponse
     {
         return $this->show($void->handle($transaction, $request->reason(), $request->user()))->response()->setStatusCode(200);
@@ -60,7 +72,7 @@ final class PaymentController
     {
         $transaction->load(['createdBy', 'customer', 'contract']);
         $transaction->contract->setAttribute('owed', $this->progress->forContracts([$transaction->contract_id])[$transaction->contract_id]['owed']);
-        $transaction->setAttribute('voided', in_array($transaction->type, ['payment', 'charge'], true) && Transaction::where('reverses_transaction_id', $transaction->id)->exists());
+        LedgerLines::withReversals(collect([$transaction]));
 
         return new TransactionResource($transaction);
     }

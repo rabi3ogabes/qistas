@@ -171,8 +171,8 @@
                                                 @if ($voided)<span class="badge badge-bad">{{ __('Voided') }}</span>@endif
                                                 @if ($after === null)<span class="badge">{{ __('Before it became open') }}</span>@endif
                                             </span>
-                                            @if ($line->note)<span class="cell-sub">{{ $line->note }}</span>@endif
-                                            @if ($line->createdBy)<span class="cell-sub">{{ $line->createdBy->name }}</span>@endif
+                                            @if ($line->note && ! $isReversal)<span class="cell-sub">{{ $line->note }}</span>@endif
+                                            @include('app.payments._who', ['line' => $line])
                                             @if (! $voided && ! $isReversal && $after !== null && in_array($line->type, ['payment', 'charge'], true))
                                                 @can('void', $line)
                                                     <details class="confirm confirm-inline">
