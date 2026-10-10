@@ -17,6 +17,7 @@ import '../features/intro/splash_screen.dart';
 import '../features/payments/payments_screen.dart';
 import '../features/search/search_screen.dart';
 import '../features/security/app_lock_settings_screen.dart';
+import '../features/settings/delete_account_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/settings/tools_screen.dart';
 import 'providers.dart';
@@ -66,6 +67,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/plans', builder: (_, _) => const PlansScreen()),
       GoRoute(path: '/tools', builder: (_, _) => const ToolsScreen()),
       GoRoute(path: '/app-lock', builder: (_, _) => const AppLockSettingsScreen()),
+      GoRoute(path: '/delete-account', builder: (_, _) => const DeleteAccountScreen()),
       GoRoute(path: '/search', builder: (_, _) => const SearchScreen()),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => AppShell(shell: shell),

@@ -15,6 +15,8 @@ Route::get('/', [SiteController::class, 'home'])->name('home');
 Route::get('/pricing', [SiteController::class, 'pricing'])->name('pricing');
 Route::get('/terms', [SiteController::class, 'terms'])->name('terms');
 Route::get('/privacy', [SiteController::class, 'privacy'])->name('privacy');
+// How to delete an account, for anyone (Google Play asks for a page like this).
+Route::get('/account/delete', [SiteController::class, 'accountDeletion'])->name('account.delete.info');
 Route::get('/sitemap.xml', SitemapController::class)->name('sitemap');
 Route::get('/robots.txt', RobotsController::class)->name('robots');
 

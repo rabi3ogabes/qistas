@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Actions\Auth\AuthenticateUser;
 use App\Actions\Fortify\CreateNewUser;
+use App\Auth\SecondFactor;
 use App\Http\Api\DeviceSession;
 use App\Http\ApiException;
 use App\Models\User;
@@ -13,7 +14,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Validation\ValidationException;
-use Laravel\Fortify\Contracts\TwoFactorAuthenticationProvider;
 
 /** Creating an account, signing in and out. Every sign-in gives the device its own token, which can be revoked. */
 final class AuthController
@@ -50,9 +50,7 @@ final class AuthController
             throw new ApiException('invalid_credentials', trans('auth.failed'), 401);
         }
 
-        if ($user->hasConfirmedTwoFactor()) {
-            $this->secondFactor($user, $request);
-        }
+        app(SecondFactor::class)->verify($user, $request->input('code'), $request->input('recovery_code'));
 
         Audit::record('login.api', userId: $user->id);
 
@@ -77,34 +75,5 @@ final class AuthController
     private function session(User $user, Request $request, int $status): JsonResponse
     {
         return DeviceSession::issue($user, $request, $status);
-    }
-
-    /** A person with two-factor authentication on must also give a code from their authenticator, or a recovery code. */
-    private function secondFactor(User $user, Request $request): void
-    {
-        $code = trim((string) $request->input('code'));
-        $recovery = trim((string) $request->input('recovery_code'));
-
-        if ($code === '' && $recovery === '') {
-            throw new ApiException('two_factor_required', __('Enter the code from your authenticator app.'), 422);
-        }
-
-        if ($code !== '' && app(TwoFactorAuthenticationProvider::class)->verify(decrypt($user->two_factor_secret), $code)) {
-            return;
-        }
-
-        if ($recovery !== '') {
-            $match = collect($user->recoveryCodes())->first(fn (string $stored) => hash_equals($stored, $recovery));
-
-            if ($match !== null) {
-                $user->replaceRecoveryCode($match);
-
-                return;
-            }
-        }
-
-        Audit::record('login.two_factor_failed', userId: $user->id);
-
-        throw new ApiException('invalid_two_factor_code', __('That code is not valid.'), 401);
     }
 }

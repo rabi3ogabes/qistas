@@ -102,8 +102,21 @@
                 </div>
             @endunless
 
+            @if ($tenant->isBeingDeleted())
+                {{-- The owner asked to delete the business: say so on every page, with the way back for the owner. --}}
+                <div class="alert alert-warning notice" role="alert">
+                    <span>{{ __('This business will be deleted on :date. Until then nothing can be changed.', ['date' => $tenant->restoreUntil()]) }}</span>
+                    @if ($user->roleIn($tenant->id) === \App\Tenancy\TenantRole::Owner)
+                        <form method="POST" action="{{ route('app.account.delete.destroy') }}">@csrf @method('DELETE')
+                            <button class="btn btn-quiet btn-sm">{{ __('Restore') }}</button>
+                        </form>
+                    @endif
+                </div>
+            @endif
+
             <x-alert type="status" :message="session('status')" />
             <x-alert type="warning" :message="session('warning')" />
+            <x-alert type="error" :message="session('error')" />
 
             {{ $slot }}
         </main>

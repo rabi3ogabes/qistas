@@ -153,6 +153,14 @@ Future<void> typeInto(WidgetTester tester, String label, String value) async {
   await tester.pump();
 }
 
+/// Types into the field with the key [key] (for fields whose label carries a name or a number).
+Future<void> typeIntoKey(WidgetTester tester, String key, String value) async {
+  final input = find.descendant(of: find.byKey(ValueKey(key)), matching: find.byType(EditableText)).first;
+  await tester.ensureVisible(input);
+  await tester.enterText(input, value);
+  await tester.pump();
+}
+
 /// Taps the app's button labelled [label] (not a heading or app-bar title that happens to say the same).
 Future<void> tapButton(WidgetTester tester, String label) async {
   final finder = find.widgetWithText(QButton, label);

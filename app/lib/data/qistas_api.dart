@@ -115,6 +115,21 @@ class QistasApi {
 
   Future<Tool> saveTool(String key, Object? value) async => Tool.fromJson(_data(await _client.put('/settings/tools/${Uri.encodeComponent(key)}', body: {'value': value})));
 
+  /// Delete my account. The owner deletes the business (read-only, erased after `restoreUntil` unless restored);
+  /// anyone else deletes only their own login, at once.
+  Future<({String scope, String? restoreUntil})> deleteAccount({required String password, String? code, String? confirmName}) async {
+    final data = _data(await _client.post('/account/deletion', body: {
+      'password': password,
+      if (code != null && code.isNotEmpty) 'code': code,
+      'confirm_name': ?confirmName,
+    }));
+
+    return (scope: (data['scope'] ?? 'login').toString(), restoreUntil: data['restore_until']?.toString());
+  }
+
+  /// The owner restores a business they asked to delete.
+  Future<void> restoreAccount() async => _client.delete('/account/deletion');
+
   /// Whether every phone in the business must unlock Qistas first. Owner and managers only; answers the rule as saved.
   Future<bool> setAppLockRequired(bool required) async =>
       _data(await _client.put('/workspace/security', body: {'require_app_lock': required}))['require_app_lock'] == true;

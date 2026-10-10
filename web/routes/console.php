@@ -10,3 +10,6 @@ Artisan::command('inspire', function () {
 
 // Throw-away demo accounts are also cleared whenever someone presses a demo button; this catches a quiet site.
 Schedule::command('qistas:prune-demo')->everyFifteenMinutes()->withoutOverlapping(10);
+
+// Businesses whose owners deleted them more than 30 days ago are erased (the owner can restore until then).
+Schedule::command('qistas:purge-deleted-accounts')->daily()->withoutOverlapping(30);

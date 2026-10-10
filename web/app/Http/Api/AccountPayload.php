@@ -38,6 +38,8 @@ final class AccountPayload
                 'is_demo' => $tenant->is_demo,
                 // The business wants every phone to unlock Qistas (fingerprint, face or PIN) before showing its books.
                 'require_app_lock' => $tenant->require_app_lock,
+                // The owner asked to delete the business: read-only, and erased after this day unless restored.
+                'deletion_scheduled_for' => $tenant->restoreUntil(),
             ],
             'plan' => $entitlements['plan'],
             'entitlements' => $entitlements['features'],

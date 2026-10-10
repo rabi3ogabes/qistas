@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Account\RequestAccountDeletion;
 use App\Domain\Schedule\ScheduleGenerator;
 use App\Domain\Schedule\ScheduleRequest;
 use App\Entitlements\Feature;
@@ -52,6 +53,12 @@ final class SiteController
     public function privacy(): View
     {
         return $this->legal('privacy', __('Privacy Policy'), '/privacy');
+    }
+
+    /** How to delete a Qistas account, and what happens to the data: for anyone, signed in or not (store requirement). */
+    public function accountDeletion(): View
+    {
+        return view('site.account-delete', ['days' => RequestAccountDeletion::DAYS_TO_RESTORE]);
     }
 
     /** A legal document in the reader's language, or in English (marked as such) when it is not translated yet. */

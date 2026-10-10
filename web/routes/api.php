@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AccountDeletionController;
 use App\Http\Controllers\Api\V1\AppearanceController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\ContractController;
@@ -31,7 +32,7 @@ Route::name('api.')->group(function (): void {
     Route::post('auth/register', [AuthController::class, 'register'])->middleware('throttle:api-register')->name('auth.register');
     Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttle:api-login')->name('auth.login');
 
-    Route::middleware(['auth:sanctum', 'account.active', 'tenant', 'throttle:api'])->group(function (): void {
+    Route::middleware(['auth:sanctum', 'account.active', 'tenant', 'deleting', 'throttle:api'])->group(function (): void {
         Route::post('auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
         Route::post('auth/logout-all', [AuthController::class, 'logoutAll'])->name('auth.logout-all');
 
@@ -41,6 +42,10 @@ Route::name('api.')->group(function (): void {
         Route::get('settings/tools', [ToolsController::class, 'index'])->name('settings.tools.index');
         Route::put('settings/tools/{key}', [ToolsController::class, 'update'])->name('settings.tools.update');
         Route::put('workspace/security', [WorkspaceSecurityController::class, 'update'])->name('workspace.security');
+
+        // Delete my account (store requirement): the owner deletes the business after 30 days, anyone else their login.
+        Route::post('account/deletion', [AccountDeletionController::class, 'store'])->middleware('throttle:account-deletion')->name('account.deletion.store');
+        Route::delete('account/deletion', [AccountDeletionController::class, 'destroy'])->name('account.deletion.destroy');
 
         Route::apiResource('customers', CustomerController::class);
 

@@ -11,8 +11,14 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Carbon;
 
-// owner_user_id and status are set by trusted code only.
+/**
+ * owner_user_id and status are set by trusted code only.
+ *
+ * @property Carbon|null $deletion_requested_at when the owner asked to delete the business
+ * @property Carbon|null $delete_after when it is erased, unless the owner restores it first
+ */
 #[Fillable(['name', 'slug', 'country', 'currency', 'timezone'])]
 class Tenant extends Model
 {
@@ -29,7 +35,25 @@ class Tenant extends Model
     /** @return array<string, string> */
     protected function casts(): array
     {
-        return ['is_test' => 'boolean', 'is_demo' => 'boolean', 'require_app_lock' => 'boolean'];
+        return [
+            'is_test' => 'boolean',
+            'is_demo' => 'boolean',
+            'require_app_lock' => 'boolean',
+            'deletion_requested_at' => 'datetime',
+            'delete_after' => 'datetime',
+        ];
+    }
+
+    /** The owner asked to delete this business: it is read-only until it is erased or restored. */
+    public function isBeingDeleted(): bool
+    {
+        return $this->delete_after !== null;
+    }
+
+    /** The last day the owner can still restore it, in the business's own calendar (Y-m-d), or null. */
+    public function restoreUntil(): ?string
+    {
+        return $this->delete_after === null ? null : $this->localTime($this->delete_after)->format('Y-m-d');
     }
 
     /**

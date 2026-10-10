@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\SchedulePreviewController;
+use App\Http\Controllers\Workspace\AccountDeletionController;
 use App\Http\Controllers\Workspace\BillingController;
 use App\Http\Controllers\Workspace\ContractController;
 use App\Http\Controllers\Workspace\CustomerController;
@@ -15,6 +16,11 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', DashboardController::class)->name('dashboard');
 
 Route::get('billing', BillingController::class)->name('billing');
+
+// Delete my account: the owner deletes the business after 30 days (and can restore it until then); anyone else their login.
+Route::get('account/delete', [AccountDeletionController::class, 'show'])->name('account.delete.show');
+Route::post('account/delete', [AccountDeletionController::class, 'store'])->middleware('throttle:account-deletion')->name('account.delete.store');
+Route::delete('account/delete', [AccountDeletionController::class, 'destroy'])->name('account.delete.destroy');
 
 // A stored file (an ID photo, a proof of payment): a member whose role may see it is sent to a link that expires in minutes.
 Route::get('files/{file}', [FileController::class, 'show'])->name('files.show');

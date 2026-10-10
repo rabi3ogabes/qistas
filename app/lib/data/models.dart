@@ -93,6 +93,7 @@ class Account {
     required this.isTest,
     required this.isDemo,
     this.requireAppLock = false,
+    this.deletionScheduledFor,
     required this.planKey,
     required this.planName,
     required this.entitlements,
@@ -118,6 +119,7 @@ class Account {
       isTest: tenant['is_test'] == true,
       isDemo: tenant['is_demo'] == true,
       requireAppLock: tenant['require_app_lock'] == true,
+      deletionScheduledFor: tenant['deletion_scheduled_for']?.toString(),
       planKey: (plan['key'] ?? 'free').toString(),
       planName: (plan['name'] ?? '').toString(),
       entitlements: {
@@ -148,6 +150,11 @@ class Account {
 
   /// The business requires every phone to unlock Qistas (fingerprint, face or the phone's PIN) before showing its books.
   final bool requireAppLock;
+
+  /// The owner asked to delete the business: it is read-only and erased after this day (YYYY-MM-DD) unless restored.
+  final String? deletionScheduledFor;
+
+  bool get isOwner => role == 'owner';
   final String planKey;
   final String planName;
   final Map<String, Entitlement> entitlements;
@@ -172,7 +179,7 @@ class Account {
 
   Map<String, dynamic> toJson() => {
         'user': {'id': userId, 'name': name, 'email': email, 'email_verified': emailVerified, 'locale': locale, 'two_factor': twoFactor},
-        'tenant': {'id': tenantId, 'name': businessName, 'country': country, 'currency': currency, 'role': role, 'is_test': isTest, 'is_demo': isDemo, 'require_app_lock': requireAppLock},
+        'tenant': {'id': tenantId, 'name': businessName, 'country': country, 'currency': currency, 'role': role, 'is_test': isTest, 'is_demo': isDemo, 'require_app_lock': requireAppLock, 'deletion_scheduled_for': deletionScheduledFor},
         'plan': {'key': planKey, 'name': planName},
         'entitlements': {for (final e in entitlements.entries) e.key: e.value.toJson()},
       };

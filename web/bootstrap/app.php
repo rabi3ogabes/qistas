@@ -5,6 +5,7 @@ use App\Http\Middleware\EnsureAccountActive;
 use App\Http\Middleware\EnsureFeature;
 use App\Http\Middleware\EnsurePlatformAdmin;
 use App\Http\Middleware\ForceJsonResponse;
+use App\Http\Middleware\ReadOnlyWhileDeleting;
 use App\Http\Middleware\RequireTwoFactorForAdmins;
 use App\Http\Middleware\SetApiLocale;
 use App\Http\Middleware\SetCurrentTenant;
@@ -27,7 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
         then: function (): void {
             // The signed-in app: a person with a workspace who is not suspended. The tenant middleware runs
             // before route-model binding, so another workspace's ids are simply not found.
-            Route::middleware(['web', 'auth', 'account.active', 'tenant'])
+            Route::middleware(['web', 'auth', 'account.active', 'tenant', 'deleting'])
                 ->prefix('app')->name('app.')
                 ->group(base_path('routes/app.php'));
 
@@ -58,6 +59,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'account.active' => EnsureAccountActive::class,
             'feature' => EnsureFeature::class,
             'abilities' => CheckAbilities::class,
+            // A business being deleted is read-only for everyone in it until it is erased or restored.
+            'deleting' => ReadOnlyWhileDeleting::class,
         ]);
 
         // Everything under /admin: signed-in, not suspended, platform admin (else 404), second factor confirmed.

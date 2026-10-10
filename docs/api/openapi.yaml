@@ -630,6 +630,73 @@ paths:
         "401": {$ref: "#/components/responses/Unauthenticated"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "422": {$ref: "#/components/responses/ValidationFailed"}
+  /account/deletion:
+    post:
+      tags: [Account]
+      summary: Delete my account
+      description: |
+        Asks for the password again (and `code` or `recovery_code` when two-step sign-in is on: 422
+        `two_factor_required`, 401 `invalid_two_factor_code`). The **owner** deletes the business: they type its name in
+        `confirm_name`; it turns read-only for everyone (writes answer 423 `workspace_deleting`) and is erased after 30
+        days unless restored (202). **Anyone else** deletes only their own login, at once (200); the business is
+        untouched. Rate-limited to a few tries a minute.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: {type: string}
+                code: {type: string, description: From the authenticator app, when two-step sign-in is on.}
+                recovery_code: {type: string}
+                confirm_name: {type: string, description: The business name, exactly. Owner only.}
+      responses:
+        "200":
+          description: A member's login was deleted.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      scope: {type: string, enum: [login]}
+        "202":
+          description: The business will be erased after `restore_until` unless the owner restores it.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      scope: {type: string, enum: [workspace]}
+                      restore_until: {type: string, format: date}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+    delete:
+      tags: [Account]
+      summary: Restore the business
+      description: The owner changes their mind within the 30 days; everything is back exactly as it was. Anyone else gets 403.
+      responses:
+        "200":
+          description: Restored.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      restored: {type: boolean}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
   /tokens:
     get:
       tags: [API access tokens]
@@ -847,6 +914,11 @@ components:
         require_app_lock:
           type: boolean
           description: The business requires every phone to unlock Qistas (fingerprint, face or the phone's PIN) before showing its books. The app turns its lock on and does not let it be turned off.
+        deletion_scheduled_for:
+          type: string
+          format: date
+          nullable: true
+          description: The owner asked to delete the business. It is read-only (writes answer 423 `workspace_deleting`) and is erased after this day unless the owner restores it.
     PlanRef:
       type: object
       properties:

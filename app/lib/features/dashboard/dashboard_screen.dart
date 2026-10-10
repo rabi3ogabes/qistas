@@ -15,6 +15,7 @@ import '../../data/models.dart';
 import '../appearance/welcome_banner.dart';
 import '../billing/upgrade_sheet.dart';
 import '../reminders/reminders.dart';
+import '../settings/delete_account_screen.dart';
 
 final dashboardProvider = FutureProvider.autoDispose<Dashboard>((ref) => ref.watch(apiProvider).dashboard());
 
@@ -47,6 +48,7 @@ class DashboardScreen extends ConsumerWidget {
                 children: [
                   _Greeting(account: account, board: board.valueOrNull),
                   const SizedBox(height: 18),
+                  const DeletionBanner(),
                   const WelcomeBannerCard(),
                   board.when(
                     loading: () => const _Loading(),

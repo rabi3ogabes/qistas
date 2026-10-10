@@ -31,4 +31,8 @@
             <x-button>{{ __('Turn on two-factor authentication') }}</x-button>
         </form>
     @endif
+
+    @if ($user->tenants()->exists())
+        <p style="margin-top:2rem"><a href="{{ route('app.account.delete.show') }}">{{ __('Delete my account') }}</a></p>
+    @endif
 </x-layouts.auth>

@@ -69,6 +69,8 @@ class FortifyServiceProvider extends ServiceProvider
         // The REST API (see routes/api.php). Signed-in calls are counted per person, the rest per address.
         RateLimiter::for('api', fn (Request $request) => Limit::perMinute(120)->by('api|'.($request->user()?->getAuthIdentifier() ?? $request->ip())));
         RateLimiter::for('api-money', fn (Request $request) => Limit::perMinute(60)->by('api-money|'.($request->user()?->getAuthIdentifier() ?? $request->ip())));
+        // Deleting an account asks for the password again: a few tries a minute per person, so it cannot be guessed at.
+        RateLimiter::for('account-deletion', fn (Request $request) => Limit::perMinute(5)->by('account-deletion|'.($request->user()?->getAuthIdentifier() ?? $request->ip())));
         RateLimiter::for('api-public', fn (Request $request) => Limit::perMinute(60)->by('api-public|'.$request->ip()));
         RateLimiter::for('api-register', fn (Request $request) => Limit::perMinute(5)->by('api-register|'.$request->ip()));
         RateLimiter::for('api-login', fn (Request $request) => [
