@@ -9,6 +9,7 @@ use App\Domain\Schedule\ScheduleResult;
 use App\Entitlements\Entitlements;
 use App\Entitlements\Feature;
 use App\Entitlements\FeatureLocked;
+use App\Entitlements\FeatureUnavailable;
 use App\Entitlements\LimitReached;
 use App\Models\Contract;
 use App\Models\Customer;
@@ -39,7 +40,7 @@ final class CreateContract
      *
      * @throws ModelNotFoundException when the customer is not one of this workspace's
      * @throws ValidationException when the schedule cannot be built
-     * @throws FeatureLocked|LimitReached
+     * @throws FeatureLocked|FeatureUnavailable|LimitReached
      */
     public function handle(Tenant $tenant, array $data, ?User $by = null): Contract
     {
@@ -54,6 +55,8 @@ final class CreateContract
 
             $type = $data['type'] ?? 'scheduled';
             $startDate = $data['start_date'] ?? today()->format('Y-m-d');
+            $graceDays = $type === 'cash' ? 0 : (int) ($data['grace_days'] ?? 0);
+            $this->assertPlanAllowed($tenant, $type, $data, $graceDays);
             $schedule = $this->schedule($type, $data, $startDate);
 
             $contract = (new Contract)->forceFill([
@@ -70,6 +73,7 @@ final class CreateContract
                 'total' => $schedule->total,
                 'installment_count' => count($schedule->installments),
                 'frequency' => $type === 'cash' ? 'monthly' : $data['frequency'],
+                'grace_days' => $graceDays,
                 'start_date' => $startDate,
                 'first_due_date' => $schedule->installments[0]['due_date'],
                 'notes' => $data['notes'] ?? null,
@@ -95,12 +99,37 @@ final class CreateContract
                     'contract_id' => $contract->id,
                     'number' => $row['number'],
                     'due_date' => $row['due_date'],
+                    // The last day it can be paid without being late; lateness everywhere reads this one date.
+                    'grace_until' => Carbon::parse($row['due_date'])->addDays($graceDays)->format('Y-m-d'),
                     'amount' => $row['amount'],
                 ])->save();
             }
 
             return $contract;
         }));
+    }
+
+    /**
+     * Daily, quarterly, half-yearly or yearly plans, the shop's own dates, more than 120 instalments and grace days
+     * belong to flexible schedules (Win Plan PP5). Without that feature a contract is what it always was.
+     *
+     * @param  array<string, mixed>  $data
+     *
+     * @throws FeatureUnavailable|FeatureLocked
+     */
+    private function assertPlanAllowed(Tenant $tenant, string $type, array $data, int $graceDays): void
+    {
+        if ($type === 'cash') {
+            return;
+        }
+
+        $basic = in_array($data['frequency'] ?? '', ScheduleGenerator::BASIC_FREQUENCIES, true)
+            && (int) ($data['installment_count'] ?? 0) <= ScheduleGenerator::BASIC_MAX_COUNT
+            && $graceDays === 0;
+
+        if (! $basic) {
+            Entitlements::for($tenant)->assertEnabled(Feature::FlexibleSchedules);
+        }
     }
 
     /** @param  array<string, mixed>  $data */
@@ -117,6 +146,7 @@ final class CreateContract
                 'count' => $data['installment_count'] ?? 0,
                 'frequency' => $data['frequency'] ?? '',
                 'first_due_date' => $data['first_due_date'] ?? '',
+                'custom_schedule' => $data['custom_schedule'] ?? null,
             ]),
             default => throw ValidationException::withMessages(['type' => __('The contract type must be scheduled or cash.')]),
         };

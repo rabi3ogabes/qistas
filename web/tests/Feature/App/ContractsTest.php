@@ -276,7 +276,7 @@ describe('saving a contract', function () {
         'no instalments' => [['installment_count' => '0'], 'installment_count'],
         'bad date' => [['first_due_date' => '2026-02-30'], 'first_due_date'],
         'due before the contract' => [['first_due_date' => '2026-10-01'], 'first_due_date'],
-        'unknown frequency' => [['frequency' => 'daily'], 'frequency'],
+        'unknown frequency' => [['frequency' => 'hourly'], 'frequency'],
     ]);
 
     it('will not take a customer from another workspace', function () {

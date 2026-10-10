@@ -43,6 +43,7 @@ class ContractResource extends JsonResource
             'total' => $this->money($this->total),
             'installment_count' => $this->installment_count,
             'frequency' => $this->frequency,
+            'grace_days' => $this->grace_days,
             'start_date' => $this->day($this->start_date),
             'first_due_date' => $this->day($this->first_due_date),
             'notes' => $this->notes,

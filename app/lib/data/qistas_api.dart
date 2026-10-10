@@ -2,6 +2,7 @@ import 'dart:math';
 
 import '../core/api/api_client.dart';
 import '../core/money.dart';
+import '../domain/schedule_generator.dart';
 import 'models.dart';
 
 /// A fresh key for one attempt at one payment. Showing the same key again for the same attempt (a double tap, a
@@ -268,6 +269,8 @@ class ContractForm {
     required this.startDate,
     this.firstDueDate = '',
     this.notes = '',
+    this.graceDays = 0,
+    this.customSchedule = const [],
   });
 
   final String customerId;
@@ -284,6 +287,14 @@ class ContractForm {
   final String firstDueDate;
   final String notes;
 
+  /// Days after a due date before an instalment counts as late.
+  final int graceDays;
+
+  /// The shop's own dates and amounts, when [frequency] is custom: the count and the first date then come from them.
+  final List<ScheduleEntry> customSchedule;
+
+  bool get _custom => frequency == ScheduleGenerator.custom;
+
   Map<String, dynamic> toJson() => type == 'cash'
       ? {'customer_id': customerId, 'type': 'cash', 'principal': principal, 'start_date': startDate, if (notes.trim().isNotEmpty) 'notes': notes.trim()}
       : {
@@ -293,10 +304,12 @@ class ContractForm {
           if (downPayment.isNotEmpty) 'down_payment': downPayment,
           'markup_type': markupType,
           if (markupValue.isNotEmpty) 'markup_value': markupValue,
-          'installment_count': installmentCount,
+          if (!_custom) 'installment_count': installmentCount,
           'frequency': frequency,
           'start_date': startDate,
-          'first_due_date': firstDueDate,
+          if (!_custom) 'first_due_date': firstDueDate,
+          if (_custom) 'custom_schedule': [for (final entry in customSchedule) entry.toJson()],
+          if (graceDays > 0) 'grace_days': graceDays,
           if (notes.trim().isNotEmpty) 'notes': notes.trim(),
         };
 }

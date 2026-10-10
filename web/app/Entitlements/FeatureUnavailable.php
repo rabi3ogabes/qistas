@@ -2,8 +2,8 @@
 
 namespace App\Entitlements;
 
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Response;
-use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
  * The platform has this feature switched off (or in a beta this workspace is not part of). Nothing can be bought to
@@ -32,8 +32,17 @@ final class FeatureUnavailable extends EntitlementException
         return ['code' => $this->errorCode(), 'message' => $this->getMessage(), 'feature' => $this->feature->value];
     }
 
-    protected function renderForBrowser(): Response
+    /**
+     * A form sent to a switched-off feature goes back to where it was, with the message and what was typed; a page of
+     * one shows the plain "not available" page. (The framework's own `errors::` views only exist inside its error
+     * handler, so this page is the application's own.)
+     */
+    protected function renderForBrowser(): RedirectResponse|Response
     {
-        return response()->view('errors::403', ['exception' => new HttpException(403, $this->getMessage())], 403);
+        if (! request()->isMethodSafe()) {
+            return back()->withInput()->with('error', $this->getMessage());
+        }
+
+        return response()->view('errors.feature-unavailable', [], 403);
     }
 }

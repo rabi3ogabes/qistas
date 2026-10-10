@@ -22,12 +22,14 @@ final class SchedulePreviewController
                 'down_payment' => $input['down_payment'] ?? '0',
                 'markup_type' => $input['markup_type'] ?? 'none',
                 'markup_value' => $input['markup_value'] ?? '0',
-                'count' => $input['count'],
+                'count' => $input['count'] ?? 0,
                 'frequency' => $input['frequency'],
                 'first_due_date' => $input['first_due_date'] ?? now()->addMonthNoOverflow()->format('Y-m-d'),
+                'custom_schedule' => $input['custom_schedule'] ?? null,
             ]));
         } catch (InvalidScheduleException $e) {
-            throw ValidationException::withMessages(['principal' => $e->getMessage()]);
+            // The shop's own rows have their own field, so a form can show the message beside them.
+            throw ValidationException::withMessages([$input['frequency'] === 'custom' ? 'custom_schedule' : 'principal' => $e->getMessage()]);
         }
 
         return response()->json(['data' => $schedule->toArray()]);

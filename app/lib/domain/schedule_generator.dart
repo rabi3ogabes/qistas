@@ -4,11 +4,20 @@ import '../core/money.dart';
 
 /// Why a schedule cannot be built; [field] says which input is at fault so a form can mark it.
 class InvalidScheduleException implements Exception {
-  const InvalidScheduleException(this.field, this.message);
+  const InvalidScheduleException(this.field, this.message, {this.reason, this.row, this.remaining});
 
-  /// One of principal, down_payment, markup_value, count, frequency, first_due_date.
+  /// One of principal, down_payment, markup_value, count, frequency, first_due_date, custom_schedule.
   final String field;
   final String message;
+
+  /// For the shop's own dates, what is wrong: count, date, order, amount or sum.
+  final String? reason;
+
+  /// The shop's own row at fault, counting from 1.
+  final int? row;
+
+  /// When the shop's own amounts miss the total: what is still to place (negative when they go over).
+  final Money? remaining;
 
   @override
   String toString() => 'InvalidScheduleException($field): $message';
@@ -26,6 +35,7 @@ class ScheduleRequest {
     required this.count,
     required this.frequency,
     required this.firstDueDate,
+    this.customSchedule,
   });
 
   /// From the snake_case map used by the API and by shared/schedule-vectors.json.
@@ -37,6 +47,12 @@ class ScheduleRequest {
         count: (json['count'] as num?)?.toInt() ?? 0,
         frequency: (json['frequency'] ?? '').toString(),
         firstDueDate: (json['first_due_date'] ?? '').toString(),
+        customSchedule: json['custom_schedule'] is List
+            ? [
+                for (final row in (json['custom_schedule'] as List<dynamic>).cast<Map<String, dynamic>>())
+                  ScheduleEntry((row['due_date'] ?? '').toString(), (row['amount'] ?? '').toString()),
+              ]
+            : null,
       );
 
   final String principal;
@@ -47,11 +63,26 @@ class ScheduleRequest {
   final String markupValue;
   final int count;
 
-  /// weekly, biweekly or monthly.
+  /// One of [ScheduleGenerator.frequencies], or [ScheduleGenerator.custom] for the shop's own dates.
   final String frequency;
 
   /// YYYY-MM-DD.
   final String firstDueDate;
+
+  /// The shop's own dates and amounts, when [frequency] is custom; count and first due date then come from these.
+  final List<ScheduleEntry>? customSchedule;
+}
+
+/// One line of the shop's own dates, as typed.
+@immutable
+class ScheduleEntry {
+  const ScheduleEntry(this.dueDate, this.amount);
+
+  /// YYYY-MM-DD.
+  final String dueDate;
+  final String amount;
+
+  Map<String, String> toJson() => {'due_date': dueDate, 'amount': amount};
 }
 
 @immutable
@@ -81,9 +112,28 @@ class ScheduleResult {
 ///   financed = principal - down payment
 ///   markup   = fixed amount | percent of the financed amount (rounded half up to 2 decimals) | none
 ///   total    = financed + markup, split in whole cents; the LAST instalment takes the remainder
-///   monthly  = the day of the FIRST due date each month, clamped to the end of shorter months
+///   months   = counted from the FIRST due date, keeping its day, clamped to the end of shorter months
+///   custom   = the shop's own rows: dates strictly increasing, amounts adding up to the total exactly
 class ScheduleGenerator {
-  static const int maxCount = 120;
+  static const int maxCount = 600;
+
+  /// Without flexible schedules: weekly, every two weeks or monthly, up to 120.
+  static const List<String> basicFrequencies = ['weekly', 'biweekly', 'monthly'];
+  static const int basicMaxCount = 120;
+
+  /// Each rhythm's step, in days or in months.
+  static const Map<String, ({int days, int months})> frequencies = {
+    'daily': (days: 1, months: 0),
+    'weekly': (days: 7, months: 0),
+    'biweekly': (days: 14, months: 0),
+    'monthly': (days: 0, months: 1),
+    'bimonthly': (days: 0, months: 2),
+    'quarterly': (days: 0, months: 3),
+    'semiannual': (days: 0, months: 6),
+    'yearly': (days: 0, months: 12),
+  };
+
+  static const String custom = 'custom';
 
   static final RegExp _fourDecimals = RegExp(r'^-?\d+(?:\.\d{1,4})?$');
   static final RegExp _date = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$');
@@ -102,13 +152,9 @@ class ScheduleGenerator {
     if (markupValue < BigInt.zero) {
       throw const InvalidScheduleException('markup_value', 'The markup cannot be negative.');
     }
-    if (r.count < 1 || r.count > maxCount) {
-      throw const InvalidScheduleException('count', 'The number of instalments must be between 1 and $maxCount.');
+    if (r.frequency != custom && !frequencies.containsKey(r.frequency)) {
+      throw InvalidScheduleException('frequency', 'The frequency must be one of: ${[...frequencies.keys, custom].join(', ')}.');
     }
-    if (!const ['weekly', 'biweekly', 'monthly'].contains(r.frequency)) {
-      throw const InvalidScheduleException('frequency', 'The frequency must be weekly, biweekly or monthly.');
-    }
-    final first = _day(r.firstDueDate);
 
     final financed = principal - down;
     final BigInt markup;
@@ -127,6 +173,15 @@ class ScheduleGenerator {
     }
     final total = financed + markup;
 
+    if (r.frequency == custom) {
+      return ScheduleResult(Money.fromCents(financed), Money.fromCents(markup), Money.fromCents(total), _custom(r.customSchedule ?? const [], total));
+    }
+
+    if (r.count < 1 || r.count > maxCount) {
+      throw const InvalidScheduleException('count', 'The number of instalments must be between 1 and $maxCount.');
+    }
+    final first = _day(r.firstDueDate);
+
     final count = BigInt.from(r.count);
     if (total < count) {
       throw const InvalidScheduleException('principal', 'The total is too small to give every instalment at least one cent.');
@@ -140,6 +195,53 @@ class ScheduleGenerator {
     ];
 
     return ScheduleResult(Money.fromCents(financed), Money.fromCents(markup), Money.fromCents(total), rows);
+  }
+
+  /// The shop's own rows, checked like the server checks them; a mistake names its row (counting from 1).
+  List<ScheduleRow> _custom(List<ScheduleEntry> entries, BigInt total) {
+    if (entries.isEmpty || entries.length > maxCount) {
+      throw const InvalidScheduleException('custom_schedule', 'Give between 1 and $maxCount instalments.', reason: 'count');
+    }
+
+    final rows = <ScheduleRow>[];
+    var sum = BigInt.zero;
+    DateTime? previous;
+    for (var i = 0; i < entries.length; i++) {
+      final number = i + 1;
+      final DateTime date;
+      try {
+        date = _day(entries[i].dueDate);
+      } on InvalidScheduleException {
+        throw InvalidScheduleException('custom_schedule', 'Row $number: the date must be a real date in YYYY-MM-DD format.', reason: 'date', row: number);
+      }
+      if (previous != null && !date.isAfter(previous)) {
+        throw InvalidScheduleException('custom_schedule', 'Row $number: the date must be after the row before it.', reason: 'order', row: number);
+      }
+      final BigInt cents;
+      try {
+        cents = _cents(_scaled(entries[i].amount, 'custom_schedule'), 'custom_schedule');
+      } on InvalidScheduleException {
+        throw InvalidScheduleException('custom_schedule', 'Row $number: the amount is not valid.', reason: 'amount', row: number);
+      }
+      if (cents <= BigInt.zero) {
+        throw InvalidScheduleException('custom_schedule', 'Row $number: the amount must be more than zero.', reason: 'amount', row: number);
+      }
+
+      rows.add(ScheduleRow(number, _format(date), Money.fromCents(cents)));
+      sum += cents;
+      previous = date;
+    }
+
+    if (sum != total) {
+      throw InvalidScheduleException(
+        'custom_schedule',
+        'The instalments add up to ${Money.fromCents(sum).toDecimalString()}, but the total is ${Money.fromCents(total).toDecimalString()}.',
+        reason: 'sum',
+        remaining: Money.fromCents(total - sum),
+      );
+    }
+
+    return rows;
   }
 
   /// The text as a whole number of ten-thousandths, or an error naming the field.
@@ -177,20 +279,17 @@ class ScheduleGenerator {
     throw const InvalidScheduleException('first_due_date', 'The first due date must be a real date in YYYY-MM-DD format.');
   }
 
+  /// Always counted from the first due date (never step by step), so a clamped February never drags later months.
   DateTime _due(DateTime first, String frequency, int n) {
-    switch (frequency) {
-      case 'weekly':
-        return first.add(Duration(days: 7 * n));
-      case 'biweekly':
-        return first.add(Duration(days: 14 * n));
-      default:
-        final months = first.month - 1 + n;
-        final year = first.year + months ~/ 12;
-        final month = months % 12 + 1;
-        final lastDay = DateTime.utc(year, month + 1, 0).day;
+    final step = frequencies[frequency]!;
+    if (step.days > 0) return first.add(Duration(days: step.days * n));
 
-        return DateTime.utc(year, month, first.day < lastDay ? first.day : lastDay);
-    }
+    final months = first.month - 1 + step.months * n;
+    final year = first.year + months ~/ 12;
+    final month = months % 12 + 1;
+    final lastDay = DateTime.utc(year, month + 1, 0).day;
+
+    return DateTime.utc(year, month, first.day < lastDay ? first.day : lastDay);
   }
 
   String _format(DateTime d) => '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';

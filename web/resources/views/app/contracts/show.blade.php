@@ -1,4 +1,5 @@
 @php
+    use App\Domain\Schedule\Frequencies;
     use App\Models\Transaction;
     use App\Support\Format;
     use App\Support\Money;
@@ -12,7 +13,6 @@
     $statusLabel = ['active' => __('Active'), 'late' => __('Late'), 'settled' => __('Settled'), 'cancelled' => __('Cancelled')];
     $installmentLabel = ['paid' => __('Paid'), 'overdue' => __('Overdue'), 'partial' => __('Partly paid'), 'upcoming' => __('Upcoming')];
     $installmentTone = ['paid' => 'badge-ok', 'overdue' => 'badge-bad', 'partial' => 'badge-warn', 'upcoming' => ''];
-    $frequencyLabel = ['monthly' => __('Every month'), 'biweekly' => __('Every two weeks'), 'weekly' => __('Every week')];
     $markupPercent = rtrim(rtrim($contract->markup_value, '0'), '.');
     $canTakePayment = $contract->status !== 'cancelled' && $next !== null;
 @endphp
@@ -92,7 +92,8 @@
                             <dd class="money">{{ Format::money($contract->markup_amount, $currency) }}@if ($contract->markup_type === 'percent') <span class="muted">({{ $markupPercent }}%)</span>@endif</dd>
                         </div>
                         <div><dt>{{ __('Instalments') }}</dt><dd class="money">{{ $contract->installment_count }}</dd></div>
-                        <div><dt>{{ __('How often') }}</dt><dd>{{ $frequencyLabel[$contract->frequency] ?? $contract->frequency }}</dd></div>
+                        <div><dt>{{ __('How often') }}</dt><dd>{{ Frequencies::label($contract->frequency) }}</dd></div>
+                        @if ($contract->grace_days > 0)<div><dt>{{ __('Grace days') }}</dt><dd class="money">{{ $contract->grace_days }}</dd></div>@endif
                     @else
                         <div><dt>{{ __('Payment terms') }}</dt><dd>{{ __('Paid in full on the day of the contract.') }}</dd></div>
                     @endif

@@ -50,9 +50,9 @@ it('rejects bad input, naming the field', function (array $changes, string $fiel
     'unknown markup type' => [['markup_type' => 'compound'], 'markup_type'],
     'negative markup' => [['markup_value' => '-2'], 'markup_value'],
     'no instalments' => [['installment_count' => 0], 'installment_count'],
-    'too many instalments' => [['installment_count' => 121], 'installment_count'],
+    'too many instalments' => [['installment_count' => 601], 'installment_count'],
     'fractional count' => [['installment_count' => '2.5'], 'installment_count'],
-    'unknown frequency' => [['frequency' => 'daily'], 'frequency'],
+    'unknown frequency' => [['frequency' => 'hourly'], 'frequency'],
     'impossible date' => [['first_due_date' => '2026-02-30'], 'first_due_date'],
     'wrong date format' => [['first_due_date' => '15/02/2026'], 'first_due_date'],
     'due before the contract date' => [['first_due_date' => '2026-01-01'], 'first_due_date'],
@@ -92,5 +92,6 @@ it('only offers fields a client may set', function () {
     expect(array_keys((new ContractRequest)->rules()))->toEqualCanonicalizing([
         'customer_id', 'type', 'principal', 'down_payment', 'markup_type', 'markup_value',
         'installment_count', 'frequency', 'start_date', 'first_due_date', 'notes',
+        'grace_days', 'custom_schedule', 'custom_schedule.*.due_date', 'custom_schedule.*.amount',
     ]);
 });

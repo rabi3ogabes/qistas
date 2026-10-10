@@ -299,8 +299,13 @@ class _Body extends ConsumerWidget {
                       _line(context, context.t('Financed'), MoneyText(contract.financed, _currency, style: text.bodyLarge)),
                       if (contract.markupAmount.isPositive) _line(context, context.t('Markup'), MoneyText(contract.markupAmount, _currency, style: text.bodyLarge)),
                       _line(context, context.t('Total to collect'), MoneyText(contract.total, _currency, style: text.titleSmall)),
-                      _line(context, context.t('Instalments'), Text('${contract.installmentCount} · ${_frequency(context, contract.frequency)}', style: text.bodyLarge)),
+                      _line(
+                        context,
+                        context.t('Instalments'),
+                        Flexible(child: Text('${contract.installmentCount} · ${_frequency(context, contract.frequency)}', style: text.bodyLarge, textAlign: TextAlign.end)),
+                      ),
                       _line(context, context.t('First due'), Text(formatDay(contract.firstDueDate, language), style: text.bodyLarge)),
+                      if (contract.graceDays > 0) _line(context, context.t('Grace days'), Text('${contract.graceDays}', style: text.bodyLarge)),
                     ],
                     _line(context, context.t('Started'), Text(formatDay(contract.startDate, language), style: text.bodyLarge)),
                     if (contract.notes != null) _line(context, context.t('Notes'), Flexible(child: Text(contract.notes!, style: text.bodyLarge, textAlign: TextAlign.end))),
@@ -331,8 +336,14 @@ class _Body extends ConsumerWidget {
       );
 
   String _frequency(BuildContext context, String frequency) => switch (frequency) {
+        'daily' => context.t('Daily'),
         'weekly' => context.t('Weekly'),
         'biweekly' => context.t('Every two weeks'),
+        'bimonthly' => context.t('Every two months'),
+        'quarterly' => context.t('Every three months'),
+        'semiannual' => context.t('Every six months'),
+        'yearly' => context.t('Yearly'),
+        'custom' => context.t('On dates chosen by the shop'),
         _ => context.t('Monthly'),
       };
 }

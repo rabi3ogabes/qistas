@@ -16,6 +16,7 @@ use Illuminate\Support\Carbon;
  *
  * @property int $number
  * @property Carbon $due_date
+ * @property Carbon|null $grace_until the last day it can be paid without being late: the due date plus the contract's grace days
  * @property string $amount
  * @property string $paid_amount
  * @property string $status
@@ -24,6 +25,14 @@ use Illuminate\Support\Carbon;
 class Installment extends Model
 {
     use BelongsToTenant, HasUuids;
+
+    protected static function booted(): void
+    {
+        // Lateness queries read grace_until; an instalment written without it has no grace (late the day after it is due).
+        static::creating(function (Installment $installment): void {
+            $installment->grace_until ??= $installment->due_date;
+        });
+    }
 
     /** @return BelongsTo<Contract, $this> */
     public function contract(): BelongsTo
@@ -57,12 +66,15 @@ class Installment extends Model
         ])->save();
     }
 
-    /** Past its due date and not fully paid. Due today is not overdue yet. */
+    /**
+     * Not fully paid and past its last day of grace (`grace_until`: the due date plus the contract's grace days; the due
+     * date itself when there are none). Due today, or still within the grace days, is not overdue yet.
+     */
     public function isOverdue(?CarbonInterface $today = null): bool
     {
         $today ??= today();
 
-        return $this->status !== 'paid' && $this->due_date->lt($today->copy()->startOfDay());
+        return $this->status !== 'paid' && ($this->grace_until ?? $this->due_date)->lt($today->copy()->startOfDay());
     }
 
     /** What a person sees: paid, overdue (past its date), partial (part-paid, not yet due) or upcoming. */
@@ -81,6 +93,7 @@ class Installment extends Model
         return [
             'number' => 'integer',
             'due_date' => 'date',
+            'grace_until' => 'date',
             'amount' => 'decimal:4',
             'paid_amount' => 'decimal:4',
             'paid_at' => 'datetime',

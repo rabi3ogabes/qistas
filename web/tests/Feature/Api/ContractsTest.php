@@ -100,9 +100,9 @@ describe('opening', function () {
         'three decimals' => [['principal' => '10.005'], 'principal'],
         'down payment as large as the price' => [['down_payment' => '1200'], 'down_payment'],
         'no instalments' => [['installment_count' => 0], 'installment_count'],
-        'too many instalments' => [['installment_count' => 121], 'installment_count'],
+        'too many instalments' => [['installment_count' => 601], 'installment_count'],
         'a due date before the contract' => [['first_due_date' => '2026-10-01'], 'first_due_date'],
-        'an unknown frequency' => [['frequency' => 'daily'], 'frequency'],
+        'an unknown frequency' => [['frequency' => 'hourly'], 'frequency'],
     ]);
 
     it('will not take a customer of another workspace', function () {

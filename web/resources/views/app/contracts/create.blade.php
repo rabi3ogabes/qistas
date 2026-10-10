@@ -1,5 +1,15 @@
 @php
+    use App\Domain\Schedule\Frequencies;
     use App\Entitlements\Feature;
+
+    // With flexible schedules on: every rhythm from daily to yearly, or the shop's own dates; otherwise the basic three.
+    $frequencies = Frequencies::labels($flexible);
+    $frequency = old('frequency', 'monthly');
+
+    // The rows already typed, when the form comes back with a problem.
+    $customRows = collect(old('custom_schedule', []))->filter(fn ($row) => is_array($row))
+        ->map(fn (array $row) => ['due_date' => (string) ($row['due_date'] ?? ''), 'amount' => (string) ($row['amount'] ?? '')])
+        ->values()->all();
 
     $initial = [
         'type' => old('type', 'scheduled'),
@@ -8,8 +18,9 @@
         'markupType' => old('markup_type', 'none'),
         'markupValue' => old('markup_value', ''),
         'count' => old('installment_count', '6'),
-        'frequency' => old('frequency', 'monthly'),
+        'frequency' => array_key_exists($frequency, $frequencies) ? $frequency : 'monthly',
         'firstDue' => old('first_due_date', today()->addMonthNoOverflow()->format('Y-m-d')),
+        'customRows' => $customRows,
     ];
     $config = [
         'url' => route('app.contracts.preview'),
@@ -18,6 +29,7 @@
         'currency' => $currency,
         'initial' => $initial,
         'messages' => ['unavailable' => __('The preview is not available right now. You can still open the contract.')],
+        'labels' => ['date' => __('Due date'), 'amount' => __('Amount'), 'remove' => __('Remove this date')],
     ];
 @endphp
 <x-layouts.app :title="__('Open a contract')" section="contracts">
@@ -96,24 +108,52 @@
                             <x-field name="markup_value" :label="__('Markup value')" :hint="__('A percentage is taken on the amount being financed.')" inputmode="decimal" autocomplete="off" dir="ltr" x-model="markupValue" @input="changed" />
                         </div>
 
-                        <x-field name="installment_count" type="number" :label="__('Number of instalments')" :value="$initial['count']" inputmode="numeric" min="1" max="120" required x-model="count" @input="changed" />
-
                         <div class="field">
                             <label for="f-frequency">{{ __('How often') }}</label>
-                            <select id="f-frequency" name="frequency" x-model="frequency" @change="changed">
-                                <option value="monthly" @selected(old('frequency', 'monthly') === 'monthly')>{{ __('Every month') }}</option>
-                                <option value="biweekly" @selected(old('frequency') === 'biweekly')>{{ __('Every two weeks') }}</option>
-                                <option value="weekly" @selected(old('frequency') === 'weekly')>{{ __('Every week') }}</option>
+                            <select id="f-frequency" name="frequency" x-model="frequency" @change="frequencyChanged">
+                                @foreach ($frequencies as $value => $label)
+                                    <option value="{{ $value }}" @selected($initial['frequency'] === $value)>{{ $label }}</option>
+                                @endforeach
                             </select>
                             @error('frequency')<p class="field-error" role="alert">{{ $message }}</p>@enderror
+                        </div>
+
+                        <div class="contents" x-show="!isCustom">
+                            <x-field name="installment_count" type="number" :label="__('Number of instalments')" :value="$initial['count']" inputmode="numeric" min="1" :max="$flexible ? 600 : 120" required x-model="count" x-bind:disabled="isCustom" @input="changed" />
                         </div>
                     </div>
 
                     <x-field name="start_date" type="date" :label="__('Contract date')" :value="$today" required />
 
-                    <div class="contents" x-show="isScheduled">
-                        <x-field name="first_due_date" type="date" :label="__('First instalment due')" :value="$initial['firstDue']" required x-model="firstDue" @input="changed" />
+                    <div class="contents" x-show="isScheduled && !isCustom">
+                        <x-field name="first_due_date" type="date" :label="__('First instalment due')" :value="$initial['firstDue']" required x-model="firstDue" x-bind:disabled="isCustom" @input="changed" />
                     </div>
+
+                    @if ($flexible)
+                        {{-- The shop's own dates: one line per payment. The preview checks that they make the total. --}}
+                        <div class="field field-wide plan-dates" x-show="isScheduled && isCustom" x-cloak>
+                            <span class="field-label" id="plan-dates-label">{{ __('Payment dates') }}</span>
+                            <p class="field-hint" id="plan-dates-hint">{{ __('One line for each payment, with its date and amount. Together they must make the total to repay.') }}</p>
+                            <ol class="plan-dates-list" aria-labelledby="plan-dates-label" aria-describedby="plan-dates-hint">
+                                <template x-for="(row, i) in customRows" :key="row.key">
+                                    <li class="plan-date">
+                                        <span class="plan-date-number" aria-hidden="true" x-text="i + 1"></span>
+                                        <input type="date" dir="ltr" :name="rowName(i, 'due_date')" x-model="row.due_date" @input="changed" :disabled="!isCustom" :aria-label="rowLabel('date', i)">
+                                        <input type="text" inputmode="decimal" autocomplete="off" dir="ltr" placeholder="0.00" :name="rowName(i, 'amount')" x-model="row.amount" @input="changed" :disabled="!isCustom" :aria-label="rowLabel('amount', i)">
+                                        <button type="button" class="plan-date-remove" @click="removeRow(i)" x-show="customRows.length > 1" :aria-label="rowLabel('remove', i)"><x-icon name="x" :size="16" /></button>
+                                    </li>
+                                </template>
+                            </ol>
+                            <button type="button" class="btn btn-quiet btn-sm plan-dates-add" @click="addRow"><x-icon name="plus" :size="16" /> {{ __('Add a date') }}</button>
+                            @if ($errors->has('custom_schedule') || $errors->has('custom_schedule.*'))
+                                <p class="field-error" role="alert">{{ $errors->first('custom_schedule') ?: $errors->first('custom_schedule.*') }}</p>
+                            @endif
+                        </div>
+
+                        <div class="contents" x-show="isScheduled">
+                            <x-field name="grace_days" type="number" :label="__('Grace days')" :hint="__('Days after a due date before the instalment counts as late. With 0 it is late the next day.')" value="0" inputmode="numeric" min="0" max="90" x-bind:disabled="!isScheduled" />
+                        </div>
+                    @endif
 
                     <x-field wide type="textarea" name="notes" :label="__('Notes (optional)')" rows="2" :hint="__('For your team only. The customer never sees this.')" />
                 </div>
@@ -123,6 +163,7 @@
                 <h2 class="card-title">{{ __('What the customer will pay') }}</h2>
 
                 <p class="muted" x-show="isEmpty">{{ __('Enter the price to see the schedule.') }}</p>
+                <p class="muted" x-show="needsDates" x-cloak>{{ __('Add the payment dates to see the schedule.') }}</p>
                 <p class="field-error" x-show="hasError" x-text="error" role="alert"></p>
 
                 <div x-show="isCashSale" class="stack">
@@ -133,10 +174,12 @@
                 <div x-show="hasResult" class="stack">
                     <p class="calc-each">
                         <span class="calc-big money" x-text="each"></span>
-                        <span class="calc-sub">{{ __('per instalment') }}</span>
+                        <span class="calc-sub" x-show="!isCustom">{{ __('per instalment') }}</span>
+                        <span class="calc-sub" x-show="isCustom" x-cloak>{{ __('first payment') }}</span>
                     </p>
                     <dl class="calc-totals">
                         <div><dt>{{ __('Instalments') }}</dt><dd class="money" x-text="times"></dd></div>
+                        <div><dt>{{ __('Last payment') }}</dt><dd x-text="lastDue"></dd></div>
                         <div><dt>{{ __('Financed') }}</dt><dd class="money" x-text="financed"></dd></div>
                         <div><dt>{{ __('Markup') }}</dt><dd class="money" x-text="markupAmount"></dd></div>
                         <div><dt>{{ __('Total to repay') }}</dt><dd class="money" x-text="total"></dd></div>

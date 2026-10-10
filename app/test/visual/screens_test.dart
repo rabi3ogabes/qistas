@@ -27,6 +27,35 @@ void main() {
         skip: screenshotFolder == null,
       );
 
+  Future<void> openContractForm(WidgetTester tester) async {
+    await tapText(tester, 'Contracts', last: true);
+    await tapText(tester, 'New contract');
+    await tapText(tester, 'Choose a customer');
+    await tapText(tester, 'Ahmad Salem');
+  }
+
+  picture('new contract, every rhythm with grace days', (tester) async {
+    await pumpApp(tester, workspaceServer(account: flexibleAccountJson()), realFonts: true, size: const Size(360, 2000));
+    await openContractForm(tester);
+    await typeInto(tester, 'Sale price (SAR)', '12000');
+    await tapText(tester, 'Three months');
+    await tapTooltip(tester, 'More grace days');
+    await tapTooltip(tester, 'More grace days');
+    await snapshot(tester, 'contract-form-flexible');
+  });
+
+  picture('new contract on the shop’s own dates, Arabic', (tester) async {
+    await pumpApp(tester, workspaceServer(account: flexibleAccountJson()), realFonts: true, size: const Size(360, 2200), language: 'ar');
+    await tapText(tester, 'العقود', last: true);
+    await tapText(tester, 'عقد جديد');
+    await tapText(tester, 'اختر عميلًا');
+    await tapText(tester, 'Ahmad Salem');
+    await typeInto(tester, 'سعر البيع (SAR)', '600');
+    await tapText(tester, 'تواريخ أختارها');
+    await tapTooltip(tester, 'إزالة هذا التاريخ');
+    await snapshot(tester, 'contract-form-own-dates-ar');
+  });
+
   picture('sign-in', (tester) async {
     await pumpApp(tester, workspaceServer(routes: {'GET /demo': always(json(200, {'data': demoOfferJson()}))}), signedIn: false, realFonts: true);
     await snapshot(tester, 'login');

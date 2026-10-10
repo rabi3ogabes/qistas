@@ -30,6 +30,7 @@ use Illuminate\Support\Facades\DB;
  * @property Carbon $first_due_date
  * @property int $installment_count
  * @property string $frequency
+ * @property int $grace_days days after a due date before the instalment counts as late
  * @property string $markup_type
  * @property string $markup_value
  * @property string|null $notes
@@ -63,7 +64,7 @@ class Contract extends Model
                 fn ($overdue) => $overdue->select(DB::raw(1))->from('installments')
                     ->whereColumn('installments.contract_id', 'contracts.id')
                     ->where('installments.status', '!=', 'paid')
-                    ->whereDate('installments.due_date', '<', today()),
+                    ->whereDate('installments.grace_until', '<', today()),
             ),
             'settled', 'cancelled' => $query->where('status', $view),
             default => $query->where('status', 'active'),
@@ -116,6 +117,7 @@ class Contract extends Model
         return [
             'number' => 'integer',
             'installment_count' => 'integer',
+            'grace_days' => 'integer',
             'principal' => 'decimal:4',
             'down_payment' => 'decimal:4',
             'financed' => 'decimal:4',

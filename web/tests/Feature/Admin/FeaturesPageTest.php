@@ -49,7 +49,7 @@ describe('the page', function () {
         $page = cockpit();
 
         $page->assertSee('Feature control')
-            ->assertSee('data-summary data-on="4" data-beta="0" data-off="4"', false)
+            ->assertSee('data-summary data-on="4" data-beta="0" data-off="'.(3 + count(array_filter(Feature::cases(), fn (Feature $f) => ! $f->isCore()))).'"', false)
             ->assertSee('type="search"', false);
     });
 

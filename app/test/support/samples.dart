@@ -30,6 +30,17 @@ Map<String, dynamic> accountJson({String role = 'owner', int customersUsed = 3, 
       'entitlements': entitlementsJson(customersUsed: customersUsed, plan: plan),
     };
 
+/// An account whose platform has flexible schedules on: daily to yearly plans, the shop's own dates, grace days.
+Map<String, dynamic> flexibleAccountJson() {
+  final account = accountJson();
+  account['entitlements'] = {
+    ...Map<String, dynamic>.from(account['entitlements'] as Map),
+    'flexible_schedules': {'type': 'toggle', 'enabled': true, 'status': 'on', 'limit': null, 'used': null, 'remaining': null, 'unlimited': false},
+  };
+
+  return account;
+}
+
 /// What `GET /demo` answers when the site offers "Try the demo".
 Map<String, dynamic> demoOfferJson() => {
       'enabled': true,

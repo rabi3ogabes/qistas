@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Domain\Schedule\ScheduleGenerator;
 use App\Http\Requests\Concerns\MoneyRules;
+use App\Http\Requests\Concerns\ScheduleRules;
 use App\Models\Contract;
 use App\Support\Digits;
 use App\Tenancy\CurrentTenant;
@@ -16,7 +18,7 @@ use Illuminate\Validation\Rule;
  */
 class ContractRequest extends FormRequest
 {
-    use MoneyRules;
+    use MoneyRules, ScheduleRules;
 
     public function authorize(): bool
     {
@@ -27,6 +29,9 @@ class ContractRequest extends FormRequest
     public function rules(): array
     {
         $scheduled = Rule::requiredIf(fn () => ($this->input('type') ?? 'scheduled') !== 'cash');
+        $custom = $this->input('type') !== 'cash' && $this->input('frequency') === 'custom';
+        // A plan of the shop's own dates takes its count and its first date from the rows.
+        $planned = Rule::requiredIf(fn () => ($this->input('type') ?? 'scheduled') !== 'cash' && ! $custom);
 
         return [
             // Only this workspace's live customers exist as far as this rule is concerned.
@@ -35,15 +40,23 @@ class ContractRequest extends FormRequest
                 ->whereNull('deleted_at')],
             'type' => ['nullable', Rule::in(['scheduled', 'cash'])],
             'principal' => ['required', 'string', $this->amountRule(positive: true)],
-            'down_payment' => ['nullable', 'string', $this->amountRule(), $this->belowRule('principal', __('The down payment must be less than the price.'))],
+            'down_payment' => ['nullable', 'string', $this->amountRule(), $this->belowRule('principal', __('The down payment must be less than the price. If it is all paid today, make it a cash sale instead.'))],
             'markup_type' => ['nullable', Rule::in(['none', 'fixed', 'percent'])],
             'markup_value' => ['nullable', 'string', 'regex:/^\d{1,10}(\.\d{1,4})?$/'],
-            'installment_count' => [$scheduled, 'nullable', 'integer', 'between:1,120'],
-            'frequency' => [$scheduled, 'nullable', Rule::in(['weekly', 'biweekly', 'monthly'])],
+            'installment_count' => [$planned, 'nullable', 'integer', 'between:1,'.ScheduleGenerator::MAX_COUNT],
+            'frequency' => [$scheduled, 'nullable', $this->frequencyRule()],
+            'grace_days' => ['nullable', 'integer', 'between:0,90'],
+            ...$this->customScheduleRules($custom),
             'start_date' => ['nullable', 'date_format:Y-m-d'],
-            'first_due_date' => [$scheduled, 'nullable', 'date_format:Y-m-d', $this->notBeforeStart()],
+            'first_due_date' => [$planned, 'nullable', 'date_format:Y-m-d', $this->notBeforeStart()],
             'notes' => ['nullable', 'string', 'max:5000'],
         ];
+    }
+
+    /** @return array<string, string> */
+    public function messages(): array
+    {
+        return $this->customScheduleMessages();
     }
 
     protected function prepareForValidation(): void
@@ -69,6 +82,8 @@ class ContractRequest extends FormRequest
             'frequency' => $plan('frequency'),
             'start_date' => $value('start_date'),
             'first_due_date' => $plan('first_due_date'),
+            'grace_days' => $plan('grace_days'),
+            'custom_schedule' => $value('type') === 'cash' ? null : $this->cleanCustomSchedule($this->input('custom_schedule')),
             'notes' => is_scalar($this->input('notes')) && trim((string) $this->input('notes')) !== '' ? trim((string) $this->input('notes')) : null,
         ]);
     }

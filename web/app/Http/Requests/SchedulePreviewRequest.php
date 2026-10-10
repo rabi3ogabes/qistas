@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Domain\Schedule\ScheduleGenerator;
 use App\Http\Requests\Concerns\MoneyRules;
+use App\Http\Requests\Concerns\ScheduleRules;
 use App\Support\Digits;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -10,7 +12,7 @@ use Illuminate\Validation\Rule;
 /** The public instalment calculator: anyone may ask "what would this plan look like?". Nothing is stored. */
 class SchedulePreviewRequest extends FormRequest
 {
-    use MoneyRules;
+    use MoneyRules, ScheduleRules;
 
     public function authorize(): bool
     {
@@ -20,15 +22,24 @@ class SchedulePreviewRequest extends FormRequest
     /** @return array<string, array<int, mixed>> */
     public function rules(): array
     {
+        $custom = $this->input('frequency') === ScheduleGenerator::CUSTOM;
+
         return [
             'principal' => ['required', 'string', $this->amountRule(positive: true)],
-            'down_payment' => ['nullable', 'string', $this->amountRule(), $this->belowRule('principal', __('The down payment must be less than the price.'))],
+            'down_payment' => ['nullable', 'string', $this->amountRule(), $this->belowRule('principal', __('The down payment must be less than the price. If it is all paid today, make it a cash sale instead.'))],
             'markup_type' => ['nullable', Rule::in(['none', 'fixed', 'percent'])],
             'markup_value' => ['nullable', 'string', 'regex:/^\d{1,10}(\.\d{1,4})?$/'],
-            'count' => ['required', 'integer', 'between:1,120'],
-            'frequency' => ['required', Rule::in(['weekly', 'biweekly', 'monthly'])],
+            'count' => [Rule::requiredIf(! $custom), 'nullable', 'integer', 'between:1,'.ScheduleGenerator::MAX_COUNT],
+            'frequency' => ['required', $this->frequencyRule()],
             'first_due_date' => ['nullable', 'date_format:Y-m-d'],
+            ...$this->customScheduleRules($custom),
         ];
+    }
+
+    /** @return array<string, string> */
+    public function messages(): array
+    {
+        return $this->customScheduleMessages();
     }
 
     protected function prepareForValidation(): void
@@ -47,6 +58,7 @@ class SchedulePreviewRequest extends FormRequest
             'count' => $value('count'),
             'frequency' => $value('frequency'),
             'first_due_date' => $value('first_due_date'),
+            'custom_schedule' => $this->cleanCustomSchedule($this->input('custom_schedule')),
         ]);
     }
 }

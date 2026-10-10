@@ -27,6 +27,7 @@ export function contractPlanner() {
         count: '6',
         frequency: 'monthly',
         firstDue: '',
+        customRows: [], // the shop's own dates: { key, due_date, amount }
 
         // output
         schedule: null,
@@ -39,8 +40,10 @@ export function contractPlanner() {
         url: '',
         csrf: '',
         messages: {},
+        labels: {},
         timer: null,
         controller: null,
+        lastKey: 0,
 
         init() {
             const config = JSON.parse(this.$el.dataset.config);
@@ -49,9 +52,50 @@ export function contractPlanner() {
             this.locale = config.locale;
             this.currency = config.currency;
             this.messages = config.messages;
-            Object.assign(this, config.initial);
+            this.labels = config.labels ?? {};
+            const { customRows = [], ...initial } = config.initial;
+            Object.assign(this, initial);
+            this.customRows = customRows.map((row) => this.row(row.due_date, row.amount));
+            if (this.isCustom && this.customRows.length === 0) this.customRows = [this.row(this.firstDue, '')];
 
-            if (this.isScheduled && this.hasPrice) this.run();
+            if (this.wantsPreview) this.run();
+        },
+
+        row(dueDate = '', amount = '') {
+            this.lastKey += 1;
+            return { key: this.lastKey, due_date: dueDate ?? '', amount: amount ?? '' };
+        },
+
+        // Choosing "on dates I choose" starts from the plan already on screen, so the shop adjusts it instead of retyping it.
+        frequencyChanged() {
+            if (this.isCustom && !this.customReady) {
+                this.customRows = this.hasResult
+                    ? this.schedule.installments.map((row) => this.row(row.due_date, row.amount))
+                    : [this.row(this.firstDue, '')];
+            }
+            this.changed();
+        },
+
+        addRow() {
+            this.customRows.push(this.row());
+            this.$nextTick(() => {
+                const dates = this.$root.querySelectorAll('.plan-date input[type="date"]');
+                dates[dates.length - 1]?.focus();
+            });
+        },
+
+        removeRow(index) {
+            this.customRows.splice(index, 1);
+            this.changed();
+        },
+
+        // The field names the form posts; built here because the CSP build of Alpine cannot read template literals.
+        rowName(index, field) {
+            return `custom_schedule[${index}][${field}]`;
+        },
+
+        rowLabel(kind, index) {
+            return `${this.labels[kind] ?? ''} ${index + 1}`.trim();
         },
 
         // Debounced: typing "1500" asks once, not four times.
@@ -59,7 +103,7 @@ export function contractPlanner() {
             clearTimeout(this.timer);
             this.error = '';
 
-            if (!this.isScheduled || !this.hasPrice) {
+            if (!this.wantsPreview) {
                 if (this.controller) this.controller.abort();
                 this.schedule = null;
                 this.loading = false;
@@ -88,9 +132,10 @@ export function contractPlanner() {
                         down_payment: this.down || '0',
                         markup_type: this.markupType,
                         markup_value: this.markupValue || '0',
-                        count: this.count,
+                        count: this.isCustom ? null : this.count,
                         frequency: this.frequency,
-                        first_due_date: this.firstDue || null,
+                        first_due_date: this.isCustom ? null : (this.firstDue || null),
+                        custom_schedule: this.isCustom ? this.typedRows : null,
                     }),
                 });
 
@@ -130,6 +175,16 @@ export function contractPlanner() {
         },
 
         get isScheduled() { return this.type === 'scheduled'; },
+        get isCustom() { return this.frequency === 'custom'; },
+        // The rows with anything in them; a line left blank is not a payment.
+        get typedRows() {
+            return this.customRows
+                .filter((row) => row.due_date !== '' || ascii(row.amount) !== '')
+                .map((row) => ({ due_date: row.due_date, amount: ascii(row.amount) }));
+        },
+        get customReady() { return this.customRows.some((row) => row.due_date !== '' && ascii(row.amount) !== ''); },
+        get wantsPreview() { return this.isScheduled && this.hasPrice && (!this.isCustom || this.customReady); },
+        get needsDates() { return this.isScheduled && this.isCustom && this.hasPrice && !this.customReady && this.error === ''; },
         get hasMarkup() { return this.markupType !== 'none'; },
         get hasPrice() { return ascii(this.price) !== ''; },
         get isEmpty() { return !this.hasPrice && this.error === ''; },
@@ -142,6 +197,7 @@ export function contractPlanner() {
         get total() { return this.hasResult ? this.money(this.schedule.total) : ''; },
         get financed() { return this.hasResult ? this.money(this.schedule.financed) : ''; },
         get markupAmount() { return this.hasResult ? this.money(this.schedule.markup) : ''; },
+        get lastDue() { return this.hasResult ? this.shortDate(this.schedule.installments.at(-1).due_date) : ''; },
         get rows() {
             if (!this.hasResult) return [];
             return this.schedule.installments.map((row) => ({

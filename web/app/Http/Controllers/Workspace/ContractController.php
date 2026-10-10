@@ -59,6 +59,8 @@ final class ContractController
             // Only a customer of this workspace can be preselected; anything else is ignored.
             'selected' => is_string($requested) ? $customers->firstWhere('id', $requested)?->id : null,
             'usage' => Entitlements::for($this->current->get())->check(Feature::ActiveContracts),
+            // Daily to yearly plans, the shop's own dates, up to 600 and grace days; otherwise the basic three, up to 120.
+            'flexible' => Entitlements::for($this->current->get())->check(Feature::FlexibleSchedules)->enabled(),
             'currency' => $this->current->get()?->currency,
             'today' => today()->format('Y-m-d'),
         ]);

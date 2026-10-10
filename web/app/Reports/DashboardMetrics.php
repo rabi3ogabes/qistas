@@ -71,7 +71,8 @@ final class DashboardMetrics
     {
         // whereDate compares the calendar day on every database; a bare comparison would depend on how the
         // column happens to be stored (a date on PostgreSQL, text with a time part on SQLite).
-        return $this->owed($this->liveInstallments()->whereDate('installments.due_date', '<', $now->toDateString()));
+        // Late means past the last day of grace (the due date itself when a contract has no grace days).
+        return $this->owed($this->liveInstallments()->whereDate('installments.grace_until', '<', $now->toDateString()));
     }
 
     private function collectedInMonth(CarbonInterface $now): string
@@ -114,7 +115,10 @@ final class DashboardMetrics
             ->join('customers', 'customers.id', '=', 'contracts.customer_id')
             ->where('contracts.status', '!=', 'cancelled')
             ->where('installments.status', '!=', 'paid')
-            ->whereDate('installments.due_date', $now->toDateString())
+            // Due today, or due already but still within its grace days: it needs collecting, and is not late yet.
+            ->whereDate('installments.due_date', '<=', $now->toDateString())
+            ->whereDate('installments.grace_until', '>=', $now->toDateString())
+            ->orderBy('installments.due_date')
             ->orderByRaw('LOWER(customers.name)')
             ->orderBy('contracts.number')
             ->limit(self::DUE_TODAY_LIMIT)
@@ -164,7 +168,7 @@ final class DashboardMetrics
     private function lateRows(CarbonInterface $now): array
     {
         return $this->openInstallments()
-            ->whereDate('installments.due_date', '<', $now->toDateString())
+            ->whereDate('installments.grace_until', '<', $now->toDateString())
             ->orderBy('installments.due_date')
             ->orderByRaw('LOWER(customers.name)')
             ->limit(self::LIST_LIMIT)

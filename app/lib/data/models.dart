@@ -328,6 +328,7 @@ class Contract {
     required this.next,
     required this.installments,
     required this.transactions,
+    this.graceDays = 0,
   });
 
   factory Contract.fromJson(Map<String, dynamic> json) {
@@ -352,6 +353,7 @@ class Contract {
       frequency: (json['frequency'] ?? 'monthly').toString(),
       startDate: json['start_date'].toString(),
       firstDueDate: json['first_due_date'].toString(),
+      graceDays: (json['grace_days'] as num?)?.toInt() ?? 0,
       notes: _text(json['notes']),
       customerId: _text(customer['id']),
       customerName: _text(customer['name']),
@@ -390,6 +392,9 @@ class Contract {
   final String frequency;
   final String startDate;
   final String firstDueDate;
+
+  /// Days after a due date before an instalment counts as late.
+  final int graceDays;
   final String? notes;
   final String? customerId;
   final String? customerName;
