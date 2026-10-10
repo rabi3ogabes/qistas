@@ -238,6 +238,7 @@ class QistasApi {
     required String idempotencyKey,
     String? note,
     DateTime? paidOn,
+    String? tag,
   }) async {
     final json = await _client.post(
       '/contracts/$contractId/payments',
@@ -246,12 +247,45 @@ class QistasApi {
         'amount': amount.toDecimalString(),
         'method': method,
         if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+        'tag': ?tag,
         if (paidOn != null) 'paid_at': '${paidOn.year.toString().padLeft(4, '0')}-${paidOn.month.toString().padLeft(2, '0')}-${paidOn.day.toString().padLeft(2, '0')}',
       },
     );
 
     return LedgerLine.fromJson(_data(json));
   }
+
+  /// "They took" on an open contract. Pass the SAME [idempotencyKey] when the same attempt is repeated.
+  Future<({LedgerLine line, Money balance, bool overCreditLimit})> recordCharge(
+    String contractId, {
+    required Money amount,
+    required String idempotencyKey,
+    String? tag,
+    String? note,
+  }) async {
+    final json = await _client.post(
+      '/contracts/$contractId/charges',
+      headers: {'Idempotency-Key': idempotencyKey},
+      body: {'amount': amount.toDecimalString(), 'tag': ?tag, if (note != null && note.trim().isNotEmpty) 'note': note.trim()},
+    );
+    final meta = json['meta'] is Map<String, dynamic> ? json['meta'] as Map<String, dynamic> : const <String, dynamic>{};
+
+    return (
+      line: LedgerLine.fromJson(_data(json)),
+      balance: Money.parse((meta['balance'] ?? '0.00').toString()),
+      overCreditLimit: meta['over_credit_limit'] == true,
+    );
+  }
+
+  /// What turning a scheduled or cash contract into an open one would do; nothing changes.
+  Future<({int superseded, Money openingBalance})> previewConvertToOpen(String contractId) async {
+    final data = _data(await _client.post('/contracts/$contractId/convert-to-open', query: {'preview': '1'}));
+
+    return (superseded: (data['superseded'] as num).toInt(), openingBalance: Money.parse(data['opening_balance'].toString()));
+  }
+
+  Future<Contract> convertToOpen(String contractId) async =>
+      Contract.fromJson((_data(await _client.post('/contracts/$contractId/convert-to-open')))['contract'] as Map<String, dynamic>);
 
   Future<LedgerLine> voidPayment(String id, {String? reason}) async =>
       LedgerLine.fromJson(_data(await _client.post('/payments/$id/void', body: {if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim()})));
@@ -308,6 +342,8 @@ class ContractForm {
     this.graceDays = 0,
     this.customSchedule = const [],
     this.investorId,
+    this.openingBalance = '',
+    this.creditLimit = '',
   });
 
   final String customerId;
@@ -333,9 +369,23 @@ class ContractForm {
   /// Who funds it; the business's own capital when null.
   final String? investorId;
 
+  /// An open contract: what the customer owes opening it, and how far the tab may grow before the app warns.
+  final String openingBalance;
+  final String creditLimit;
+
   bool get _custom => frequency == ScheduleGenerator.custom;
 
-  Map<String, dynamic> toJson() => type == 'cash'
+  Map<String, dynamic> toJson() => type == 'open'
+      ? {
+          'customer_id': customerId,
+          'type': 'open',
+          'start_date': startDate,
+          if (openingBalance.isNotEmpty) 'opening_balance': openingBalance,
+          if (creditLimit.isNotEmpty) 'credit_limit': creditLimit,
+          if (notes.trim().isNotEmpty) 'notes': notes.trim(),
+          'investor_id': ?investorId,
+        }
+      : type == 'cash'
       ? {
           'customer_id': customerId,
           'type': 'cash',

@@ -90,6 +90,27 @@ void main() {
     await snapshot(tester, 'investor-detail');
   });
 
+  picture('open account, Arabic', (tester) async {
+    final account = accountJson();
+    account['entitlements'] = {
+      ...Map<String, dynamic>.from(account['entitlements'] as Map),
+      'open_contracts': {'type': 'toggle', 'enabled': true, 'status': 'on', 'limit': null, 'used': null, 'remaining': null, 'unlimited': false},
+    };
+    Map<String, dynamic> line(String id, String type, String amount, String after, {String? tag}) => {
+          'id': id, 'type': type, 'method': 'cash', 'amount': amount, 'paid_at': '2026-10-05T10:00:00Z', 'note': null, 'tag': tag,
+          'voided': false, 'reverses_transaction_id': null, 'balance_after': after,
+        };
+    final open = {
+      ...contractJson(),
+      'type': 'open', 'credit_limit': '500.00', 'owed': '225.50', 'next_installment': null, 'installments': <Object?>[], 'installment_count': 0,
+      'transactions': [line('t3', 'charge', '45.50', '225.50', tag: 'unpaid'), line('t2', 'payment', '120.00', '180.00'), line('t1', 'charge', '300.00', '300.00')],
+    };
+    await pumpApp(tester, workspaceServer(account: account, routes: {'GET /contracts/k1': always(json(200, {'data': open}))}), realFonts: true, size: const Size(360, 1300), language: 'ar');
+    await tapText(tester, 'العقود', last: true);
+    await tapText(tester, 'C-0007');
+    await snapshot(tester, 'open-account-ar');
+  });
+
   picture('sign-in', (tester) async {
     await pumpApp(tester, workspaceServer(routes: {'GET /demo': always(json(200, {'data': demoOfferJson()}))}), signedIn: false, realFonts: true);
     await snapshot(tester, 'login');

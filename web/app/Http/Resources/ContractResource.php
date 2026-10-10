@@ -46,6 +46,7 @@ class ContractResource extends JsonResource
             'installment_count' => $this->installment_count,
             'frequency' => $this->frequency,
             'grace_days' => $this->grace_days,
+            'credit_limit' => $this->credit_limit === null ? null : $this->money($this->credit_limit),
             'start_date' => $this->day($this->start_date),
             'first_due_date' => $this->day($this->first_due_date),
             'notes' => $this->notes,

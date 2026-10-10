@@ -2,6 +2,7 @@
 
 namespace App\Reports;
 
+use App\Domain\Ledger\OpenAccount;
 use App\Models\Contract;
 use App\Models\Installment;
 use App\Support\Money;
@@ -26,6 +27,7 @@ final class ContractProgress
 
         $owed = Installment::query()
             ->whereIn('contract_id', $contractIds)
+            ->where('status', '!=', 'superseded')
             ->selectRaw('contract_id, SUM(amount - paid_amount) as owed')
             ->groupBy('contract_id')
             ->toBase()->pluck('owed', 'contract_id');
@@ -33,7 +35,7 @@ final class ContractProgress
         // The next instalment is the earliest one not fully paid; numbers run in due-date order.
         $earliestUnpaid = Installment::query()
             ->whereIn('contract_id', $contractIds)
-            ->where('status', '!=', 'paid')
+            ->whereNotIn('status', Installment::CLOSED)
             ->selectRaw('contract_id, MIN(number) as number')
             ->groupBy('contract_id')
             ->toBase();
@@ -45,8 +47,16 @@ final class ContractProgress
             ->select('installments.*')
             ->get()->keyBy('contract_id');
 
+        // An open contract owes its balance, has no next instalment and is never late (Win Plan PP4).
+        $onAccount = OpenAccount::balances(Contract::query()->whereIn('id', $contractIds)->where('type', 'open')->pluck('id')->all());
+
         $progress = [];
         foreach ($contractIds as $id) {
+            if (isset($onAccount[$id])) {
+                $progress[$id] = ['owed' => $onAccount[$id], 'next' => null, 'late' => false];
+
+                continue;
+            }
             $nextInstallment = $next[$id] ?? null;
             $progress[$id] = [
                 'owed' => Money::fromDatabase($owed[$id] ?? 0),

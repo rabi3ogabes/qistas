@@ -59,6 +59,9 @@ final class CreateContract
 
             $type = $data['type'] ?? 'scheduled';
             $startDate = $data['start_date'] ?? today()->format('Y-m-d');
+            if ($type === 'open') {
+                return $this->openAccount($tenant, $customer, $data, $startDate, $by);
+            }
             $graceDays = $type === 'cash' ? 0 : (int) ($data['grace_days'] ?? 0);
             $this->assertPlanAllowed($tenant, $type, $data, $graceDays);
             $schedule = $this->schedule($type, $data, $startDate);
@@ -115,6 +118,58 @@ final class CreateContract
 
             return $contract;
         }));
+    }
+
+    /**
+     * An open contract (Win Plan PP4): no schedule, no price of its own; what the customer owes opening it is its first
+     * line ("opening balance"), and a credit limit may warn when the tab grows past it.
+     *
+     * @param  array<string, mixed>  $data
+     *
+     * @throws FeatureUnavailable|FeatureLocked
+     */
+    private function openAccount(Tenant $tenant, Customer $customer, array $data, string $startDate, ?User $by): Contract
+    {
+        Entitlements::for($tenant)->assertEnabled(Feature::OpenContracts);
+        $investor = $this->investor($tenant, $data['investor_id'] ?? null);
+        $limit = isset($data['credit_limit']) && $data['credit_limit'] !== '' ? Money::parse($data['credit_limit']) : null;
+
+        $contract = (new Contract)->forceFill([
+            'customer_id' => $customer->id,
+            'number' => (int) Contract::query()->max('number') + 1,
+            'type' => 'open',
+            'status' => 'active',
+            'principal' => '0', 'down_payment' => '0', 'financed' => '0',
+            'markup_type' => 'none', 'markup_value' => '0', 'markup_amount' => '0', 'total' => '0',
+            'installment_count' => 0,
+            'frequency' => 'monthly',
+            'grace_days' => 0,
+            'start_date' => $startDate,
+            'first_due_date' => $startDate,
+            'credit_limit' => $limit,
+            'notes' => $data['notes'] ?? null,
+            'investor_id' => $investor->id,
+            'created_by_user_id' => $by?->id,
+        ]);
+        $contract->save();
+
+        $opening = isset($data['opening_balance']) && $data['opening_balance'] !== '' ? Money::add(Money::parse($data['opening_balance']), '0', 2) : '0';
+        if (Money::isPositive($opening)) {
+            $line = (new Transaction)->forceFill([
+                'contract_id' => $contract->id,
+                'customer_id' => $customer->id,
+                'type' => 'charge',
+                'method' => 'other',
+                'amount' => $opening,
+                'paid_at' => Carbon::parse($startDate),
+                'note' => __('Opening balance'),
+                'created_by_user_id' => $by?->id,
+            ]);
+            $line->save();
+            $this->investors->fundCharge($line);
+        }
+
+        return $contract;
     }
 
     /**

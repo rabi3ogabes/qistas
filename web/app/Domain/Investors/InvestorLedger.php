@@ -3,6 +3,7 @@
 namespace App\Domain\Investors;
 
 use App\Models\Contract;
+use App\Models\ContractConversion;
 use App\Models\Investor;
 use App\Models\InvestorEntry;
 use App\Models\Transaction;
@@ -19,6 +20,8 @@ use Illuminate\Database\Eloquent\Builder;
  *                          exactly its markup, to the cent, however the payments were split
  *                          (a partner then passes its commission % of that profit to the main investor)
  *   a payment is voided -> the very same entries, negated
+ *   an open contract's customer takes goods -> funding_out = - the charge (voiding it gives that back); the opening
+ *                          line of a contract that became open funds nothing: that money was already out
  *   a contract is cancelled -> funding_back = what of its principal had not come back yet
  *
  * Every method may be called again safely: what is already written is not written twice. Runs inside the caller's
@@ -72,9 +75,23 @@ final class InvestorLedger
         }
     }
 
+    public function fundCharge(Transaction $charge): void
+    {
+        if ($charge->type !== 'charge') {
+            return;
+        }
+        $contract = $this->fundedContract($charge->contract_id);
+        if (InvestorEntry::query()->where('transaction_id', $charge->id)->exists()
+            || ContractConversion::query()->where('transaction_id', $charge->id)->exists()) {
+            return;
+        }
+
+        $this->write($contract->investor_id, 'funding_out', Money::sub('0', $charge->amount, 2), $charge->paid_at, $contract->id, $charge->id);
+    }
+
     public function reverse(Transaction $reversal): void
     {
-        if ($reversal->type !== 'reversal' || $reversal->reverses_transaction_id === null) {
+        if (! in_array($reversal->type, ['reversal', 'charge_reversal'], true) || $reversal->reverses_transaction_id === null) {
             return;
         }
         $this->fundedContract($reversal->contract_id);
@@ -112,10 +129,14 @@ final class InvestorLedger
         foreach (Contract::query()->orderBy('number')->get() as $contract) {
             $this->fund($contract);
 
-            $transactions = Transaction::query()->where('contract_id', $contract->id)->whereIn('type', ['payment', 'reversal'])
+            $transactions = Transaction::query()->where('contract_id', $contract->id)->whereIn('type', ['payment', 'reversal', 'charge', 'charge_reversal'])
                 ->orderBy('created_at')->orderBy('id')->get();
             foreach ($transactions as $transaction) {
-                $transaction->type === 'payment' ? $this->creditPayment($transaction) : $this->reverse($transaction);
+                match ($transaction->type) {
+                    'payment' => $this->creditPayment($transaction),
+                    'charge' => $this->fundCharge($transaction),
+                    default => $this->reverse($transaction),
+                };
             }
 
             $this->releaseCancelled($contract);

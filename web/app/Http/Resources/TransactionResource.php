@@ -27,7 +27,10 @@ class TransactionResource extends JsonResource
             'amount' => $this->money($this->amount),
             'paid_at' => $this->moment($this->paid_at),
             'note' => $this->note,
+            'tag' => $this->tag,
             'voided' => (bool) $this->getAttribute('voided'),
+            // On an open contract's ledger: what was owed once this line was written.
+            'balance_after' => $this->when($this->getAttribute('balance_after') !== null, fn () => $this->money($this->getAttribute('balance_after'))),
             'reverses_transaction_id' => $this->reverses_transaction_id,
             'created_by' => $this->whenLoaded('createdBy', fn () => $this->createdBy === null ? null : ['id' => $this->createdBy->id, 'name' => $this->createdBy->name]),
             'customer' => $this->whenLoaded('customer', fn () => $this->customer === null ? null : ['id' => $this->customer->id, 'name' => $this->customer->name]),

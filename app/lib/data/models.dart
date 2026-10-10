@@ -250,6 +250,8 @@ class LedgerLine {
     required this.contractReference,
     required this.contractOwed,
     required this.contractStatus,
+    this.tag,
+    this.balanceAfter,
   });
 
   factory LedgerLine.fromJson(Map<String, dynamic> json) {
@@ -270,12 +272,14 @@ class LedgerLine {
       contractReference: _text(contract['reference']),
       contractOwed: _moneyOrNull(contract['owed']),
       contractStatus: _text(contract['status']),
+      tag: _text(json['tag']),
+      balanceAfter: _moneyOrNull(json['balance_after']),
     );
   }
 
   final String id;
 
-  /// payment, down_payment or reversal.
+  /// payment, down_payment or reversal (money in); charge or charge_reversal (what an open contract's customer took).
   final String type;
   final String method;
   final Money amount;
@@ -294,10 +298,19 @@ class LedgerLine {
   final Money? contractOwed;
   final String? contractStatus;
 
-  bool get isReversal => type == 'reversal';
+  /// advance, refund, early_discount or unpaid.
+  final String? tag;
 
-  /// A payment that may still be voided.
-  bool get canVoid => type == 'payment' && !voided;
+  /// On an open contract: the balance once this line was written. Null for lines from before it became open.
+  final Money? balanceAfter;
+
+  bool get isReversal => type == 'reversal' || type == 'charge_reversal';
+
+  /// What the customer took on an open contract (or its reversal): it adds to what is owed.
+  bool get isCharge => type == 'charge' || type == 'charge_reversal';
+
+  /// A payment, or what an open contract's customer took, that may still be voided.
+  bool get canVoid => (type == 'payment' || type == 'charge') && !voided;
 }
 
 @immutable
@@ -331,6 +344,7 @@ class Contract {
     this.graceDays = 0,
     this.investorId,
     this.investorName,
+    this.creditLimit,
   });
 
   factory Contract.fromJson(Map<String, dynamic> json) {
@@ -358,6 +372,7 @@ class Contract {
       graceDays: (json['grace_days'] as num?)?.toInt() ?? 0,
       investorId: _text(_map(json['investor'])['id']),
       investorName: _text(_map(json['investor'])['name']),
+      creditLimit: _moneyOrNull(json['credit_limit']),
       notes: _text(json['notes']),
       customerId: _text(customer['id']),
       customerName: _text(customer['name']),
@@ -400,6 +415,9 @@ class Contract {
   /// Days after a due date before an instalment counts as late.
   final int graceDays;
 
+  /// An open contract's limit, which warns and never refuses.
+  final Money? creditLimit;
+
   /// Who funded it; absent for a collector, who does not see investors.
   final String? investorId;
   final String? investorName;
@@ -425,7 +443,10 @@ class Contract {
   }
 
   /// More money may still be taken on it.
-  bool get takesPayments => status != 'cancelled' && (owed == null || owed!.isPositive);
+  bool get takesPayments => status != 'cancelled' && (isOpen || owed == null || owed!.isPositive);
+
+  /// A running tab with no schedule (Win Plan PP4): "they took" and "they paid", and the balance after each line.
+  bool get isOpen => type == 'open';
 }
 
 @immutable

@@ -464,12 +464,80 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "422": {$ref: "#/components/responses/ValidationFailed"}
+  /contracts/{contract}/charges:
+    post:
+      tags: [Contracts]
+      summary: "They took: add to an open contract's balance"
+      description: >-
+        A ledger line on an open contract (Win Plan PP4), never edited, voided through /payments/{transaction}/void like a
+        payment. Past the credit limit it is still recorded and `meta.over_credit_limit` says so. Safe to retry with an
+        `Idempotency-Key`. Needs the `open_contracts` feature (403 `feature_unavailable`); a contract that is not a running
+        open one answers 422.
+      parameters:
+        - {name: contract, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: "#/components/parameters/IdempotencyKey"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount: {$ref: "#/components/schemas/Money"}
+                tag: {type: string, enum: [advance, refund, early_discount, unpaid]}
+                note: {type: string, maxLength: 1000}
+                charged_at: {type: string, description: "A date or a moment, never in the future."}
+                idempotency_key: {type: string}
+      responses:
+        "200":
+          description: "A retry of a line already recorded: that line."
+          content: {application/json: {schema: {$ref: "#/components/schemas/ChargeResult"}}}
+        "201":
+          description: The line, the balance now and whether it is past the credit limit.
+          content: {application/json: {schema: {$ref: "#/components/schemas/ChargeResult"}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/FeatureUnavailable"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+  /contracts/{contract}/convert-to-open:
+    post:
+      tags: [Contracts]
+      summary: Turn a scheduled or cash contract into an open one
+      description: >-
+        Owners and managers. Unpaid instalments are superseded (kept, no longer owed or late) and what was owed on them
+        becomes the open contract's opening line. With `preview=1` nothing changes and the answer is exactly what would
+        happen. Needs the `open_contracts` feature; a contract that is not running, or already open, answers 422.
+      parameters:
+        - {name: contract, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: preview, in: query, schema: {type: boolean}}
+      responses:
+        "200":
+          description: The preview (`data` is the outcome) or the conversion (`data.conversion` and `data.contract`).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    oneOf:
+                      - {$ref: "#/components/schemas/ConversionOutcome"}
+                      - type: object
+                        properties:
+                          conversion: {$ref: "#/components/schemas/ConversionOutcome"}
+                          contract: {$ref: "#/components/schemas/Contract"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
   /contracts/{contract}/payments:
     post:
       tags: [Payments]
       summary: Record a payment
       description: |
-        Applied to the oldest unpaid instalment first. Safe to retry with an `Idempotency-Key`.
+        Applied to the oldest unpaid instalment first; on an open contract it comes off the balance and may go past it
+        (the customer then has credit). Safe to retry with an `Idempotency-Key`.
       parameters:
         - {name: contract, in: path, required: true, schema: {type: string, format: uuid}}
         - {$ref: "#/components/parameters/IdempotencyKey"}
@@ -1460,7 +1528,9 @@ components:
       required: [customer_id, principal]
       properties:
         customer_id: {type: string, format: uuid}
-        type: {type: string, enum: [scheduled, cash], default: scheduled}
+        type: {type: string, enum: [scheduled, cash, open], default: scheduled, description: "open needs the open_contracts feature: no schedule and no price, only opening_balance and credit_limit."}
+        opening_balance: {$ref: "#/components/schemas/Money"}
+        credit_limit: {$ref: "#/components/schemas/Money"}
         principal: {$ref: "#/components/schemas/Money"}
         down_payment: {$ref: "#/components/schemas/Money"}
         markup_type: {type: string, enum: [none, fixed, percent]}
@@ -1523,7 +1593,7 @@ components:
         id: {type: string, format: uuid}
         reference: {type: string, example: C-0012}
         number: {type: integer}
-        type: {type: string, enum: [scheduled, cash]}
+        type: {type: string, enum: [scheduled, cash, open]}
         status: {type: string, enum: [active, settled, cancelled]}
         state: {type: string, enum: [active, late, settled, cancelled]}
         principal: {$ref: "#/components/schemas/Money"}
@@ -1536,6 +1606,7 @@ components:
         installment_count: {type: integer}
         frequency: {type: string}
         grace_days: {type: integer, description: Days after a due date before the instalment counts as late.}
+        credit_limit: {type: [string, "null"], description: "An open contract's limit; past it the app warns and never refuses."}
         investor: {type: object, description: Who funded it; left out for collectors., properties: {id: {type: string, format: uuid}, name: {type: string}, is_main: {type: boolean}}}
         start_date: {type: string, format: date}
         first_due_date: {type: string, format: date}
@@ -1586,13 +1657,32 @@ components:
         method: {type: string, enum: [cash, bank_transfer, card, cheque, other]}
         paid_at: {type: string, description: "A date or a moment, never in the future. A date alone means that day."}
         note: {type: string, maxLength: 1000}
+        tag: {type: string, enum: [advance, refund, early_discount, unpaid]}
         idempotency_key: {type: string, description: "The Idempotency-Key header may be used instead."}
+    ChargeResult:
+      type: object
+      properties:
+        data: {$ref: "#/components/schemas/Transaction"}
+        meta:
+          type: object
+          properties:
+            balance: {$ref: "#/components/schemas/Money"}
+            over_credit_limit: {type: boolean}
+    ConversionOutcome:
+      type: object
+      properties:
+        superseded: {type: integer, description: Unpaid instalments set aside.}
+        opening_balance: {$ref: "#/components/schemas/Money"}
     Transaction:
       type: object
-      description: One line of the immutable money ledger. Amounts are signed; a reversal is negative.
+      description: >-
+        One line of the immutable money ledger. Amounts are signed; a reversal is negative. A charge (what an open
+        contract's customer took) is owed, not received: /payments lists money in only.
       properties:
         id: {type: string, format: uuid}
-        type: {type: string, enum: [payment, down_payment, reversal]}
+        type: {type: string, enum: [payment, down_payment, reversal, charge, charge_reversal]}
+        tag: {type: [string, "null"], enum: [advance, refund, early_discount, unpaid, null]}
+        balance_after: {type: string, description: "On an open contract's ledger: the balance once this line was written."}
         method: {type: string}
         amount: {$ref: "#/components/schemas/Money"}
         paid_at: {type: string, format: date-time}

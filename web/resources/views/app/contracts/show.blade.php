@@ -13,8 +13,8 @@
     $state = $late ? 'late' : $contract->status;
     $statusTone = ['active' => 'badge-info', 'late' => 'badge-bad', 'settled' => 'badge-ok', 'cancelled' => ''];
     $statusLabel = ['active' => __('Active'), 'late' => __('Late'), 'settled' => __('Settled'), 'cancelled' => __('Cancelled')];
-    $installmentLabel = ['paid' => __('Paid'), 'overdue' => __('Overdue'), 'partial' => __('Partly paid'), 'upcoming' => __('Upcoming')];
-    $installmentTone = ['paid' => 'badge-ok', 'overdue' => 'badge-bad', 'partial' => 'badge-warn', 'upcoming' => ''];
+    $installmentLabel = ['paid' => __('Paid'), 'overdue' => __('Overdue'), 'partial' => __('Partly paid'), 'upcoming' => __('Upcoming'), 'superseded' => __('Superseded')];
+    $installmentTone = ['paid' => 'badge-ok', 'overdue' => 'badge-bad', 'partial' => 'badge-warn', 'upcoming' => '', 'superseded' => ''];
     $markupPercent = rtrim(rtrim($contract->markup_value, '0'), '.');
     $canTakePayment = $contract->status !== 'cancelled' && $next !== null;
 @endphp
@@ -106,6 +106,21 @@
                     @if ($contract->cancelled_at)<div><dt>{{ __('Cancelled on') }}</dt><dd class="money">{{ $contract->cancelled_at->translatedFormat('j M Y') }}</dd></div>@endif
                 </dl>
 
+                @if ($conversion !== null)
+                    {{-- Win Plan PP4: what becoming open does, in numbers, before anything changes. --}}
+                    <details class="confirm">
+                        <summary class="btn btn-quiet btn-sm">{{ __('Turn into an open contract') }}</summary>
+                        <form method="POST" action="{{ route('app.contracts.convert', $contract) }}" class="form">
+                            @csrf
+                            <p>{{ __('The customer keeps a running balance instead of a schedule. This is exactly what happens:') }}</p>
+                            <ul class="convert-outcome">
+                                <li>{{ __('Unpaid instalments set aside, kept in the history: :count', ['count' => $conversion['superseded']]) }}</li>
+                                <li>{{ __('Opening balance of the open contract: :amount', ['amount' => Format::money($conversion['opening_balance'], $currency)]) }}</li>
+                            </ul>
+                            <button class="btn btn-sm">{{ __('Make it open') }}</button>
+                        </form>
+                    </details>
+                @endif
                 @if ($contract->status === 'active')
                     @can('cancel', $contract)
                         <details class="confirm">

@@ -34,6 +34,7 @@ use Illuminate\Support\Facades\DB;
  * @property string $markup_type
  * @property string $markup_value
  * @property string|null $notes
+ * @property string|null $credit_limit an open contract's limit, which warns and never refuses
  * @property string|null $investor_id who funded it; null only for contracts made before investors, until the main investor takes them on
  * @property Carbon|null $settled_at
  * @property Carbon|null $cancelled_at
@@ -51,6 +52,12 @@ class Contract extends Model
         return 'C-'.str_pad((string) $this->number, 4, '0', STR_PAD_LEFT);
     }
 
+    /** A running tab with no schedule (Win Plan PP4): its balance is what the customer took less what they paid. */
+    public function isOpen(): bool
+    {
+        return $this->type === 'open';
+    }
+
     /**
      * One of VIEWS; anything else means the default, running contracts.
      *
@@ -64,7 +71,7 @@ class Contract extends Model
             'late' => $query->where('status', 'active')->whereExists(
                 fn ($overdue) => $overdue->select(DB::raw(1))->from('installments')
                     ->whereColumn('installments.contract_id', 'contracts.id')
-                    ->where('installments.status', '!=', 'paid')
+                    ->whereNotIn('installments.status', Installment::CLOSED)
                     ->whereDate('installments.grace_until', '<', today()),
             ),
             'settled', 'cancelled' => $query->where('status', $view),
@@ -131,6 +138,7 @@ class Contract extends Model
             'markup_value' => 'decimal:4',
             'markup_amount' => 'decimal:4',
             'total' => 'decimal:4',
+            'credit_limit' => 'decimal:4',
             'start_date' => 'date',
             'first_due_date' => 'date',
             'settled_at' => 'datetime',

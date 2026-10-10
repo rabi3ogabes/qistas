@@ -36,6 +36,7 @@ final class RecordPayment
      * @param  string  $amount  positive, at most two decimals, not more than is still owed
      * @param  ?string  $idempotencyKey  1-100 characters from A-Z a-z 0-9 _ . : -
      * @param  ?CarbonInterface  $paidAt  when the money was received (default now; never in the future)
+     * @param  ?string  $tag  one of Transaction::TAGS (an advance, a refund, an early-payment discount)
      *
      * @throws ValidationException naming the field at fault
      */
@@ -47,18 +48,19 @@ final class RecordPayment
         ?User $by = null,
         ?string $note = null,
         ?CarbonInterface $paidAt = null,
+        ?string $tag = null,
     ): Transaction {
-        $this->validateFormat($amount, $method, $idempotencyKey, $paidAt);
+        $this->validateFormat($amount, $method, $idempotencyKey, $paidAt, $tag);
         $amount = Money::add(Money::parse($amount), '0', 2);
         $paidAt ??= now();
 
-        return $this->current->use($contract->tenant, function () use ($contract, $amount, $method, $idempotencyKey, $by, $note, $paidAt): Transaction {
+        return $this->current->use($contract->tenant, function () use ($contract, $amount, $method, $idempotencyKey, $by, $note, $paidAt, $tag): Transaction {
             if ($idempotencyKey !== null && ($existing = Transaction::where('idempotency_key', $idempotencyKey)->first()) !== null) {
                 return $this->replay($existing, $contract, $amount, $method);
             }
 
             try {
-                return DB::transaction(fn () => $this->record($contract, $amount, $method, $idempotencyKey, $by, $note, $paidAt));
+                return DB::transaction(fn () => $this->record($contract, $amount, $method, $idempotencyKey, $by, $note, $paidAt, $tag));
             } catch (UniqueConstraintViolationException $e) {
                 // Two requests with the same key arrived together and the other one won: answer with its result.
                 $existing = $idempotencyKey === null ? null : Transaction::where('idempotency_key', $idempotencyKey)->first();
@@ -68,13 +70,21 @@ final class RecordPayment
         });
     }
 
-    private function record(Contract $contract, string $amount, string $method, ?string $key, ?User $by, ?string $note, CarbonInterface $paidAt): Transaction
+    private function record(Contract $contract, string $amount, string $method, ?string $key, ?User $by, ?string $note, CarbonInterface $paidAt, ?string $tag): Transaction
     {
         // Payments on one contract take turns: the second waits here and then sees the first one's effect.
         $locked = Contract::query()->whereKey($contract->id)->lockForUpdate()->firstOrFail();
 
         if ($locked->status === 'cancelled') {
             throw ValidationException::withMessages(['contract' => __('This contract was cancelled and cannot take payments.')]);
+        }
+
+        // An open contract takes money on account: no instalments to pay, and paying ahead leaves the customer credit.
+        if ($locked->isOpen()) {
+            $transaction = $this->write($locked, 'payment', $amount, $method, $key, $by, $note, $paidAt, $tag);
+            $this->investors->creditPayment($transaction);
+
+            return $transaction;
         }
 
         $installments = Installment::query()->where('contract_id', $locked->id)->lockForUpdate()->get();
@@ -97,18 +107,7 @@ final class RecordPayment
             throw ValidationException::withMessages(['amount' => $e->getMessage()]);
         }
 
-        $transaction = (new Transaction)->forceFill([
-            'contract_id' => $locked->id,
-            'customer_id' => $locked->customer_id,
-            'type' => 'payment',
-            'method' => $method,
-            'amount' => $amount,
-            'paid_at' => $paidAt,
-            'note' => $note,
-            'idempotency_key' => $key,
-            'created_by_user_id' => $by?->id,
-        ]);
-        $transaction->save();
+        $transaction = $this->write($locked, 'payment', $amount, $method, $key, $by, $note, $paidAt, $tag);
 
         $byId = $installments->keyBy('id');
         foreach ($allocations as $allocation) {
@@ -123,6 +122,25 @@ final class RecordPayment
         ContractSettlement::sync($locked, $paidAt);
         // Its principal and profit go to whoever funded the contract, in the same transaction (Win Plan PP3).
         $this->investors->creditPayment($transaction);
+
+        return $transaction;
+    }
+
+    private function write(Contract $contract, string $type, string $amount, string $method, ?string $key, ?User $by, ?string $note, CarbonInterface $paidAt, ?string $tag): Transaction
+    {
+        $transaction = (new Transaction)->forceFill([
+            'contract_id' => $contract->id,
+            'customer_id' => $contract->customer_id,
+            'type' => $type,
+            'method' => $method,
+            'amount' => $amount,
+            'paid_at' => $paidAt,
+            'note' => $note,
+            'tag' => $tag,
+            'idempotency_key' => $key,
+            'created_by_user_id' => $by?->id,
+        ]);
+        $transaction->save();
 
         return $transaction;
     }
@@ -144,7 +162,7 @@ final class RecordPayment
         return $existing;
     }
 
-    private function validateFormat(string $amount, string $method, ?string $key, ?CarbonInterface $paidAt): void
+    private function validateFormat(string $amount, string $method, ?string $key, ?CarbonInterface $paidAt, ?string $tag = null): void
     {
         $errors = [];
 
@@ -164,6 +182,9 @@ final class RecordPayment
         }
         if ($paidAt !== null && $paidAt->isFuture()) {
             $errors['paid_at'] = __('A payment cannot be dated in the future.');
+        }
+        if ($tag !== null && ! in_array($tag, Transaction::TAGS, true)) {
+            $errors['tag'] = __('Choose one of the tags offered.');
         }
         if ($key !== null && ! preg_match('/^[A-Za-z0-9_.:\-]{1,100}$/', $key)) {
             $errors['idempotency_key'] = __('The idempotency key must be 1 to 100 letters, digits or _ . : -');

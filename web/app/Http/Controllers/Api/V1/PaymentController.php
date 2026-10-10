@@ -26,7 +26,8 @@ final class PaymentController
 
         $contract = $request->query('contract_id');
 
-        $page = Transaction::query()->with(['customer', 'contract', 'createdBy'])
+        // Money that came in; what an open contract's customer took is owed, not paid, and lives on the contract.
+        $page = Transaction::query()->moneyIn()->with(['customer', 'contract', 'createdBy'])
             ->when(is_string($contract) && $contract !== '', fn ($query) => $query->where('contract_id', $contract))
             ->orderByDesc('paid_at')->orderByDesc('created_at')->orderByDesc('id')
             ->paginate(PerPage::of($request))->withQueryString();
@@ -43,7 +44,7 @@ final class PaymentController
 
         $payment = $record->handle(
             $contract, $data['amount'], $data['method'], $data['idempotency_key'] ?? null,
-            $request->user(), $data['note'] ?? null, $request->paidAt(),
+            $request->user(), $data['note'] ?? null, $request->paidAt(), $data['tag'] ?? null,
         );
 
         // A retry that finds the first attempt answers with it, and says so: 200 instead of 201.
@@ -59,7 +60,7 @@ final class PaymentController
     {
         $transaction->load(['createdBy', 'customer', 'contract']);
         $transaction->contract->setAttribute('owed', $this->progress->forContracts([$transaction->contract_id])[$transaction->contract_id]['owed']);
-        $transaction->setAttribute('voided', $transaction->type === 'payment' && Transaction::where('reverses_transaction_id', $transaction->id)->exists());
+        $transaction->setAttribute('voided', in_array($transaction->type, ['payment', 'charge'], true) && Transaction::where('reverses_transaction_id', $transaction->id)->exists());
 
         return new TransactionResource($transaction);
     }

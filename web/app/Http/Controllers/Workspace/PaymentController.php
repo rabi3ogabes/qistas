@@ -23,7 +23,7 @@ final class PaymentController
     {
         Gate::authorize('viewAny', Transaction::class);
 
-        $lines = Transaction::query()->with(['customer', 'contract', 'createdBy'])
+        $lines = Transaction::query()->moneyIn()->with(['customer', 'contract', 'createdBy'])
             ->orderByDesc('paid_at')->orderByDesc('created_at')->orderByDesc('id')->paginate(25);
 
         return view('app.payments.index', [
@@ -39,7 +39,7 @@ final class PaymentController
 
         $payment = $record->handle(
             $contract, $data['amount'], $data['method'], $data['idempotency_key'] ?? null,
-            $request->user(), $data['note'] ?? null, $request->paidAt(),
+            $request->user(), $data['note'] ?? null, $request->paidAt(), $data['tag'] ?? null,
         );
 
         return redirect()->route('app.contracts.show', $contract)

@@ -112,7 +112,8 @@ class InvestorDetailScreen extends ConsumerWidget {
       context: context,
       showDragHandle: true,
       useSafeArea: true,
-      builder: (context) => Padding(
+      isScrollControlled: true,
+      builder: (context) => SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,

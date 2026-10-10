@@ -56,6 +56,9 @@ Route::resource('customers', CustomerController::class);
 Route::post('contracts/preview', SchedulePreviewController::class)->middleware('throttle:contract-preview')->name('contracts.preview');
 Route::resource('contracts', ContractController::class)->only(['index', 'create', 'store', 'show']);
 Route::post('contracts/{contract}/cancel', [ContractController::class, 'cancel'])->name('contracts.cancel');
+// Open contracts (Win Plan PP4): "they took", and turning a scheduled or cash contract into an open one.
+Route::post('contracts/{contract}/charges', [ContractController::class, 'charge'])->name('contracts.charges.store');
+Route::post('contracts/{contract}/convert-to-open', [ContractController::class, 'convert'])->name('contracts.convert');
 
 Route::get('payments', [PaymentController::class, 'index'])->name('payments.index');
 Route::post('contracts/{contract}/payments', [PaymentController::class, 'store'])->name('contracts.payments.store');

@@ -1,6 +1,7 @@
-@props(['name', 'label', 'type' => 'text', 'value' => null, 'hint' => null, 'bag' => 'default', 'wide' => false])
+@props(['name', 'label', 'type' => 'text', 'value' => null, 'hint' => null, 'bag' => 'default', 'wide' => false, 'id' => null])
 @php
-    $id = 'f-'.str_replace(['[', ']', '.'], '-', $name);
+    // Two forms on one page may share a field name: give one of them its own id.
+    $id ??= 'f-'.str_replace(['[', ']', '.'], '-', $name);
     $error = $errors->getBag($bag)->first($name);
     $describedBy = trim(($hint ? $id.'-hint ' : '').($error ? $id.'-error' : ''));
 @endphp

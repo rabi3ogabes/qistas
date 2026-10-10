@@ -76,8 +76,8 @@ class ApiClient {
     throw ApiException(status: status, code: (error['code'] ?? 'http_$status').toString(), message: (error['message'] ?? 'Something went wrong').toString());
   }
 
-  Future<Map<String, dynamic>> post(String path, {Object? body, Map<String, String>? headers}) =>
-      _send('POST', path, body: body, headers: headers);
+  Future<Map<String, dynamic>> post(String path, {Object? body, Map<String, String>? headers, Map<String, dynamic>? query}) =>
+      _send('POST', path, body: body, headers: headers, query: query);
 
   Future<Map<String, dynamic>> put(String path, {Object? body}) => _send('PUT', path, body: body);
 

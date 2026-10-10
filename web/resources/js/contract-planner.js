@@ -175,6 +175,7 @@ export function contractPlanner() {
         },
 
         get isScheduled() { return this.type === 'scheduled'; },
+        get isOpen() { return this.type === 'open'; },
         get isCustom() { return this.frequency === 'custom'; },
         // The rows with anything in them; a line left blank is not a payment.
         get typedRows() {
@@ -187,8 +188,8 @@ export function contractPlanner() {
         get needsDates() { return this.isScheduled && this.isCustom && this.hasPrice && !this.customReady && this.error === ''; },
         get hasMarkup() { return this.markupType !== 'none'; },
         get hasPrice() { return ascii(this.price) !== ''; },
-        get isEmpty() { return !this.hasPrice && this.error === ''; },
-        get isCashSale() { return !this.isScheduled && this.hasPrice && this.cashTotal !== ''; },
+        get isEmpty() { return !this.isOpen && !this.hasPrice && this.error === ''; },
+        get isCashSale() { return this.type === 'cash' && this.hasPrice && this.cashTotal !== ''; },
         get cashTotal() { return this.money(ascii(this.price)); },
 
         get hasResult() { return this.isScheduled && this.schedule !== null && this.schedule.installments.length > 0; },

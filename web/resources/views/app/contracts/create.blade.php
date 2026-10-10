@@ -103,9 +103,25 @@
                             <input type="radio" name="type" value="cash" x-model="type" @change="changed">
                             <span><strong>{{ __('Cash sale') }}</strong><small>{{ __('Paid in full on the day') }}</small></span>
                         </label>
+                        @if ($open)
+                            <label class="choice-item">
+                                <input type="radio" name="type" value="open" x-model="type" @change="changed">
+                                <span><strong>{{ __('Open account') }}</strong><small>{{ __('A running balance, no schedule') }}</small></span>
+                            </label>
+                        @endif
                     </fieldset>
 
-                    <x-field name="principal" :label="__('Price')" :hint="__('The full price of what is being sold, in :currency.', ['currency' => $currency])" inputmode="decimal" autocomplete="off" dir="ltr" required x-model="price" @input="changed" />
+                    <div class="contents" x-show="!isOpen">
+                        <x-field name="principal" :label="__('Price')" :hint="__('The full price of what is being sold, in :currency.', ['currency' => $currency])" inputmode="decimal" autocomplete="off" dir="ltr" required x-model="price" x-bind:disabled="isOpen" @input="changed" />
+                    </div>
+
+                    @if ($open)
+                        {{-- A running tab (Win Plan PP4): what they owe today, and how far it may grow before the page warns. --}}
+                        <div class="contents" x-show="isOpen" x-cloak>
+                            <x-field name="opening_balance" :label="__('What they owe today (optional)')" :hint="__('Becomes the first line of their account.')" inputmode="decimal" autocomplete="off" dir="ltr" x-bind:disabled="!isOpen" />
+                            <x-field name="credit_limit" :label="__('Credit limit (optional)')" :hint="__('Past it, the page warns. It never refuses.')" inputmode="decimal" autocomplete="off" dir="ltr" x-bind:disabled="!isOpen" />
+                        </div>
+                    @endif
 
                     <div class="contents" x-show="isScheduled">
                         <x-field name="down_payment" :label="__('Down payment (optional)')" :hint="__('Paid today, before the instalments start.')" inputmode="decimal" autocomplete="off" dir="ltr" x-model="down" @input="changed" />
@@ -178,6 +194,9 @@
                 <h2 class="card-title">{{ __('What the customer will pay') }}</h2>
 
                 <p class="muted" x-show="isEmpty">{{ __('Enter the price to see the schedule.') }}</p>
+                <div class="stack" x-show="isOpen" x-cloak>
+                    <p>{{ __('An open account has no schedule. On its page you add what they take and what they pay, and the balance after each line is always right.') }}</p>
+                </div>
                 <p class="muted" x-show="needsDates" x-cloak>{{ __('Add the payment dates to see the schedule.') }}</p>
                 <p class="field-error" x-show="hasError" x-text="error" role="alert"></p>
 

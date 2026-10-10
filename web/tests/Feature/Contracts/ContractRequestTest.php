@@ -93,5 +93,6 @@ it('only offers fields a client may set', function () {
         'customer_id', 'type', 'principal', 'down_payment', 'markup_type', 'markup_value',
         'installment_count', 'frequency', 'start_date', 'first_due_date', 'notes',
         'grace_days', 'custom_schedule', 'custom_schedule.*.due_date', 'custom_schedule.*.amount', 'investor_id',
+        'opening_balance', 'credit_limit',
     ]);
 });

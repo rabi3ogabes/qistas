@@ -31,6 +31,7 @@ class PaymentRequest extends FormRequest
             'method' => ['required', 'string', Rule::in(config('qistas.payment_methods'))],
             'paid_at' => ['nullable', 'date', 'before_or_equal:now'],
             'note' => ['nullable', 'string', 'max:1000'],
+            'tag' => ['nullable', Rule::in(Transaction::TAGS)],
             // Makes a retry (a double click, a flaky connection) record one payment, not two.
             'idempotency_key' => ['nullable', 'string', 'regex:/^[A-Za-z0-9_.:\-]{1,100}$/'],
         ];
@@ -68,6 +69,7 @@ class PaymentRequest extends FormRequest
             'method' => $text('method'),
             'paid_at' => $text('paid_at'),
             'note' => $text('note'),
+            'tag' => $text('tag'),
             // The API takes it as the Idempotency-Key header; the web form sends it as a field.
             'idempotency_key' => $text('idempotency_key') ?? (trim((string) $this->header('Idempotency-Key')) ?: null),
         ]);

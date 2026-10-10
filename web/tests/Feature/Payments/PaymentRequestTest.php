@@ -46,5 +46,5 @@ it('accepts a well-formed idempotency key and rejects a malformed one', function
 })->with([['web-3f2a-9c', true], ['a.b:c_d-e', true], [str_repeat('k', 100), true], [str_repeat('k', 101), false], ['has space', false], ['semi;colon', false]]);
 
 it('only offers fields a client may set', function () {
-    expect(array_keys((new PaymentRequest)->rules()))->toEqualCanonicalizing(['amount', 'method', 'paid_at', 'note', 'idempotency_key']);
+    expect(array_keys((new PaymentRequest)->rules()))->toEqualCanonicalizing(['amount', 'method', 'paid_at', 'note', 'tag', 'idempotency_key']);
 });

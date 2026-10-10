@@ -15,7 +15,8 @@ final class ContractSettlement
      */
     public static function sync(Contract $contract, CarbonInterface $at): void
     {
-        if ($contract->status === 'cancelled') {
+        // An open contract is a running tab: a zero balance today is not the end of it.
+        if ($contract->status === 'cancelled' || $contract->type === 'open') {
             return;
         }
 

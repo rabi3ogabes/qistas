@@ -2,6 +2,7 @@
 
 namespace App\Reports;
 
+use App\Domain\Ledger\OpenAccount;
 use App\Models\Contract;
 use App\Models\Installment;
 use App\Models\Tenant;
@@ -17,9 +18,11 @@ use Illuminate\Support\Facades\DB;
  * The headline numbers on the dashboard. All money is returned as exact strings with two decimals.
  *
  * Definitions (kept simple and stated, so a figure can be checked by hand):
- *  - outstanding           what is still owed on instalments of contracts that are not cancelled
+ *  - outstanding           what is still owed on instalments of contracts that are not cancelled, and the balances
+ *                          of open contracts that owe something (a customer who paid ahead owes nothing here)
  *  - overdue               the part of that which was due before today (due today is not yet late)
  *  - collected_this_month  net money received in the calendar month: payments and down payments, minus voids
+ *                          (what an open contract's customer took is owed, not received, and never counts)
  *  - active_customers      customers with at least one running (active) contract
  *  - due_today             instalments due today and not fully paid, with what is still owed on each
  *  - collection_rate       of the instalments that fall due this month, the share already paid (percent)
@@ -64,7 +67,10 @@ final class DashboardMetrics
 
     private function outstanding(): string
     {
-        return $this->owed($this->liveInstallments());
+        $open = Contract::query()->where('type', 'open')->where('status', '!=', 'cancelled')->pluck('id')->all();
+        $owedOnAccount = array_reduce(OpenAccount::balances($open), fn (string $sum, string $balance) => Money::isPositive($balance) ? Money::add($sum, $balance, 2) : $sum, '0.00');
+
+        return Money::add($this->owed($this->liveInstallments()), $owedOnAccount, 2);
     }
 
     private function overdue(CarbonInterface $now): string
@@ -77,7 +83,7 @@ final class DashboardMetrics
 
     private function collectedInMonth(CarbonInterface $now): string
     {
-        $sum = Transaction::query()
+        $sum = Transaction::query()->moneyIn()
             ->whereBetween('paid_at', [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()])
             ->sum('amount');
 
@@ -94,6 +100,7 @@ final class DashboardMetrics
         $row = Installment::query()
             ->join('contracts', 'contracts.id', '=', 'installments.contract_id')
             ->where('contracts.status', '!=', 'cancelled')
+            ->where('installments.status', '!=', 'superseded')
             ->whereDate('installments.due_date', '>=', $now->copy()->startOfMonth()->toDateString())
             ->whereDate('installments.due_date', '<=', $now->copy()->endOfMonth()->toDateString())
             ->selectRaw('COALESCE(SUM(installments.amount), 0) as due, COALESCE(SUM(installments.paid_amount), 0) as paid')
@@ -114,7 +121,7 @@ final class DashboardMetrics
             ->join('contracts', 'contracts.id', '=', 'installments.contract_id')
             ->join('customers', 'customers.id', '=', 'contracts.customer_id')
             ->where('contracts.status', '!=', 'cancelled')
-            ->where('installments.status', '!=', 'paid')
+            ->whereNotIn('installments.status', Installment::CLOSED)
             // Due today, or due already but still within its grace days: it needs collecting, and is not late yet.
             ->whereDate('installments.due_date', '<=', $now->toDateString())
             ->whereDate('installments.grace_until', '>=', $now->toDateString())
@@ -158,6 +165,7 @@ final class DashboardMetrics
             Installment::query()
                 ->join('contracts', 'contracts.id', '=', 'installments.contract_id')
                 ->where('contracts.status', '!=', 'cancelled')
+                ->where('installments.status', '!=', 'superseded')
                 ->whereDate('installments.due_date', '>=', $now->copy()->startOfMonth()->toDateString())
                 ->whereDate('installments.due_date', '<=', $now->copy()->endOfMonth()->toDateString())
                 ->sum('installments.amount'),
@@ -198,7 +206,7 @@ final class DashboardMetrics
     {
         $first = $now->copy()->subDays(13)->startOfDay();
 
-        $totals = Transaction::query()
+        $totals = Transaction::query()->moneyIn()
             ->whereBetween('paid_at', [$first, $now->copy()->endOfDay()])
             ->toBase()
             ->selectRaw('DATE(paid_at) as day, SUM(amount) as total')
@@ -220,7 +228,7 @@ final class DashboardMetrics
             ->join('contracts', 'contracts.id', '=', 'installments.contract_id')
             ->join('customers', 'customers.id', '=', 'contracts.customer_id')
             ->where('contracts.status', '!=', 'cancelled')
-            ->where('installments.status', '!=', 'paid');
+            ->whereNotIn('installments.status', Installment::CLOSED);
     }
 
     private function daysBetween(mixed $dueDate, CarbonInterface $now): int
@@ -244,7 +252,8 @@ final class DashboardMetrics
     }
 
     /**
-     * Instalments of contracts that are still being repaid or were repaid, never of cancelled ones.
+     * Instalments of contracts that are still being repaid or were repaid, never of cancelled ones, nor the ones an
+     * open contract superseded.
      *
      * @return Builder<Installment>
      */
@@ -252,7 +261,8 @@ final class DashboardMetrics
     {
         return Installment::query()
             ->join('contracts', 'contracts.id', '=', 'installments.contract_id')
-            ->where('contracts.status', '!=', 'cancelled');
+            ->where('contracts.status', '!=', 'cancelled')
+            ->where('installments.status', '!=', 'superseded');
     }
 
     /** @param  Builder<Installment>  $query */

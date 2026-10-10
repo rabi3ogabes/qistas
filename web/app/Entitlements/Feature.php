@@ -18,6 +18,7 @@ enum Feature: string
     case Members = 'members';
     case FlexibleSchedules = 'flexible_schedules';
     case Investors = 'investors';
+    case OpenContracts = 'open_contracts';
 
     /** How many customers the free plan keeps (tests and copy read this rather than repeating the number). */
     public const FREE_CUSTOMERS = 20;
@@ -27,7 +28,7 @@ enum Feature: string
         return match ($this) {
             self::Customers, self::ActiveContracts, self::ApiTokens, self::Members, self::Investors => FeatureType::Limit,
             self::PdfStatements => FeatureType::Quota,
-            self::ExportCsv, self::AdvancedReports, self::CustomBranding, self::FlexibleSchedules => FeatureType::Toggle,
+            self::ExportCsv, self::AdvancedReports, self::CustomBranding, self::FlexibleSchedules, self::OpenContracts => FeatureType::Toggle,
         };
     }
 
@@ -44,6 +45,7 @@ enum Feature: string
             self::Members => __('Team members'),
             self::FlexibleSchedules => __('Flexible schedules'),
             self::Investors => __('Investors'),
+            self::OpenContracts => __('Open contracts'),
         };
     }
 
@@ -54,7 +56,7 @@ enum Feature: string
             self::Customers, self::ActiveContracts, self::PdfStatements, self::ExportCsv,
             self::AdvancedReports, self::CustomBranding, self::ApiTokens => FeatureGroup::Core,
             self::Members, self::Investors => FeatureGroup::Team,
-            self::FlexibleSchedules => FeatureGroup::ContractTerms,
+            self::FlexibleSchedules, self::OpenContracts => FeatureGroup::ContractTerms,
         };
     }
 
@@ -72,6 +74,7 @@ enum Feature: string
             self::Members => __('How many people can work in a business: the owner, and the partners, accountants and collectors they invite.'),
             self::FlexibleSchedules => __('Daily, quarterly, half-yearly, yearly or the shop’s own dates, up to 600 instalments, with grace days before an instalment is late.'),
             self::Investors => __('Who funds each contract: the business’s own capital and its partners, with each one’s money and profit as customers pay.'),
+            self::OpenContracts => __('A running tab with no schedule: what the customer takes and what they pay, with the balance always right. Any contract can become open.'),
         };
     }
 
@@ -88,6 +91,7 @@ enum Feature: string
             self::Members => __('The Team page and invitations disappear. Everyone already in a business stays in it with their role; nobody is removed.'),
             self::FlexibleSchedules => __('New contracts go back to weekly, two-weekly or monthly plans of up to 120. Contracts already made keep their dates and grace days.'),
             self::Investors => __('No new investors, deposits or withdrawals. Every investor and figure stays readable, and payments keep crediting the investor who funded the contract.'),
+            self::OpenContracts => __('No new open contracts, charges or conversions. Open contracts already made keep their lines and balance, and still take payments.'),
         };
     }
 
@@ -100,7 +104,7 @@ enum Feature: string
     {
         return match ($this) {
             self::Customers, self::ActiveContracts, self::PdfStatements, self::ExportCsv,
-            self::AdvancedReports, self::CustomBranding, self::ApiTokens, self::Members, self::FlexibleSchedules, self::Investors => [],
+            self::AdvancedReports, self::CustomBranding, self::ApiTokens, self::Members, self::FlexibleSchedules, self::Investors, self::OpenContracts => [],
         };
     }
 
@@ -116,7 +120,7 @@ enum Feature: string
     /** Part of the "essentials" preset: the small set worth switching on for every workspace first. */
     public function isEssential(): bool
     {
-        return $this === self::Members || $this === self::FlexibleSchedules;
+        return in_array($this, [self::Members, self::FlexibleSchedules, self::OpenContracts], true);
     }
 
     /** 'workspace' features are assigned to plans; 'platform' ones (membership billing) are only switched. */
@@ -193,7 +197,7 @@ enum Feature: string
                 // Investors: the business's own capital only; partners come with Pro (Win Plan PP3).
                 self::ApiTokens, self::Members, self::Investors => ['enabled' => true, 'limit' => 1],
                 self::ExportCsv, self::AdvancedReports, self::CustomBranding => ['enabled' => false, 'limit' => null],
-                self::FlexibleSchedules => ['enabled' => true, 'limit' => null],
+                self::FlexibleSchedules, self::OpenContracts => ['enabled' => true, 'limit' => null],
             },
             // Win Plan 6.4: Pro includes three people (the owner and two more), with no purchase per member.
             'pro' => $this === self::Members ? ['enabled' => true, 'limit' => 3] : ['enabled' => true, 'limit' => null],

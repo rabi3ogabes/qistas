@@ -40,10 +40,13 @@ class Installment extends Model
         return $this->belongsTo(Contract::class);
     }
 
-    /** What is still owed on this instalment. */
+    /** No longer owed: paid, or superseded when its contract became open (Win Plan PP4) and kept only as history. */
+    public const CLOSED = ['paid', 'superseded'];
+
+    /** What is still owed on this instalment; nothing once it was superseded (the open contract carries it now). */
     public function remaining(): string
     {
-        return Money::sub($this->amount, $this->paid_amount);
+        return $this->status === 'superseded' ? '0' : Money::sub($this->amount, $this->paid_amount);
     }
 
     /**
@@ -74,14 +77,15 @@ class Installment extends Model
     {
         $today ??= today();
 
-        return $this->status !== 'paid' && ($this->grace_until ?? $this->due_date)->lt($today->copy()->startOfDay());
+        return ! in_array($this->status, self::CLOSED, true) && ($this->grace_until ?? $this->due_date)->lt($today->copy()->startOfDay());
     }
 
-    /** What a person sees: paid, overdue (past its date), partial (part-paid, not yet due) or upcoming. */
+    /** What a person sees: paid, superseded, overdue (past its date), partial (part-paid, not yet due) or upcoming. */
     public function displayState(?CarbonInterface $today = null): string
     {
         return match (true) {
             $this->status === 'paid' => 'paid',
+            $this->status === 'superseded' => 'superseded',
             $this->isOverdue($today) => 'overdue',
             $this->status === 'partial' => 'partial',
             default => 'upcoming',

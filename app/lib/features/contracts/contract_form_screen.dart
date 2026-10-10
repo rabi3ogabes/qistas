@@ -49,6 +49,8 @@ class _ContractFormScreenState extends ConsumerState<ContractFormScreen> {
   final _down = TextEditingController();
   final _markup = TextEditingController();
   final _notes = TextEditingController();
+  final _opening = TextEditingController();
+  final _creditLimit = TextEditingController();
 
   Customer? _customer;
   bool _loadingCustomer = false;
@@ -96,7 +98,7 @@ class _ContractFormScreenState extends ConsumerState<ContractFormScreen> {
 
   @override
   void dispose() {
-    for (final controller in [_principal, _down, _markup, _notes, for (final row in _rows) row.amount]) {
+    for (final controller in [_principal, _down, _markup, _notes, _opening, _creditLimit, for (final row in _rows) row.amount]) {
       controller.dispose();
     }
     super.dispose();
@@ -308,12 +310,17 @@ class _ContractFormScreenState extends ConsumerState<ContractFormScreen> {
 
     final customer = _customer;
     final scheduled = _type == 'scheduled';
+    final open = _type == 'open';
     final (preview, previewErrors) = _preview(context);
-    final principal = _amount(_principal);
+    final principal = open ? '0.00' : _amount(_principal);
+    final opening = _opening.text.trim().isEmpty ? '' : _amount(_opening);
+    final creditLimit = _creditLimit.text.trim().isEmpty ? '' : _amount(_creditLimit);
 
     final problems = <String, List<String>>{
       if (customer == null) 'customer_id': [context.t('Choose who this contract is for.')],
-      if (principal == null || !(Money.tryParse(principal)?.isPositive ?? false)) 'principal': [context.t('Enter a price greater than zero.')],
+      if (!open && (principal == null || !(Money.tryParse(principal)?.isPositive ?? false))) 'principal': [context.t('Enter a price greater than zero.')],
+      if (open && opening == null) 'opening_balance': [context.t('Enter an amount with at most two decimals.')],
+      if (open && creditLimit == null) 'credit_limit': [context.t('Enter an amount with at most two decimals.')],
       if (scheduled) for (final entry in previewErrors.entries) entry.key: [entry.value],
     };
     if (problems.isNotEmpty || customer == null || principal == null || (scheduled && preview == null)) {
@@ -339,6 +346,8 @@ class _ContractFormScreenState extends ConsumerState<ContractFormScreen> {
       notes: _notes.text,
       graceDays: scheduled && flexible ? _grace : 0,
       investorId: _investorId,
+      openingBalance: open ? opening ?? '' : '',
+      creditLimit: open ? creditLimit ?? '' : '',
       customSchedule: scheduled && _isCustom && preview != null
           ? [for (final row in preview.installments) ScheduleEntry(row.dueDate, row.amount.toDecimalString())]
           : const [],
@@ -380,6 +389,9 @@ class _ContractFormScreenState extends ConsumerState<ContractFormScreen> {
         ? ref.watch(investorsProvider).valueOrNull?.funders ?? const <Investor>[]
         : const <Investor>[];
     final scheduled = _type == 'scheduled';
+    final open = _type == 'open';
+    // A running tab (Win Plan PP4), once the server lists the feature and it is on.
+    final offersOpen = account?.entitlements['open_contracts']?.isOn ?? false;
     final custom = scheduled && _isCustom;
     final (preview, previewErrors) = _preview(context);
 
@@ -429,11 +441,36 @@ class _ContractFormScreenState extends ConsumerState<ContractFormScreen> {
                     runSpacing: 8,
                     children: [
                       ChoiceChip(label: Text(context.t('Instalments')), selected: scheduled, onSelected: _saving ? null : (_) => setState(() => _type = 'scheduled')),
-                      ChoiceChip(label: Text(context.t('Cash sale')), selected: !scheduled, onSelected: _saving ? null : (_) => setState(() => _type = 'cash')),
+                      ChoiceChip(label: Text(context.t('Cash sale')), selected: _type == 'cash', onSelected: _saving ? null : (_) => setState(() => _type = 'cash')),
+                      if (offersOpen) ChoiceChip(label: Text(context.t('Open account')), selected: open, onSelected: _saving ? null : (_) => setState(() => _type = 'open')),
                     ],
                   ),
-                  const SizedBox(height: 20),
-                  QField(
+                  if (open) ...[
+                    const SizedBox(height: 20),
+                    Text(context.t('An open account has no schedule. On its page you add what they take and what they pay, and the balance after each line is always right.'), style: text.bodyMedium?.copyWith(color: c.inkMuted)),
+                    const SizedBox(height: 16),
+                    QField(
+                      controller: _opening,
+                      label: context.t('What they owe today (optional)'),
+                      helper: context.t('Becomes the first line of their account.'),
+                      errorText: _error('opening_balance'),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      latin: true,
+                      enabled: !_saving,
+                    ),
+                    const SizedBox(height: 16),
+                    QField(
+                      controller: _creditLimit,
+                      label: context.t('Credit limit (optional)'),
+                      helper: context.t('Past it, the app warns. It never refuses.'),
+                      errorText: _error('credit_limit'),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      latin: true,
+                      enabled: !_saving,
+                    ),
+                  ],
+                  if (!open) const SizedBox(height: 20),
+                  if (!open) QField(
                     controller: _principal,
                     label: context.t('Sale price (:currency)', {'currency': currency}),
                     errorText: _error('principal') ?? (_submitted ? previewErrors['principal'] : null),

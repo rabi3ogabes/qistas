@@ -12,6 +12,7 @@ import '../../core/design/tokens.dart';
 import '../../core/design/widgets.dart';
 import '../../core/l10n/formats.dart';
 import '../../core/l10n/translations.dart';
+import '../../core/money.dart';
 import '../../core/ui/errors.dart';
 import '../../core/ui/reason_dialog.dart';
 import '../../data/models.dart';
@@ -21,6 +22,8 @@ import '../payments/payments_state.dart';
 import '../payments/record_payment_sheet.dart';
 import '../reminders/reminders.dart';
 import 'contracts_screen.dart';
+import 'ledger_line_sheet.dart';
+import 'open_account_screen.dart';
 
 class ContractDetailScreen extends ConsumerStatefulWidget {
   const ContractDetailScreen({super.key, required this.id, this.recordPayment = false});
@@ -39,6 +42,13 @@ class _ContractDetailScreenState extends ConsumerState<ContractDetailScreen> {
 
   Future<void> _record(Contract contract) async {
     final account = ref.read(accountProvider);
+    // An open contract takes money on account: "they paid", not an instalment.
+    if (contract.isOpen) {
+      final recorded = await showLedgerLineSheet(context, contract, LineDirection.paid);
+      if (recorded != null) refreshAfterMoney(ref, contractId: contract.id, customerId: contract.customerId);
+
+      return;
+    }
     final payment = await showRecordPaymentSheet(context, contract, currency: account?.currency ?? '');
     if (payment == null) return;
 
@@ -61,6 +71,67 @@ class _ContractDetailScreenState extends ConsumerState<ContractDetailScreen> {
       refreshAfterMoney(ref, contractId: contract.id, customerId: contract.customerId);
       await ref.read(authProvider.notifier).refresh();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.t('Contract cancelled.'))));
+    } on ApiException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMessage(context, e))));
+    }
+  }
+
+  /// Win Plan PP4: shows exactly what becoming open does, and does it only when confirmed.
+  Future<void> _convert(Contract contract) async {
+    final api = ref.read(apiProvider);
+    final currency = ref.read(accountProvider)?.currency ?? '';
+    final ({int superseded, Money openingBalance}) outcome;
+    try {
+      outcome = await api.previewConvertToOpen(contract.id);
+    } on ApiException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMessage(context, e))));
+      return;
+    }
+    if (!mounted) return;
+
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (context) {
+        final text = Theme.of(context).textTheme;
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(context.t('Turn into an open contract'), style: text.titleLarge),
+              const SizedBox(height: 8),
+              Text(context.t('The customer keeps a running balance instead of a schedule. This is exactly what happens:'), style: text.bodyMedium),
+              const SizedBox(height: 14),
+              QCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(context.t('Unpaid instalments set aside, kept in the history: :count', {'count': outcome.superseded})),
+                    const SizedBox(height: 8),
+                    Text(context.t('Opening balance of the open contract: :amount', {'amount': outcome.openingBalance.format(currency)}), style: text.titleSmall),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              QButton(label: context.t('Make it open'), icon: Icons.all_inclusive_rounded, onPressed: () => Navigator.of(context).pop(true)),
+              const SizedBox(height: 8),
+              QButton(label: context.t('Keep the schedule'), kind: QButtonKind.text, onPressed: () => Navigator.of(context).pop(false)),
+            ],
+          ),
+        );
+      },
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await api.convertToOpen(contract.id);
+      refreshAfterMoney(ref, contractId: contract.id, customerId: contract.customerId);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.t('It is an open contract now. :amount came over as its opening balance.', {'amount': outcome.openingBalance.format(currency)}))));
     } on ApiException catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMessage(context, e))));
     }
@@ -94,7 +165,12 @@ class _ContractDetailScreenState extends ConsumerState<ContractDetailScreen> {
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
-            child: ContentColumn(padding: EdgeInsets.zero, child: _Body(contract: data, account: account, onRecord: () => _record(data), onCancel: () => _cancel(data))),
+            child: ContentColumn(
+              padding: EdgeInsets.zero,
+              child: data.isOpen
+                  ? OpenAccountBody(contract: data, account: account, onCancel: () => _cancel(data))
+                  : _Body(contract: data, account: account, onRecord: () => _record(data), onCancel: () => _cancel(data), onConvert: () => _convert(data)),
+            ),
           ),
         ),
       ),
@@ -103,12 +179,13 @@ class _ContractDetailScreenState extends ConsumerState<ContractDetailScreen> {
 }
 
 class _Body extends ConsumerWidget {
-  const _Body({required this.contract, required this.account, required this.onRecord, required this.onCancel});
+  const _Body({required this.contract, required this.account, required this.onRecord, required this.onCancel, required this.onConvert});
 
   final Contract contract;
   final Account? account;
   final VoidCallback onRecord;
   final VoidCallback onCancel;
+  final VoidCallback onConvert;
 
   String get _currency => account?.currency ?? '';
 
@@ -317,8 +394,18 @@ class _Body extends ConsumerWidget {
             ],
           ),
         ),
-        if (account?.canDelete == true && contract.isRunning) ...[
+        if (account?.canDelete == true && contract.isRunning && (account?.entitlements['open_contracts']?.isOn ?? false)) ...[
           const SizedBox(height: 28),
+          QButton(
+            key: const ValueKey('convert-to-open'),
+            label: context.t('Turn into an open contract'),
+            kind: QButtonKind.quiet,
+            icon: Icons.all_inclusive_rounded,
+            onPressed: onConvert,
+          ),
+        ],
+        if (account?.canDelete == true && contract.isRunning) ...[
+          SizedBox(height: account?.entitlements['open_contracts']?.isOn ?? false ? 10 : 28),
           QButton(label: context.t('Cancel contract'), kind: QButtonKind.quiet, icon: Icons.block_outlined, onPressed: onCancel),
         ],
       ],

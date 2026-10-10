@@ -15,8 +15,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Cancels a payment the only way a ledger allows: by adding a reversal. The original stays untouched; the
- * reversal carries the same amounts negated, and re-opens exactly the instalments the payment had paid.
+ * Cancels a payment, or what an open contract's customer took, the only way a ledger allows: by adding a reversal. The
+ * original stays untouched; the reversal carries the same amounts negated, and re-opens exactly the instalments the
+ * payment had paid. A charge's reversal is a `charge_reversal`, so it is never mistaken for money going back out.
  */
 final class VoidTransaction
 {
@@ -30,19 +31,23 @@ final class VoidTransaction
             $contract = Contract::query()->whereKey($original->contract_id)->lockForUpdate()->firstOrFail();
 
             // A down payment is a term of the contract (cancel and reopen it to change it) and a reversal
-            // cannot itself be reversed; only instalment payments can be voided.
-            if ($original->type !== 'payment') {
+            // cannot itself be reversed; only payments and charges can be voided.
+            if (! in_array($original->type, ['payment', 'charge'], true)) {
                 throw ValidationException::withMessages(['transaction' => __('Only instalment payments can be voided.')]);
             }
             if (Transaction::where('reverses_transaction_id', $original->id)->exists()) {
                 throw ValidationException::withMessages(['transaction' => __('This payment has already been voided.')]);
+            }
+            // Once a contract is open, the instalments its earlier payments settled are history: they stay as paid.
+            if ($contract->isOpen() && $original->type === 'payment' && TransactionAllocation::where('transaction_id', $original->id)->exists()) {
+                throw ValidationException::withMessages(['transaction' => __('This payment was made before the contract became open, so it stays as it is.')]);
             }
 
             $at = now();
             $reversal = (new Transaction)->forceFill([
                 'contract_id' => $original->contract_id,
                 'customer_id' => $original->customer_id,
-                'type' => 'reversal',
+                'type' => $original->type === 'charge' ? 'charge_reversal' : 'reversal',
                 'method' => $original->method,
                 'amount' => Money::sub('0', $original->amount),
                 'paid_at' => $at,
