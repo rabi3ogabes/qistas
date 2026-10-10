@@ -47,11 +47,18 @@ describe('the default Free and Pro values', function () {
         'api tokens' => [Feature::ApiTokens, true, 1],
     ]);
 
-    it('gives a Pro workspace everything, unlimited', function (Feature $feature) {
+    it('gives a Pro workspace every core feature, unlimited', function (Feature $feature) {
         $entitlement = Entitlements::for(tenantOn('pro'))->check($feature);
 
         expect($entitlement->enabled())->toBeTrue()->and($entitlement->limit())->toBeNull();
-    })->with(fn () => Feature::cases());
+    })->with(fn () => array_values(array_filter(Feature::cases(), fn (Feature $f) => $f->isCore())));
+
+    it('gives Pro three people, and Free one, once the team is switched on', function () {
+        switchOn(Feature::Members);
+
+        expect(Entitlements::for(tenantOn('pro'))->check(Feature::Members)->limit())->toBe(3)
+            ->and(Entitlements::for(tenantOn('free'))->check(Feature::Members)->limit())->toBe(1);
+    });
 
     it('treats a workspace with no subscription as Free', function () {
         $tenant = Tenant::factory()->create();

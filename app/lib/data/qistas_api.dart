@@ -115,6 +115,28 @@ class QistasApi {
 
   Future<Tool> saveTool(String key, Object? value) async => Tool.fromJson(_data(await _client.put('/settings/tools/${Uri.encodeComponent(key)}', body: {'value': value})));
 
+  // --------------------------------------------------------------------- team
+
+  Future<Team> team() async => Team.fromJson(_data(await _client.get('/team')));
+
+  /// Makes an invitation link for [role]. The link is in this answer only (the server keeps a fingerprint of it).
+  Future<({TeamInvitation invitation, String url})> invite({required String role, String? name, String? phone}) async {
+    final data = _data(await _client.post('/team/invitations', body: {
+      'role': role,
+      if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
+      if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
+    }));
+
+    return (invitation: TeamInvitation.fromJson(data['invitation'] as Map<String, dynamic>), url: data['url'].toString());
+  }
+
+  Future<void> withdrawInvitation(String id) async => _client.delete('/team/invitations/$id');
+
+  Future<TeamMember> changeRole(String memberId, String role) async =>
+      TeamMember.fromJson(_data(await _client.put('/team/members/$memberId', body: {'role': role})));
+
+  Future<void> removeMember(String memberId) async => _client.delete('/team/members/$memberId');
+
   /// Delete my account. The owner deletes the business (read-only, erased after `restoreUntil` unless restored);
   /// anyone else deletes only their own login, at once.
   Future<({String scope, String? restoreUntil})> deleteAccount({required String password, String? code, String? confirmName}) async {

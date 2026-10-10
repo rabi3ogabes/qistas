@@ -58,6 +58,8 @@ class SettingsScreen extends ConsumerWidget {
     final hasTools = ref.watch(toolsProvider).valueOrNull?.tools.isNotEmpty ?? false;
     final twoStep = account?.twoFactor == true;
     final appLock = ref.watch(appLockProvider);
+    // The team page, once the platform has the team switched on (a plan without room still shows it, locked).
+    final showsTeam = account?.shows('members') ?? false;
 
     return SectionScaffold(
       title: context.t('Settings'),
@@ -89,11 +91,18 @@ class SettingsScreen extends ConsumerWidget {
                 ],
               ),
             ),
-            if (hasTools)
+            if (hasTools || showsTeam)
               _Group(
                 id: 'workspace',
                 title: context.t('Workspace'),
-                child: _Row(icon: Icons.tune_rounded, title: context.t('Instalment tools'), onTap: () => context.push('/tools')),
+                child: Column(
+                  children: [
+                    if (showsTeam)
+                      _Row(key: const ValueKey('settings-team'), icon: Icons.groups_2_outlined, title: context.t('Team'), onTap: () => context.push('/team')),
+                    if (showsTeam && hasTools) const _Divider(),
+                    if (hasTools) _Row(icon: Icons.tune_rounded, title: context.t('Instalment tools'), onTap: () => context.push('/tools')),
+                  ],
+                ),
               ),
             _Group(
               id: 'security',

@@ -237,11 +237,12 @@ describe('on the web', function () {
         $this->actingAs($viewer)->get('/app/settings/tools')->assertOk()->assertSee('Days a report looks back');
     });
 
-    it('is linked from the menu only when there is something in it', function () {
+    it('is always linked from the menu, as the instalment tools when there are some and as settings otherwise', function () {
         [$withTools] = proWorkspace();
         [$without] = owner();
 
-        $this->actingAs($withTools)->get('/app')->assertSee(route('app.settings.tools'), false);
-        $this->actingAs($without)->get('/app')->assertDontSee(route('app.settings.tools'), false);
+        // The page also holds the business's phone-security rule, so it is always reachable.
+        $this->actingAs($withTools)->get('/app')->assertSee(route('app.settings.tools'), false)->assertSee('Instalment tools');
+        $this->actingAs($without)->get('/app')->assertSee(route('app.settings.tools'), false)->assertDontSee('Instalment tools');
     });
 });

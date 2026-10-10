@@ -10,6 +10,7 @@ use App\Listeners\AuditAuthEvents;
 use App\Models\Contract;
 use App\Models\Customer;
 use App\Models\Tenant;
+use App\Models\TenantInvitation;
 use App\Models\User;
 use App\Settings\SettingsRegistry;
 use App\Support\AppFirstTranslationLoader;
@@ -125,5 +126,8 @@ class AppServiceProvider extends ServiceProvider
         // Only contracts still running count: settled and cancelled ones free their place.
         $meters->register(Feature::ActiveContracts, fn (Tenant $tenant): int => Contract::withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $tenant->id)->where('status', 'active')->count());
+        // People in the business, plus the invitations still waiting: a place is held as soon as a link is made.
+        $meters->register(Feature::Members, fn (Tenant $tenant): int => DB::table('tenant_users')->where('tenant_id', $tenant->id)->count()
+            + TenantInvitation::withoutGlobalScope(TenantScope::class)->where('tenant_id', $tenant->id)->open()->count());
     }
 }

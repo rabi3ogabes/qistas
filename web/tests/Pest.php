@@ -2,6 +2,8 @@
 
 use App\Actions\CreateContract;
 use App\Entitlements\Feature;
+use App\Entitlements\FeatureControl;
+use App\Entitlements\PlatformState;
 use App\Models\Contract;
 use App\Models\Customer;
 use App\Models\Installment;
@@ -52,6 +54,12 @@ function workspaceOn(string $plan = 'free'): Tenant
 function limitFreePlan(Feature $feature, ?int $limit): void
 {
     Plan::where('key', 'free')->sole()->setFeature($feature, true, $limit);
+}
+
+/** Switch a feature on for everyone, as the admin does in the Feature Control cockpit (new features ship off). */
+function switchOn(Feature $feature): void
+{
+    app(FeatureControl::class)->setState($feature, PlatformState::On, null, null);
 }
 
 /**

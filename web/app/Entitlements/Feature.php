@@ -15,6 +15,7 @@ enum Feature: string
     case AdvancedReports = 'advanced_reports';
     case CustomBranding = 'custom_branding';
     case ApiTokens = 'api_tokens';
+    case Members = 'members';
 
     /** How many customers the free plan keeps (tests and copy read this rather than repeating the number). */
     public const FREE_CUSTOMERS = 20;
@@ -22,7 +23,7 @@ enum Feature: string
     public function type(): FeatureType
     {
         return match ($this) {
-            self::Customers, self::ActiveContracts, self::ApiTokens => FeatureType::Limit,
+            self::Customers, self::ActiveContracts, self::ApiTokens, self::Members => FeatureType::Limit,
             self::PdfStatements => FeatureType::Quota,
             self::ExportCsv, self::AdvancedReports, self::CustomBranding => FeatureType::Toggle,
         };
@@ -38,6 +39,7 @@ enum Feature: string
             self::AdvancedReports => __('Advanced reports'),
             self::CustomBranding => __('Custom branding'),
             self::ApiTokens => __('API access tokens'),
+            self::Members => __('Team members'),
         };
     }
 
@@ -47,6 +49,7 @@ enum Feature: string
         return match ($this) {
             self::Customers, self::ActiveContracts, self::PdfStatements, self::ExportCsv,
             self::AdvancedReports, self::CustomBranding, self::ApiTokens => FeatureGroup::Core,
+            self::Members => FeatureGroup::Team,
         };
     }
 
@@ -61,6 +64,7 @@ enum Feature: string
             self::AdvancedReports => __('Ageing, monthly collections and other deeper reports.'),
             self::CustomBranding => __('The shop\'s own logo and colour on its documents.'),
             self::ApiTokens => __('Access tokens that let other software connect to a workspace.'),
+            self::Members => __('How many people can work in a business: the owner, and the partners, accountants and collectors they invite.'),
         };
     }
 
@@ -74,6 +78,7 @@ enum Feature: string
             self::Customers, self::ActiveContracts, self::ApiTokens => __('Core feature, always on. The plan sets the limit; going over it never removes anything that exists.'),
             self::PdfStatements => __('Core feature, always on. The plan sets a monthly allowance; documents already made stay available.'),
             self::ExportCsv, self::AdvancedReports, self::CustomBranding => __('Core feature, always on. The plan decides who has it; nothing is deleted when a plan changes.'),
+            self::Members => __('The Team page and invitations disappear. Everyone already in a business stays in it with their role; nobody is removed.'),
         };
     }
 
@@ -86,7 +91,7 @@ enum Feature: string
     {
         return match ($this) {
             self::Customers, self::ActiveContracts, self::PdfStatements, self::ExportCsv,
-            self::AdvancedReports, self::CustomBranding, self::ApiTokens => [],
+            self::AdvancedReports, self::CustomBranding, self::ApiTokens, self::Members => [],
         };
     }
 
@@ -102,7 +107,7 @@ enum Feature: string
     /** Part of the "essentials" preset: the small set worth switching on for every workspace first. */
     public function isEssential(): bool
     {
-        return false;
+        return $this === self::Members;
     }
 
     /** 'workspace' features are assigned to plans; 'platform' ones (membership billing) are only switched. */
@@ -176,10 +181,11 @@ enum Feature: string
                 self::Customers => ['enabled' => true, 'limit' => self::FREE_CUSTOMERS],
                 self::ActiveContracts => ['enabled' => true, 'limit' => null],
                 self::PdfStatements => ['enabled' => true, 'limit' => 5],
-                self::ApiTokens => ['enabled' => true, 'limit' => 1],
+                self::ApiTokens, self::Members => ['enabled' => true, 'limit' => 1],
                 self::ExportCsv, self::AdvancedReports, self::CustomBranding => ['enabled' => false, 'limit' => null],
             },
-            'pro' => ['enabled' => true, 'limit' => null],
+            // Win Plan 6.4: Pro includes three people (the owner and two more), with no purchase per member.
+            'pro' => $this === self::Members ? ['enabled' => true, 'limit' => 3] : ['enabled' => true, 'limit' => null],
             default => null,
         };
     }

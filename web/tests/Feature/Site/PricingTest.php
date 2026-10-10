@@ -33,11 +33,17 @@ describe('what a plan gives', function () {
     });
 
     it('is exactly what the entitlement engine applies to a workspace on that plan', function (string $key) {
+        // The plan against the engine, so every feature is switched on at the platform level (new ones ship off).
+        foreach (Feature::cases() as $feature) {
+            if (! $feature->isCore()) {
+                switchOn($feature);
+            }
+        }
         $plan = Plan::where('key', $key)->sole();
         $plan->setFeature(Feature::ExportCsv, enabled: true);
         $tenant = Tenant::factory()->create();
         $tenant->subscribeTo($plan);
-        foreach ([Feature::Customers, Feature::ActiveContracts, Feature::ApiTokens] as $counted) {
+        foreach ([Feature::Customers, Feature::ActiveContracts, Feature::ApiTokens, Feature::Members] as $counted) {
             app(UsageMeters::class)->register($counted, fn () => 0);
         }
 

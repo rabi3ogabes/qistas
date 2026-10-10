@@ -91,17 +91,21 @@ describe('deploying this changes nothing for anyone', function () {
         PlatformFeature::query()->delete();
         $after = Entitlements::for($tenant)->toArray();
 
+        // The features that worked before the switch system answer as they always did; new ones ship off.
+        $core = collect($after['features'])->filter(fn (array $f, string $key) => Feature::from($key)->isCore());
+        $new = collect($after['features'])->reject(fn (array $f, string $key) => Feature::from($key)->isCore());
         expect($after)->toEqual($before)
-            ->and(collect($after['features'])->every(fn (array $f) => $f['status'] === 'on' || $f['status'] === 'plan_locked'))->toBeTrue();
+            ->and($core->every(fn (array $f) => $f['status'] === 'on' || $f['status'] === 'plan_locked'))->toBeTrue()
+            ->and($new->every(fn (array $f) => $f['status'] === 'platform_off'))->toBeTrue();
         // Free still has its five customers and Pro its unlimited ones.
         expect($after['features']['customers']['limit'])->toBe($plan === 'free' ? Feature::FREE_CUSTOMERS : null);
     })->with(['free', 'pro']);
 
-    it('treats every feature as on at the platform level until an admin says otherwise', function () {
+    it('treats every core feature as on, and every new one as off, until an admin says otherwise', function () {
         PlatformFeature::query()->delete();
 
         foreach (Feature::cases() as $feature) {
-            expect(PlatformFeatures::state($feature))->toBe(PlatformState::On, $feature->value);
+            expect(PlatformFeatures::state($feature))->toBe($feature->isCore() ? PlatformState::On : PlatformState::Off, $feature->value);
         }
     });
 });

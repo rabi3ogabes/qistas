@@ -49,7 +49,7 @@ describe('the page', function () {
         $page = cockpit();
 
         $page->assertSee('Feature control')
-            ->assertSee('data-summary data-on="4" data-beta="0" data-off="3"', false)
+            ->assertSee('data-summary data-on="4" data-beta="0" data-off="4"', false)
             ->assertSee('type="search"', false);
     });
 
@@ -139,7 +139,7 @@ describe('what the page tells the admin before they act', function () {
     });
 
     it('shows no presets, and no stop, while every feature is core', function () {
-        app()->instance(FeatureCatalogue::class, new FeatureCatalogue);
+        app()->instance(FeatureCatalogue::class, new FeatureCatalogue(locked: fn (Feature $feature) => true));
 
         $this->actingAs(cockpitStaff())->get('/admin/features')->assertOk()->assertDontSee('data-pause', false)->assertDontSee('fc-presets', false);
     });

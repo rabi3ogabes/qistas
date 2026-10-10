@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\PlanController;
 use App\Http\Controllers\Api\V1\SchedulePreviewController;
+use App\Http\Controllers\Api\V1\TeamController;
 use App\Http\Controllers\Api\V1\TokenController;
 use App\Http\Controllers\Api\V1\ToolsController;
 use App\Http\Controllers\Api\V1\WorkspaceSecurityController;
@@ -46,6 +47,16 @@ Route::name('api.')->group(function (): void {
         // Delete my account (store requirement): the owner deletes the business after 30 days, anyone else their login.
         Route::post('account/deletion', [AccountDeletionController::class, 'store'])->middleware('throttle:account-deletion')->name('account.deletion.store');
         Route::delete('account/deletion', [AccountDeletionController::class, 'destroy'])->name('account.deletion.destroy');
+
+        // The team (Win Plan PP11): who is in the business, invitations by link, roles, removing people.
+        Route::middleware('feature:members')->group(function (): void {
+            Route::get('team', [TeamController::class, 'index'])->name('team.index');
+            Route::post('team/invitations', [TeamController::class, 'invite'])->middleware('throttle:api-money')->name('team.invitations.store');
+            Route::delete('team/invitations/{invitation}', [TeamController::class, 'revoke'])->whereUuid('invitation')->name('team.invitations.destroy');
+            Route::put('team/members/{member}', [TeamController::class, 'update'])->whereUuid('member')->name('team.members.update');
+            Route::delete('team/members/{member}', [TeamController::class, 'remove'])->whereUuid('member')->name('team.members.destroy');
+        });
+        Route::post('invitations/accept', [TeamController::class, 'accept'])->middleware('throttle:api-money')->name('invitations.accept');
 
         Route::apiResource('customers', CustomerController::class);
 

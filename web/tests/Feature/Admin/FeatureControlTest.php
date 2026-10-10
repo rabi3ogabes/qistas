@@ -276,7 +276,7 @@ describe('the admin endpoints', function () {
         $json = $this->actingAs($super)->getJson('/admin/features')->assertOk()->json();
         $cards = collect($json['groups'])->flatMap(fn ($g) => $g['features'])->keyBy('key');
 
-        expect($json['summary'])->toBe(['on' => 5, 'beta' => 1, 'off' => 1])
+        expect($json['summary'])->toBe(['on' => 5, 'beta' => 1, 'off' => 2])
             ->and($cards->count())->toBe(count(Feature::cases()))
             ->and($cards['customers']['locked'])->toBeTrue()
             ->and($cards['export_csv'])->toMatchArray(['state' => 'beta', 'locked' => false, 'usage_30d' => 1, 'required_by' => ['advanced_reports'], 'depends_on' => []])

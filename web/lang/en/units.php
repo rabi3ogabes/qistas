@@ -6,4 +6,5 @@ return [
     'active_contracts' => 'active contract|active contracts',
     'pdf_statements' => 'PDF statement per month|PDF statements per month',
     'api_tokens' => 'API token|API tokens',
+    'members' => 'person|people',
 ];

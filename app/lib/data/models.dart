@@ -761,3 +761,69 @@ class Tool {
   /// For a select: what may be chosen.
   final List<({String value, String label})> options;
 }
+
+/// A person in the business, with what they may do there.
+@immutable
+class TeamMember {
+  const TeamMember({required this.id, required this.name, required this.email, required this.role});
+
+  factory TeamMember.fromJson(Map<String, dynamic> json) => TeamMember(
+        id: json['id'].toString(),
+        name: (json['name'] ?? '').toString(),
+        email: (json['email'] ?? '').toString(),
+        role: (json['role'] ?? 'viewer').toString(),
+      );
+
+  final String id;
+  final String name;
+  final String email;
+
+  /// owner, manager, accountant, collector or viewer.
+  final String role;
+}
+
+/// An invitation link still waiting to be used. The link itself is shown only once, when it is made.
+@immutable
+class TeamInvitation {
+  const TeamInvitation({required this.id, required this.role, this.name, this.phone, required this.expiresAt});
+
+  factory TeamInvitation.fromJson(Map<String, dynamic> json) => TeamInvitation(
+        id: json['id'].toString(),
+        role: (json['role'] ?? 'viewer').toString(),
+        name: json['name']?.toString(),
+        phone: json['phone']?.toString(),
+        expiresAt: DateTime.tryParse((json['expires_at'] ?? '').toString())?.toLocal() ?? DateTime.now(),
+      );
+
+  final String id;
+  final String role;
+  final String? name;
+  final String? phone;
+  final DateTime expiresAt;
+}
+
+/// The team page: the people, the invitations waiting, and what the reader may change.
+@immutable
+class Team {
+  const Team({required this.members, required this.invitations, required this.canManage, required this.assignableRoles, this.limit, required this.used});
+
+  factory Team.fromJson(Map<String, dynamic> json) => Team(
+        members: [for (final m in (json['members'] as List<dynamic>? ?? const [])) TeamMember.fromJson(m as Map<String, dynamic>)],
+        invitations: [for (final i in (json['invitations'] as List<dynamic>? ?? const [])) TeamInvitation.fromJson(i as Map<String, dynamic>)],
+        canManage: json['can_manage'] == true,
+        assignableRoles: [for (final r in (json['assignable_roles'] as List<dynamic>? ?? const [])) r.toString()],
+        limit: (json['limit'] as num?)?.toInt(),
+        used: (json['used'] as num?)?.toInt() ?? 0,
+      );
+
+  final List<TeamMember> members;
+  final List<TeamInvitation> invitations;
+  final bool canManage;
+  final List<String> assignableRoles;
+
+  /// People the plan allows (members plus invitations waiting); null is unlimited.
+  final int? limit;
+  final int used;
+
+  bool get isFull => limit != null && used >= limit!;
+}

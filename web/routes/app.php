@@ -9,6 +9,7 @@ use App\Http\Controllers\Workspace\DashboardController;
 use App\Http\Controllers\Workspace\FileController;
 use App\Http\Controllers\Workspace\PaymentController;
 use App\Http\Controllers\Workspace\SecurityPolicyController;
+use App\Http\Controllers\Workspace\TeamController;
 use App\Http\Controllers\Workspace\ToolsController;
 use Illuminate\Support\Facades\Route;
 
@@ -21,6 +22,15 @@ Route::get('billing', BillingController::class)->name('billing');
 Route::get('account/delete', [AccountDeletionController::class, 'show'])->name('account.delete.show');
 Route::post('account/delete', [AccountDeletionController::class, 'store'])->middleware('throttle:account-deletion')->name('account.delete.store');
 Route::delete('account/delete', [AccountDeletionController::class, 'destroy'])->name('account.delete.destroy');
+
+// The team: the people, their roles and invitations by link (Win Plan PP11).
+Route::middleware('feature:members')->group(function (): void {
+    Route::get('team', [TeamController::class, 'index'])->name('team.index');
+    Route::post('team/invitations', [TeamController::class, 'invite'])->name('team.invitations.store');
+    Route::delete('team/invitations/{invitation}', [TeamController::class, 'revoke'])->whereUuid('invitation')->name('team.invitations.destroy');
+    Route::put('team/members/{member}', [TeamController::class, 'update'])->whereUuid('member')->name('team.members.update');
+    Route::delete('team/members/{member}', [TeamController::class, 'remove'])->whereUuid('member')->name('team.members.destroy');
+});
 
 // A stored file (an ID photo, a proof of payment): a member whose role may see it is sent to a link that expires in minutes.
 Route::get('files/{file}', [FileController::class, 'show'])->name('files.show');

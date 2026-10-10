@@ -49,6 +49,7 @@ tags:
   - name: Dashboard
   - name: API access tokens
   - name: Instalment tools
+  - name: Team
 paths:
   /plans:
     get:
@@ -697,6 +698,146 @@ paths:
                       restored: {type: boolean}
         "401": {$ref: "#/components/responses/Unauthenticated"}
         "403": {$ref: "#/components/responses/Forbidden"}
+  /team:
+    get:
+      tags: [Team]
+      summary: The people in the business and the invitations waiting
+      description: Anyone in the business may look. Behind the `members` feature (403 `feature_unavailable` while the platform has it off).
+      responses:
+        "200":
+          description: The team.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      members: {type: array, items: {$ref: "#/components/schemas/TeamMember"}}
+                      invitations: {type: array, items: {$ref: "#/components/schemas/Invitation"}}
+                      can_manage: {type: boolean, description: Owner or manager.}
+                      assignable_roles: {type: array, items: {type: string, enum: [manager, accountant, collector, viewer]}}
+                      limit: {type: integer, nullable: true, description: People the plan allows (members plus invitations waiting); null is unlimited.}
+                      used: {type: integer}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /team/invitations:
+    post:
+      tags: [Team]
+      summary: Make an invitation link
+      description: |
+        Owner and manager only. The owner may give manager, accountant, collector or viewer; a manager only the last
+        three (403 otherwise; `owner` is refused with 422). A waiting invitation holds a place under the plan's
+        people limit (402 `limit_reached`, feature `members`). The link works once, for 7 days; only a fingerprint of
+        its secret is kept, so `url` is shown only in this answer.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: {type: string, enum: [manager, accountant, collector, viewer]}
+                name: {type: string, maxLength: 120}
+                email: {type: string, format: email}
+                phone: {type: string, maxLength: 32}
+      responses:
+        "201":
+          description: The invitation and its link.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      invitation: {$ref: "#/components/schemas/Invitation"}
+                      url: {type: string, format: uri}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "402": {$ref: "#/components/responses/PlanLimit"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+  /team/invitations/{invitation}:
+    delete:
+      tags: [Team]
+      summary: Withdraw an invitation
+      parameters:
+        - {name: invitation, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "204": {description: Withdrawn; the link no longer works.}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /team/members/{member}:
+    put:
+      tags: [Team]
+      summary: Change someone's role
+      description: The owner's role never changes; a manager cannot change another manager. Every change is audited.
+      parameters:
+        - {name: member, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: {type: string, enum: [manager, accountant, collector, viewer]}
+      responses:
+        "200":
+          description: The person with their new role.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/TeamMember"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+    delete:
+      tags: [Team]
+      summary: Remove someone from the business
+      description: At once. If it was their only business they are signed out everywhere. The owner cannot be removed.
+      parameters:
+        - {name: member, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "204": {description: Removed.}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /invitations/accept:
+    post:
+      tags: [Team]
+      summary: Join a business from an invitation link
+      description: For someone already signed in. A used, withdrawn or expired link answers 410 `invitation_invalid`. The business joined becomes the one the account shows.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: {type: string, description: The last part of the invitation link.}
+      responses:
+        "200":
+          description: The account, now in the business it joined.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/Account"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "410":
+          description: The link is no longer valid (`invitation_invalid`).
+          content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}
   /tokens:
     get:
       tags: [API access tokens]
@@ -919,6 +1060,24 @@ components:
           format: date
           nullable: true
           description: The owner asked to delete the business. It is read-only (writes answer 423 `workspace_deleting`) and is erased after this day unless the owner restores it.
+    TeamMember:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        email: {type: string}
+        role: {type: string, enum: [owner, manager, accountant, collector, viewer]}
+        joined_at: {type: string, format: date-time, nullable: true}
+    Invitation:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        role: {type: string, enum: [manager, accountant, collector, viewer]}
+        name: {type: string, nullable: true}
+        email: {type: string, nullable: true}
+        phone: {type: string, nullable: true}
+        invited_by: {type: string, nullable: true}
+        expires_at: {type: string, format: date-time}
     PlanRef:
       type: object
       properties:
