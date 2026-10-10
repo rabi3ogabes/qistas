@@ -112,6 +112,18 @@ jobs:
             echo "signed=false" >> "$GITHUB_OUTPUT"
             echo "No upload key in the repository secrets: this is a debug-signed test build (fine for GitHub, not for Google Play)." >> "$GITHUB_STEP_SUMMARY"
           fi
+      # The owner's Firebase project file (Win Plan PP9), from a repository secret. With it the app takes pushes; without it
+      # alerts wait in the app's inbox.
+      - name: Use the Firebase project when it is set
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+            echo "Pushes on: built with the Firebase project." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No GOOGLE_SERVICES_JSON secret: this build takes no pushes (alerts wait in the inbox)." >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Build the APK
         id: build
         run: |

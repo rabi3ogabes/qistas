@@ -14,6 +14,7 @@ import '../../core/ui/errors.dart';
 import '../../data/models.dart';
 import '../appearance/welcome_banner.dart';
 import '../billing/upgrade_sheet.dart';
+import '../notifications/alerts.dart';
 import '../reminders/reminders.dart';
 import '../settings/delete_account_screen.dart';
 
@@ -132,6 +133,7 @@ class _Greeting extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: 8),
+          const InboxButton(),
           const LanguageButton(compact: true),
           const SearchButton(),
           const AccountButton(),
@@ -158,7 +160,7 @@ class _Body extends ConsumerWidget {
       children: [
         Reveal(order: order++, child: _Hero(data: data)),
         if (!started) Reveal(order: order++, child: const Padding(padding: EdgeInsets.only(top: 18), child: _GettingStarted())),
-        if (data.needsYou.isNotEmpty) Reveal(order: order++, child: _NeedsYou(data: data, language: language)),
+        if (data.needsYou.isNotEmpty) Reveal(order: order++, child: _NeedsYou(data: data, language: language, account: account)),
         Reveal(order: order++, child: _Month(data: data)),
         if (data.upcoming.isNotEmpty) Reveal(order: order++, child: _ComingUp(data: data)),
         if (account != null && account!.isFree) Reveal(order: order++, child: _PlanCard(account: account!)),
@@ -220,10 +222,11 @@ class _Hero extends StatelessWidget {
 
 /// Who to chase today. The first few get their actions right there; the rest are a tap away.
 class _NeedsYou extends StatelessWidget {
-  const _NeedsYou({required this.data, required this.language});
+  const _NeedsYou({required this.data, required this.language, required this.account});
 
   final Dashboard data;
   final String language;
+  final Account? account;
 
   static const int _detailed = 3;
   static const int _shown = 6;
@@ -247,6 +250,16 @@ class _NeedsYou extends StatelessWidget {
             alignment: AlignmentDirectional.centerStart,
             child: TextButton(onPressed: () => context.go('/contracts'), child: Text(context.t('See all :count', {'count': items.length}))),
           ),
+        // Win Plan PP9: everyone due today (or, on a day with none, everyone late), one WhatsApp message at a time.
+        if (remindsEveryone(account) && (account?.canWrite ?? false)) ...[
+          const SizedBox(height: 4),
+          QButton(
+            label: context.t('Remind everyone'),
+            kind: QButtonKind.quiet,
+            icon: Icons.chat_outlined,
+            onPressed: () => context.push(data.dueToday.isEmpty ? '/remind?scope=late' : '/remind'),
+          ),
+        ],
       ],
     );
   }

@@ -13,6 +13,7 @@ import 'package:qistas/app/providers.dart';
 import 'package:qistas/core/config.dart';
 import 'package:qistas/core/design/widgets.dart';
 import 'package:qistas/core/l10n/translations.dart';
+import 'package:qistas/core/push/push_service.dart';
 import 'package:qistas/core/storage/token_store.dart';
 import 'package:qistas/features/security/app_lock.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -91,6 +92,7 @@ Future<void> pumpApp(
   List<Override> overrides = const [],
   DeviceAuth? deviceAuth,
   FakeClock? clock,
+  PushService? push,
 }) async {
   if (realFonts) await loadBrandFonts();
   for (final code in AppConfig.locales) {
@@ -118,6 +120,8 @@ Future<void> pumpApp(
         // A phone with no fingerprint or screen lock unless a test gives one, so the app lock stays out of the way.
         deviceAuthProvider.overrideWithValue(deviceAuth ?? FakeDeviceAuth.unavailable()),
         if (clock != null) clockProvider.overrideWithValue(clock.call),
+        // No Firebase in tests: a phone that takes no pushes unless a test gives one.
+        pushServiceProvider.overrideWithValue(push ?? NoPushService()),
         ...overrides,
         // The words are read from disk at once, so a test never waits on asset loading that fake time cannot advance.
         translationsProvider.overrideWith((ref) {

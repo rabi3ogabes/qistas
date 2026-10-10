@@ -8,6 +8,7 @@ import 'backups.dart';
 import 'documents.dart';
 import 'investors.dart';
 import 'models.dart';
+import 'notifications.dart';
 
 /// A fresh key for one attempt at one payment. Showing the same key again for the same attempt (a double tap, a
 /// retry after a dropped connection) makes the server record one payment, not two.
@@ -146,6 +147,43 @@ class QistasApi {
   }
 
   Future<void> signOutDevice(String id) async => _client.delete('/devices/$id');
+
+  // ---------------------------------------------------------------- alerts and reminders (Win Plan PP9)
+
+  /// Tells the server this phone takes pushes. Asking again with the same token only refreshes it.
+  Future<void> registerPushToken(String token, {required String platform, String? appVersion}) async =>
+      _client.post('/push-tokens', body: {'token': token, 'platform': platform, 'app_version': ?appVersion});
+
+  /// Stops pushes to this phone (on signing out).
+  Future<void> deletePushToken(String token) async => _client.delete('/push-tokens/${Uri.encodeComponent(token)}');
+
+  Future<InboxPage> inbox() async => InboxPage.fromJson(await _client.get('/notifications'));
+
+  /// Marks the given entries read, or all of them; returns how many are still unread.
+  Future<int> markRead([List<String>? ids]) async =>
+      ((_data(await _client.post('/notifications/read', body: {'ids': ?ids})))['unread'] as num?)?.toInt() ?? 0;
+
+  Future<AlertPreferences> alertPreferences() async => AlertPreferences.fromJson(await _client.get('/notifications/preferences'));
+
+  Future<AlertPreferences> saveAlertPreferences(AlertPreferences preferences) async =>
+      AlertPreferences.fromJson(await _client.put('/notifications/preferences', body: preferences.toJson()));
+
+  /// Who pays today ([scope] due) or who is late ([scope] late), each with the message ready in [language].
+  Future<List<DueReminder>> reminders({String scope = 'due', required String language}) async {
+    final json = await _client.get('/reminders/due-today', query: {'scope': scope, 'language': language});
+
+    return [for (final row in (json['data'] as List<dynamic>? ?? const [])) DueReminder.fromJson(row as Map<String, dynamic>)];
+  }
+
+  Future<List<ReminderWording>> reminderWording() async {
+    final json = await _client.get('/message-templates');
+
+    return [for (final row in (json['data'] as List<dynamic>? ?? const [])) ReminderWording.fromJson(row as Map<String, dynamic>)];
+  }
+
+  /// Saves the business's own words for [key] in [language]; empty words bring the default back.
+  Future<ReminderWording> saveReminderWording(String key, {required String language, required String body}) async =>
+      ReminderWording.fromJson(_data(await _client.put('/message-templates/$key', body: {'language': language, 'body': body})));
 
   // ---------------------------------------------------------------- backups and the activity log (Win Plan PP10)
 

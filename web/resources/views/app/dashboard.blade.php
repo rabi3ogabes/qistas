@@ -69,6 +69,9 @@
     <section class="card due" aria-labelledby="due-title">
         <div class="card-head">
             <h2 id="due-title">{{ __('Due today') }}</h2>
+            @if (($canRemind ?? false) && $metrics['due_today'] !== [])
+                <a class="btn btn-quiet btn-sm" href="{{ route('app.reminders.index') }}"><x-icon name="message" :size="16" /> {{ __('Remind everyone') }}</a>
+            @endif
         </div>
         @if ($metrics['due_today'] === [])
             <div class="empty">

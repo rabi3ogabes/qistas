@@ -14,9 +14,12 @@ use App\Http\Controllers\Api\V1\DeviceController;
 use App\Http\Controllers\Api\V1\DocumentController;
 use App\Http\Controllers\Api\V1\InvestorController;
 use App\Http\Controllers\Api\V1\MeController;
+use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\PlanController;
 use App\Http\Controllers\Api\V1\ProductController;
+use App\Http\Controllers\Api\V1\PushTokenController;
+use App\Http\Controllers\Api\V1\ReminderController;
 use App\Http\Controllers\Api\V1\SchedulePreviewController;
 use App\Http\Controllers\Api\V1\TagController;
 use App\Http\Controllers\Api\V1\TeamController;
@@ -113,6 +116,11 @@ Route::name('api.')->group(function (): void {
         Route::post('contracts/{contract}/archive', [ContractController::class, 'archive'])->whereUuid('contract')->name('contracts.archive');
         Route::post('contracts/{contract}/unarchive', [ContractController::class, 'unarchive'])->whereUuid('contract')->name('contracts.unarchive');
 
+        // Remind everyone due today, with the business's own wording (Win Plan PP9).
+        Route::get('reminders/due-today', [ReminderController::class, 'dueToday'])->name('reminders.due-today');
+        Route::get('message-templates', [ReminderController::class, 'templates'])->name('message-templates.index');
+        Route::put('message-templates/{key}', [ReminderController::class, 'updateTemplate'])->name('message-templates.update');
+
         Route::post('contracts/preview', SchedulePreviewController::class)->name('contracts.preview');
         Route::apiResource('contracts', ContractController::class)->only(['index', 'store', 'show']);
         Route::post('contracts/{contract}/cancel', [ContractController::class, 'cancel'])->name('contracts.cancel');
@@ -134,6 +142,13 @@ Route::name('api.')->group(function (): void {
             // The phones and browsers signed in to my account, and signing one out (Win Plan PP16).
             Route::get('devices', [DeviceController::class, 'index'])->name('devices.index');
             Route::delete('devices/{device}', [DeviceController::class, 'destroy'])->name('devices.destroy');
+            // Pushes, each person's alert choices and their inbox (Win Plan PP9).
+            Route::post('push-tokens', [PushTokenController::class, 'store'])->name('push-tokens.store');
+            Route::delete('push-tokens/{token}', [PushTokenController::class, 'destroy'])->where('token', '[^/]+')->name('push-tokens.destroy');
+            Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+            Route::post('notifications/read', [NotificationController::class, 'read'])->name('notifications.read');
+            Route::get('notifications/preferences', [NotificationController::class, 'preferences'])->name('notifications.preferences.show');
+            Route::put('notifications/preferences', [NotificationController::class, 'updatePreferences'])->name('notifications.preferences.update');
         });
     });
 });

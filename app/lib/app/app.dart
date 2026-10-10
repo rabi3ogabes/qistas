@@ -6,6 +6,7 @@ import '../core/config.dart';
 import '../core/design/qistas_theme.dart';
 import '../core/l10n/translations.dart';
 import '../data/appearance.dart';
+import '../features/notifications/alerts.dart';
 import '../features/security/app_lock_gate.dart';
 import 'providers.dart';
 import 'router.dart';
@@ -17,6 +18,8 @@ class QistasApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
+    // Keeps this phone registered for pushes while someone is signed in, and opens what a tapped push points to.
+    ref.watch(pushRegistrationProvider);
     final language = ref.watch(localeProvider);
     final mode = ref.watch(themeModeProvider);
     final brandFonts = ref.watch(brandFontsProvider);

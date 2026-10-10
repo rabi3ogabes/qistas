@@ -18,6 +18,7 @@ import '../../data/models.dart';
 import '../billing/upgrade_sheet.dart';
 import '../customers/tags.dart';
 import '../investors/investors_screen.dart';
+import '../notifications/alerts.dart';
 import '../products/products_screen.dart';
 import '../security/app_lock.dart';
 import 'tools_screen.dart';
@@ -69,6 +70,9 @@ class SettingsScreen extends ConsumerWidget {
     final products = showsContractDetails(account);
     // Tags that group customers (Win Plan PP12).
     final tags = showsTags(account);
+    // Alerts and the business's own reminder wording (Win Plan PP9).
+    final alerts = showsAlerts(account);
+    final wording = remindsEveryone(account) && (account?.canManageSettings ?? false);
 
     return SectionScaffold(
       title: context.t('Settings'),
@@ -120,6 +124,10 @@ class SettingsScreen extends ConsumerWidget {
                     _Row(key: const ValueKey('settings-products'), icon: Icons.inventory_2_outlined, title: context.t('Products'), onTap: () => context.push('/products')),
                   if (tags)
                     _Row(key: const ValueKey('settings-tags'), icon: Icons.sell_outlined, title: context.t('Customer tags'), onTap: () => context.push('/settings/tags')),
+                  if (alerts)
+                    _Row(key: const ValueKey('settings-alerts'), icon: Icons.notifications_none_rounded, title: context.t('Alert settings'), onTap: () => context.push('/settings/alerts')),
+                  if (wording)
+                    _Row(key: const ValueKey('settings-wording'), icon: Icons.edit_note_rounded, title: context.t('Reminder wording'), onTap: () => context.push('/settings/wording')),
                   if (hasTools) _Row(icon: Icons.tune_rounded, title: context.t('Instalment tools'), onTap: () => context.push('/tools')),
                 ]),
               ),

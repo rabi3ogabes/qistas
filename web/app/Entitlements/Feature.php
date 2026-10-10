@@ -21,6 +21,8 @@ enum Feature: string
     case OpenContracts = 'open_contracts';
     case ContractItems = 'contract_items';
     case CustomerTags = 'customer_tags';
+    case InstalmentAlerts = 'instalment_alerts';
+    case DailyDigest = 'daily_digest';
 
     /** How many customers the free plan keeps (tests and copy read this rather than repeating the number). */
     public const FREE_CUSTOMERS = 20;
@@ -30,7 +32,8 @@ enum Feature: string
         return match ($this) {
             self::Customers, self::ActiveContracts, self::ApiTokens, self::Members, self::Investors => FeatureType::Limit,
             self::PdfStatements => FeatureType::Quota,
-            self::ExportCsv, self::AdvancedReports, self::CustomBranding, self::FlexibleSchedules, self::OpenContracts, self::ContractItems, self::CustomerTags => FeatureType::Toggle,
+            self::ExportCsv, self::AdvancedReports, self::CustomBranding, self::FlexibleSchedules, self::OpenContracts, self::ContractItems, self::CustomerTags,
+            self::InstalmentAlerts, self::DailyDigest => FeatureType::Toggle,
         };
     }
 
@@ -50,6 +53,8 @@ enum Feature: string
             self::OpenContracts => __('Open contracts'),
             self::ContractItems => __('Contract details'),
             self::CustomerTags => __('Customer tags'),
+            self::InstalmentAlerts => __('Instalment alerts and remind-all'),
+            self::DailyDigest => __('Morning summary'),
         };
     }
 
@@ -61,7 +66,7 @@ enum Feature: string
             self::AdvancedReports, self::CustomBranding, self::ApiTokens => FeatureGroup::Core,
             self::Members, self::Investors => FeatureGroup::Team,
             self::FlexibleSchedules, self::OpenContracts, self::ContractItems => FeatureGroup::ContractTerms,
-            self::CustomerTags => FeatureGroup::Collecting,
+            self::CustomerTags, self::InstalmentAlerts, self::DailyDigest => FeatureGroup::Collecting,
         };
     }
 
@@ -82,6 +87,8 @@ enum Feature: string
             self::OpenContracts => __('A running tab with no schedule: what the customer takes and what they pay, with the balance always right. Any contract can become open.'),
             self::ContractItems => __('What was sold (with serials and IMEIs), its cost, the tax, a discount and the shop’s own contract number, with a list of products to pick from.'),
             self::CustomerTags => __('Tags such as “Shop 2” or “Government staff” that group customers and filter every list.'),
+            self::InstalmentAlerts => __('An alert on each instalment’s due date and once it is late, a checklist that reminds everyone due today on WhatsApp, and the business’s own reminder wording.'),
+            self::DailyDigest => __('Each morning, at the time each person chooses, how many pay today, how many are late and how much.'),
         };
     }
 
@@ -101,6 +108,8 @@ enum Feature: string
             self::OpenContracts => __('No new open contracts, charges or conversions. Open contracts already made keep their lines and balance, and still take payments.'),
             self::ContractItems => __('New contracts go back to a price and a plan. Contracts already made keep their items, numbers, costs and discounts.'),
             self::CustomerTags => __('Tags disappear from the lists and the forms. Customers keep their tags for when it is switched back on.'),
+            self::InstalmentAlerts => __('No more instalment alerts, and the remind-all checklist closes. Choices and wording are kept for when it is switched back on.'),
+            self::DailyDigest => __('No more morning summaries. Each person’s chosen time is kept.'),
         };
     }
 
@@ -113,7 +122,8 @@ enum Feature: string
     {
         return match ($this) {
             self::Customers, self::ActiveContracts, self::PdfStatements, self::ExportCsv,
-            self::AdvancedReports, self::CustomBranding, self::ApiTokens, self::Members, self::FlexibleSchedules, self::Investors, self::OpenContracts, self::ContractItems, self::CustomerTags => [],
+            self::AdvancedReports, self::CustomBranding, self::ApiTokens, self::Members, self::FlexibleSchedules, self::Investors, self::OpenContracts, self::ContractItems, self::CustomerTags,
+            self::InstalmentAlerts, self::DailyDigest => [],
         };
     }
 
@@ -129,7 +139,7 @@ enum Feature: string
     /** Part of the "essentials" preset: the small set worth switching on for every workspace first. */
     public function isEssential(): bool
     {
-        return in_array($this, [self::Members, self::FlexibleSchedules, self::OpenContracts, self::ContractItems, self::CustomerTags], true);
+        return in_array($this, [self::Members, self::FlexibleSchedules, self::OpenContracts, self::ContractItems, self::CustomerTags, self::InstalmentAlerts, self::DailyDigest], true);
     }
 
     /** 'workspace' features are assigned to plans; 'platform' ones (membership billing) are only switched. */
@@ -206,7 +216,8 @@ enum Feature: string
                 // Investors: the business's own capital only; partners come with Pro (Win Plan PP3).
                 self::ApiTokens, self::Members, self::Investors => ['enabled' => true, 'limit' => 1],
                 self::ExportCsv, self::AdvancedReports, self::CustomBranding => ['enabled' => false, 'limit' => null],
-                self::FlexibleSchedules, self::OpenContracts, self::ContractItems, self::CustomerTags => ['enabled' => true, 'limit' => null],
+                self::FlexibleSchedules, self::OpenContracts, self::ContractItems, self::CustomerTags,
+                self::InstalmentAlerts, self::DailyDigest => ['enabled' => true, 'limit' => null],
             },
             // Win Plan 6.4: Pro includes three people (the owner and two more), with no purchase per member.
             'pro' => $this === self::Members ? ['enabled' => true, 'limit' => 3] : ['enabled' => true, 'limit' => null],

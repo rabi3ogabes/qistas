@@ -15,6 +15,11 @@ use App\Models\Investor;
 use App\Models\Tenant;
 use App\Models\TenantInvitation;
 use App\Models\User;
+use App\Notifications\Alerts\DailyDigest;
+use App\Notifications\Push\FcmPushSender;
+use App\Notifications\Push\LogPushSender;
+use App\Notifications\Push\PushSender;
+use App\Settings\SettingDefinition;
 use App\Settings\SettingsRegistry;
 use App\Support\AppFirstTranslationLoader;
 use App\Tenancy\CurrentTenant;
@@ -49,6 +54,16 @@ class AppServiceProvider extends ServiceProvider
 
         // The settings features declare for the workspace owner (see App\Settings). One per application instance.
         $this->app->singleton(SettingsRegistry::class);
+
+        // Firebase once the owner has given its key (Win Plan PP9); until then pushes are only written to the log.
+        $this->app->bind(PushSender::class, function (): PushSender {
+            $raw = trim((string) config('qistas.push.fcm_credentials'));
+            $account = $raw === '' ? null : (json_decode($raw, true) ?? json_decode((string) base64_decode($raw, true), true));
+
+            return is_array($account) && isset($account['project_id'], $account['client_email'], $account['private_key'])
+                ? new FcmPushSender($account)
+                : new LogPushSender;
+        });
 
         // One per request: the live look is read once however many parts of a page ask for it.
         $this->app->scoped(Appearance::class);
@@ -105,6 +120,17 @@ class AppServiceProvider extends ServiceProvider
         ActivityRecorder::register();
         // Each customer's last activity, to sort the list by (Win Plan PP12).
         LastActivity::register();
+
+        // The late limit the morning summary counts against (Win Plan PP9).
+        app(SettingsRegistry::class)->register(new SettingDefinition(
+            key: DailyDigest::LATE_LIMIT_SETTING,
+            feature: Feature::DailyDigest,
+            type: 'int',
+            default: 30,
+            rules: ['min:1', 'max:365'],
+            label: fn () => __('Late limit, in days'),
+            help: fn () => __('The morning summary counts the customers later than this.'),
+        ));
 
         // Only a super admin changes what the platform has on, off or in beta; an admin may look.
         Gate::define('manage-platform-features', fn (User $user): bool => $user->platform_role === 'super_admin');

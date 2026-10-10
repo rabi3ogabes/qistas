@@ -36,6 +36,9 @@ final class DashboardMetrics
     /** How many late or coming instalments the briefing lists; the rest are one tap away in the contracts. */
     public const LIST_LIMIT = 25;
 
+    /** How many the remind-all checklist goes through in one sitting (Win Plan PP9). */
+    public const REMIND_LIMIT = 200;
+
     private const ROW_COLUMNS = [
         'installments.id', 'installments.amount', 'installments.paid_amount', 'installments.due_date',
         'contracts.id as contract_id', 'contracts.number as contract_number',
@@ -114,8 +117,28 @@ final class DashboardMetrics
         return Money::round(Money::div(Money::mul($this->money($row->paid ?? 0), '100'), $due), 1);
     }
 
+    /**
+     * Who pays today, for the remind-all checklist (Win Plan PP9): exactly the rows the dashboard lists, with more of them.
+     *
+     * @return list<array<string, string>>
+     */
+    public function dueTodayList(Tenant $tenant, CarbonInterface $now, int $limit = self::REMIND_LIMIT): array
+    {
+        return $this->current->use($tenant, fn () => $this->dueToday($now, $limit));
+    }
+
+    /**
+     * Who is late, oldest first, for the remind-all checklist: the briefing's rows, with more of them.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function lateList(Tenant $tenant, CarbonInterface $now, int $limit = self::REMIND_LIMIT): array
+    {
+        return $this->current->use($tenant, fn () => $this->lateRows($now, $limit));
+    }
+
     /** @return list<array<string, string>> */
-    private function dueToday(CarbonInterface $now): array
+    private function dueToday(CarbonInterface $now, int $limit = self::DUE_TODAY_LIMIT): array
     {
         return Installment::query()
             ->join('contracts', 'contracts.id', '=', 'installments.contract_id')
@@ -128,7 +151,7 @@ final class DashboardMetrics
             ->orderBy('installments.due_date')
             ->orderByRaw('LOWER(customers.name)')
             ->orderBy('contracts.number')
-            ->limit(self::DUE_TODAY_LIMIT)
+            ->limit($limit)
             // toBase() applies the tenant scope first, then gives plain rows rather than half-filled models.
             ->toBase()
             ->get(self::ROW_COLUMNS)
@@ -173,13 +196,13 @@ final class DashboardMetrics
     }
 
     /** @return list<array<string, mixed>> the oldest unpaid instalments first, each with how many days late it is */
-    private function lateRows(CarbonInterface $now): array
+    private function lateRows(CarbonInterface $now, int $limit = self::LIST_LIMIT): array
     {
         return $this->openInstallments()
             ->whereDate('installments.grace_until', '<', $now->toDateString())
             ->orderBy('installments.due_date')
             ->orderByRaw('LOWER(customers.name)')
-            ->limit(self::LIST_LIMIT)
+            ->limit($limit)
             ->toBase()
             ->get(self::ROW_COLUMNS)
             ->map(fn (object $row): array => $this->row($row) + ['days_late' => $this->daysBetween($row->due_date, $now)])

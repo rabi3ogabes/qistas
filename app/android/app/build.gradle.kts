@@ -8,6 +8,13 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Firebase pushes (Win Plan PP9) need the owner's Firebase project file. CI writes android/app/google-services.json from
+// a GitHub secret just before a build; it is never in the repository. Without it the app builds and runs as before, and
+// alerts wait in its inbox instead of arriving as pushes.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 // The owner's upload key for Google Play. CI writes android/key.properties (and the keystore it points to) from GitHub
 // secrets just before a build; neither is ever in the repository (see android/.gitignore and docs/store). Without it
 // the release build is signed with the debug key: a test build that installs from GitHub but cannot go to Play.

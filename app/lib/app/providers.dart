@@ -10,6 +10,7 @@ import '../core/api/api_client.dart';
 import '../core/api/api_exception.dart';
 import '../core/config.dart';
 import '../core/l10n/translations.dart';
+import '../core/push/push_service.dart';
 import '../core/storage/token_store.dart';
 import '../data/models.dart';
 import '../data/qistas_api.dart';
@@ -192,6 +193,7 @@ class AuthController extends AsyncNotifier<AuthState> {
   }
 
   Future<void> signOut() async {
+    await _stopPushes();
     try {
       await ref.read(apiProvider).logout();
     } on ApiException {
@@ -202,6 +204,7 @@ class AuthController extends AsyncNotifier<AuthState> {
   }
 
   Future<void> signOutEverywhere() async {
+    await _stopPushes();
     try {
       await ref.read(apiProvider).logoutEverywhere();
     } on ApiException {
@@ -209,6 +212,17 @@ class AuthController extends AsyncNotifier<AuthState> {
     }
     await _forget();
     state = const AsyncData(AuthState.signedOut());
+  }
+
+  /// Stops pushes to this phone (Win Plan PP9), while the session can still ask; signing out goes on either way.
+  Future<void> _stopPushes() async {
+    final token = ref.read(registeredPushTokenProvider).take();
+    if (token == null) return;
+    try {
+      await ref.read(apiProvider).deletePushToken(token);
+    } on ApiException {
+      // The server stops trying a phone Firebase reports gone.
+    }
   }
 
   /// The server said the token is no good: back to the sign-in screen, once, with an explanation.

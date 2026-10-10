@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Workspace;
 
+use App\Entitlements\Entitlements;
+use App\Entitlements\Feature;
 use App\Models\Contract;
 use App\Models\Customer;
 use App\Models\Transaction;
@@ -25,6 +27,8 @@ final class DashboardController
 
         return view('app.dashboard', [
             'metrics' => $metrics->for($tenant),
+            // Remind everyone (Win Plan PP9), once the platform has it on.
+            'canRemind' => Entitlements::for($tenant)->check(Feature::InstalmentAlerts)->enabled(),
             'currency' => $tenant->currency,
             'stepsDone' => $steps,
             'gettingStarted' => in_array(false, $steps, true),

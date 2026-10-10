@@ -16,3 +16,7 @@ Schedule::command('qistas:purge-deleted-accounts')->daily()->withoutOverlapping(
 
 // Every business's nightly copy (Win Plan PP10), a few businesses an hour so no run is long.
 Schedule::command('qistas:export-workspaces')->hourly()->withoutOverlapping(30);
+
+// The morning summary and the instalment alerts (Win Plan PP9): each person is told at their own time, once.
+Schedule::command('qistas:send-digests')->everyFiveMinutes()->withoutOverlapping(10);
+Schedule::command('qistas:instalment-alerts')->everyFiveMinutes()->withoutOverlapping(10);

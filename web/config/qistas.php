@@ -120,6 +120,14 @@ return [
     ],
 
     /*
+    | Pushes to phones (Win Plan PP9). The Firebase project's service account file, as JSON or base64 of it, set as a
+    | secret on the host by the owner. Without it pushes are only written to the log; the in-app inbox works either way.
+    */
+    'push' => [
+        'fcm_credentials' => env('QISTAS_FCM_CREDENTIALS'),
+    ],
+
+    /*
     | A developer aid, honoured only in the local environment: feature keys (comma separated) whose switches the
     | Feature control page treats as ordinary, so the cockpit can be tried while every real feature is still core.
     | Production ignores it.

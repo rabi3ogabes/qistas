@@ -11,6 +11,7 @@ import '../../core/l10n/formats.dart';
 import '../../core/l10n/translations.dart';
 import '../../core/money.dart';
 import '../../data/models.dart';
+import '../notifications/alerts.dart';
 
 /// The international dialling code of each country a business can start in. A number written the local way
 /// (a leading 0) is completed with its business's own code, so WhatsApp can find it.
@@ -37,7 +38,7 @@ String? whatsappNumber(String phone, String country) {
 }
 
 /// Words for a customer, in the app's language: a friendly reminder, or a firmer one once an instalment is late.
-String reminderMessage(BuildContext context, DueItem item, {required String currency, required String business, required String language}) {
+String reminderMessage(BuildContext context, DueItem item, {required String currency, required String business, required String language, String? custom}) {
   final params = {
     'name': item.customerName,
     'amount': item.amount.format(currency),
@@ -45,6 +46,9 @@ String reminderMessage(BuildContext context, DueItem item, {required String curr
     'reference': item.reference,
     'business': business,
   };
+
+  // The business's own words (Win Plan PP9), with the same placeholders filled in.
+  if (custom != null && custom.trim().isNotEmpty) return fillPlaceholders(custom, params);
 
   return item.isOverdue
       ? context.t('Hello :name, :amount for contract :reference has been overdue since :date. Could you settle it soon? Thank you. :business', params)
@@ -75,6 +79,17 @@ String receiptMessage(
   return remaining != null && remaining.isZero
       ? context.t('Hello :name, we received :amount on :date for contract :reference. It is now fully paid. Thank you. :business', params)
       : context.t('Hello :name, we received :amount on :date for contract :reference. Still to pay: :remaining. Thank you. :business', params);
+}
+
+/// [text] with every :placeholder replaced by its value (longest names first, so none is cut short).
+String fillPlaceholders(String text, Map<String, Object?> values) {
+  final names = values.keys.toList()..sort((a, b) => b.length.compareTo(a.length));
+  var filled = text;
+  for (final name in names) {
+    filled = filled.replaceAll(':$name', '${values[name] ?? ''}');
+  }
+
+  return filled;
 }
 
 Future<bool> _open(Uri uri) async {
@@ -129,7 +144,10 @@ class ReminderSheet extends ConsumerWidget {
     final language = ref.watch(localeProvider);
     final currency = account?.currency ?? '';
     final country = account?.country ?? '';
-    final message = reminderMessage(context, item, currency: currency, business: account?.businessName ?? '', language: language);
+    final custom = remindsEveryone(account)
+        ? ref.watch(reminderWordingProvider).valueOrNull?.where((w) => w.key == (item.isOverdue ? 'reminder_late' : 'reminder_due') && w.language == language && w.custom).firstOrNull?.body
+        : null;
+    final message = reminderMessage(context, item, currency: currency, business: account?.businessName ?? '', language: language, custom: custom);
 
     return SafeArea(
       child: SingleChildScrollView(

@@ -255,6 +255,19 @@
     .archived-list { display: grid; gap: .5rem; margin: .75rem 0 0; padding: 0; list-style: none; }
     .archived-only { margin: 0; padding: .875rem 1.25rem 0; }
 
+    /* Remind everyone (Win Plan PP9): one row per customer, the WhatsApp button always at the end of the line. */
+    .remind-list { margin: 0; padding: 0; list-style: none; counter-reset: remind; }
+    .remind-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: .5rem 1rem; padding: .875rem 1.25rem; border-bottom: 1px solid color-mix(in srgb, var(--q-line) 70%, transparent); }
+    .remind-row:last-child { border-bottom: 0; }
+    .remind-who { display: grid; gap: .125rem; justify-items: start; min-width: 0; }
+    .remind-amount { font-weight: 600; }
+    .wording-form textarea { width: 100%; resize: vertical; }
+    .tabs-compact { margin: 0; }
+    @media (max-width: 639px) {
+        .remind-row { grid-template-columns: minmax(0, 1fr) auto; }
+        .remind-send { grid-column: 1 / -1; justify-self: stretch; justify-content: center; }
+    }
+
     /* ---------- Backups and the activity log (Win Plan PP10) ---------- */
     .backup-grid { display: grid; gap: 1rem; margin-bottom: 1rem; }
     @media (min-width: 900px) { .backup-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); } }

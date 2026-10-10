@@ -18,8 +18,12 @@ import '../features/intro/splash_screen.dart';
 import '../features/investors/investor_detail_screen.dart';
 import '../features/investors/investor_form_screen.dart';
 import '../features/investors/investors_screen.dart';
+import '../features/notifications/alert_settings_screen.dart';
+import '../features/notifications/inbox_screen.dart';
 import '../features/payments/payments_screen.dart';
 import '../features/products/products_screen.dart';
+import '../features/reminders/remind_all_screen.dart';
+import '../features/reminders/reminder_wording_screen.dart';
 import '../features/search/search_screen.dart';
 import '../features/security/app_lock_settings_screen.dart';
 import '../features/settings/activity_log_screen.dart';
@@ -85,6 +89,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/settings/backups', builder: (_, _) => const BackupsScreen()),
       GoRoute(path: '/settings/activity', builder: (_, _) => const ActivityLogScreen()),
       GoRoute(path: '/settings/tags', builder: (_, _) => const TagsScreen()),
+      // Alerts and reminders (Win Plan PP9).
+      GoRoute(path: '/inbox', builder: (_, _) => const InboxScreen()),
+      GoRoute(path: '/settings/alerts', builder: (_, _) => const AlertSettingsScreen()),
+      GoRoute(path: '/settings/wording', builder: (_, _) => const ReminderWordingScreen()),
+      GoRoute(path: '/remind', builder: (_, state) => RemindAllScreen(scope: state.uri.queryParameters['scope'] ?? 'due')),
       GoRoute(
         path: '/investors',
         builder: (_, _) => const InvestorsScreen(),

@@ -14,6 +14,7 @@ use App\Http\Controllers\Workspace\FileController;
 use App\Http\Controllers\Workspace\InvestorController;
 use App\Http\Controllers\Workspace\PaymentController;
 use App\Http\Controllers\Workspace\ProductController;
+use App\Http\Controllers\Workspace\ReminderController;
 use App\Http\Controllers\Workspace\SecurityPolicyController;
 use App\Http\Controllers\Workspace\TagController;
 use App\Http\Controllers\Workspace\TeamController;
@@ -29,6 +30,10 @@ Route::get('billing', BillingController::class)->name('billing');
 Route::get('account/delete', [AccountDeletionController::class, 'show'])->name('account.delete.show');
 Route::post('account/delete', [AccountDeletionController::class, 'store'])->middleware('throttle:account-deletion')->name('account.delete.store');
 Route::delete('account/delete', [AccountDeletionController::class, 'destroy'])->name('account.delete.destroy');
+
+// Remind everyone due today, with the business's own wording (Win Plan PP9).
+Route::get('reminders', [ReminderController::class, 'index'])->name('reminders.index');
+Route::put('reminders/wording/{key}', [ReminderController::class, 'updateTemplate'])->name('reminders.templates.update');
 
 // The team: the people, their roles and invitations by link (Win Plan PP11).
 Route::middleware('feature:members')->group(function (): void {
