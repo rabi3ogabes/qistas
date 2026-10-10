@@ -81,6 +81,27 @@ void main() {
     });
   });
 
+  // A store build is signed with the owner's upload key, which CI writes from GitHub secrets at build time. The key and
+  // its passwords must never be in the repository; without them the build falls back to the debug key, as before.
+  group('the release build', () {
+    test('signs with the upload key from key.properties when it is there, and with the debug key otherwise', () {
+      final gradle = read('android/app/build.gradle.kts');
+      expect(gradle, contains('rootProject.file("key.properties")'));
+      expect(gradle, contains('signingConfigs.getByName("release")'));
+      expect(gradle, contains('signingConfigs.getByName("debug")'));
+    });
+
+    test('keeps the upload key and its passwords out of the repository', () {
+      expect(read('android/.gitignore'), allOf(contains('key.properties'), contains('**/*.jks')));
+      final secrets = Directory('android')
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((f) => !f.path.contains('${Platform.pathSeparator}build${Platform.pathSeparator}') && !f.path.contains('.gradle'))
+          .where((f) => f.path.endsWith('.jks') || f.path.endsWith('.keystore') || f.path.endsWith('key.properties'));
+      expect(secrets, isEmpty);
+    });
+  });
+
   // The fingerprint and face prompt (local_auth) needs a FragmentActivity, the biometric permission, and an AppCompat
   // launch theme, or it crashes on Android 8 and below. These only fail on a phone, so they are checked here.
   group('the app lock', () {

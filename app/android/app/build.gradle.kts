@@ -1,8 +1,21 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// The owner's upload key for Google Play. CI writes android/key.properties (and the keystore it points to) from GitHub
+// secrets just before a build; neither is ever in the repository (see android/.gitignore and docs/store). Without it
+// the release build is signed with the debug key: a test build that installs from GitHub but cannot go to Play.
+val uploadKeyProperties = Properties()
+val uploadKeyFile = rootProject.file("key.properties")
+val hasUploadKey = uploadKeyFile.exists()
+if (hasUploadKey) {
+    FileInputStream(uploadKeyFile).use { uploadKeyProperties.load(it) }
 }
 
 android {
@@ -27,11 +40,20 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            if (hasUploadKey) {
+                keyAlias = uploadKeyProperties["keyAlias"] as String
+                keyPassword = uploadKeyProperties["keyPassword"] as String
+                storeFile = file(uploadKeyProperties["storeFile"] as String)
+                storePassword = uploadKeyProperties["storePassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // Test builds (the GitHub release APK) are signed with the debug key. A store build needs its own
-            // upload key kept in secrets: add a signingConfig here before publishing to Google Play.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasUploadKey) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
         }
     }
 }

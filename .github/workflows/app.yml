@@ -88,6 +88,30 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
+      # The owner's upload key for Google Play, from repository secrets (see docs/store/GOOGLE_PLAY_LAUNCH.md). With
+      # all four set, the APK and the app bundle are signed with it; without them the build stays a debug-signed test.
+      - name: Use the upload key when it is set
+        id: signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ] && [ -n "$STORE_PASSWORD" ]; then
+            echo "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+            {
+              echo "storeFile=upload-keystore.jks"
+              echo "keyAlias=$KEY_ALIAS"
+              echo "keyPassword=$KEY_PASSWORD"
+              echo "storePassword=$STORE_PASSWORD"
+            } > android/key.properties
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+            echo "Signing with the upload key." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "No upload key in the repository secrets: this is a debug-signed test build (fine for GitHub, not for Google Play)." >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Build the APK
         id: build
         run: |
@@ -96,10 +120,19 @@ jobs:
           cp build/app/outputs/flutter-apk/app-release.apk ../qistas-app.apk
           cp build/app/outputs/flutter-apk/app-release.apk "../qistas-app-$VERSION.apk"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Build the app bundle for Google Play
+        if: steps.signing.outputs.signed == 'true'
+        run: |
+          VERSION=${{ steps.build.outputs.version }}
+          flutter build appbundle --release --build-name="$VERSION" --build-number="${{ github.run_number }}" --dart-define=APP_VERSION="$VERSION"
+          cp build/app/outputs/bundle/release/app-release.aab "../qistas-app-$VERSION.aab"
       - uses: actions/upload-artifact@v4
         with:
           name: qistas-app-android
-          path: qistas-app-${{ steps.build.outputs.version }}.apk
+          path: |
+            qistas-app-${{ steps.build.outputs.version }}.apk
+            qistas-app-${{ steps.build.outputs.version }}.aab
+          if-no-files-found: warn
           retention-days: 30
       # Only builds of main are published; a pull request just proves that it builds.
       # Every version of the app (app/pubspec.yaml) gets a release of its own, tagged app-v<version>, with its APK and
@@ -109,6 +142,7 @@ jobs:
         working-directory: .
         env:
           VERSION: ${{ steps.build.outputs.version }}
+          SIGNED: ${{ steps.signing.outputs.signed }}
         run: |
           PREVIOUS=$(git tag --list 'app-v*' --sort=-v:refname | grep -vx "app-v$VERSION" | head -n 1)
           RANGE="$GITHUB_SHA"
@@ -117,7 +151,11 @@ jobs:
             echo "**Qistas app $VERSION** for Android (build ${{ github.run_number }})."
             echo
             echo "**Install:** download \`qistas-app-$VERSION.apk\` on the phone, open it and allow installation from this source when asked."
-            echo "This is a test build signed with a debug key: if you already have an older one, uninstall it first."
+            if [ "$SIGNED" = "true" ]; then
+              echo "Signed with the Qistas upload key. \`qistas-app-$VERSION.aab\` is the file to upload to Google Play."
+            else
+              echo "This is a test build signed with a debug key: if you already have an older one, uninstall it first."
+            fi
             echo "It talks to https://qistas-puce.vercel.app, so you sign in with the same account as on the website."
             echo
             if [ -n "$PREVIOUS" ]; then echo "### What changed since ${PREVIOUS#app-v}"; else echo "### What is in this version"; fi
@@ -146,6 +184,13 @@ jobs:
           fail_on_unmatched_files: true
           files: qistas-app-${{ steps.build.outputs.version }}.apk
           body_path: release-notes.md
+      - name: Attach the app bundle for Google Play
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && steps.signing.outputs.signed == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: app-v${{ steps.build.outputs.version }}
+          fail_on_unmatched_files: true
+          files: qistas-app-${{ steps.build.outputs.version }}.aab
       # The address https://github.com/rabi3ogabes/qistas/releases/download/app-latest/qistas-app.apk keeps working and
       # always gives the newest build; the version's own release above is the one marked "Latest".
       - name: Keep the newest-build link working
