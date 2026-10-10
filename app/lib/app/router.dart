@@ -18,6 +18,7 @@ import '../features/investors/investor_detail_screen.dart';
 import '../features/investors/investor_form_screen.dart';
 import '../features/investors/investors_screen.dart';
 import '../features/payments/payments_screen.dart';
+import '../features/products/products_screen.dart';
 import '../features/search/search_screen.dart';
 import '../features/security/app_lock_settings_screen.dart';
 import '../features/settings/delete_account_screen.dart';
@@ -75,6 +76,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/delete-account', builder: (_, _) => const DeleteAccountScreen()),
       GoRoute(path: '/team', builder: (_, _) => const TeamScreen()),
       GoRoute(path: '/devices', builder: (_, _) => const DevicesScreen()),
+      GoRoute(path: '/products', builder: (_, _) => const ProductsScreen()),
       GoRoute(
         path: '/investors',
         builder: (_, _) => const InvestorsScreen(),

@@ -366,11 +366,36 @@ class _Body extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (contract.items.isNotEmpty) ...[
+                QSectionTitle(context.t('What was sold')),
+                QCard(
+                  padding: EdgeInsets.zero,
+                  child: Column(
+                    children: [
+                      for (final (index, item) in contract.items.indexed) ...[
+                        if (index > 0) const Divider(height: 1),
+                        ListTile(
+                          title: Text(item.quantity > 1 ? '${item.name} ×${item.quantity}' : item.name),
+                          subtitle: item.serial == null ? null : Directionality(textDirection: TextDirection.ltr, child: Text(item.serial!, style: text.bodySmall?.copyWith(color: c.inkMuted))),
+                          trailing: item.price == null ? null : MoneyText(item.price!, _currency, style: text.titleSmall),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
               QSectionTitle(context.t('Terms')),
               QCard(
                 child: Column(
                   children: [
+                    if (contract.title != null) _line(context, context.t('What was sold'), Flexible(child: Text(contract.title!, style: text.bodyLarge, textAlign: TextAlign.end))),
                     _line(context, context.t('Sale price'), MoneyText(contract.principal, _currency, style: text.bodyLarge)),
+                    if (contract.discountAmount?.isPositive ?? false) _line(context, context.t('Discount'), MoneyText(-contract.discountAmount!, _currency, style: text.bodyLarge)),
+                    if (contract.taxAmount != null) _line(context, context.t('Tax in the price'), MoneyText(contract.taxAmount!, _currency, style: text.bodyLarge)),
+                    if (contract.margin != null && account?.role != 'collector') ...[
+                      _line(context, context.t('What it cost you'), MoneyText(contract.costPrice!, _currency, style: text.bodyLarge)),
+                      _line(context, context.t('Margin'), MoneyText(contract.margin!, _currency, style: text.bodyLarge)),
+                    ],
                     if (contract.downPayment.isPositive) _line(context, context.t('Down payment'), MoneyText(contract.downPayment, _currency, style: text.bodyLarge)),
                     if (contract.type == 'scheduled') ...[
                       _line(context, context.t('Financed'), MoneyText(contract.financed, _currency, style: text.bodyLarge)),

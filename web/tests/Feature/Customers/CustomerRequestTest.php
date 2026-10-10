@@ -56,5 +56,5 @@ it('trims whitespace and turns empty optional fields into nothing', function () 
 it('only ever offers fields the customer table lets a client set', function () {
     $fields = array_keys((new CustomerRequest)->rules());
 
-    expect($fields)->toEqualCanonicalizing(['name', 'phone', 'phone_secondary', 'email', 'national_id', 'address', 'notes', 'remove_national_id']);
+    expect($fields)->toEqualCanonicalizing(['name', 'phone', 'phone_secondary', 'email', 'national_id', 'address', 'notes', 'remove_national_id', 'job']);
 });

@@ -34,6 +34,14 @@ use Illuminate\Support\Facades\DB;
  * @property string $markup_type
  * @property string $markup_value
  * @property string|null $notes
+ * @property string|null $title what was sold, in a line
+ * @property string|null $own_reference the shop's own number, unique in the workspace whatever its case
+ * @property string|null $cost_price what the goods cost the shop
+ * @property string|null $tax_percent the tax in the price, shown on documents
+ * @property string|null $tax_amount
+ * @property string $discount_type none | fixed | percent
+ * @property string $discount_value
+ * @property string $discount_amount taken off the price before the down payment
  * @property string|null $credit_limit an open contract's limit, which warns and never refuses
  * @property string|null $investor_id who funded it; null only for contracts made before investors, until the main investor takes them on
  * @property Carbon|null $settled_at
@@ -46,10 +54,10 @@ class Contract extends Model
     /** The lists a person can choose between. "late" is a running contract with an instalment past its date. */
     public const VIEWS = ['active', 'late', 'settled', 'cancelled', 'all'];
 
-    /** The human-readable reference shown to people, e.g. C-0042. */
+    /** The human-readable reference shown to people: the shop's own number when it has one, else e.g. C-0042. */
     public function reference(): string
     {
-        return 'C-'.str_pad((string) $this->number, 4, '0', STR_PAD_LEFT);
+        return $this->own_reference ?: 'C-'.str_pad((string) $this->number, 4, '0', STR_PAD_LEFT);
     }
 
     /** A running tab with no schedule (Win Plan PP4): its balance is what the customer took less what they paid. */
@@ -98,7 +106,19 @@ class Contract extends Model
             return $query->where('number', (int) $match[1]);
         }
 
-        return $query->whereIn('customer_id', Customer::query()->withTrashed()->search($term)->select('id'));
+        // The shop's own number, the serial or IMEI of what was sold (Win Plan PP7), or anything that finds the customer.
+        $lower = mb_strtolower($term);
+
+        return $query->where(fn (Builder $any) => $any
+            ->whereRaw('lower(own_reference) = ?', [$lower])
+            ->orWhereHas('items', fn (Builder $items) => $items->whereRaw('lower(serial) = ?', [$lower]))
+            ->orWhereIn('customer_id', Customer::query()->withTrashed()->search($term)->select('id')));
+    }
+
+    /** @return HasMany<ContractItem, $this> what was sold, in the order it was listed */
+    public function items(): HasMany
+    {
+        return $this->hasMany(ContractItem::class)->orderBy('position');
     }
 
     /** @return BelongsTo<Investor, $this> */
@@ -139,6 +159,11 @@ class Contract extends Model
             'markup_amount' => 'decimal:4',
             'total' => 'decimal:4',
             'credit_limit' => 'decimal:4',
+            'cost_price' => 'decimal:4',
+            'tax_percent' => 'decimal:4',
+            'tax_amount' => 'decimal:4',
+            'discount_value' => 'decimal:4',
+            'discount_amount' => 'decimal:4',
             'start_date' => 'date',
             'first_due_date' => 'date',
             'settled_at' => 'datetime',

@@ -112,7 +112,7 @@ class _Body extends ConsumerWidget {
     final running = customer.runningContracts ?? 0;
     var order = 0;
 
-    final hasDetails = customer.phoneSecondary != null || email != null || customer.address != null || customer.nationalId != null || customer.notes != null || hasPhone;
+    final hasDetails = customer.phoneSecondary != null || email != null || customer.address != null || customer.job != null || customer.nationalId != null || customer.notes != null || hasPhone;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -202,6 +202,7 @@ class _Body extends ConsumerWidget {
                       if (customer.phoneSecondary != null) QFact(context.t('Second phone'), customer.phoneSecondary!, latin: true),
                       if (email != null) QFact(context.t('Email'), email, latin: true),
                       if (customer.address != null) QFact(context.t('Address'), customer.address!),
+                      if (customer.job != null) QFact(context.t('Job or employer'), customer.job!),
                       if (customer.nationalId != null) QFact(context.t('National ID'), customer.nationalId!, latin: true),
                       if (customer.notes != null) QFact(context.t('Notes'), customer.notes!),
                     ],

@@ -84,8 +84,15 @@
                 <h2 id="terms-title" class="card-title">{{ __('Terms') }}</h2>
                 <dl class="facts">
                     <div><dt>{{ __('Customer') }}</dt><dd>{{ $customer->name }}</dd></div>
+                    @if ($contract->title)<div><dt>{{ __('What was sold') }}</dt><dd>{{ $contract->title }}</dd></div>@endif
                     <div><dt>{{ __('Contract date') }}</dt><dd class="money">{{ $contract->start_date->translatedFormat('j M Y') }}</dd></div>
                     <div><dt>{{ __('Price') }}</dt><dd class="money">{{ Format::money($contract->principal, $currency) }}</dd></div>
+                    @if (Money::isPositive($contract->discount_amount))
+                        <div><dt>{{ __('Discount') }}</dt><dd class="money">−{{ Format::money($contract->discount_amount, $currency) }}@if ($contract->discount_type === 'percent') <span class="muted">({{ rtrim(rtrim($contract->discount_value, '0'), '.') }}%)</span>@endif</dd></div>
+                    @endif
+                    @if ($contract->tax_amount !== null)
+                        <div><dt>{{ __('Tax in the price') }}</dt><dd class="money">{{ Format::money($contract->tax_amount, $currency) }} <span class="muted">({{ rtrim(rtrim($contract->tax_percent, '0'), '.') }}%)</span></dd></div>
+                    @endif
                     @if ($contract->type === 'scheduled')
                         <div><dt>{{ __('Down payment') }}</dt><dd class="money">{{ Format::money($contract->down_payment, $currency) }}</dd></div>
                         <div><dt>{{ __('Financed') }}</dt><dd class="money">{{ Format::money($contract->financed, $currency) }}</dd></div>
@@ -98,6 +105,11 @@
                         @if ($contract->grace_days > 0)<div><dt>{{ __('Grace days') }}</dt><dd class="money">{{ $contract->grace_days }}</dd></div>@endif
                     @else
                         <div><dt>{{ __('Payment terms') }}</dt><dd>{{ __('Paid in full on the day of the contract.') }}</dd></div>
+                    @endif
+                    @if ($contract->cost_price !== null && auth()->user()->roleIn($contract->tenant_id)?->seesInvestors())
+                        {{-- What it cost and what it earns, for the people who run the money (not collectors). --}}
+                        <div><dt>{{ __('What it cost you') }}</dt><dd class="money">{{ Format::money($contract->cost_price, $currency) }}</dd></div>
+                        <div><dt>{{ __('Margin') }}</dt><dd class="money">{{ Format::money(Money::sub(Money::add(Money::sub($contract->principal, $contract->discount_amount), $contract->markup_amount), $contract->cost_price, 2), $currency) }}</dd></div>
                     @endif
                     @if ($contract->investor !== null && auth()->user()->can('viewAny', Investor::class))
                         <div><dt>{{ __('Funded by') }}</dt><dd><a class="link" href="{{ route('app.investors.show', $contract->investor) }}">{{ MainInvestor::displayName($contract->investor) }}</a></dd></div>
@@ -139,6 +151,34 @@
         </div>
 
         <div class="stack">
+            @if ($contract->items->isNotEmpty())
+                <section class="card" aria-labelledby="sold-title">
+                    <div class="card-head"><h2 id="sold-title">{{ __('What was sold') }}</h2></div>
+                    <div class="table-wrap">
+                        <table class="table table-stack">
+                            <thead>
+                                <tr>
+                                    <th scope="col">{{ __('Item') }}</th>
+                                    <th scope="col">{{ __('Serial or IMEI') }}</th>
+                                    <th scope="col" class="num">{{ __('Quantity') }}</th>
+                                    <th scope="col" class="num">{{ __('Price') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($contract->items as $item)
+                                    <tr>
+                                        <td data-label="{{ __('Item') }}">{{ $item->name }}</td>
+                                        <td data-label="{{ __('Serial or IMEI') }}" class="money" dir="ltr">{{ $item->serial ?? '—' }}</td>
+                                        <td data-label="{{ __('Quantity') }}" class="num money">{{ $item->quantity }}</td>
+                                        <td data-label="{{ __('Price') }}" class="num money">{{ $item->price === null ? '—' : Format::money($item->price, $currency) }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            @endif
+
             <section class="card" aria-labelledby="schedule-title">
                 <div class="card-head"><h2 id="schedule-title">{{ __('Schedule') }}</h2></div>
                 <div class="table-wrap">

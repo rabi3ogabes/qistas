@@ -20,7 +20,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  *
  * The workspace and the creator are set by trusted code only (see BelongsToTenant and App\Actions\CreateCustomer).
  */
-#[Fillable(['name', 'phone', 'phone_secondary', 'email', 'national_id', 'address', 'notes'])]
+#[Fillable(['name', 'phone', 'phone_secondary', 'email', 'national_id', 'address', 'notes', 'job'])]
 #[Hidden(['national_id'])]
 class Customer extends Model
 {

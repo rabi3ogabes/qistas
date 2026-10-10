@@ -9,6 +9,7 @@ use App\Http\Controllers\Workspace\DashboardController;
 use App\Http\Controllers\Workspace\FileController;
 use App\Http\Controllers\Workspace\InvestorController;
 use App\Http\Controllers\Workspace\PaymentController;
+use App\Http\Controllers\Workspace\ProductController;
 use App\Http\Controllers\Workspace\SecurityPolicyController;
 use App\Http\Controllers\Workspace\TeamController;
 use App\Http\Controllers\Workspace\ToolsController;
@@ -41,6 +42,11 @@ Route::get('investors/{investor}', [InvestorController::class, 'show'])->whereUu
 Route::put('investors/{investor}', [InvestorController::class, 'update'])->whereUuid('investor')->name('investors.update');
 Route::post('investors/{investor}/entries', [InvestorController::class, 'storeEntry'])->whereUuid('investor')->name('investors.entries.store');
 Route::post('investor-entries/{entry}/reverse', [InvestorController::class, 'reverse'])->whereUuid('entry')->name('investor-entries.reverse');
+
+// The products list to pick from when opening a contract (Win Plan PP7).
+Route::get('products', [ProductController::class, 'index'])->name('products.index');
+Route::post('products', [ProductController::class, 'store'])->name('products.store');
+Route::put('products/{product}', [ProductController::class, 'update'])->whereUuid('product')->name('products.update');
 
 // A stored file (an ID photo, a proof of payment): a member whose role may see it is sent to a link that expires in minutes.
 Route::get('files/{file}', [FileController::class, 'show'])->name('files.show');

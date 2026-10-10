@@ -32,6 +32,8 @@ class SchedulePreviewRequest extends FormRequest
             'count' => [Rule::requiredIf(! $custom), 'nullable', 'integer', 'between:1,'.ScheduleGenerator::MAX_COUNT],
             'frequency' => ['required', $this->frequencyRule()],
             'first_due_date' => ['nullable', 'date_format:Y-m-d'],
+            'discount_type' => ['nullable', Rule::in(['none', 'fixed', 'percent'])],
+            'discount_value' => ['nullable', 'string', 'regex:/^\d{1,14}(\.\d{1,2})?$/'],
             ...$this->customScheduleRules($custom),
         ];
     }
@@ -58,6 +60,8 @@ class SchedulePreviewRequest extends FormRequest
             'count' => $value('count'),
             'frequency' => $value('frequency'),
             'first_due_date' => $value('first_due_date'),
+            'discount_type' => $value('discount_type'),
+            'discount_value' => $value('discount_value'),
             'custom_schedule' => $this->cleanCustomSchedule($this->input('custom_schedule')),
         ]);
     }

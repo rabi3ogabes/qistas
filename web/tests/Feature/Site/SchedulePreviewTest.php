@@ -20,7 +20,8 @@ it('returns the same schedule the server would store, to the cent', function () 
         'count' => 4, 'frequency' => 'monthly', 'first_due_date' => '2026-11-01',
     ]))->toArray();
 
-    preview()->assertOk()->assertExactJson($expected);
+    // The same schedule, and the discount at sale it was built after (none here).
+    preview()->assertOk()->assertExactJson([...$expected, 'discount' => '0.00']);
 });
 
 it('needs no account', function () {

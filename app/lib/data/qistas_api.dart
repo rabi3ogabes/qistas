@@ -117,6 +117,23 @@ class QistasApi {
 
   Future<Tool> saveTool(String key, Object? value) async => Tool.fromJson(_data(await _client.put('/settings/tools/${Uri.encodeComponent(key)}', body: {'value': value})));
 
+  // ----------------------------------------------------------------- products
+
+  Future<List<Product>> products({bool archived = false}) async {
+    final json = await _client.get('/products', query: {if (archived) 'archived': '1'});
+
+    return [for (final item in (json['data'] as List<dynamic>? ?? const [])) Product.fromJson(item as Map<String, dynamic>)];
+  }
+
+  Future<Product> createProduct({required String name, String? defaultPrice, String? cost, String? sku}) async => Product.fromJson(_data(await _client.post('/products', body: {
+        'name': name.trim(),
+        'default_price': ?defaultPrice,
+        'cost': ?cost,
+        if (sku != null && sku.trim().isNotEmpty) 'sku': sku.trim(),
+      })));
+
+  Future<Product> archiveProduct(String id, {bool archived = true}) async => Product.fromJson(_data(await _client.put('/products/$id', body: {'archived': archived})));
+
   // ------------------------------------------------------------------ devices
 
   Future<List<Device>> devices() async {
@@ -228,7 +245,16 @@ class QistasApi {
 
   Future<Contract> contract(String id) async => Contract.fromJson(_data(await _client.get('/contracts/$id')));
 
-  Future<Contract> createContract(ContractForm form) async => Contract.fromJson(_data(await _client.post('/contracts', body: form.toJson())));
+  /// Opens a contract. The server may add warnings that never stop the sale, such as a serial already on another
+  /// running contract.
+  Future<({Contract contract, List<String> warnings})> createContract(ContractForm form) async {
+    final json = await _client.post('/contracts', body: form.toJson());
+    final warnings = ((json['meta'] as Map<String, dynamic>?)?['warnings'] as List<dynamic>? ?? const [])
+        .map((w) => (w as Map<String, dynamic>)['message'] as String)
+        .toList();
+
+    return (contract: Contract.fromJson(_data(json)), warnings: warnings);
+  }
 
   Future<Contract> cancelContract(String id, {String? reason}) async =>
       Contract.fromJson(_data(await _client.post('/contracts/$id/cancel', body: {if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim()})));
@@ -312,6 +338,7 @@ class CustomerForm {
     this.address = '',
     this.notes = '',
     this.removeNationalId = false,
+    this.job = '',
   });
 
   final String name;
@@ -323,6 +350,9 @@ class CustomerForm {
   final String notes;
   final bool removeNationalId;
 
+  /// Where they work (Win Plan PP7).
+  final String job;
+
   Map<String, dynamic> toJson() => {
         'name': name.trim(),
         'phone': phone.trim(),
@@ -331,6 +361,7 @@ class CustomerForm {
         'national_id': nationalId.trim(),
         'address': address.trim(),
         'notes': notes.trim(),
+        'job': job.trim(),
         if (removeNationalId) 'remove_national_id': true,
       };
 }
@@ -354,6 +385,13 @@ class ContractForm {
     this.investorId,
     this.openingBalance = '',
     this.creditLimit = '',
+    this.title = '',
+    this.ownReference = '',
+    this.costPrice = '',
+    this.taxPercent = '',
+    this.discountType = 'none',
+    this.discountValue = '',
+    this.items = const [],
   });
 
   final String customerId;
@@ -383,6 +421,24 @@ class ContractForm {
   final String openingBalance;
   final String creditLimit;
 
+  /// Contract details (Win Plan PP7) and a discount at sale (PP6); empty means not given.
+  final String title;
+  final String ownReference;
+  final String costPrice;
+  final String taxPercent;
+  final String discountType;
+  final String discountValue;
+  final List<ContractItemForm> items;
+
+  Map<String, dynamic> get _details => {
+        if (title.trim().isNotEmpty) 'title': title.trim(),
+        if (ownReference.trim().isNotEmpty) 'own_reference': ownReference.trim(),
+        if (costPrice.isNotEmpty) 'cost_price': costPrice,
+        if (taxPercent.isNotEmpty) 'tax_percent': taxPercent,
+        if (discountType != 'none' && discountValue.isNotEmpty) ...{'discount_type': discountType, 'discount_value': discountValue},
+        if (items.isNotEmpty) 'items': [for (final item in items) item.toJson()],
+      };
+
   bool get _custom => frequency == ScheduleGenerator.custom;
 
   Map<String, dynamic> toJson() => type == 'open'
@@ -403,6 +459,7 @@ class ContractForm {
           'start_date': startDate,
           if (notes.trim().isNotEmpty) 'notes': notes.trim(),
           if (investorId != null) 'investor_id': investorId,
+          ..._details,
         }
       : {
           'customer_id': customerId,
@@ -418,6 +475,28 @@ class ContractForm {
           if (_custom) 'custom_schedule': [for (final entry in customSchedule) entry.toJson()],
           if (graceDays > 0) 'grace_days': graceDays,
           if (investorId != null) 'investor_id': investorId,
+          ..._details,
           if (notes.trim().isNotEmpty) 'notes': notes.trim(),
         };
+}
+
+/// One thing being sold, as typed in the contract form.
+class ContractItemForm {
+  const ContractItemForm({required this.name, this.quantity = 1, this.serial = '', this.price = '', this.cost = '', this.productId});
+
+  final String name;
+  final int quantity;
+  final String serial;
+  final String price;
+  final String cost;
+  final String? productId;
+
+  Map<String, dynamic> toJson() => {
+        'name': name.trim(),
+        'quantity': quantity,
+        if (serial.trim().isNotEmpty) 'serial': serial.trim(),
+        if (price.isNotEmpty) 'price': price,
+        if (cost.isNotEmpty) 'cost': cost,
+        'product_id': ?productId,
+      };
 }

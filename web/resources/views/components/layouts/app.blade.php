@@ -68,6 +68,9 @@
                         @feature('members')
                             <a class="menu-item" role="menuitem" href="{{ route('app.team.index') }}"><x-icon name="users" :size="18" /> {{ __('Team') }}</a>
                         @endfeature
+                        @feature('contract_items')
+                            <a class="menu-item" role="menuitem" href="{{ route('app.products.index') }}"><x-icon name="layers" :size="18" /> {{ __('Products') }}</a>
+                        @endfeature
                         {{-- Always there: the page holds the phone-security rule as well as the instalment tools. --}}
                         <a class="menu-item" role="menuitem" href="{{ route('app.settings.tools') }}"><x-icon name="sliders" :size="18" /> {{ $hasTools ? __('Instalment tools') : __('Settings') }}</a>
                         <a class="menu-item" role="menuitem" href="{{ route('security') }}"><x-icon name="shield" :size="18" /> {{ __('Security') }}</a>
@@ -137,6 +140,9 @@
                     @endforeach
                     @feature('members')
                         <a class="menu-item" role="menuitem" href="{{ route('app.team.index') }}"><x-icon name="users" :size="18" /> {{ __('Team') }}</a>
+                    @endfeature
+                    @feature('contract_items')
+                        <a class="menu-item" role="menuitem" href="{{ route('app.products.index') }}"><x-icon name="layers" :size="18" /> {{ __('Products') }}</a>
                     @endfeature
                     <a class="menu-item" role="menuitem" href="{{ route('app.settings.tools') }}"><x-icon name="sliders" :size="18" /> {{ $hasTools ? __('Instalment tools') : __('Settings') }}</a>
                     <a class="menu-item" role="menuitem" href="{{ route('security') }}"><x-icon name="shield" :size="18" /> {{ __('Security') }}</a>

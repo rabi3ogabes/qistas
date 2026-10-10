@@ -30,6 +30,7 @@
                 <div><dt>{{ __('Phone') }}</dt><dd class="money" dir="ltr">{{ $customer->phone }}</dd></div>
                 @if ($customer->phone_secondary)<div><dt>{{ __('Second phone') }}</dt><dd class="money" dir="ltr">{{ $customer->phone_secondary }}</dd></div>@endif
                 @if ($customer->email)<div><dt>{{ __('Email') }}</dt><dd dir="ltr">{{ $customer->email }}</dd></div>@endif
+                @if ($customer->job)<div><dt>{{ __('Job or employer') }}</dt><dd>{{ $customer->job }}</dd></div>@endif
                 @if ($customer->address)<div><dt>{{ __('Address') }}</dt><dd>{{ $customer->address }}</dd></div>@endif
                 @if ($customer->maskedNationalId())<div><dt>{{ __('National ID') }}</dt><dd class="money" dir="ltr">{{ $customer->maskedNationalId() }}</dd></div>@endif
                 @if ($customer->notes)<div><dt>{{ __('Notes') }}</dt><dd class="prewrap">{{ $customer->notes }}</dd></div>@endif

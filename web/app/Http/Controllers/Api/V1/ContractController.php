@@ -6,6 +6,7 @@ use App\Actions\CancelContract;
 use App\Actions\ConvertToOpen;
 use App\Actions\CreateContract;
 use App\Actions\RecordCharge;
+use App\Domain\Contracts\SerialCheck;
 use App\Domain\Ledger\LedgerLines;
 use App\Domain\Ledger\OpenAccount;
 use App\Http\Requests\CancelContractRequest;
@@ -48,8 +49,10 @@ final class ContractController
     public function store(ContractRequest $request, CreateContract $create): JsonResponse
     {
         $contract = $create->handle($this->current->get(), $request->validated(), $request->user());
+        // A serial already on another running contract warns and never refuses (Win Plan PP7).
+        $warnings = SerialCheck::warnings($contract);
 
-        return $this->one($contract)->response()->setStatusCode(201);
+        return $this->one($contract)->additional($warnings === [] ? [] : ['meta' => ['warnings' => $warnings]])->response()->setStatusCode(201);
     }
 
     public function show(Contract $contract): ContractResource
@@ -106,7 +109,7 @@ final class ContractController
         $after = $contract->isOpen() ? OpenAccount::runningBalances($contract) : [];
         LedgerLines::withReversals($lines)->each(fn (Transaction $line) => $line->setAttribute('balance_after', $after[$line->id] ?? null));
 
-        $contract->load(['customer', 'investor']);
+        $contract->load(['customer', 'investor', 'items']);
         $this->attachProgress(collect([$contract]));
         $contract->setAttribute('paid', $installments->reduce(fn (string $carry, Installment $i) => Money::add($carry, $i->paid_amount), '0'));
         $contract->setRelation('installments', $installments);

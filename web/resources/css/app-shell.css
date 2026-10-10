@@ -195,6 +195,24 @@
     /* Who did what under a ledger line; a void reads in the danger colour, quietly. */
     .who-void { color: color-mix(in srgb, var(--q-danger) 80%, var(--q-ink-muted)); }
 
+    /* ---------- What was sold (Win Plan PP7) ---------- */
+    /* Numbered rows of what, how many, serial, price and cost: stacked on a phone, one line on a wide screen. */
+    .sold { display: grid; gap: .75rem; margin: 0; padding: 0; border: 0; }
+    .sold-items { display: grid; gap: .625rem; margin: 0; padding: 0; list-style: none; }
+    .sold-item { display: grid; grid-template-columns: 1.75rem minmax(0, 1fr) 2.75rem; gap: .5rem; align-items: start; }
+    .sold-item .plan-date-number { margin-top: .5625rem; }
+    .sold-item-fields { display: grid; gap: .5rem; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .sold-product, .sold-serial { grid-column: span 6; }
+    .sold-name { grid-column: span 4; }
+    .sold-qty { grid-column: span 2; text-align: center; }
+    .sold-price, .sold-cost { grid-column: span 3; }
+    @media (min-width: 1100px) {
+        .sold-item-fields { grid-template-columns: 1.6fr 2fr .7fr 1.8fr 1.2fr 1.2fr; }
+        .sold-product, .sold-name, .sold-qty, .sold-serial, .sold-price, .sold-cost { grid-column: auto; }
+    }
+    .sold-total { justify-self: start; padding: 0; border: 0; background: none; font: inherit; font-size: .8125rem; cursor: pointer; }
+    .discount-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 8rem); gap: .5rem; }
+
     /* ---------- Open contracts ---------- */
     /* "They took" and "they paid": the same form twice, told apart by a quiet tint along the top. */
     .tab-entry { border-top: 3px solid var(--q-line); }

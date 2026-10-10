@@ -51,6 +51,7 @@ tags:
   - name: Instalment tools
   - name: Team
   - name: Investors
+  - name: Products
 paths:
   /plans:
     get:
@@ -969,6 +970,54 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "422": {$ref: "#/components/responses/ValidationFailed"}
+  /products:
+    get:
+      tags: [Products]
+      summary: The products to pick from when opening a contract
+      description: Archived ones with `archived=1`. No stock is counted.
+      parameters:
+        - {name: archived, in: query, schema: {type: boolean}}
+      responses:
+        "200":
+          description: The products, by name.
+          content: {application/json: {schema: {type: object, properties: {data: {type: array, items: {$ref: "#/components/schemas/Product"}}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+    post:
+      tags: [Products]
+      summary: Add a product
+      description: Anyone who writes. Needs the `contract_items` feature.
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/ProductInput"}}}
+      responses:
+        "201":
+          description: The product.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/Product"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/FeatureUnavailable"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+  /products/{product}:
+    put:
+      tags: [Products]
+      summary: Change or archive a product
+      parameters:
+        - {name: product, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - {$ref: "#/components/schemas/ProductInput"}
+                - {type: object, properties: {archived: {type: boolean}}}
+      responses:
+        "200":
+          description: The product.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/Product"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
   /devices:
     get:
       tags: [Account]
@@ -1369,6 +1418,23 @@ components:
           format: date
           nullable: true
           description: The owner asked to delete the business. It is read-only (writes answer 423 `workspace_deleting`) and is erased after this day unless the owner restores it.
+    Product:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        sku: {type: [string, "null"]}
+        default_price: {type: [string, "null"]}
+        cost: {type: [string, "null"]}
+        archived: {type: boolean}
+    ProductInput:
+      type: object
+      required: [name]
+      properties:
+        name: {type: string, maxLength: 120}
+        sku: {type: string, maxLength: 60}
+        default_price: {$ref: "#/components/schemas/Money"}
+        cost: {$ref: "#/components/schemas/Money"}
     Investor:
       type: object
       properties:
@@ -1630,6 +1696,26 @@ components:
         first_due_date: {type: string, format: date, description: Not used for custom.}
         notes: {type: string}
         investor_id: {type: string, format: uuid, description: "Who funds it; the business's own capital when left out. A partner needs the investors feature; collectors may not choose (422)."}
+        title: {type: string, maxLength: 120, description: "What was sold, in a line. This and the fields below need the contract_items feature."}
+        own_reference: {type: string, maxLength: 40, description: "The shop's own number, unique in the workspace whatever its case; it then names the contract instead of C-0001."}
+        cost_price: {$ref: "#/components/schemas/Money"}
+        tax_percent: {type: string, example: "15", description: "The tax already in the price, shown on documents."}
+        discount_type: {type: string, enum: [none, fixed, percent], description: "Taken off the price before the down payment; the schedule is built on what is left."}
+        discount_value: {type: string, example: "10"}
+        items:
+          type: array
+          maxItems: 10
+          description: "What was sold. A 15-digit serial is an IMEI and must pass its check digit (422). A serial already on another running contract warns in meta.warnings and never refuses."
+          items:
+            type: object
+            required: [name]
+            properties:
+              name: {type: string, maxLength: 120}
+              quantity: {type: integer, minimum: 1, maximum: 999}
+              serial: {type: string, maxLength: 60}
+              cost: {$ref: "#/components/schemas/Money"}
+              price: {$ref: "#/components/schemas/Money"}
+              product_id: {type: string, format: uuid}
     PreviewInput:
       type: object
       required: [principal, frequency]
@@ -1685,6 +1771,26 @@ components:
         frequency: {type: string}
         grace_days: {type: integer, description: Days after a due date before the instalment counts as late.}
         credit_limit: {type: [string, "null"], description: "An open contract's limit; past it the app warns and never refuses."}
+        title: {type: [string, "null"]}
+        own_reference: {type: [string, "null"], description: "When set, `reference` is this."}
+        cost_price: {type: [string, "null"]}
+        tax_percent: {type: [string, "null"]}
+        tax_amount: {type: [string, "null"], description: The tax in the price after any discount.}
+        discount_type: {type: string, enum: [none, fixed, percent]}
+        discount_value: {$ref: "#/components/schemas/Money"}
+        discount_amount: {$ref: "#/components/schemas/Money"}
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id: {type: string, format: uuid}
+              name: {type: string}
+              quantity: {type: integer}
+              serial: {type: [string, "null"]}
+              cost: {type: [string, "null"]}
+              price: {type: [string, "null"]}
+              product_id: {type: [string, "null"]}
         investor: {type: object, description: Who funded it; left out for collectors., properties: {id: {type: string, format: uuid}, name: {type: string}, is_main: {type: boolean}}}
         start_date: {type: string, format: date}
         first_due_date: {type: string, format: date}

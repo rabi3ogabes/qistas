@@ -19,6 +19,9 @@ import '../billing/upgrade_sheet.dart';
 import '../customers/customer_detail_screen.dart';
 import '../investors/investors_screen.dart';
 import '../payments/payments_state.dart';
+import '../products/products_screen.dart';
+import '../products/scanner.dart';
+import 'sold_items.dart';
 
 /// Opens a contract: who it is for, what was sold and how it is paid. The schedule is worked out on the phone as
 /// the numbers are typed (the same arithmetic the server uses), so the customer can be shown it before anything is saved.
@@ -51,6 +54,14 @@ class _ContractFormScreenState extends ConsumerState<ContractFormScreen> {
   final _notes = TextEditingController();
   final _opening = TextEditingController();
   final _creditLimit = TextEditingController();
+  // Contract details (Win Plan PP7) and a discount at sale (PP6).
+  final _title = TextEditingController();
+  final _ownReference = TextEditingController();
+  final _costPrice = TextEditingController();
+  final _taxPercent = TextEditingController();
+  final _discountValue = TextEditingController();
+  String _discountType = 'none';
+  final List<SoldItemRow> _items = [];
 
   Customer? _customer;
   bool _loadingCustomer = false;
@@ -98,8 +109,11 @@ class _ContractFormScreenState extends ConsumerState<ContractFormScreen> {
 
   @override
   void dispose() {
-    for (final controller in [_principal, _down, _markup, _notes, _opening, _creditLimit, for (final row in _rows) row.amount]) {
+    for (final controller in [_principal, _down, _markup, _notes, _opening, _creditLimit, _title, _ownReference, _costPrice, _taxPercent, _discountValue, for (final row in _rows) row.amount]) {
       controller.dispose();
+    }
+    for (final item in _items) {
+      item.dispose();
     }
     super.dispose();
   }
@@ -127,9 +141,33 @@ class _ContractFormScreenState extends ConsumerState<ContractFormScreen> {
           if (!row.isBlank) ScheduleEntry(row.date == null ? '' : isoDay(row.date!), _amount(row.amount) ?? row.amount.text.trim()),
       ];
 
+  /// A discount at sale, taken off the price before the schedule (the server's rule: a percent rounds half up to the
+  /// cent). Null when none is asked for, or when what is typed is not one.
+  Money? _discountOf(Money price) {
+    if (_discountType == 'none') return null;
+    final value = Money.parseTyped(_discountValue.text);
+    if (value == null) return null;
+
+    return _discountType == 'fixed'
+        ? value
+        : Money.fromCents((price.cents * value.cents + BigInt.from(5000)) ~/ BigInt.from(10000));
+  }
+
+  /// The discount on the price as typed, for the preview; null when there is none.
+  Money? get _discountNow {
+    final typed = _amount(_principal);
+    final discount = typed == null ? null : _discountOf(Money.parse(typed));
+
+    return discount != null && discount.isPositive ? discount : null;
+  }
+
   ScheduleRequest? _request({String? frequency}) {
-    final principal = _amount(_principal);
-    if (principal == null) return null;
+    final typed = _amount(_principal);
+    if (typed == null) return null;
+    final discount = _discountOf(Money.parse(typed));
+    // The schedule is built on the price once the discount is off; a discount as large as the price shows as an
+    // impossible price.
+    final principal = discount == null ? typed : (Money.parse(typed) - discount).toDecimalString();
     final rhythm = frequency ?? _frequency;
 
     return ScheduleRequest(
@@ -255,6 +293,67 @@ class _ContractFormScreenState extends ConsumerState<ContractFormScreen> {
     });
   }
 
+  void _addItem([SoldItemRow? row]) => setState(() => _items.add(row ?? SoldItemRow()));
+
+  void _removeItem(SoldItemRow row) {
+    setState(() => _items.remove(row));
+    WidgetsBinding.instance.addPostFrameCallback((_) => row.dispose());
+  }
+
+  /// The camera reads the serial or IMEI straight into the row.
+  Future<void> _scanInto(SoldItemRow row) async {
+    final code = await ref.read(barcodeScannerProvider)(context);
+    if (code != null && mounted) setState(() => row.serial.text = code);
+  }
+
+  /// A product from the list fills a new row with its name, price and cost, and the sale's price while it is empty.
+  Future<void> _pickProduct() async {
+    final product = await showModalBottomSheet<Product>(
+      context: context,
+      showDragHandle: true,
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (context) => Consumer(
+        builder: (context, ref, _) => ref.watch(productsProvider).when(
+              loading: () => const Padding(padding: EdgeInsets.all(24), child: QSkeletonList(rows: 3)),
+              error: (error, _) => Padding(padding: const EdgeInsets.all(24), child: Text(errorMessage(context, error))),
+              data: (products) => ListView(
+                shrinkWrap: true,
+                padding: const EdgeInsets.fromLTRB(8, 0, 8, 24),
+                children: [
+                  Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 8), child: Text(context.t('Pick a product'), style: Theme.of(context).textTheme.titleLarge)),
+                  if (products.isEmpty)
+                    Padding(padding: const EdgeInsets.all(12), child: Text(context.t('No products yet. Add them under Settings, Products.')))
+                  else
+                    for (final product in products)
+                      ListTile(
+                        title: Text(product.name),
+                        trailing: product.defaultPrice == null ? null : MoneyText(product.defaultPrice!, ref.read(accountProvider)?.currency ?? ''),
+                        onTap: () => Navigator.of(context).pop(product),
+                      ),
+                ],
+              ),
+            ),
+      ),
+    );
+    if (product == null || !mounted) return;
+
+    _addItem(SoldItemRow(
+      name: product.name,
+      price: product.defaultPrice?.toDecimalString() ?? '',
+      cost: product.cost?.toDecimalString() ?? '',
+      productId: product.id,
+    ));
+    _fillPriceFromItems();
+  }
+
+  /// While the sale's price is empty, it is what the items add up to.
+  void _fillPriceFromItems() {
+    if (_principal.text.trim().isNotEmpty) return;
+    final total = _items.fold(Money.zero, (Money sum, row) => sum + Money.fromCents((Money.parseTyped(row.price.text)?.cents ?? BigInt.zero) * BigInt.from(row.count)));
+    if (total.isPositive) setState(() => _principal.text = total.toDecimalString());
+  }
+
   void _replaceRows(List<_DateRow> rows) {
     for (final row in _rows) {
       row.amount.dispose();
@@ -348,18 +447,29 @@ class _ContractFormScreenState extends ConsumerState<ContractFormScreen> {
       investorId: _investorId,
       openingBalance: open ? opening ?? '' : '',
       creditLimit: open ? creditLimit ?? '' : '',
+      title: open ? '' : _title.text,
+      ownReference: open ? '' : _ownReference.text,
+      costPrice: open || _costPrice.text.trim().isEmpty ? '' : _amount(_costPrice) ?? _costPrice.text.trim(),
+      taxPercent: open || _taxPercent.text.trim().isEmpty ? '' : _amount(_taxPercent) ?? _taxPercent.text.trim(),
+      discountType: open ? 'none' : _discountType,
+      discountValue: open || _discountType == 'none' || _discountValue.text.trim().isEmpty ? '' : _amount(_discountValue) ?? _discountValue.text.trim(),
+      items: open ? const [] : [for (final item in _items) ?item.toForm()],
       customSchedule: scheduled && _isCustom && preview != null
           ? [for (final row in preview.installments) ScheduleEntry(row.dueDate, row.amount.toDecimalString())]
           : const [],
     );
 
     try {
-      final contract = await ref.read(apiProvider).createContract(form);
+      final (:contract, :warnings) = await ref.read(apiProvider).createContract(form);
       refreshAfterMoney(ref, customerId: customer.id);
       ref.invalidate(customerProvider(customer.id));
       await ref.read(authProvider.notifier).refresh();
 
-      if (mounted) context.pushReplacement('/contracts/${contract.id}');
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      context.pushReplacement('/contracts/${contract.id}');
+      // The sale went through; the person at the counter still sees what the server noticed.
+      if (warnings.isNotEmpty) messenger.showSnackBar(SnackBar(content: Text(warnings.join('\n')), duration: const Duration(seconds: 8)));
     } on UpgradeRequired catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
@@ -392,6 +502,8 @@ class _ContractFormScreenState extends ConsumerState<ContractFormScreen> {
     final open = _type == 'open';
     // A running tab (Win Plan PP4), once the server lists the feature and it is on.
     final offersOpen = account?.entitlements['open_contracts']?.isOn ?? false;
+    // What was sold, a discount, the tax and the shop's own number (Win Plan PP7), while the feature is on.
+    final details = showsContractDetails(account);
     final custom = scheduled && _isCustom;
     final (preview, previewErrors) = _preview(context);
 
@@ -469,6 +581,23 @@ class _ContractFormScreenState extends ConsumerState<ContractFormScreen> {
                       enabled: !_saving,
                     ),
                   ],
+                  if (!open && details) ...[
+                    const SizedBox(height: 20),
+                    Text(context.t('What was sold'), style: text.labelLarge),
+                    const SizedBox(height: 8),
+                    QField(controller: _title, label: context.t('In a line (optional)'), helper: context.t('Shown on the contract and its documents, e.g. iPhone 16 Pro, 256 GB.'), enabled: !_saving, maxLength: 120),
+                    const SizedBox(height: 12),
+                    SoldItemsEditor(
+                      rows: _items,
+                      enabled: !_saving,
+                      error: _error('items') ?? _fields.entries.where((e) => e.key.startsWith('items.')).map((e) => e.value.firstOrNull).nonNulls.firstOrNull,
+                      onChanged: () => setState(() {}),
+                      onAdd: _addItem,
+                      onPick: _pickProduct,
+                      onRemove: _removeItem,
+                      onScan: _scanInto,
+                    ),
+                  ],
                   if (!open) const SizedBox(height: 20),
                   if (!open) QField(
                     controller: _principal,
@@ -480,6 +609,34 @@ class _ContractFormScreenState extends ConsumerState<ContractFormScreen> {
                     enabled: !_saving,
                     onChanged: (_) => setState(() {}),
                   ),
+                  if (!open && details) ...[
+                    const SizedBox(height: 16),
+                    Text(context.t('Discount (optional)'), style: text.labelLarge),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final (value, label) in [('none', context.t('No discount')), ('fixed', context.t('An amount')), ('percent', context.t('A percentage'))])
+                          ChoiceChip(label: Text(label), selected: _discountType == value, onSelected: _saving ? null : (_) => setState(() => _discountType = value)),
+                      ],
+                    ),
+                    if (_discountType != 'none') ...[
+                      const SizedBox(height: 12),
+                      KeyedSubtree(
+                        key: const ValueKey('discount-value'),
+                        child: QField(
+                          controller: _discountValue,
+                          label: _discountType == 'percent' ? context.t('Discount, %') : context.t('Discount (:currency)', {'currency': currency}),
+                          errorText: _error('discount_value'),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          latin: true,
+                          enabled: !_saving,
+                          onChanged: (_) => setState(() {}),
+                        ),
+                      ),
+                    ],
+                  ],
                   if (scheduled) ...[
                     const SizedBox(height: 16),
                     QField(
@@ -628,10 +785,23 @@ class _ContractFormScreenState extends ConsumerState<ContractFormScreen> {
                     ),
                   ],
                   const SizedBox(height: 20),
+                  if (!open && details) ...[
+                    QField(controller: _ownReference, label: context.t('Your contract number (optional)'), helper: context.t('Your own number, if you keep one. Otherwise contracts are numbered C-0001, C-0002 and on.'), errorText: _error('own_reference'), latin: true, enabled: !_saving, maxLength: 40),
+                    const SizedBox(height: 16),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: QField(controller: _taxPercent, label: context.t('Tax in the price, %'), errorText: _error('tax_percent'), keyboardType: const TextInputType.numberWithOptions(decimal: true), latin: true, enabled: !_saving)),
+                        const SizedBox(width: 12),
+                        Expanded(child: QField(controller: _costPrice, label: context.t('What it cost you'), errorText: _error('cost_price'), keyboardType: const TextInputType.numberWithOptions(decimal: true), latin: true, enabled: !_saving)),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                  ],
                   QField(controller: _notes, label: context.t('Notes (optional)'), maxLines: 3, enabled: !_saving, maxLength: 2000),
                   if (scheduled && preview != null) ...[
                     QSectionTitle(context.t('Schedule preview')),
-                    _Preview(result: preview, currency: currency, language: language),
+                    _Preview(result: preview, currency: currency, language: language, discount: details && !open ? _discountNow : null),
                   ],
                   const SizedBox(height: 24),
                   QButton(label: context.t('Open contract'), icon: Icons.check, loading: _saving, onPressed: _save),
@@ -995,11 +1165,14 @@ class _CountDialogState extends State<_CountDialog> {
 
 /// The schedule as it would be saved: the totals, then the instalments (the middle ones folded away when many).
 class _Preview extends StatelessWidget {
-  const _Preview({required this.result, required this.currency, required this.language});
+  const _Preview({required this.result, required this.currency, required this.language, this.discount});
 
   final ScheduleResult result;
   final String currency;
   final String language;
+
+  /// The discount at sale taken off the price, so the financed amount under it adds up.
+  final Money? discount;
 
   @override
   Widget build(BuildContext context) {
@@ -1017,6 +1190,7 @@ class _Preview extends StatelessWidget {
     return QCard(
       child: Column(
         children: [
+          if (discount != null) line(context.t('Discount'), MoneyText(discount!, currency, style: text.bodyLarge)),
           line(context.t('Financed'), MoneyText(result.financed, currency, style: text.bodyLarge)),
           if (result.markup.isPositive) line(context.t('Markup'), MoneyText(result.markup, currency, style: text.bodyLarge)),
           line(context.t('Total to collect'), MoneyText(result.total, currency, style: text.titleSmall)),

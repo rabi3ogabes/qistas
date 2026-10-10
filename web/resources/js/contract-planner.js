@@ -28,6 +28,10 @@ export function contractPlanner() {
         frequency: 'monthly',
         firstDue: '',
         customRows: [], // the shop's own dates: { key, due_date, amount }
+        discountType: 'none',
+        discountValue: '',
+        items: [], // what was sold: { key, product_id, name, quantity, serial, price, cost }
+        products: [],
 
         // output
         schedule: null,
@@ -53,9 +57,11 @@ export function contractPlanner() {
             this.currency = config.currency;
             this.messages = config.messages;
             this.labels = config.labels ?? {};
-            const { customRows = [], ...initial } = config.initial;
+            const { customRows = [], items = [], ...initial } = config.initial;
             Object.assign(this, initial);
+            this.products = config.products ?? [];
             this.customRows = customRows.map((row) => this.row(row.due_date, row.amount));
+            this.items = items.map((item) => this.item(item));
             if (this.isCustom && this.customRows.length === 0) this.customRows = [this.row(this.firstDue, '')];
 
             if (this.wantsPreview) this.run();
@@ -86,6 +92,39 @@ export function contractPlanner() {
 
         removeRow(index) {
             this.customRows.splice(index, 1);
+            this.changed();
+        },
+
+        item(values = {}) {
+            this.lastKey += 1;
+            return { key: this.lastKey, product_id: '', name: '', quantity: '1', serial: '', price: '', cost: '', ...values };
+        },
+
+        addItem() {
+            if (this.canAddItem) this.items.push(this.item());
+        },
+
+        removeItem(index) {
+            this.items.splice(index, 1);
+        },
+
+        // A product picked from the list fills in what it is, its price and its cost.
+        pickProduct(index) {
+            const item = this.items[index];
+            const product = this.products.find((p) => p.id === item.product_id);
+            if (!product) return;
+            item.name = product.name;
+            if (product.price !== '') item.price = product.price;
+            if (product.cost !== '') item.cost = product.cost;
+        },
+
+        itemName(index, field) {
+            return `items[${index}][${field}]`;
+        },
+
+        // The items' prices, added up, offered as the contract's price when it differs.
+        useItemsTotal() {
+            this.price = this.itemsTotal;
             this.changed();
         },
 
@@ -136,6 +175,8 @@ export function contractPlanner() {
                         frequency: this.frequency,
                         first_due_date: this.isCustom ? null : (this.firstDue || null),
                         custom_schedule: this.isCustom ? this.typedRows : null,
+                        discount_type: this.discountType,
+                        discount_value: this.hasDiscount ? (this.discountValue || '0') : null,
                     }),
                 });
 
@@ -176,6 +217,18 @@ export function contractPlanner() {
 
         get isScheduled() { return this.type === 'scheduled'; },
         get isOpen() { return this.type === 'open'; },
+        get hasDiscount() { return this.discountType !== 'none'; },
+        get canAddItem() { return this.items.length < 10; },
+        get itemsTotal() {
+            const cents = this.items.reduce((sum, item) => {
+                const price = Number(ascii(item.price));
+                const quantity = Math.max(1, parseInt(ascii(item.quantity), 10) || 1);
+                return Number.isFinite(price) && ascii(item.price) !== '' ? sum + Math.round(price * 100) * quantity : sum;
+            }, 0);
+            return cents > 0 ? (cents / 100).toFixed(2) : '';
+        },
+        get offersItemsTotal() { return this.itemsTotal !== '' && this.itemsTotal !== ascii(this.price); },
+        get itemsTotalLabel() { return `${this.labels.useTotal ?? ''} ${this.money(this.itemsTotal)}`.trim(); },
         get isCustom() { return this.frequency === 'custom'; },
         // The rows with anything in them; a line left blank is not a payment.
         get typedRows() {
@@ -196,6 +249,9 @@ export function contractPlanner() {
         get each() { return this.hasResult ? this.money(this.schedule.installments[0].amount) : ''; },
         get times() { return this.hasResult ? String(this.schedule.installments.length) : ''; },
         get total() { return this.hasResult ? this.money(this.schedule.total) : ''; },
+        // The discount at sale the server took off the price, so the financed amount below it adds up.
+        get hasDiscountOff() { return this.hasResult && Number(this.schedule.discount ?? 0) > 0; },
+        get discountOff() { return this.hasDiscountOff ? this.money(this.schedule.discount) : ''; },
         get financed() { return this.hasResult ? this.money(this.schedule.financed) : ''; },
         get markupAmount() { return this.hasResult ? this.money(this.schedule.markup) : ''; },
         get lastDue() { return this.hasResult ? this.shortDate(this.schedule.installments.at(-1).due_date) : ''; },

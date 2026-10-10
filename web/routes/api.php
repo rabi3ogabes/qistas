@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\InvestorController;
 use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\PlanController;
+use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\SchedulePreviewController;
 use App\Http\Controllers\Api\V1\TeamController;
 use App\Http\Controllers\Api\V1\TokenController;
@@ -69,6 +70,11 @@ Route::name('api.')->group(function (): void {
             Route::post('investors/{investor}/entries', [InvestorController::class, 'storeEntry'])->whereUuid('investor')->name('investors.entries.store');
             Route::post('investor-entries/{entry}/reverse', [InvestorController::class, 'reverse'])->whereUuid('entry')->name('investor-entries.reverse');
         });
+
+        // The products list to pick from when opening a contract (Win Plan PP7).
+        Route::get('products', [ProductController::class, 'index'])->name('products.index');
+        Route::post('products', [ProductController::class, 'store'])->name('products.store');
+        Route::put('products/{product}', [ProductController::class, 'update'])->whereUuid('product')->name('products.update');
 
         Route::apiResource('customers', CustomerController::class);
 

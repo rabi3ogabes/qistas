@@ -29,6 +29,7 @@ class CustomerResource extends JsonResource
             'national_id' => $this->maskedNationalId(),
             'address' => $this->address,
             'notes' => $this->notes,
+            'job' => $this->job,
             'created_at' => $this->moment($this->created_at),
             'owed' => $this->when($this->getAttribute('owed') !== null, fn () => $this->money($this->getAttribute('owed'))),
             'running_contracts' => $this->when($this->getAttribute('running_contracts') !== null, fn () => (int) $this->getAttribute('running_contracts')),

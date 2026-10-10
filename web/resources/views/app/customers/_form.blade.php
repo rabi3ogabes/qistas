@@ -8,6 +8,7 @@
     <x-field name="phone" type="tel" :label="__('Phone')" :value="$customer->phone" inputmode="tel" autocomplete="off" dir="ltr" required />
     <x-field name="phone_secondary" type="tel" :label="__('Second phone (optional)')" :value="$customer->phone_secondary" inputmode="tel" autocomplete="off" dir="ltr" />
     <x-field wide name="email" type="email" :label="__('Email (optional)')" :value="$customer->email" inputmode="email" autocapitalize="none" autocomplete="off" dir="ltr" />
+    <x-field wide name="job" :label="__('Job or employer (optional)')" :value="$customer->job" autocomplete="off" maxlength="120" />
 
     @if ($editing && $customer->maskedNationalId())
         <x-field wide name="national_id" :label="__('National ID')" autocomplete="off"

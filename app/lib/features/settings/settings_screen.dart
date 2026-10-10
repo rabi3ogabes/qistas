@@ -17,6 +17,7 @@ import '../../core/l10n/translations.dart';
 import '../../data/models.dart';
 import '../billing/upgrade_sheet.dart';
 import '../investors/investors_screen.dart';
+import '../products/products_screen.dart';
 import '../security/app_lock.dart';
 import 'tools_screen.dart';
 
@@ -63,6 +64,8 @@ class SettingsScreen extends ConsumerWidget {
     final showsTeam = account?.shows('members') ?? false;
     // Who funds the business: never for a collector (Win Plan PP3).
     final investors = showsInvestors(account);
+    // The products to pick from when opening a contract (Win Plan PP7).
+    final products = showsContractDetails(account);
 
     return SectionScaffold(
       title: context.t('Settings'),
@@ -94,7 +97,7 @@ class SettingsScreen extends ConsumerWidget {
                 ],
               ),
             ),
-            if (hasTools || showsTeam || investors)
+            if (hasTools || showsTeam || investors || products)
               _Group(
                 id: 'workspace',
                 title: context.t('Workspace'),
@@ -105,7 +108,10 @@ class SettingsScreen extends ConsumerWidget {
                     if (showsTeam && (investors || hasTools)) const _Divider(),
                     if (investors)
                       _Row(key: const ValueKey('settings-investors'), icon: Icons.savings_outlined, title: context.t('Investors'), onTap: () => context.push('/investors')),
-                    if (investors && hasTools) const _Divider(),
+                    if (investors && (products || hasTools)) const _Divider(),
+                    if (products)
+                      _Row(key: const ValueKey('settings-products'), icon: Icons.inventory_2_outlined, title: context.t('Products'), onTap: () => context.push('/products')),
+                    if (products && hasTools) const _Divider(),
                     if (hasTools) _Row(icon: Icons.tune_rounded, title: context.t('Instalment tools'), onTap: () => context.push('/tools')),
                   ],
                 ),

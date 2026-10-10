@@ -4,6 +4,7 @@ namespace App\Actions;
 
 use App\Domain\Investors\InvestorLedger;
 use App\Domain\Investors\MainInvestor;
+use App\Domain\Schedule\Discount;
 use App\Domain\Schedule\InvalidScheduleException;
 use App\Domain\Schedule\ScheduleGenerator;
 use App\Domain\Schedule\ScheduleRequest;
@@ -14,6 +15,7 @@ use App\Entitlements\FeatureLocked;
 use App\Entitlements\FeatureUnavailable;
 use App\Entitlements\LimitReached;
 use App\Models\Contract;
+use App\Models\ContractItem;
 use App\Models\Customer;
 use App\Models\Installment;
 use App\Models\Investor;
@@ -62,9 +64,14 @@ final class CreateContract
             if ($type === 'open') {
                 return $this->openAccount($tenant, $customer, $data, $startDate, $by);
             }
+            $this->assertDetailsAllowed($tenant, $data);
             $graceDays = $type === 'cash' ? 0 : (int) ($data['grace_days'] ?? 0);
             $this->assertPlanAllowed($tenant, $type, $data, $graceDays);
-            $schedule = $this->schedule($type, $data, $startDate);
+            // A discount at sale comes off the price before the down payment: the schedule is built on what is left.
+            $discount = Discount::amount((string) ($data['principal'] ?? ''), $data['discount_type'] ?? 'none', $data['discount_value'] ?? null);
+            $net = Discount::net((string) $data['principal'], $discount);
+            $schedule = $this->schedule($type, [...$data, 'principal' => $net], $startDate);
+            $items = $data['items'] ?? [];
             $investor = $this->investor($tenant, $data['investor_id'] ?? null);
 
             $contract = (new Contract)->forceFill([
@@ -86,9 +93,31 @@ final class CreateContract
                 'first_due_date' => $schedule->installments[0]['due_date'],
                 'notes' => $data['notes'] ?? null,
                 'investor_id' => $investor->id,
+                // What was sold and what it cost (Win Plan PP7), and the discount at sale (PP6).
+                'title' => $data['title'] ?? null,
+                'own_reference' => $data['own_reference'] ?? null,
+                'discount_type' => Money::isZero($discount) ? 'none' : $data['discount_type'],
+                'discount_value' => Money::isZero($discount) ? '0' : Money::parse((string) $data['discount_value']),
+                'discount_amount' => $discount,
+                'cost_price' => $this->costPrice($data, $items),
+                'tax_percent' => isset($data['tax_percent']) && $data['tax_percent'] !== '' ? Money::parse((string) $data['tax_percent']) : null,
+                'tax_amount' => Discount::taxIn($net, $data['tax_percent'] ?? null),
                 'created_by_user_id' => $by?->id,
             ]);
             $contract->save();
+
+            foreach (array_values($items) as $position => $item) {
+                (new ContractItem)->forceFill([
+                    'contract_id' => $contract->id,
+                    'product_id' => $item['product_id'] ?? null,
+                    'position' => $position + 1,
+                    'name' => $item['name'],
+                    'quantity' => (int) ($item['quantity'] ?? 1),
+                    'serial' => $item['serial'] ?? null,
+                    'cost' => isset($item['cost']) && $item['cost'] !== '' ? Money::parse((string) $item['cost']) : null,
+                    'price' => isset($item['price']) && $item['price'] !== '' ? Money::parse((string) $item['price']) : null,
+                ])->save();
+            }
             // The amount financed leaves its investor's wallet the day the contract opens.
             $this->investors->fund($contract);
 
@@ -118,6 +147,45 @@ final class CreateContract
 
             return $contract;
         }));
+    }
+
+    /**
+     * What was sold, its cost, the tax, a discount and the shop's own number belong to contract details (Win Plan PP7).
+     * Without that feature a contract is a price and a plan, as it always was.
+     *
+     * @param  array<string, mixed>  $data
+     *
+     * @throws FeatureUnavailable|FeatureLocked
+     */
+    private function assertDetailsAllowed(Tenant $tenant, array $data): void
+    {
+        $details = ($data['items'] ?? []) !== []
+            || ($data['discount_type'] ?? 'none') !== 'none'
+            || array_filter(array_intersect_key($data, array_flip(['title', 'own_reference', 'cost_price', 'tax_percent'])), fn (mixed $v) => $v !== null && $v !== '') !== [];
+
+        if ($details) {
+            Entitlements::for($tenant)->assertEnabled(Feature::ContractItems);
+        }
+    }
+
+    /**
+     * The cost price typed in; or, when none was, what the items cost (cost x quantity), if any item says.
+     *
+     * @param  array<string, mixed>  $data
+     * @param  array<int, array<string, mixed>>  $items
+     */
+    private function costPrice(array $data, array $items): ?string
+    {
+        if (isset($data['cost_price']) && $data['cost_price'] !== '') {
+            return Money::parse((string) $data['cost_price']);
+        }
+
+        $costed = array_filter($items, fn (array $item) => isset($item['cost']) && $item['cost'] !== '');
+        if ($costed === []) {
+            return null;
+        }
+
+        return array_reduce($costed, fn (string $sum, array $item) => Money::add($sum, Money::mul(Money::parse((string) $item['cost']), (string) (int) ($item['quantity'] ?? 1), 4), 4), '0');
     }
 
     /**

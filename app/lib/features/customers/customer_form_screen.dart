@@ -34,6 +34,7 @@ class _CustomerFormScreenState extends ConsumerState<CustomerFormScreen> {
   final _nationalId = TextEditingController();
   final _address = TextEditingController();
   final _notes = TextEditingController();
+  final _job = TextEditingController();
 
   bool get _editing => widget.id != null;
 
@@ -53,7 +54,7 @@ class _CustomerFormScreenState extends ConsumerState<CustomerFormScreen> {
 
   @override
   void dispose() {
-    for (final controller in [_name, _phone, _phoneSecondary, _email, _nationalId, _address, _notes]) {
+    for (final controller in [_name, _phone, _phoneSecondary, _email, _nationalId, _address, _notes, _job]) {
       controller.dispose();
     }
     super.dispose();
@@ -76,6 +77,7 @@ class _CustomerFormScreenState extends ConsumerState<CustomerFormScreen> {
         _phoneSecondary.text = customer.phoneSecondary ?? '';
         _email.text = customer.email ?? '';
         _address.text = customer.address ?? '';
+        _job.text = customer.job ?? '';
         _notes.text = customer.notes ?? '';
       });
     } on ApiException catch (e) {
@@ -122,6 +124,7 @@ class _CustomerFormScreenState extends ConsumerState<CustomerFormScreen> {
       nationalId: _nationalId.text,
       address: _address.text,
       notes: _notes.text,
+      job: _job.text,
       removeNationalId: _removeNationalId,
     );
 
@@ -221,6 +224,15 @@ class _CustomerFormScreenState extends ConsumerState<CustomerFormScreen> {
                     autofillHints: const [AutofillHints.email],
                     latin: true,
                     enabled: !_saving,
+                  ),
+                  const SizedBox(height: 16),
+                  QField(
+                    controller: _job,
+                    label: context.t('Job or employer (optional)'),
+                    errorText: _error('job'),
+                    textInputAction: TextInputAction.next,
+                    enabled: !_saving,
+                    maxLength: 120,
                   ),
                   const SizedBox(height: 16),
                   QField(

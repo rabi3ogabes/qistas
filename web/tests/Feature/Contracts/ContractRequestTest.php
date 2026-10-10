@@ -94,5 +94,7 @@ it('only offers fields a client may set', function () {
         'installment_count', 'frequency', 'start_date', 'first_due_date', 'notes',
         'grace_days', 'custom_schedule', 'custom_schedule.*.due_date', 'custom_schedule.*.amount', 'investor_id',
         'opening_balance', 'credit_limit',
+        'title', 'own_reference', 'cost_price', 'tax_percent', 'discount_type', 'discount_value',
+        'items', 'items.*.name', 'items.*.quantity', 'items.*.serial', 'items.*.cost', 'items.*.price', 'items.*.product_id',
     ]);
 });

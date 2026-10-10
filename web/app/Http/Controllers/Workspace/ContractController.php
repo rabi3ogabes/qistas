@@ -6,6 +6,7 @@ use App\Actions\CancelContract;
 use App\Actions\ConvertToOpen;
 use App\Actions\CreateContract;
 use App\Actions\RecordCharge;
+use App\Domain\Contracts\SerialCheck;
 use App\Domain\Investors\MainInvestor;
 use App\Domain\Ledger\LedgerLines;
 use App\Domain\Ledger\OpenAccount;
@@ -19,6 +20,7 @@ use App\Models\ContractConversion;
 use App\Models\Customer;
 use App\Models\Installment;
 use App\Models\Investor;
+use App\Models\Product;
 use App\Models\Transaction;
 use App\Reports\ContractProgress;
 use App\Support\Format;
@@ -73,6 +75,9 @@ final class ContractController
             'flexible' => Entitlements::for($this->current->get())->check(Feature::FlexibleSchedules)->enabled(),
             'investors' => $this->funders(),
             'open' => Entitlements::for($this->current->get())->check(Feature::OpenContracts)->enabled(),
+            // What was sold, its cost, the tax, a discount and the shop's own number (Win Plan PP7).
+            'details' => Entitlements::for($this->current->get())->check(Feature::ContractItems)->enabled(),
+            'products' => Product::query()->active()->orderByRaw('LOWER(name)')->get(['id', 'name', 'default_price', 'cost']),
             'currency' => $this->current->get()?->currency,
             'today' => today()->format('Y-m-d'),
         ]);
@@ -99,9 +104,12 @@ final class ContractController
     public function store(ContractRequest $request, CreateContract $create): RedirectResponse
     {
         $contract = $create->handle($this->current->get(), $request->validated(), $request->user());
+        // A serial already on another running contract never stops the sale, but the person at the counter sees it.
+        $warnings = array_column(SerialCheck::warnings($contract), 'message');
 
         return redirect()->route('app.contracts.show', $contract)
-            ->with('status', __('Contract :reference opened.', ['reference' => $contract->reference()]));
+            ->with('status', __('Contract :reference opened.', ['reference' => $contract->reference()]))
+            ->with($warnings === [] ? [] : ['warning' => implode(' ', $warnings)]);
     }
 
     public function show(Contract $contract): View
@@ -121,7 +129,7 @@ final class ContractController
         $next = $installments->first(fn (Installment $i) => $i->status !== 'paid');
 
         return view('app.contracts.show', [
-            'contract' => $contract->load(['customer', 'investor']),
+            'contract' => $contract->load(['customer', 'investor', 'items']),
             'installments' => $installments,
             'lines' => $lines,
             // Which payments have been reversed already: they keep their line but can no longer be voided.
@@ -146,7 +154,7 @@ final class ContractController
         $counted = $lines->filter(fn (Transaction $line) => isset($balances[$line->id]));
 
         return view('app.contracts.open', [
-            'contract' => $contract->load(['customer', 'investor']),
+            'contract' => $contract->load(['customer', 'investor', 'items']),
             'lines' => $lines,
             'balances' => $balances,
             'reversed' => $lines->pluck('reverses_transaction_id')->filter()->flip()->all(),

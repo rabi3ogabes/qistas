@@ -365,6 +365,14 @@ class Contract {
     this.investorId,
     this.investorName,
     this.creditLimit,
+    this.title,
+    this.ownReference,
+    this.costPrice,
+    this.taxPercent,
+    this.taxAmount,
+    this.discountAmount,
+    this.discountType = 'none',
+    this.items = const [],
   });
 
   factory Contract.fromJson(Map<String, dynamic> json) {
@@ -393,6 +401,14 @@ class Contract {
       investorId: _text(_map(json['investor'])['id']),
       investorName: _text(_map(json['investor'])['name']),
       creditLimit: _moneyOrNull(json['credit_limit']),
+      title: _text(json['title']),
+      ownReference: _text(json['own_reference']),
+      costPrice: _moneyOrNull(json['cost_price']),
+      taxPercent: _text(json['tax_percent']),
+      taxAmount: _moneyOrNull(json['tax_amount']),
+      discountAmount: _moneyOrNull(json['discount_amount']),
+      discountType: (json['discount_type'] ?? 'none').toString(),
+      items: _list(json['items']).map(ContractItem.fromJson).toList(),
       notes: _text(json['notes']),
       customerId: _text(customer['id']),
       customerName: _text(customer['name']),
@@ -437,6 +453,27 @@ class Contract {
 
   /// An open contract's limit, which warns and never refuses.
   final Money? creditLimit;
+
+  /// What was sold, in a line, and the shop's own number (Win Plan PP7).
+  final String? title;
+  final String? ownReference;
+
+  /// What it cost the shop; absent unless known.
+  final Money? costPrice;
+
+  /// The tax already in the price ("15.00"), and how much of it.
+  final String? taxPercent;
+  final Money? taxAmount;
+
+  /// A discount at sale, taken off the price before the down payment.
+  final Money? discountAmount;
+  final String discountType;
+
+  /// What was sold, item by item.
+  final List<ContractItem> items;
+
+  /// What the customer pays for it less what it cost: null until the cost is known.
+  Money? get margin => costPrice == null ? null : principal - (discountAmount ?? Money.zero) + markupAmount - costPrice!;
 
   /// Who funded it; absent for a collector, who does not see investors.
   final String? investorId;
@@ -483,6 +520,7 @@ class Customer {
     required this.owed,
     required this.runningContracts,
     required this.contracts,
+    this.job,
   });
 
   factory Customer.fromJson(Map<String, dynamic> json) => Customer(
@@ -497,6 +535,7 @@ class Customer {
         owed: _moneyOrNull(json['owed']),
         runningContracts: (json['running_contracts'] as num?)?.toInt(),
         contracts: _list(json['contracts']).map(Contract.fromJson).toList(),
+        job: _text(json['job']),
       );
 
   final String id;
@@ -509,6 +548,9 @@ class Customer {
   final String? nationalId;
   final String? address;
   final String? notes;
+
+  /// Where they work (Win Plan PP7).
+  final String? job;
   final Money? owed;
   final int? runningContracts;
   final List<Contract> contracts;
@@ -904,4 +946,48 @@ class Device {
   final DateTime? lastUsedAt;
   final String? lastUsedIp;
   final DateTime? signedInAt;
+}
+
+/// One thing a contract sold (Win Plan PP7).
+@immutable
+class ContractItem {
+  const ContractItem({required this.name, required this.quantity, this.serial, this.cost, this.price});
+
+  factory ContractItem.fromJson(Map<String, dynamic> json) => ContractItem(
+        name: (json['name'] ?? '').toString(),
+        quantity: (json['quantity'] as num?)?.toInt() ?? 1,
+        serial: _text(json['serial']),
+        cost: _moneyOrNull(json['cost']),
+        price: _moneyOrNull(json['price']),
+      );
+
+  final String name;
+  final int quantity;
+
+  /// A serial number, or a phone's IMEI.
+  final String? serial;
+  final Money? cost;
+  final Money? price;
+}
+
+/// Something the shop sells, to pick from when opening a contract (Win Plan PP7). No stock is counted.
+@immutable
+class Product {
+  const Product({required this.id, required this.name, required this.archived, this.sku, this.defaultPrice, this.cost});
+
+  factory Product.fromJson(Map<String, dynamic> json) => Product(
+        id: json['id'].toString(),
+        name: (json['name'] ?? '').toString(),
+        archived: json['archived'] == true,
+        sku: _text(json['sku']),
+        defaultPrice: _moneyOrNull(json['default_price']),
+        cost: _moneyOrNull(json['cost']),
+      );
+
+  final String id;
+  final String name;
+  final bool archived;
+  final String? sku;
+  final Money? defaultPrice;
+  final Money? cost;
 }

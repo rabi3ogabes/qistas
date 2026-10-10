@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Schedule\Discount;
 use App\Domain\Schedule\InvalidScheduleException;
 use App\Domain\Schedule\ScheduleGenerator;
 use App\Domain\Schedule\ScheduleRequest;
@@ -15,10 +16,12 @@ final class SchedulePreviewController
     public function __invoke(SchedulePreviewRequest $request, ScheduleGenerator $generator): JsonResponse
     {
         $input = $request->validated();
+        // A discount at sale comes off the price before the down payment (Win Plan PP6).
+        $discount = Discount::amount($input['principal'], $input['discount_type'] ?? 'none', $input['discount_value'] ?? null);
 
         try {
             $schedule = $generator->generate(ScheduleRequest::fromArray([
-                'principal' => $input['principal'],
+                'principal' => Discount::net($input['principal'], $discount),
                 'down_payment' => $input['down_payment'] ?? '0',
                 'markup_type' => $input['markup_type'] ?? 'none',
                 'markup_value' => $input['markup_value'] ?? '0',
@@ -32,6 +35,6 @@ final class SchedulePreviewController
             throw ValidationException::withMessages([$input['frequency'] === 'custom' ? 'custom_schedule' : 'principal' => $e->getMessage()]);
         }
 
-        return response()->json($schedule->toArray());
+        return response()->json([...$schedule->toArray(), 'discount' => $discount]);
     }
 }
