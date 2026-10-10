@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +16,7 @@ import '../../core/l10n/languages.dart';
 import '../../core/l10n/translations.dart';
 import '../../data/models.dart';
 import '../billing/upgrade_sheet.dart';
+import '../security/app_lock.dart';
 import 'tools_screen.dart';
 
 /// Settings, in the order a person looks for things: who they are, their plan, how the app looks and speaks, their
@@ -55,6 +57,7 @@ class SettingsScreen extends ConsumerWidget {
     // The owner's tools are listed only when the platform has some switched on for this workspace.
     final hasTools = ref.watch(toolsProvider).valueOrNull?.tools.isNotEmpty ?? false;
     final twoStep = account?.twoFactor == true;
+    final appLock = ref.watch(appLockProvider);
 
     return SectionScaffold(
       title: context.t('Settings'),
@@ -107,6 +110,18 @@ class SettingsScreen extends ConsumerWidget {
                     external: true,
                     onTap: () => _open('/security'),
                   ),
+                  if (!kIsWeb) ...[
+                    const _Divider(),
+                    _Row(
+                      key: const ValueKey('settings-app-lock'),
+                      icon: appLock.active ? Icons.fingerprint_rounded : Icons.lock_open_rounded,
+                      iconColor: appLock.active ? c.positive : null,
+                      title: context.t('App lock'),
+                      subtitle: context.t('Fingerprint, face or phone PIN'),
+                      value: appLock.active ? context.t('On') : context.t('Off'),
+                      onTap: () => context.push('/app-lock'),
+                    ),
+                  ],
                   const _Divider(),
                   _Row(icon: Icons.logout_rounded, title: context.t('Sign out'), chevron: false, onTap: () => _confirmSignOut(context, ref, everywhere: false)),
                   const _Divider(),

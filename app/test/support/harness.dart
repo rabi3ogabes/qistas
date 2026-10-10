@@ -14,9 +14,11 @@ import 'package:qistas/core/config.dart';
 import 'package:qistas/core/design/widgets.dart';
 import 'package:qistas/core/l10n/translations.dart';
 import 'package:qistas/core/storage/token_store.dart';
+import 'package:qistas/features/security/app_lock.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'fake_api.dart';
+import 'fake_device_auth.dart';
 import 'samples.dart';
 import 'visual.dart';
 
@@ -81,6 +83,8 @@ Future<void> pumpApp(
   Map<String, Object> preferences = const {},
   bool realFonts = false,
   List<Override> overrides = const [],
+  DeviceAuth? deviceAuth,
+  FakeClock? clock,
 }) async {
   if (realFonts) await loadBrandFonts();
   for (final code in AppConfig.locales) {
@@ -105,6 +109,9 @@ Future<void> pumpApp(
         httpAdapterProvider.overrideWithValue(server.adapter),
         splashDurationProvider.overrideWithValue(Duration.zero),
         brandFontsProvider.overrideWithValue(realFonts),
+        // A phone with no fingerprint or screen lock unless a test gives one, so the app lock stays out of the way.
+        deviceAuthProvider.overrideWithValue(deviceAuth ?? FakeDeviceAuth.unavailable()),
+        if (clock != null) clockProvider.overrideWithValue(clock.call),
         ...overrides,
         // The words are read from disk at once, so a test never waits on asset loading that fake time cannot advance.
         translationsProvider.overrideWith((ref) {
@@ -171,3 +178,6 @@ Future<void> tapTooltip(WidgetTester tester, String message) async {
   await tester.tap(finder.first);
   await settle(tester);
 }
+
+/// The preferences the app wrote while the test ran.
+Future<SharedPreferences> preferences() => SharedPreferences.getInstance();

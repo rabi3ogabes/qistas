@@ -115,6 +115,10 @@ class QistasApi {
 
   Future<Tool> saveTool(String key, Object? value) async => Tool.fromJson(_data(await _client.put('/settings/tools/${Uri.encodeComponent(key)}', body: {'value': value})));
 
+  /// Whether every phone in the business must unlock Qistas first. Owner and managers only; answers the rule as saved.
+  Future<bool> setAppLockRequired(bool required) async =>
+      _data(await _client.put('/workspace/security', body: {'require_app_lock': required}))['require_app_lock'] == true;
+
   // ---------------------------------------------------------------- customers
 
   Future<Paged<Customer>> customers({String query = '', int page = 1}) async => Paged.fromJson(

@@ -36,6 +36,8 @@ final class AccountPayload
                 'is_test' => $tenant->is_test,
                 // A throw-away workspace made by a demo button: the app says so and offers a real account.
                 'is_demo' => $tenant->is_demo,
+                // The business wants every phone to unlock Qistas (fingerprint, face or PIN) before showing its books.
+                'require_app_lock' => $tenant->require_app_lock,
             ],
             'plan' => $entitlements['plan'],
             'entitlements' => $entitlements['features'],

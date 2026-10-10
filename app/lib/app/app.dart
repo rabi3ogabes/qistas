@@ -6,6 +6,7 @@ import '../core/config.dart';
 import '../core/design/qistas_theme.dart';
 import '../core/l10n/translations.dart';
 import '../data/appearance.dart';
+import '../features/security/app_lock_gate.dart';
 import 'providers.dart';
 import 'router.dart';
 
@@ -37,7 +38,11 @@ class QistasApp extends ConsumerWidget {
       builder: (context, child) => TranslationsScope(
         translations: translations,
         // People who enlarge their text get it, up to the point where a phone screen still holds a form.
-        child: MediaQuery.withClampedTextScaling(maxScaleFactor: 2, child: child ?? const SizedBox.shrink()),
+        child: MediaQuery.withClampedTextScaling(
+          maxScaleFactor: 2,
+          // The app lock covers every screen, the sign-in screens included (it only shows when someone is signed in).
+          child: AppLockGate(child: child ?? const SizedBox.shrink()),
+        ),
       ),
     );
   }

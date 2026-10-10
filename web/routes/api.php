@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\PlanController;
 use App\Http\Controllers\Api\V1\SchedulePreviewController;
 use App\Http\Controllers\Api\V1\TokenController;
 use App\Http\Controllers\Api\V1\ToolsController;
+use App\Http\Controllers\Api\V1\WorkspaceSecurityController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -39,6 +40,7 @@ Route::name('api.')->group(function (): void {
 
         Route::get('settings/tools', [ToolsController::class, 'index'])->name('settings.tools.index');
         Route::put('settings/tools/{key}', [ToolsController::class, 'update'])->name('settings.tools.update');
+        Route::put('workspace/security', [WorkspaceSecurityController::class, 'update'])->name('workspace.security');
 
         Route::apiResource('customers', CustomerController::class);
 

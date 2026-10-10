@@ -92,6 +92,7 @@ class Account {
     required this.role,
     required this.isTest,
     required this.isDemo,
+    this.requireAppLock = false,
     required this.planKey,
     required this.planName,
     required this.entitlements,
@@ -116,6 +117,7 @@ class Account {
       role: (tenant['role'] ?? 'viewer').toString(),
       isTest: tenant['is_test'] == true,
       isDemo: tenant['is_demo'] == true,
+      requireAppLock: tenant['require_app_lock'] == true,
       planKey: (plan['key'] ?? 'free').toString(),
       planName: (plan['name'] ?? '').toString(),
       entitlements: {
@@ -143,6 +145,9 @@ class Account {
 
   /// A throw-away workspace made by "Try the demo": the app says so and offers a real account.
   final bool isDemo;
+
+  /// The business requires every phone to unlock Qistas (fingerprint, face or the phone's PIN) before showing its books.
+  final bool requireAppLock;
   final String planKey;
   final String planName;
   final Map<String, Entitlement> entitlements;
@@ -162,9 +167,12 @@ class Account {
   /// May cancel contracts and void payments.
   bool get canDelete => role == 'owner' || role == 'manager';
 
+  /// May change the business's own rules (its tools, the app-lock requirement).
+  bool get canManageSettings => role == 'owner' || role == 'manager';
+
   Map<String, dynamic> toJson() => {
         'user': {'id': userId, 'name': name, 'email': email, 'email_verified': emailVerified, 'locale': locale, 'two_factor': twoFactor},
-        'tenant': {'id': tenantId, 'name': businessName, 'country': country, 'currency': currency, 'role': role, 'is_test': isTest, 'is_demo': isDemo},
+        'tenant': {'id': tenantId, 'name': businessName, 'country': country, 'currency': currency, 'role': role, 'is_test': isTest, 'is_demo': isDemo, 'require_app_lock': requireAppLock},
         'plan': {'key': planKey, 'name': planName},
         'entitlements': {for (final e in entitlements.entries) e.key: e.value.toJson()},
       };

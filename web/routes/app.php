@@ -7,6 +7,7 @@ use App\Http\Controllers\Workspace\CustomerController;
 use App\Http\Controllers\Workspace\DashboardController;
 use App\Http\Controllers\Workspace\FileController;
 use App\Http\Controllers\Workspace\PaymentController;
+use App\Http\Controllers\Workspace\SecurityPolicyController;
 use App\Http\Controllers\Workspace\ToolsController;
 use Illuminate\Support\Facades\Route;
 
@@ -21,6 +22,7 @@ Route::get('files/{file}', [FileController::class, 'show'])->name('files.show');
 // The settings of the features that are on for this workspace (empty until a feature declares one).
 Route::get('settings/tools', [ToolsController::class, 'show'])->name('settings.tools');
 Route::put('settings/tools/{key}', [ToolsController::class, 'update'])->name('settings.tools.update');
+Route::put('settings/security', [SecurityPolicyController::class, 'update'])->name('settings.security');
 
 Route::resource('customers', CustomerController::class);
 

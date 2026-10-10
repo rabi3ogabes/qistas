@@ -23,9 +23,9 @@ Map<String, dynamic> entitlementsJson({int customersUsed = 3, String plan = 'fre
   };
 }
 
-Map<String, dynamic> accountJson({String role = 'owner', int customersUsed = 3, String plan = 'free'}) => {
+Map<String, dynamic> accountJson({String role = 'owner', int customersUsed = 3, String plan = 'free', bool requireAppLock = false}) => {
       'user': {'id': 'u1', 'name': 'Layla Haddad', 'email': 'layla@example.com', 'email_verified': true, 'locale': 'en', 'two_factor': false},
-      'tenant': {'id': 't1', 'name': 'Al-Fares Electronics', 'country': 'SA', 'currency': 'SAR', 'role': role},
+      'tenant': {'id': 't1', 'name': 'Al-Fares Electronics', 'country': 'SA', 'currency': 'SAR', 'role': role, 'require_app_lock': requireAppLock},
       'plan': {'key': plan, 'name': plan == 'pro' ? 'Pro' : 'Free'},
       'entitlements': entitlementsJson(customersUsed: customersUsed, plan: plan),
     };

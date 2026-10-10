@@ -598,6 +598,38 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "422": {$ref: "#/components/responses/ValidationFailed"}
+  /workspace/security:
+    put:
+      tags: [Instalment tools]
+      summary: Set the business's phone security rule
+      description: |
+        Owner and manager only (403 `forbidden` otherwise). `require_app_lock` true means every phone must unlock
+        Qistas with a fingerprint, a face or the phone's PIN before it shows the books; everyone reads it in
+        `GET /me` (`tenant.require_app_lock`). Every change is audited.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [require_app_lock]
+              properties:
+                require_app_lock: {type: boolean}
+      responses:
+        "200":
+          description: The rule as it now is.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      require_app_lock: {type: boolean}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
   /tokens:
     get:
       tags: [API access tokens]
@@ -812,6 +844,9 @@ components:
         is_demo:
           type: boolean
           description: True for a throw-away workspace made by "Try the demo". Say so, and offer a real account.
+        require_app_lock:
+          type: boolean
+          description: The business requires every phone to unlock Qistas (fingerprint, face or the phone's PIN) before showing its books. The app turns its lock on and does not let it be turned off.
     PlanRef:
       type: object
       properties:

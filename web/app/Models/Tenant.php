@@ -23,12 +23,13 @@ class Tenant extends Model
         'status' => 'active',
         'is_test' => false,
         'is_demo' => false,
+        'require_app_lock' => false,
     ];
 
     /** @return array<string, string> */
     protected function casts(): array
     {
-        return ['is_test' => 'boolean', 'is_demo' => 'boolean'];
+        return ['is_test' => 'boolean', 'is_demo' => 'boolean', 'require_app_lock' => 'boolean'];
     }
 
     /**

@@ -23,6 +23,7 @@ final class ToolsController
         return view('app.tools', [
             'tools' => array_map(fn ($definition) => $definition->toArray($values[$definition->key]), $definitions),
             'canEdit' => $this->canEdit($request, $tenant),
+            'requireAppLock' => (bool) $tenant->require_app_lock,
         ]);
     }
 

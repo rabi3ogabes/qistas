@@ -39,3 +39,8 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // The launch and normal themes are AppCompat themes, which the app lock's fingerprint prompt needs on older phones.
+    implementation("androidx.appcompat:appcompat:1.7.0")
+}

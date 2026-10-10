@@ -3,6 +3,29 @@
         <x-slot:subtitle>{{ __('Choose how the extra tools you have behave.') }}</x-slot:subtitle>
     </x-page-head>
 
+    {{-- The business's rule for its phones: Qistas opens only after a fingerprint, a face or the phone's PIN. --}}
+    <section class="card card-pad" style="margin-bottom:1rem" aria-labelledby="app-lock-title">
+        <h2 id="app-lock-title" class="card-title" style="margin-bottom:.75rem">{{ __('Phone security') }}</h2>
+        @if ($canEdit)
+            <form method="post" action="{{ route('app.settings.security') }}">
+                @csrf
+                @method('PUT')
+                <div class="field">
+                    <input type="hidden" name="require_app_lock" value="0">
+                    <label for="require-app-lock">
+                        <input id="require-app-lock" type="checkbox" name="require_app_lock" value="1" @checked($requireAppLock) aria-describedby="require-app-lock-hint">
+                        {{ __('Require the app lock') }}
+                    </label>
+                    <p class="field-hint" id="require-app-lock-hint">{{ __('Everyone in your business must unlock Qistas with a fingerprint, their face or the phone’s PIN before it shows your books.') }}</p>
+                </div>
+                <button class="btn btn-gold" type="submit">{{ __('Save') }}</button>
+            </form>
+        @else
+            <p>{{ __('Require the app lock') }}: <strong>{{ $requireAppLock ? __('On') : __('Off') }}</strong></p>
+            <p class="field-hint">{{ __('Only an owner or a manager can change this.') }}</p>
+        @endif
+    </section>
+
     @if ($tools === [])
         <section class="card card-pad">
             <p>{{ __('No instalment tools are available yet.') }}</p>

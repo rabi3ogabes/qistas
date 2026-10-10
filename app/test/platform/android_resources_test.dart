@@ -80,4 +80,24 @@ void main() {
       expect(night.$1 > 230 && night.$2 > 230 && night.$3 > 220, isTrue, reason: 'night mark $night');
     });
   });
+
+  // The fingerprint and face prompt (local_auth) needs a FragmentActivity, the biometric permission, and an AppCompat
+  // launch theme, or it crashes on Android 8 and below. These only fail on a phone, so they are checked here.
+  group('the app lock', () {
+    test('runs in a FragmentActivity with the biometric permission', () {
+      final activity = read('android/app/src/main/kotlin/com/qistas/qistas/MainActivity.kt');
+      expect(activity, contains('io.flutter.embedding.android.FlutterFragmentActivity'));
+      expect(activity, contains('class MainActivity : FlutterFragmentActivity()'));
+      expect(read('android/app/src/main/AndroidManifest.xml'), contains('android.permission.USE_BIOMETRIC'));
+    });
+
+    test('starts in an AppCompat theme by day and by night, on every Android version', () {
+      for (final folder in ['values', 'values-night', 'values-v31', 'values-night-v31']) {
+        final xml = read('$res/$folder/styles.xml');
+        expect(RegExp(r'name="LaunchTheme" parent="Theme\.AppCompat\.').hasMatch(xml), isTrue, reason: '$folder LaunchTheme');
+        expect(RegExp(r'name="NormalTheme" parent="Theme\.AppCompat\.').hasMatch(xml), isTrue, reason: '$folder NormalTheme');
+      }
+      expect(read('android/app/build.gradle.kts'), contains('androidx.appcompat:appcompat'));
+    });
+  });
 }

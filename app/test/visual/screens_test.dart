@@ -3,6 +3,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fake_api.dart';
+import '../support/fake_device_auth.dart';
 import '../support/harness.dart';
 import '../support/samples.dart';
 import '../support/visual.dart';
@@ -164,5 +165,21 @@ void main() {
     await snapshot(tester, 'record-sheet');
     await tapButton(tester, 'Record payment');
     await snapshot(tester, 'payment-recorded');
+  });
+
+  // The app lock: what a locked Qistas shows, by day, by night and in Arabic; and its settings screen.
+  for (final (name, language, mode) in [('app-lock', 'en', 'light'), ('app-lock-dark', 'en', 'dark'), ('app-lock-ar', 'ar', 'light')]) {
+    picture(name, (tester) async {
+      await pumpApp(tester, workspaceServer(), realFonts: true, language: language, deviceAuth: FakeDeviceAuth(answers: [false]),
+          preferences: {'app_lock.enabled': true, 'theme_mode': mode});
+      await snapshot(tester, name);
+    });
+  }
+
+  picture('app lock settings', (tester) async {
+    await pumpApp(tester, workspaceServer(), realFonts: true, size: tall, deviceAuth: FakeDeviceAuth(), preferences: {'app_lock.enabled': true});
+    await openSettings(tester);
+    await tapText(tester, 'App lock');
+    await snapshot(tester, 'app-lock-settings');
   });
 }
