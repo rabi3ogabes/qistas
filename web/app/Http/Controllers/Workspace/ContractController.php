@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Workspace;
 
 use App\Actions\CancelContract;
 use App\Actions\CreateContract;
+use App\Domain\Investors\MainInvestor;
 use App\Entitlements\Entitlements;
 use App\Entitlements\Feature;
 use App\Http\Requests\CancelContractRequest;
@@ -11,10 +12,12 @@ use App\Http\Requests\ContractRequest;
 use App\Models\Contract;
 use App\Models\Customer;
 use App\Models\Installment;
+use App\Models\Investor;
 use App\Models\Transaction;
 use App\Reports\ContractProgress;
 use App\Support\Money;
 use App\Tenancy\CurrentTenant;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -61,9 +64,28 @@ final class ContractController
             'usage' => Entitlements::for($this->current->get())->check(Feature::ActiveContracts),
             // Daily to yearly plans, the shop's own dates, up to 600 and grace days; otherwise the basic three, up to 120.
             'flexible' => Entitlements::for($this->current->get())->check(Feature::FlexibleSchedules)->enabled(),
+            'investors' => $this->funders(),
             'currency' => $this->current->get()?->currency,
             'today' => today()->format('Y-m-d'),
         ]);
+    }
+
+    /**
+     * Who may fund a new contract, for "Funded by": asked of people who see the investors, while the feature is on, and
+     * only worth asking once the business has partners (the form shows it with two or more).
+     *
+     * @return Collection<int, Investor>
+     */
+    private function funders(): Collection
+    {
+        $tenant = $this->current->get();
+        if ($tenant === null || ! Gate::allows('viewAny', Investor::class) || ! Entitlements::for($tenant)->check(Feature::Investors)->enabled()) {
+            return new Collection;
+        }
+
+        MainInvestor::for($tenant);
+
+        return Investor::query()->active()->orderByDesc('is_main')->orderByRaw('LOWER(name)')->get();
     }
 
     public function store(ContractRequest $request, CreateContract $create): RedirectResponse
@@ -87,7 +109,7 @@ final class ContractController
         $next = $installments->first(fn (Installment $i) => $i->status !== 'paid');
 
         return view('app.contracts.show', [
-            'contract' => $contract->load('customer'),
+            'contract' => $contract->load(['customer', 'investor']),
             'installments' => $installments,
             'lines' => $lines,
             // Which payments have been reversed already: they keep their line but can no longer be voided.

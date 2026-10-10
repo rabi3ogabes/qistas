@@ -23,6 +23,18 @@ enum TenantRole: string
         return $this === self::Owner || $this === self::Manager;
     }
 
+    /** Sees who funds the business and their money (Win Plan PP3): everyone but a collector. */
+    public function seesInvestors(): bool
+    {
+        return $this !== self::Collector;
+    }
+
+    /** Adds investors and records their deposits and withdrawals. */
+    public function managesInvestors(): bool
+    {
+        return $this->seesInvestors() && $this->canWrite();
+    }
+
     /** May delete records. */
     public function canDelete(): bool
     {

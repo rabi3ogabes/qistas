@@ -16,6 +16,7 @@ import '../../core/l10n/languages.dart';
 import '../../core/l10n/translations.dart';
 import '../../data/models.dart';
 import '../billing/upgrade_sheet.dart';
+import '../investors/investors_screen.dart';
 import '../security/app_lock.dart';
 import 'tools_screen.dart';
 
@@ -60,6 +61,8 @@ class SettingsScreen extends ConsumerWidget {
     final appLock = ref.watch(appLockProvider);
     // The team page, once the platform has the team switched on (a plan without room still shows it, locked).
     final showsTeam = account?.shows('members') ?? false;
+    // Who funds the business: never for a collector (Win Plan PP3).
+    final investors = showsInvestors(account);
 
     return SectionScaffold(
       title: context.t('Settings'),
@@ -91,7 +94,7 @@ class SettingsScreen extends ConsumerWidget {
                 ],
               ),
             ),
-            if (hasTools || showsTeam)
+            if (hasTools || showsTeam || investors)
               _Group(
                 id: 'workspace',
                 title: context.t('Workspace'),
@@ -99,7 +102,10 @@ class SettingsScreen extends ConsumerWidget {
                   children: [
                     if (showsTeam)
                       _Row(key: const ValueKey('settings-team'), icon: Icons.groups_2_outlined, title: context.t('Team'), onTap: () => context.push('/team')),
-                    if (showsTeam && hasTools) const _Divider(),
+                    if (showsTeam && (investors || hasTools)) const _Divider(),
+                    if (investors)
+                      _Row(key: const ValueKey('settings-investors'), icon: Icons.savings_outlined, title: context.t('Investors'), onTap: () => context.push('/investors')),
+                    if (investors && hasTools) const _Divider(),
                     if (hasTools) _Row(icon: Icons.tune_rounded, title: context.t('Instalment tools'), onTap: () => context.push('/tools')),
                   ],
                 ),

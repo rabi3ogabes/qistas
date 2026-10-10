@@ -7,6 +7,7 @@ use App\Http\Controllers\Workspace\ContractController;
 use App\Http\Controllers\Workspace\CustomerController;
 use App\Http\Controllers\Workspace\DashboardController;
 use App\Http\Controllers\Workspace\FileController;
+use App\Http\Controllers\Workspace\InvestorController;
 use App\Http\Controllers\Workspace\PaymentController;
 use App\Http\Controllers\Workspace\SecurityPolicyController;
 use App\Http\Controllers\Workspace\TeamController;
@@ -31,6 +32,15 @@ Route::middleware('feature:members')->group(function (): void {
     Route::put('team/members/{member}', [TeamController::class, 'update'])->whereUuid('member')->name('team.members.update');
     Route::delete('team/members/{member}', [TeamController::class, 'remove'])->whereUuid('member')->name('team.members.destroy');
 });
+
+// Who funds the business (Win Plan PP3). Reading stays open when the feature is off; writing asks for it.
+Route::get('investors', [InvestorController::class, 'index'])->name('investors.index');
+Route::get('investors/create', [InvestorController::class, 'create'])->name('investors.create');
+Route::post('investors', [InvestorController::class, 'store'])->name('investors.store');
+Route::get('investors/{investor}', [InvestorController::class, 'show'])->whereUuid('investor')->name('investors.show');
+Route::put('investors/{investor}', [InvestorController::class, 'update'])->whereUuid('investor')->name('investors.update');
+Route::post('investors/{investor}/entries', [InvestorController::class, 'storeEntry'])->whereUuid('investor')->name('investors.entries.store');
+Route::post('investor-entries/{entry}/reverse', [InvestorController::class, 'reverse'])->whereUuid('entry')->name('investor-entries.reverse');
 
 // A stored file (an ID photo, a proof of payment): a member whose role may see it is sent to a link that expires in minutes.
 Route::get('files/{file}', [FileController::class, 'show'])->name('files.show');

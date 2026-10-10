@@ -50,6 +50,7 @@ tags:
   - name: API access tokens
   - name: Instalment tools
   - name: Team
+  - name: Investors
 paths:
   /plans:
     get:
@@ -698,6 +699,168 @@ paths:
                       restored: {type: boolean}
         "401": {$ref: "#/components/responses/Unauthenticated"}
         "403": {$ref: "#/components/responses/Forbidden"}
+  /investors:
+    get:
+      tags: [Investors]
+      summary: Who funds the business, with each investor's figures
+      description: >-
+        The business's own capital (the main investor, made the first time it is asked for, which then takes on every
+        contract made before investors existed) and its partners, archived ones last. Collectors may not look (403);
+        owners, managers, accountants and viewers may. Readable even while the platform has the `investors` feature off.
+      responses:
+        "200":
+          description: The investors.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      investors: {type: array, items: {$ref: "#/components/schemas/Investor"}}
+                      can_manage: {type: boolean, description: Owner, manager or accountant (adds investors, records deposits and withdrawals).}
+                      can_reverse: {type: boolean, description: Owner or manager (reverses a deposit or a withdrawal).}
+                      limit: {type: integer, nullable: true, description: Investors the plan allows, the main one included (Free 1); null is unlimited.}
+                      used: {type: integer}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+    post:
+      tags: [Investors]
+      summary: Add a partner who funds contracts
+      description: Owner, manager or accountant. The Free plan keeps the main investor only (402 `limit_reached`). An opening capital becomes the first deposit.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: {type: string, maxLength: 120}
+                commercial_registration: {type: string, maxLength: 60}
+                commission_percent: {type: string, example: "15", description: Share of this partner's profit that goes to the main investor (0 to 100).}
+                notes: {type: string}
+                opening_capital: {$ref: "#/components/schemas/Money"}
+      responses:
+        "201":
+          description: The investor.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/Investor"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "402": {$ref: "#/components/responses/PlanLimit"}
+        "403": {$ref: "#/components/responses/FeatureUnavailable"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+  /investors/{investor}:
+    parameters:
+      - {name: investor, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [Investors]
+      summary: One investor's page
+      description: The figures, profit in each of the last six months, the contracts they fund (newest 50) and their entries (newest 100).
+      responses:
+        "200":
+          description: The investor.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    allOf:
+                      - {$ref: "#/components/schemas/Investor"}
+                      - type: object
+                        properties:
+                          profit_by_month:
+                            type: array
+                            items: {type: object, properties: {month: {type: string, example: "2026-10"}, amount: {$ref: "#/components/schemas/Money"}}}
+                          contracts:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                id: {type: string, format: uuid}
+                                reference: {type: string}
+                                customer: {type: object, nullable: true, properties: {id: {type: string, format: uuid}, name: {type: string}}}
+                                status: {type: string, enum: [active, settled, cancelled]}
+                                financed: {$ref: "#/components/schemas/Money"}
+                                markup_amount: {$ref: "#/components/schemas/Money"}
+                                collected: {$ref: "#/components/schemas/Money"}
+                                start_date: {type: string, format: date}
+                          entries: {type: array, items: {$ref: "#/components/schemas/InvestorEntry"}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+    put:
+      tags: [Investors]
+      summary: Rename, change the registration, commission or notes, or archive
+      description: An archived investor funds no new contracts and keeps everything it funded. The main investor is never archived and pays no commission.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: {type: string, maxLength: 120}
+                commercial_registration: {type: string, nullable: true}
+                commission_percent: {type: string, example: "15"}
+                notes: {type: string, nullable: true}
+                archived: {type: boolean}
+      responses:
+        "200":
+          description: The investor.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/Investor"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "402": {$ref: "#/components/responses/PlanLimit"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+  /investors/{investor}/entries:
+    post:
+      tags: [Investors]
+      summary: Record money an investor put in or took out
+      description: Owner, manager or accountant. The amount is positive; a withdrawal is stored negative. Entries are never edited.
+      parameters:
+        - {name: investor, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, amount]
+              properties:
+                type: {type: string, enum: [deposit, withdrawal]}
+                amount: {$ref: "#/components/schemas/Money"}
+                occurred_on: {type: string, format: date, description: Today when left out; never in the future.}
+                note: {type: string, maxLength: 500}
+      responses:
+        "201":
+          description: The entry.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/InvestorEntry"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/FeatureUnavailable"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+  /investor-entries/{entry}/reverse:
+    post:
+      tags: [Investors]
+      summary: Reverse a mistaken deposit or withdrawal
+      description: Owner or manager. Writes the same amount negated, pointing back at it; an entry is reversed once. What a payment credited is reversed by voiding the payment (422 here).
+      parameters:
+        - {name: entry, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object, properties: {note: {type: string, maxLength: 500}}}
+      responses:
+        "201":
+          description: The reversal.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/InvestorEntry"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
   /team:
     get:
       tags: [Team]
@@ -1060,6 +1223,40 @@ components:
           format: date
           nullable: true
           description: The owner asked to delete the business. It is read-only (writes answer 423 `workspace_deleting`) and is erased after this day unless the owner restores it.
+    Investor:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string, description: "The main investor reads \"Own capital\" in the reader's language until renamed."}
+        is_main: {type: boolean}
+        commercial_registration: {type: string, nullable: true}
+        currency: {type: string, example: SAR}
+        commission_percent: {type: string, example: "15.00"}
+        notes: {type: string, nullable: true}
+        archived: {type: boolean}
+        summary:
+          type: object
+          properties:
+            wallet: {$ref: "#/components/schemas/Money"}
+            out_in_contracts: {$ref: "#/components/schemas/Money"}
+            profit_earned: {$ref: "#/components/schemas/Money"}
+            profit_expected: {$ref: "#/components/schemas/Money"}
+            customers: {type: integer}
+            contracts: {type: integer}
+    InvestorEntry:
+      type: object
+      description: One line of an investor's money, signed for their wallet. Payments credit principal_back and profit_share (and a partner's commission) by themselves.
+      properties:
+        id: {type: string, format: uuid}
+        type: {type: string, enum: [deposit, withdrawal, funding_out, funding_back, principal_back, profit_share, commission]}
+        amount: {$ref: "#/components/schemas/Money"}
+        occurred_on: {type: string, format: date}
+        note: {type: string, nullable: true}
+        contract: {type: object, nullable: true, properties: {id: {type: string, format: uuid}, reference: {type: string}}}
+        reverses_entry_id: {type: string, format: uuid, nullable: true}
+        reversed: {type: boolean}
+        reversible: {type: boolean, description: A deposit or withdrawal not reversed yet.}
+        created_at: {type: string, format: date-time}
     TeamMember:
       type: object
       properties:
@@ -1284,6 +1481,7 @@ components:
         start_date: {type: string, format: date}
         first_due_date: {type: string, format: date, description: Not used for custom.}
         notes: {type: string}
+        investor_id: {type: string, format: uuid, description: "Who funds it; the business's own capital when left out. A partner needs the investors feature; collectors may not choose (422)."}
     PreviewInput:
       type: object
       required: [principal, frequency]
@@ -1338,6 +1536,7 @@ components:
         installment_count: {type: integer}
         frequency: {type: string}
         grace_days: {type: integer, description: Days after a due date before the instalment counts as late.}
+        investor: {type: object, description: Who funded it; left out for collectors., properties: {id: {type: string, format: uuid}, name: {type: string}, is_main: {type: boolean}}}
         start_date: {type: string, format: date}
         first_due_date: {type: string, format: date}
         notes: {type: [string, "null"]}

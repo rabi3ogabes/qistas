@@ -41,6 +41,49 @@ Map<String, dynamic> flexibleAccountJson() {
   return account;
 }
 
+// Investors (Win Plan PP3).
+
+Map<String, dynamic> summaryJson({String wallet = '9580.00'}) => {
+      'wallet': wallet, 'out_in_contracts': '500.00', 'profit_earned': '80.00', 'profit_expected': '50.00', 'customers': 2, 'contracts': 2,
+    };
+
+Map<String, dynamic> investorJson({String id = 'i1', String name = 'Own capital', bool main = true, String commission = '0.00', bool archived = false}) => {
+      'id': id, 'name': name, 'is_main': main, 'commercial_registration': null, 'currency': 'SAR', 'commission_percent': commission,
+      'notes': null, 'archived': archived, 'summary': summaryJson(),
+    };
+
+Map<String, dynamic> investorsJson({bool partner = false, int? limit = 1, bool canManage = true}) => {
+      'investors': [investorJson(), if (partner) investorJson(id: 'i2', name: 'Khalid Al-Harbi', main: false, commission: '15.00')],
+      'can_manage': canManage,
+      'can_reverse': canManage,
+      'limit': limit,
+      'used': partner ? 2 : 1,
+    };
+
+Map<String, dynamic> investorDetailJson() => {
+      ...investorJson(),
+      'profit_by_month': [
+        for (final (i, month) in ['2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10'].indexed) {'month': month, 'amount': '${i * 10}.00'},
+      ],
+      'contracts': [
+        {'id': 'k7', 'reference': 'C-0007', 'customer': {'id': 'c1', 'name': 'Ahmad Salem'}, 'status': 'active', 'financed': '1000.00', 'markup_amount': '100.00', 'collected': '550.00', 'start_date': '2026-09-01'},
+      ],
+      'entries': [
+        {'id': 'e2', 'type': 'profit_share', 'amount': '50.00', 'occurred_on': '2026-10-05', 'note': null, 'contract': {'id': 'k7', 'reference': 'C-0007'}, 'reverses_entry_id': null, 'reversed': false, 'reversible': false},
+        {'id': 'e1', 'type': 'deposit', 'amount': '10000.00', 'occurred_on': '2026-09-01', 'note': 'Opening cash', 'contract': null, 'reverses_entry_id': null, 'reversed': false, 'reversible': true},
+      ],
+    };
+
+Map<String, dynamic> accountWithInvestors({String role = 'owner', String plan = 'free'}) {
+  final account = accountJson(role: role, plan: plan);
+  account['entitlements'] = {
+    ...Map<String, dynamic>.from(account['entitlements'] as Map),
+    'investors': {'type': 'limit', 'enabled': true, 'status': 'on', 'limit': plan == 'pro' ? null : 1, 'used': 1, 'remaining': plan == 'pro' ? null : 0, 'unlimited': plan == 'pro'},
+  };
+
+  return account;
+}
+
 /// What `GET /demo` answers when the site offers "Try the demo".
 Map<String, dynamic> demoOfferJson() => {
       'enabled': true,

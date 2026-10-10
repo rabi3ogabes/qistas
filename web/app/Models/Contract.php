@@ -34,6 +34,7 @@ use Illuminate\Support\Facades\DB;
  * @property string $markup_type
  * @property string $markup_value
  * @property string|null $notes
+ * @property string|null $investor_id who funded it; null only for contracts made before investors, until the main investor takes them on
  * @property Carbon|null $settled_at
  * @property Carbon|null $cancelled_at
  */
@@ -91,6 +92,12 @@ class Contract extends Model
         }
 
         return $query->whereIn('customer_id', Customer::query()->withTrashed()->search($term)->select('id'));
+    }
+
+    /** @return BelongsTo<Investor, $this> */
+    public function investor(): BelongsTo
+    {
+        return $this->belongsTo(Investor::class);
     }
 
     /** @return BelongsTo<Customer, $this> */

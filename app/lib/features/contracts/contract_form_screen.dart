@@ -4,17 +4,20 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
 import '../../core/api/api_exception.dart';
+import '../../core/design/luxe.dart';
 import '../../core/design/tokens.dart';
 import '../../core/design/widgets.dart';
 import '../../core/l10n/formats.dart';
 import '../../core/l10n/translations.dart';
 import '../../core/money.dart';
 import '../../core/ui/errors.dart';
+import '../../data/investors.dart';
 import '../../data/models.dart';
 import '../../data/qistas_api.dart';
 import '../../domain/schedule_generator.dart';
 import '../billing/upgrade_sheet.dart';
 import '../customers/customer_detail_screen.dart';
+import '../investors/investors_screen.dart';
 import '../payments/payments_state.dart';
 
 /// Opens a contract: who it is for, what was sold and how it is paid. The schedule is worked out on the phone as
@@ -54,6 +57,7 @@ class _ContractFormScreenState extends ConsumerState<ContractFormScreen> {
   String _frequency = 'monthly';
   int _count = 6;
   int _grace = 0;
+  String? _investorId;
   final List<_DateRow> _rows = [];
   late DateTime _start = _today();
   late DateTime _firstDue = _plusMonth(_start);
@@ -334,6 +338,7 @@ class _ContractFormScreenState extends ConsumerState<ContractFormScreen> {
       firstDueDate: isoDay(_firstDue),
       notes: _notes.text,
       graceDays: scheduled && flexible ? _grace : 0,
+      investorId: _investorId,
       customSchedule: scheduled && _isCustom && preview != null
           ? [for (final row in preview.installments) ScheduleEntry(row.dueDate, row.amount.toDecimalString())]
           : const [],
@@ -370,6 +375,10 @@ class _ContractFormScreenState extends ConsumerState<ContractFormScreen> {
     final language = ref.watch(localeProvider);
     final currency = account?.currency ?? '';
     final flexible = account?.entitlements['flexible_schedules']?.enabled ?? false;
+    // "Funded by", once the business has partners: asked of people who see the investors, while the feature is on.
+    final funders = showsInvestors(account) && (account?.entitlement('investors').enabled ?? false)
+        ? ref.watch(investorsProvider).valueOrNull?.funders ?? const <Investor>[]
+        : const <Investor>[];
     final scheduled = _type == 'scheduled';
     final custom = scheduled && _isCustom;
     final (preview, previewErrors) = _preview(context);
@@ -405,6 +414,15 @@ class _ContractFormScreenState extends ConsumerState<ContractFormScreen> {
                         ),
                   if (_error('customer_id') != null)
                     Padding(padding: const EdgeInsets.only(top: 6), child: Text(_error('customer_id')!, style: text.bodySmall?.copyWith(color: c.danger))),
+                  if (funders.length > 1) ...[
+                    const SizedBox(height: 20),
+                    _FundedBy(
+                      funders: funders,
+                      selected: funders.firstWhere((i) => i.id == _investorId, orElse: () => funders.first),
+                      enabled: !_saving,
+                      onChanged: (investor) => setState(() => _investorId = investor.id),
+                    ),
+                  ],
                   const SizedBox(height: 20),
                   Wrap(
                     spacing: 8,
@@ -597,6 +615,68 @@ class _ContractFormScreenState extends ConsumerState<ContractFormScreen> {
     if (_amount(_principal) == null) return (context.t('Enter the price to check the dates against the total.'), QTone.info);
 
     return (context.t('The dates add up to the total.'), QTone.ok);
+  }
+}
+
+/// Who funds the contract: the business's own capital unless a partner is chosen from the sheet.
+class _FundedBy extends StatelessWidget {
+  const _FundedBy({required this.funders, required this.selected, required this.enabled, required this.onChanged});
+
+  final List<Investor> funders;
+  final Investor selected;
+  final bool enabled;
+  final ValueChanged<Investor> onChanged;
+
+  Future<void> _choose(BuildContext context) async {
+    final picked = await showModalBottomSheet<Investor>(
+      context: context,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (context) => ListView(
+        shrinkWrap: true,
+        padding: const EdgeInsets.fromLTRB(8, 0, 8, 24),
+        children: [
+          Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 8), child: Text(context.t('Funded by'), style: Theme.of(context).textTheme.titleLarge)),
+          for (final investor in funders)
+            ListTile(
+              leading: InitialsAvatar(investor.name, size: 36),
+              title: Text(investor.name),
+              subtitle: Text(investorRole(context, investor)),
+              trailing: investor.id == selected.id ? Icon(Icons.check_rounded, color: context.qc.accentText) : null,
+              onTap: () => Navigator.of(context).pop(investor),
+            ),
+        ],
+      ),
+    );
+    if (picked != null) onChanged(picked);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.qc;
+    final text = Theme.of(context).textTheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(context.t('Funded by'), style: text.labelLarge),
+        const SizedBox(height: 6),
+        OutlinedButton(
+          onPressed: enabled ? () => _choose(context) : null,
+          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(56), alignment: AlignmentDirectional.centerStart),
+          child: Row(
+            children: [
+              Icon(Icons.savings_outlined, color: c.inkMuted),
+              const SizedBox(width: 12),
+              Expanded(child: Text(selected.name, maxLines: 1, overflow: TextOverflow.ellipsis)),
+              Icon(Icons.unfold_more, color: c.inkMuted),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(context.t('Each payment’s principal and profit go to them as the customer pays.'), style: text.bodySmall?.copyWith(color: c.inkMuted)),
+      ],
+    );
   }
 }
 

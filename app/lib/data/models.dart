@@ -329,6 +329,8 @@ class Contract {
     required this.installments,
     required this.transactions,
     this.graceDays = 0,
+    this.investorId,
+    this.investorName,
   });
 
   factory Contract.fromJson(Map<String, dynamic> json) {
@@ -354,6 +356,8 @@ class Contract {
       startDate: json['start_date'].toString(),
       firstDueDate: json['first_due_date'].toString(),
       graceDays: (json['grace_days'] as num?)?.toInt() ?? 0,
+      investorId: _text(_map(json['investor'])['id']),
+      investorName: _text(_map(json['investor'])['name']),
       notes: _text(json['notes']),
       customerId: _text(customer['id']),
       customerName: _text(customer['name']),
@@ -395,6 +399,10 @@ class Contract {
 
   /// Days after a due date before an instalment counts as late.
   final int graceDays;
+
+  /// Who funded it; absent for a collector, who does not see investors.
+  final String? investorId;
+  final String? investorName;
   final String? notes;
   final String? customerId;
   final String? customerName;

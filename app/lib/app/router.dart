@@ -14,6 +14,9 @@ import '../features/customers/customers_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import '../features/intro/onboarding_screen.dart';
 import '../features/intro/splash_screen.dart';
+import '../features/investors/investor_detail_screen.dart';
+import '../features/investors/investor_form_screen.dart';
+import '../features/investors/investors_screen.dart';
 import '../features/payments/payments_screen.dart';
 import '../features/search/search_screen.dart';
 import '../features/security/app_lock_settings_screen.dart';
@@ -70,6 +73,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/app-lock', builder: (_, _) => const AppLockSettingsScreen()),
       GoRoute(path: '/delete-account', builder: (_, _) => const DeleteAccountScreen()),
       GoRoute(path: '/team', builder: (_, _) => const TeamScreen()),
+      GoRoute(
+        path: '/investors',
+        builder: (_, _) => const InvestorsScreen(),
+        routes: [
+          GoRoute(path: 'new', builder: (_, _) => const InvestorFormScreen()),
+          GoRoute(path: ':id', builder: (_, state) => InvestorDetailScreen(id: state.pathParameters['id']!), routes: [
+            GoRoute(path: 'edit', builder: (_, state) => InvestorFormScreen(id: state.pathParameters['id'])),
+          ]),
+        ],
+      ),
       GoRoute(path: '/search', builder: (_, _) => const SearchScreen()),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => AppShell(shell: shell),

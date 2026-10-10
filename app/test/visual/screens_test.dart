@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fake_api.dart';
@@ -54,6 +53,41 @@ void main() {
     await tapText(tester, 'تواريخ أختارها');
     await tapTooltip(tester, 'إزالة هذا التاريخ');
     await snapshot(tester, 'contract-form-own-dates-ar');
+  });
+
+  picture('investors, Arabic', (tester) async {
+    await pumpApp(
+      tester,
+      workspaceServer(account: accountWithInvestors(plan: 'pro'), routes: {'GET /investors': always(json(200, {'data': investorsJson(partner: true, limit: null)}))}),
+      realFonts: true,
+      size: const Size(360, 1100),
+      language: 'ar',
+    );
+    await openSettings(tester);
+    await tester.ensureVisible(find.byKey(const ValueKey('settings-investors')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('settings-investors')));
+    await settle(tester);
+    await snapshot(tester, 'investors-ar');
+  });
+
+  picture('one investor', (tester) async {
+    await pumpApp(
+      tester,
+      workspaceServer(account: accountWithInvestors(), routes: {
+        'GET /investors': always(json(200, {'data': investorsJson()})),
+        'GET /investors/i1': always(json(200, {'data': investorDetailJson()})),
+      }),
+      realFonts: true,
+      size: const Size(360, 1700),
+    );
+    await openSettings(tester);
+    await tester.ensureVisible(find.byKey(const ValueKey('settings-investors')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('settings-investors')));
+    await settle(tester);
+    await tapText(tester, 'Own capital');
+    await snapshot(tester, 'investor-detail');
   });
 
   picture('sign-in', (tester) async {

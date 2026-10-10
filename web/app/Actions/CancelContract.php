@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Domain\Investors\InvestorLedger;
 use App\Models\Contract;
 use App\Models\User;
 use App\Support\Audit;
@@ -15,7 +16,7 @@ use Illuminate\Validation\ValidationException;
  */
 final class CancelContract
 {
-    public function __construct(private readonly CurrentTenant $current) {}
+    public function __construct(private readonly CurrentTenant $current, private readonly InvestorLedger $investors) {}
 
     /** @throws ValidationException when the contract is not running */
     public function handle(Contract $contract, ?string $reason = null, ?User $by = null): Contract
@@ -31,6 +32,8 @@ final class CancelContract
             }
 
             $locked->forceFill(['status' => 'cancelled', 'cancelled_at' => now()])->save();
+            // What of its principal had not come back is the investor's to use again.
+            $this->investors->releaseCancelled($locked);
 
             Audit::record('contract.cancelled', $locked, array_filter([
                 'reference' => $locked->reference(),

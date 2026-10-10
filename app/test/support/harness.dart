@@ -140,6 +140,8 @@ Future<void> tapText(WidgetTester tester, String text, {bool last = false}) asyn
   final finder = find.text(text);
   expect(finder, findsWidgets, reason: 'no "$text" on screen');
   await tester.ensureVisible(last ? finder.last : finder.first);
+  // Scrolling lands on the next frame; tapping before it would tap where the widget used to be.
+  await tester.pump();
   await tester.tap(last ? finder.last : finder.first);
   await settle(tester);
 }

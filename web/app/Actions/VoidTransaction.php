@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Domain\Investors\InvestorLedger;
 use App\Domain\Ledger\ContractSettlement;
 use App\Models\Contract;
 use App\Models\Installment;
@@ -19,7 +20,7 @@ use Illuminate\Validation\ValidationException;
  */
 final class VoidTransaction
 {
-    public function __construct(private readonly CurrentTenant $current) {}
+    public function __construct(private readonly CurrentTenant $current, private readonly InvestorLedger $investors) {}
 
     /** @throws ValidationException when the transaction cannot be voided */
     public function handle(Transaction $transaction, ?string $reason = null, ?User $by = null): Transaction
@@ -63,6 +64,8 @@ final class VoidTransaction
             }
 
             ContractSettlement::sync($contract, $at);
+            // The investor gives back exactly what the payment had credited.
+            $this->investors->reverse($reversal);
 
             return $reversal;
         }));

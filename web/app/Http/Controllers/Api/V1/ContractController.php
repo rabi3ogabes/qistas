@@ -69,7 +69,7 @@ final class ContractController
         $reversed = $lines->pluck('reverses_transaction_id')->filter()->flip();
         $lines->each(fn (Transaction $line) => $line->setAttribute('voided', $line->type === 'payment' && $reversed->has($line->id)));
 
-        $contract->load('customer');
+        $contract->load(['customer', 'investor']);
         $this->attachProgress(collect([$contract]));
         $contract->setAttribute('paid', $installments->reduce(fn (string $carry, Installment $i) => Money::add($carry, $i->paid_amount), '0'));
         $contract->setRelation('installments', $installments);

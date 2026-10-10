@@ -2,6 +2,8 @@
 
 namespace App\Actions;
 
+use App\Domain\Investors\InvestorLedger;
+use App\Domain\Investors\MainInvestor;
 use App\Domain\Schedule\InvalidScheduleException;
 use App\Domain\Schedule\ScheduleGenerator;
 use App\Domain\Schedule\ScheduleRequest;
@@ -14,6 +16,7 @@ use App\Entitlements\LimitReached;
 use App\Models\Contract;
 use App\Models\Customer;
 use App\Models\Installment;
+use App\Models\Investor;
 use App\Models\Tenant;
 use App\Models\Transaction;
 use App\Models\User;
@@ -33,6 +36,7 @@ final class CreateContract
     public function __construct(
         private readonly CurrentTenant $current,
         private readonly ScheduleGenerator $generator,
+        private readonly InvestorLedger $investors,
     ) {}
 
     /**
@@ -58,6 +62,7 @@ final class CreateContract
             $graceDays = $type === 'cash' ? 0 : (int) ($data['grace_days'] ?? 0);
             $this->assertPlanAllowed($tenant, $type, $data, $graceDays);
             $schedule = $this->schedule($type, $data, $startDate);
+            $investor = $this->investor($tenant, $data['investor_id'] ?? null);
 
             $contract = (new Contract)->forceFill([
                 'customer_id' => $customer->id,
@@ -77,9 +82,12 @@ final class CreateContract
                 'start_date' => $startDate,
                 'first_due_date' => $schedule->installments[0]['due_date'],
                 'notes' => $data['notes'] ?? null,
+                'investor_id' => $investor->id,
                 'created_by_user_id' => $by?->id,
             ]);
             $contract->save();
+            // The amount financed leaves its investor's wallet the day the contract opens.
+            $this->investors->fund($contract);
 
             // The down payment is money received today: it belongs in the ledger, not only on the contract.
             if ($type !== 'cash' && ! Money::isZero($contract->down_payment)) {
@@ -130,6 +138,26 @@ final class CreateContract
         if (! $basic) {
             Entitlements::for($tenant)->assertEnabled(Feature::FlexibleSchedules);
         }
+    }
+
+    /**
+     * Who funds the contract: the investor chosen (a partner needs the investors feature), or the business's own capital.
+     *
+     * @throws ValidationException|FeatureUnavailable|FeatureLocked
+     */
+    private function investor(Tenant $tenant, mixed $id): Investor
+    {
+        if ($id === null || $id === '') {
+            return MainInvestor::for($tenant);
+        }
+
+        $investor = Investor::query()->active()->find($id)
+            ?? throw ValidationException::withMessages(['investor_id' => __('Choose one of your investors.')]);
+        if (! $investor->is_main) {
+            Entitlements::for($tenant)->assertEnabled(Feature::Investors);
+        }
+
+        return $investor;
     }
 
     /** @param  array<string, mixed>  $data */

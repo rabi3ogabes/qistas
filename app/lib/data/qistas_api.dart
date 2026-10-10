@@ -3,6 +3,7 @@ import 'dart:math';
 import '../core/api/api_client.dart';
 import '../core/money.dart';
 import '../domain/schedule_generator.dart';
+import 'investors.dart';
 import 'models.dart';
 
 /// A fresh key for one attempt at one payment. Showing the same key again for the same attempt (a double tap, a
@@ -115,6 +116,41 @@ class QistasApi {
   }
 
   Future<Tool> saveTool(String key, Object? value) async => Tool.fromJson(_data(await _client.put('/settings/tools/${Uri.encodeComponent(key)}', body: {'value': value})));
+
+  // ---------------------------------------------------------------- investors
+
+  Future<InvestorsPage> investors() async => InvestorsPage.fromJson(_data(await _client.get('/investors')));
+
+  Future<InvestorDetail> investor(String id) async => InvestorDetail.fromJson(_data(await _client.get('/investors/$id')));
+
+  Future<Investor> createInvestor({required String name, String? commercialRegistration, String? commissionPercent, String? openingCapital, String? notes}) async =>
+      Investor.fromJson(_data(await _client.post('/investors', body: {
+        'name': name.trim(),
+        if (commercialRegistration != null && commercialRegistration.trim().isNotEmpty) 'commercial_registration': commercialRegistration.trim(),
+        if (commissionPercent != null && commissionPercent.trim().isNotEmpty) 'commission_percent': commissionPercent.trim(),
+        if (openingCapital != null && openingCapital.trim().isNotEmpty) 'opening_capital': openingCapital.trim(),
+        if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+      })));
+
+  Future<Investor> updateInvestor(String id, {required String name, String? commercialRegistration, String? commissionPercent, String? notes, bool? archived}) async =>
+      Investor.fromJson(_data(await _client.put('/investors/$id', body: {
+        'name': name.trim(),
+        'commercial_registration': commercialRegistration?.trim() ?? '',
+        'commission_percent': ?commissionPercent?.trim(),
+        'notes': notes?.trim() ?? '',
+        'archived': ?archived,
+      })));
+
+  /// Money put in (deposit) or taken out (withdrawal); [amount] is positive either way.
+  Future<InvestorEntry> recordInvestorEntry(String investorId, {required String type, required String amount, String? occurredOn, String? note}) async =>
+      InvestorEntry.fromJson(_data(await _client.post('/investors/$investorId/entries', body: {
+        'type': type,
+        'amount': amount,
+        'occurred_on': ?occurredOn,
+        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+      })));
+
+  Future<InvestorEntry> reverseInvestorEntry(String entryId) async => InvestorEntry.fromJson(_data(await _client.post('/investor-entries/$entryId/reverse')));
 
   // --------------------------------------------------------------------- team
 
@@ -271,6 +307,7 @@ class ContractForm {
     this.notes = '',
     this.graceDays = 0,
     this.customSchedule = const [],
+    this.investorId,
   });
 
   final String customerId;
@@ -293,10 +330,20 @@ class ContractForm {
   /// The shop's own dates and amounts, when [frequency] is custom: the count and the first date then come from them.
   final List<ScheduleEntry> customSchedule;
 
+  /// Who funds it; the business's own capital when null.
+  final String? investorId;
+
   bool get _custom => frequency == ScheduleGenerator.custom;
 
   Map<String, dynamic> toJson() => type == 'cash'
-      ? {'customer_id': customerId, 'type': 'cash', 'principal': principal, 'start_date': startDate, if (notes.trim().isNotEmpty) 'notes': notes.trim()}
+      ? {
+          'customer_id': customerId,
+          'type': 'cash',
+          'principal': principal,
+          'start_date': startDate,
+          if (notes.trim().isNotEmpty) 'notes': notes.trim(),
+          if (investorId != null) 'investor_id': investorId,
+        }
       : {
           'customer_id': customerId,
           'type': 'scheduled',
@@ -310,6 +357,7 @@ class ContractForm {
           if (!_custom) 'first_due_date': firstDueDate,
           if (_custom) 'custom_schedule': [for (final entry in customSchedule) entry.toJson()],
           if (graceDays > 0) 'grace_days': graceDays,
+          if (investorId != null) 'investor_id': investorId,
           if (notes.trim().isNotEmpty) 'notes': notes.trim(),
         };
 }

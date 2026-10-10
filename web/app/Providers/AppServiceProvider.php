@@ -9,6 +9,7 @@ use App\Entitlements\UsageMeters;
 use App\Listeners\AuditAuthEvents;
 use App\Models\Contract;
 use App\Models\Customer;
+use App\Models\Investor;
 use App\Models\Tenant;
 use App\Models\TenantInvitation;
 use App\Models\User;
@@ -129,5 +130,8 @@ class AppServiceProvider extends ServiceProvider
         // People in the business, plus the invitations still waiting: a place is held as soon as a link is made.
         $meters->register(Feature::Members, fn (Tenant $tenant): int => DB::table('tenant_users')->where('tenant_id', $tenant->id)->count()
             + TenantInvitation::withoutGlobalScope(TenantScope::class)->where('tenant_id', $tenant->id)->open()->count());
+        // Investors who can still fund contracts, the business's own capital included (Free keeps that one only).
+        $meters->register(Feature::Investors, fn (Tenant $tenant): int => Investor::withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenant->id)->whereNull('archived_at')->count());
     }
 }

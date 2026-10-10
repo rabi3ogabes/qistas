@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\ContractController;
 use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\DemoController;
+use App\Http\Controllers\Api\V1\InvestorController;
 use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\PlanController;
@@ -57,6 +58,16 @@ Route::name('api.')->group(function (): void {
             Route::delete('team/members/{member}', [TeamController::class, 'remove'])->whereUuid('member')->name('team.members.destroy');
         });
         Route::post('invitations/accept', [TeamController::class, 'accept'])->middleware('throttle:api-money')->name('invitations.accept');
+
+        // Who funds the business (Win Plan PP3). Reading stays open when the feature is off; writing asks for it.
+        Route::get('investors', [InvestorController::class, 'index'])->name('investors.index');
+        Route::get('investors/{investor}', [InvestorController::class, 'show'])->whereUuid('investor')->name('investors.show');
+        Route::middleware('throttle:api-money')->group(function (): void {
+            Route::post('investors', [InvestorController::class, 'store'])->name('investors.store');
+            Route::put('investors/{investor}', [InvestorController::class, 'update'])->whereUuid('investor')->name('investors.update');
+            Route::post('investors/{investor}/entries', [InvestorController::class, 'storeEntry'])->whereUuid('investor')->name('investors.entries.store');
+            Route::post('investor-entries/{entry}/reverse', [InvestorController::class, 'reverse'])->whereUuid('entry')->name('investor-entries.reverse');
+        });
 
         Route::apiResource('customers', CustomerController::class);
 

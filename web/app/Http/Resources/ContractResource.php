@@ -2,9 +2,11 @@
 
 namespace App\Http\Resources;
 
+use App\Domain\Investors\MainInvestor;
 use App\Http\Resources\Concerns\Presents;
 use App\Models\Contract;
 use App\Models\Installment;
+use App\Models\Investor;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -51,6 +53,11 @@ class ContractResource extends JsonResource
             'settled_at' => $this->moment($this->settled_at),
             'cancelled_at' => $this->moment($this->cancelled_at),
             'customer' => $this->whenLoaded('customer', fn () => ['id' => $this->customer->id, 'name' => $this->customer->name]),
+            // Who funded it, for the people who see investors (collectors do not).
+            'investor' => $this->when(
+                $this->relationLoaded('investor') && $this->investor !== null && ($request->user()?->can('viewAny', Investor::class) ?? false),
+                fn () => ['id' => $this->investor->id, 'name' => MainInvestor::displayName($this->investor), 'is_main' => $this->investor->is_main],
+            ),
             'owed' => $this->when($progress !== null, fn () => $this->money($this->status === 'cancelled' ? '0' : $progress['owed'])),
             'paid' => $this->when($this->getAttribute('paid') !== null, fn () => $this->money($this->getAttribute('paid'))),
             'next_installment' => $this->when($progress !== null, fn () => $next === null ? null : [

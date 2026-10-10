@@ -1,5 +1,7 @@
 @php
+    use App\Domain\Investors\MainInvestor;
     use App\Domain\Schedule\Frequencies;
+    use App\Models\Investor;
     use App\Models\Transaction;
     use App\Support\Format;
     use App\Support\Money;
@@ -96,6 +98,9 @@
                         @if ($contract->grace_days > 0)<div><dt>{{ __('Grace days') }}</dt><dd class="money">{{ $contract->grace_days }}</dd></div>@endif
                     @else
                         <div><dt>{{ __('Payment terms') }}</dt><dd>{{ __('Paid in full on the day of the contract.') }}</dd></div>
+                    @endif
+                    @if ($contract->investor !== null && auth()->user()->can('viewAny', Investor::class))
+                        <div><dt>{{ __('Funded by') }}</dt><dd><a class="link" href="{{ route('app.investors.show', $contract->investor) }}">{{ MainInvestor::displayName($contract->investor) }}</a></dd></div>
                     @endif
                     @if ($contract->notes)<div><dt>{{ __('Notes') }}</dt><dd class="prewrap">{{ $contract->notes }}</dd></div>@endif
                     @if ($contract->cancelled_at)<div><dt>{{ __('Cancelled on') }}</dt><dd class="money">{{ $contract->cancelled_at->translatedFormat('j M Y') }}</dd></div>@endif

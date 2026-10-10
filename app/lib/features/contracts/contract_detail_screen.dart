@@ -306,6 +306,8 @@ class _Body extends ConsumerWidget {
                       ),
                       _line(context, context.t('First due'), Text(formatDay(contract.firstDueDate, language), style: text.bodyLarge)),
                       if (contract.graceDays > 0) _line(context, context.t('Grace days'), Text('${contract.graceDays}', style: text.bodyLarge)),
+                      if (contract.investorName != null)
+                        _line(context, context.t('Funded by'), Flexible(child: Text(contract.investorName!, style: text.bodyLarge, textAlign: TextAlign.end, maxLines: 2, overflow: TextOverflow.ellipsis))),
                     ],
                     _line(context, context.t('Started'), Text(formatDay(contract.startDate, language), style: text.bodyLarge)),
                     if (contract.notes != null) _line(context, context.t('Notes'), Flexible(child: Text(contract.notes!, style: text.bodyLarge, textAlign: TextAlign.end))),

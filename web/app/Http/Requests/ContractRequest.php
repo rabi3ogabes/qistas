@@ -6,6 +6,7 @@ use App\Domain\Schedule\ScheduleGenerator;
 use App\Http\Requests\Concerns\MoneyRules;
 use App\Http\Requests\Concerns\ScheduleRules;
 use App\Models\Contract;
+use App\Models\Investor;
 use App\Support\Digits;
 use App\Tenancy\CurrentTenant;
 use Closure;
@@ -50,7 +51,17 @@ class ContractRequest extends FormRequest
             'start_date' => ['nullable', 'date_format:Y-m-d'],
             'first_due_date' => [$planned, 'nullable', 'date_format:Y-m-d', $this->notBeforeStart()],
             'notes' => ['nullable', 'string', 'max:5000'],
+            // Who funds it: one of this workspace's investors still funding contracts, chosen by someone who sees them.
+            'investor_id' => ['nullable', 'string', 'uuid', $this->mayChooseInvestor(), Rule::exists('investors', 'id')
+                ->where('tenant_id', app(CurrentTenant::class)->id())
+                ->whereNull('archived_at')],
         ];
+    }
+
+    /** @return array<string, string> */
+    public function attributes(): array
+    {
+        return ['investor_id' => __('investor')];
     }
 
     /** @return array<string, string> */
@@ -85,7 +96,18 @@ class ContractRequest extends FormRequest
             'grace_days' => $plan('grace_days'),
             'custom_schedule' => $value('type') === 'cash' ? null : $this->cleanCustomSchedule($this->input('custom_schedule')),
             'notes' => is_scalar($this->input('notes')) && trim((string) $this->input('notes')) !== '' ? trim((string) $this->input('notes')) : null,
+            'investor_id' => $value('investor_id'),
         ]);
+    }
+
+    /** A collector never sees the investors, so cannot pick one: their contracts are funded by the main investor. */
+    private function mayChooseInvestor(): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail): void {
+            if (! ($this->user()?->can('viewAny', Investor::class) ?? false)) {
+                $fail(__('Choosing who funds a contract is for the people who see the investors.'));
+            }
+        };
     }
 
     private function notBeforeStart(): Closure

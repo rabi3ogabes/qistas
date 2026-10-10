@@ -1,4 +1,5 @@
 @php
+    use App\Domain\Investors\MainInvestor;
     use App\Domain\Schedule\Frequencies;
     use App\Entitlements\Feature;
 
@@ -77,6 +78,20 @@
                         </select>
                         @error('customer_id')<p class="field-error" id="f-customer_id-error" role="alert">{{ $message }}</p>@enderror
                     </div>
+
+                    @if ($investors->count() > 1)
+                        {{-- Who funds it: the business's own capital unless a partner is chosen (Win Plan PP3). --}}
+                        <div class="field field-wide">
+                            <label for="f-investor_id">{{ __('Funded by') }}</label>
+                            <select id="f-investor_id" name="investor_id" aria-describedby="f-investor_id-hint" @error('investor_id') aria-invalid="true" @enderror>
+                                @foreach ($investors as $investor)
+                                    <option value="{{ $investor->id }}" @selected(old('investor_id', $investors->first()->id) === $investor->id)>{{ MainInvestor::displayName($investor) }}</option>
+                                @endforeach
+                            </select>
+                            <p class="field-hint" id="f-investor_id-hint">{{ __('Each payment’s principal and profit go to them as the customer pays.') }}</p>
+                            @error('investor_id')<p class="field-error" role="alert">{{ $message }}</p>@enderror
+                        </div>
+                    @endif
 
                     <fieldset class="field field-wide choice">
                         <legend class="field-label">{{ __('How will they pay?') }}</legend>

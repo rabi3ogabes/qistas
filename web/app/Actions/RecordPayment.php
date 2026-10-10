@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Domain\Investors\InvestorLedger;
 use App\Domain\Ledger\ContractSettlement;
 use App\Domain\Ledger\PaymentAllocator;
 use App\Models\Contract;
@@ -28,6 +29,7 @@ final class RecordPayment
     public function __construct(
         private readonly CurrentTenant $current,
         private readonly PaymentAllocator $allocator,
+        private readonly InvestorLedger $investors,
     ) {}
 
     /**
@@ -119,6 +121,8 @@ final class RecordPayment
         }
 
         ContractSettlement::sync($locked, $paidAt);
+        // Its principal and profit go to whoever funded the contract, in the same transaction (Win Plan PP3).
+        $this->investors->creditPayment($transaction);
 
         return $transaction;
     }
