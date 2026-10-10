@@ -72,6 +72,10 @@ class FortifyServiceProvider extends ServiceProvider
         // Deleting an account asks for the password again: a few tries a minute per person, so it cannot be guessed at.
         RateLimiter::for('account-deletion', fn (Request $request) => Limit::perMinute(5)->by('account-deletion|'.($request->user()?->getAuthIdentifier() ?? $request->ip())));
         RateLimiter::for('api-public', fn (Request $request) => Limit::perMinute(60)->by('api-public|'.$request->ip()));
+        // A PDF takes a few seconds to draw: enough for a busy counter, not enough to keep the server drawing.
+        RateLimiter::for('documents', fn (Request $request) => Limit::perMinute(30)->by('documents|'.($request->user()?->getAuthIdentifier() ?? $request->ip())));
+        // The page a document's QR code opens: a person checks one or two; nobody needs to try codes one after another.
+        RateLimiter::for('verify', fn (Request $request) => Limit::perMinute(20)->by('verify|'.$request->ip()));
         RateLimiter::for('api-register', fn (Request $request) => Limit::perMinute(5)->by('api-register|'.$request->ip()));
         RateLimiter::for('api-login', fn (Request $request) => [
             Limit::perMinute(config('qistas.security.login_attempts_per_minute'))

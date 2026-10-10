@@ -9,7 +9,9 @@ import '../../core/design/widgets.dart';
 import '../../core/l10n/translations.dart';
 import '../../core/money.dart';
 import '../../data/models.dart';
+import '../documents/document_options_sheet.dart';
 import '../reminders/reminders.dart';
+
 
 /// The moment after money is taken: what was received, what is left, and a receipt one tap from the customer.
 Future<void> showPaymentSuccess(BuildContext context, {required Contract contract, required LedgerLine payment}) => showModalBottomSheet<void>(
@@ -127,7 +129,10 @@ class _PaymentSuccessSheetState extends ConsumerState<PaymentSuccessSheet> {
             const SizedBox(height: 8),
             Text(context.t(':percent% of this contract is paid', {'percent': (_paidFraction * 100).round()}), style: text.bodySmall?.copyWith(color: c.inkMuted)),
             const SizedBox(height: 24),
-            QButton(label: context.t('Send receipt on WhatsApp'), icon: Icons.chat_outlined, loading: _sending, onPressed: widget.contract.customerId == null ? null : _sendReceipt),
+            // The receipt as a PDF through the share sheet (WhatsApp, a printer, email), then the short message.
+            QButton(label: context.t('Send receipt'), icon: Icons.receipt_long_outlined, kind: QButtonKind.gold, onPressed: () => showDocumentSheet(context, DocumentRequest.receipt(widget.payment.id, widget.contract.reference))),
+            const SizedBox(height: 8),
+            QButton(label: context.t('Send receipt on WhatsApp'), icon: Icons.chat_outlined, kind: QButtonKind.quiet, loading: _sending, onPressed: widget.contract.customerId == null ? null : _sendReceipt),
             const SizedBox(height: 8),
             QButton(label: context.t('Done'), kind: QButtonKind.text, onPressed: () => Navigator.of(context).pop()),
           ],

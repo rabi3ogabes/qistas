@@ -15,4 +15,10 @@ final class Format
     {
         return (string) Number::currency((float) $amount, $currency, app()->getLocale().'-u-nu-latn', $decimals);
     }
+
+    /** An amount without its currency, for a column whose heading names it: 1,090.00, with Western digits in every language. */
+    public static function amount(string $amount, int $decimals = 2): string
+    {
+        return (string) Number::format((float) $amount, $decimals, locale: app()->getLocale().'-u-nu-latn');
+    }
 }

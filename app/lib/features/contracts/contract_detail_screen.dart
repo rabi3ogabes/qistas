@@ -17,6 +17,7 @@ import '../../core/ui/errors.dart';
 import '../../core/ui/reason_dialog.dart';
 import '../../data/models.dart';
 import '../customers/customer_detail_screen.dart';
+import '../documents/document_options_sheet.dart';
 import '../payments/payment_success.dart';
 import '../payments/payments_state.dart';
 import '../payments/record_payment_sheet.dart';
@@ -24,6 +25,8 @@ import '../reminders/reminders.dart';
 import 'contracts_screen.dart';
 import 'ledger_line_sheet.dart';
 import 'open_account_screen.dart';
+
+
 
 class ContractDetailScreen extends ConsumerStatefulWidget {
   const ContractDetailScreen({super.key, required this.id, this.recordPayment = false});
@@ -153,7 +156,13 @@ class _ContractDetailScreenState extends ConsumerState<ContractDetailScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: Directionality(textDirection: TextDirection.ltr, child: Text(loaded?.reference ?? context.t('Contract')))),
+      appBar: AppBar(
+        title: Directionality(textDirection: TextDirection.ltr, child: Text(loaded?.reference ?? context.t('Contract'))),
+        actions: [
+          if (loaded != null)
+            IconButton(tooltip: context.t('Statement'), icon: const Icon(Icons.description_outlined), onPressed: () => showDocumentSheet(context, DocumentRequest.contract(loaded.id, loaded.reference))),
+        ],
+      ),
       body: contract.when(
         loading: () => const Padding(padding: EdgeInsets.all(16), child: QSkeletonList(rows: 6)),
         error: (error, _) => QErrorView(message: errorMessage(context, error), retryLabel: context.t('Try again'), onRetry: () => ref.invalidate(contractProvider(id))),
@@ -353,6 +362,7 @@ class _Body extends ConsumerWidget {
                           currency: _currency,
                           language: language,
                           onVoid: account?.canDelete == true && line.canVoid ? () => voidPaymentFlow(context, ref, line, currency: _currency) : null,
+                          onReceipt: () => showDocumentSheet(context, DocumentRequest.receipt(line.id, contract.reference)),
                         ),
                       ],
                     ],
@@ -584,12 +594,15 @@ class _TimelineRow extends StatelessWidget {
 
 /// One line of the ledger: a payment, a down payment or a reversal.
 class PaymentLine extends StatelessWidget {
-  const PaymentLine({super.key, required this.line, required this.currency, required this.language, this.onVoid, this.showContract = false});
+  const PaymentLine({super.key, required this.line, required this.currency, required this.language, this.onVoid, this.onReceipt, this.showContract = false});
 
   final LedgerLine line;
   final String currency;
   final String language;
   final VoidCallback? onVoid;
+
+  /// A receipt for money that came in (Win Plan PP8).
+  final VoidCallback? onReceipt;
 
   /// On the ledger list the line also names the customer and contract.
   final bool showContract;
@@ -647,11 +660,24 @@ class PaymentLine extends StatelessWidget {
                     style: text.bodySmall?.copyWith(color: c.danger),
                   ),
                 if (line.note != null && !line.isReversal) Padding(padding: const EdgeInsets.only(top: 2), child: Text(line.note!, style: text.bodySmall?.copyWith(color: c.inkMuted))),
-                if (onVoid != null)
-                  TextButton(
-                    onPressed: onVoid,
-                    style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(48, 36), alignment: AlignmentDirectional.centerStart, textStyle: text.labelMedium),
-                    child: Text(context.t('Void payment')),
+                if (onVoid != null || (onReceipt != null && line.takesReceipt))
+                  Wrap(
+                    spacing: 16,
+                    children: [
+                      if (onReceipt != null && line.takesReceipt)
+                        TextButton.icon(
+                          onPressed: onReceipt,
+                          icon: const Icon(Icons.receipt_long_outlined, size: 16),
+                          style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(48, 36), alignment: AlignmentDirectional.centerStart, textStyle: text.labelMedium),
+                          label: Text(context.t('Receipt')),
+                        ),
+                      if (onVoid != null)
+                        TextButton(
+                          onPressed: onVoid,
+                          style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(48, 36), alignment: AlignmentDirectional.centerStart, textStyle: text.labelMedium),
+                          child: Text(context.t('Void payment')),
+                        ),
+                    ],
                   ),
               ],
             ),

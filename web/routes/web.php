@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\BrandAssetController;
 use App\Http\Controllers\DemoLoginController;
+use App\Http\Controllers\DocumentVerificationController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\RobotsController;
 use App\Http\Controllers\SchedulePreviewController;
@@ -17,6 +18,7 @@ Route::get('/pricing', [SiteController::class, 'pricing'])->name('pricing');
 Route::get('/terms', [SiteController::class, 'terms'])->name('terms');
 Route::get('/privacy', [SiteController::class, 'privacy'])->name('privacy');
 // An invitation link into a business: anyone may open it; joining needs a login, which can be made right there.
+Route::get('/verify/{code}', [DocumentVerificationController::class, 'show'])->where('code', '[A-Za-z0-9]{6,16}')->middleware('throttle:verify')->name('documents.verify');
 Route::get('/invite/{token}', [InvitationController::class, 'show'])->where('token', '[A-Za-z0-9]{20,100}')->name('invitation.show');
 Route::post('/invite/{token}/accept', [InvitationController::class, 'accept'])->where('token', '[A-Za-z0-9]{20,100}')->middleware(['auth', 'account.active', 'throttle:10,1'])->name('invitation.accept');
 Route::post('/invite/{token}/register', [InvitationController::class, 'register'])->where('token', '[A-Za-z0-9]{20,100}')->middleware(['guest', 'throttle:10,1'])->name('invitation.register');

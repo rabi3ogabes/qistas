@@ -26,6 +26,7 @@ use Tests\TestCase;
 */
 
 require_once __DIR__.'/Support/Fixtures.php';
+require_once __DIR__.'/Support/Pdf.php';
 
 pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)

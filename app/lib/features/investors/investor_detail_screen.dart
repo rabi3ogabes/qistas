@@ -13,8 +13,10 @@ import '../../core/l10n/translations.dart';
 import '../../core/money.dart';
 import '../../core/ui/errors.dart';
 import '../../data/investors.dart';
+import '../documents/document_options_sheet.dart';
 import 'investor_entry_sheet.dart';
 import 'investors_screen.dart';
+
 
 /// One investor: the money in their wallet, what is out in contracts, profit earned and still to come, profit month by
 /// month, the contracts they fund and every line of their money. Accountants and above record money in and out; owners
@@ -34,6 +36,8 @@ class InvestorDetailScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(detail.valueOrNull?.investor.name ?? context.t('Investor')),
         actions: [
+          if (detail.hasValue)
+            IconButton(tooltip: context.t('Report'), icon: const Icon(Icons.description_outlined), onPressed: () => showDocumentSheet(context, DocumentRequest.investor(id, detail.requireValue.investor.name))),
           if (canManage && detail.hasValue)
             IconButton(tooltip: context.t('Edit details'), icon: const Icon(Icons.edit_outlined), onPressed: () => context.push('/investors/$id/edit')),
         ],

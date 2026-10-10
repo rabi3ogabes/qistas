@@ -5,6 +5,9 @@
 <x-layouts.app :title="__('Payments')" section="payments">
     <x-page-head :title="__('Payments')">
         <x-slot:subtitle>{{ __('Every payment received, newest first. To take one, open the contract it belongs to.') }}</x-slot:subtitle>
+        @if (auth()->user()?->roleIn((string) app(\App\Tenancy\CurrentTenant::class)->id())?->seesInvestors())
+            <x-document-menu id="payments-report" :action="route('app.reports.transactions')" :label="__('Payments report')" :period="true" :sections="['signature']" />
+        @endif
     </x-page-head>
 
     <section class="card">
@@ -51,6 +54,7 @@
                                     </span>
                                     @if ($line->note && $kind !== 'reversal')<span class="cell-sub">{{ $line->note }}</span>@endif
                                     @include('app.payments._who', ['line' => $line])
+                                    @if (in_array($line->type, ['payment', 'down_payment'], true))<a class="link line-receipt" href="{{ route('app.payments.receipt', $line) }}" target="_blank" rel="noopener"><x-icon name="fileText" :size="14" /> {{ __('Receipt') }}</a>@endif
                                 </td>
                                 <td data-label="{{ __('Amount') }}" @class(['num', 'money', 'voided' => $kind === 'voided'])>{{ Format::money($line->amount, $currency) }}</td>
                             </tr>

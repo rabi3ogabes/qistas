@@ -1,8 +1,10 @@
 import 'dart:math';
+import 'dart:typed_data';
 
 import '../core/api/api_client.dart';
 import '../core/money.dart';
 import '../domain/schedule_generator.dart';
+import 'documents.dart';
 import 'investors.dart';
 import 'models.dart';
 
@@ -143,6 +145,33 @@ class QistasApi {
   }
 
   Future<void> signOutDevice(String id) async => _client.delete('/devices/$id');
+
+  // ---------------------------------------------------------------- documents (Win Plan PP8)
+
+  /// A statement, report or receipt as PDF bytes.
+  Future<Uint8List> document(String path, Map<String, dynamic> query) => _client.getBytes(path, query: query);
+
+  Future<({BusinessProfile profile, bool canEdit})> businessProfile() async {
+    final json = await _client.get('/settings/business-profile');
+    final meta = json['meta'] as Map<String, dynamic>? ?? const {};
+
+    return (profile: BusinessProfile.fromJson(_data(json)), canEdit: meta['can_edit'] == true);
+  }
+
+  /// Saves the business profile's words: a field sent empty is cleared.
+  Future<BusinessProfile> saveBusinessProfile(Map<String, String> fields) async =>
+      BusinessProfile.fromJson(_data(await _client.put('/settings/business-profile', body: {for (final entry in fields.entries) entry.key: entry.value.trim()})));
+
+  /// A new logo or signature ([slot] is `logo` or `signature`).
+  Future<BusinessProfile> uploadBusinessPicture(String slot, List<int> bytes, String filename) async =>
+      BusinessProfile.fromJson(_data(await _client.upload('/settings/business-profile/$slot', field: 'file', bytes: bytes, filename: filename)));
+
+  Future<BusinessProfile> removeBusinessPicture(String slot) async => BusinessProfile.fromJson(_data(await _client.delete('/settings/business-profile/$slot')));
+
+  Future<DocumentPreferences> documentPreferences() async => DocumentPreferences.fromJson(_data(await _client.get('/settings/documents')));
+
+  Future<DocumentPreferences> saveDocumentPreferences(DocumentPreferences preferences) async =>
+      DocumentPreferences.fromJson(_data(await _client.put('/settings/documents', body: preferences.toJson())));
 
   // ---------------------------------------------------------------- investors
 

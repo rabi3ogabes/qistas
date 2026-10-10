@@ -3,11 +3,13 @@
 use App\Http\Controllers\Api\V1\AccountDeletionController;
 use App\Http\Controllers\Api\V1\AppearanceController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\BusinessProfileController;
 use App\Http\Controllers\Api\V1\ContractController;
 use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\DemoController;
 use App\Http\Controllers\Api\V1\DeviceController;
+use App\Http\Controllers\Api\V1\DocumentController;
 use App\Http\Controllers\Api\V1\InvestorController;
 use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\PaymentController;
@@ -75,6 +77,21 @@ Route::name('api.')->group(function (): void {
         Route::get('products', [ProductController::class, 'index'])->name('products.index');
         Route::post('products', [ProductController::class, 'store'])->name('products.store');
         Route::put('products/{product}', [ProductController::class, 'update'])->whereUuid('product')->name('products.update');
+
+        // Statements, reports and receipts as PDF files, and who they come from (Win Plan PP8).
+        Route::middleware('throttle:documents')->group(function (): void {
+            Route::get('customers/{customer}/statement.pdf', [DocumentController::class, 'customerStatement'])->whereUuid('customer')->name('customers.statement');
+            Route::get('contracts/{contract}/statement.pdf', [DocumentController::class, 'contractStatement'])->whereUuid('contract')->name('contracts.statement');
+            Route::get('payments/{transaction}/receipt.pdf', [DocumentController::class, 'receipt'])->whereUuid('transaction')->name('payments.receipt');
+            Route::get('reports/transactions.pdf', [DocumentController::class, 'transactions'])->name('reports.transactions');
+            Route::get('investors/{investor}/report.pdf', [DocumentController::class, 'investorReport'])->whereUuid('investor')->name('investors.report');
+        });
+        Route::get('settings/business-profile', [BusinessProfileController::class, 'show'])->name('settings.business-profile.show');
+        Route::put('settings/business-profile', [BusinessProfileController::class, 'update'])->name('settings.business-profile.update');
+        Route::post('settings/business-profile/{slot}', [BusinessProfileController::class, 'storeAsset'])->whereIn('slot', ['logo', 'signature'])->name('settings.business-profile.assets.store');
+        Route::delete('settings/business-profile/{slot}', [BusinessProfileController::class, 'destroyAsset'])->whereIn('slot', ['logo', 'signature'])->name('settings.business-profile.assets.destroy');
+        Route::get('settings/documents', [BusinessProfileController::class, 'preferences'])->name('settings.documents.show');
+        Route::put('settings/documents', [BusinessProfileController::class, 'updatePreferences'])->name('settings.documents.update');
 
         Route::apiResource('customers', CustomerController::class);
 

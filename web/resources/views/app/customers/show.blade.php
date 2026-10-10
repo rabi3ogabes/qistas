@@ -8,6 +8,7 @@
 <x-layouts.app :title="$customer->name" section="customers">
     <x-page-head :title="$customer->name">
         <x-slot:subtitle><a class="link" href="{{ route('app.customers.index') }}">{{ __('All customers') }}</a></x-slot:subtitle>
+        <x-document-menu id="customer-statement" :action="route('app.customers.statement', $customer)" :label="__('Statement')" :period="true" :sections="['overdue', 'signature']" />
         @can('update', $customer)
             <a class="btn btn-quiet" href="{{ route('app.customers.edit', $customer) }}"><x-icon name="pencil" :size="18" /> {{ __('Edit') }}</a>
         @endcan

@@ -52,6 +52,7 @@ tags:
   - name: Team
   - name: Investors
   - name: Products
+  - name: Documents
 paths:
   /plans:
     get:
@@ -1254,6 +1255,217 @@ paths:
         "401": {$ref: "#/components/responses/Unauthenticated"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
+  /customers/{customer}/statement.pdf:
+    get:
+      tags: [Documents]
+      summary: A customer's statement
+      description: |
+        Every contract of the customer with what is still owed and late today, then the account line by line with a
+        running balance (a period with `from` and `to`; one contract with `contract`). Counts once against the plan's
+        monthly allowance of documents; the same document asked for again within ten minutes is not counted twice. The
+        cost section is only ever shown to someone who sees the business's money.
+      parameters:
+        - {name: customer, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: "#/components/parameters/DocumentPaper"}
+        - {$ref: "#/components/parameters/DocumentText"}
+        - {$ref: "#/components/parameters/DocumentSections"}
+        - {$ref: "#/components/parameters/DocumentSummary"}
+        - {$ref: "#/components/parameters/DocumentCompact"}
+        - {$ref: "#/components/parameters/DocumentLanguage"}
+        - {name: from, in: query, schema: {type: string, format: date}}
+        - {name: to, in: query, schema: {type: string, format: date}}
+        - {name: contract, in: query, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: The PDF. `X-Document-Code` carries the code its QR code opens at `/verify/{code}`.
+          headers:
+            X-Document-Code: {schema: {type: string}, description: The verification code printed on the document.}
+          content: {application/pdf: {schema: {type: string, format: binary}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "402": {$ref: "#/components/responses/PlanLimit"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+  /contracts/{contract}/statement.pdf:
+    get:
+      tags: [Documents]
+      summary: A contract's statement
+      description: Its terms, what is still owed and late, the schedule with an overdue column, what was sold, and its account with a running balance.
+      parameters:
+        - {name: contract, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: "#/components/parameters/DocumentPaper"}
+        - {$ref: "#/components/parameters/DocumentText"}
+        - {$ref: "#/components/parameters/DocumentSections"}
+        - {$ref: "#/components/parameters/DocumentSummary"}
+        - {$ref: "#/components/parameters/DocumentCompact"}
+        - {$ref: "#/components/parameters/DocumentLanguage"}
+      responses:
+        "200":
+          description: The PDF. `X-Document-Code` carries the code its QR code opens at `/verify/{code}`.
+          headers:
+            X-Document-Code: {schema: {type: string}, description: The verification code printed on the document.}
+          content: {application/pdf: {schema: {type: string, format: binary}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "402": {$ref: "#/components/responses/PlanLimit"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+  /payments/{transaction}/receipt.pdf:
+    get:
+      tags: [Documents]
+      summary: A receipt for a payment
+      description: |
+        Its number (the contract's number and which payment on it this is), the day and the time on the workspace's own
+        clock, what it paid off and what is still owed after it. Only for money that came in (a void is 404). Prints on A4,
+        A5 or a till roll (`80mm`, `58mm`), cut as long as it needs to be.
+      parameters:
+        - {name: transaction, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: paper, in: query, schema: {type: string, enum: [a4, a5, 80mm, 58mm]}}
+        - {$ref: "#/components/parameters/DocumentText"}
+        - {$ref: "#/components/parameters/DocumentSections"}
+        - {$ref: "#/components/parameters/DocumentSummary"}
+        - {$ref: "#/components/parameters/DocumentCompact"}
+        - {$ref: "#/components/parameters/DocumentLanguage"}
+      responses:
+        "200":
+          description: The PDF. `X-Document-Code` carries the code its QR code opens at `/verify/{code}`.
+          headers:
+            X-Document-Code: {schema: {type: string}, description: The verification code printed on the document.}
+          content: {application/pdf: {schema: {type: string, format: binary}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "402": {$ref: "#/components/responses/PlanLimit"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+  /reports/transactions.pdf:
+    get:
+      tags: [Documents]
+      summary: The money that came in over a period
+      description: One line each, with the total for each way of paying (this month so far unless `from` and `to` are given). Not for collectors (403).
+      parameters:
+        - {$ref: "#/components/parameters/DocumentPaper"}
+        - {$ref: "#/components/parameters/DocumentText"}
+        - {$ref: "#/components/parameters/DocumentSections"}
+        - {$ref: "#/components/parameters/DocumentSummary"}
+        - {$ref: "#/components/parameters/DocumentCompact"}
+        - {$ref: "#/components/parameters/DocumentLanguage"}
+        - {name: from, in: query, schema: {type: string, format: date}}
+        - {name: to, in: query, schema: {type: string, format: date}}
+        - {name: investor, in: query, schema: {type: string, format: uuid}, description: Only contracts this investor funds.}
+        - {name: product, in: query, schema: {type: string, format: uuid}, description: Only contracts that sold this product.}
+      responses:
+        "200":
+          description: The PDF. `X-Document-Code` carries the code its QR code opens at `/verify/{code}`.
+          headers:
+            X-Document-Code: {schema: {type: string}, description: The verification code printed on the document.}
+          content: {application/pdf: {schema: {type: string, format: binary}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "402": {$ref: "#/components/responses/PlanLimit"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /investors/{investor}/report.pdf:
+    get:
+      tags: [Documents]
+      summary: An investor's report
+      description: Their figures, the contracts they fund with what is owed and late on each, and the wallet line by line with a running balance.
+      parameters:
+        - {name: investor, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: "#/components/parameters/DocumentPaper"}
+        - {$ref: "#/components/parameters/DocumentText"}
+        - {$ref: "#/components/parameters/DocumentSections"}
+        - {$ref: "#/components/parameters/DocumentSummary"}
+        - {$ref: "#/components/parameters/DocumentCompact"}
+        - {$ref: "#/components/parameters/DocumentLanguage"}
+        - {name: from, in: query, schema: {type: string, format: date}}
+        - {name: to, in: query, schema: {type: string, format: date}}
+      responses:
+        "200":
+          description: The PDF. `X-Document-Code` carries the code its QR code opens at `/verify/{code}`.
+          headers:
+            X-Document-Code: {schema: {type: string}, description: The verification code printed on the document.}
+          content: {application/pdf: {schema: {type: string, format: binary}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "402": {$ref: "#/components/responses/PlanLimit"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /settings/business-profile:
+    get:
+      tags: [Documents]
+      summary: Who the documents come from
+      responses:
+        "200":
+          description: The business profile, with its logo and signature as data URIs.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/BusinessProfile"}, meta: {type: object, properties: {can_edit: {type: boolean}}}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+    put:
+      tags: [Documents]
+      summary: Change the business profile
+      description: Owners and managers. A field left out keeps its value; one sent empty is cleared.
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/BusinessProfileInput"}}}
+      responses:
+        "200":
+          description: The business profile.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/BusinessProfile"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+  /settings/business-profile/{slot}:
+    parameters:
+      - {name: slot, in: path, required: true, schema: {type: string, enum: [logo, signature]}}
+    post:
+      tags: [Documents]
+      summary: A new logo or signature
+      description: Owners and managers. PNG or JPEG for a logo, PNG for a signature, up to 2 MB; it is redrawn without hidden data and scaled down.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: {type: object, required: [file], properties: {file: {type: string, format: binary}}}
+      responses:
+        "200":
+          description: The business profile.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/BusinessProfile"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+    delete:
+      tags: [Documents]
+      summary: Remove the logo or the signature
+      responses:
+        "200":
+          description: The business profile.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/BusinessProfile"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /settings/documents:
+    get:
+      tags: [Documents]
+      summary: How documents look by default
+      responses:
+        "200":
+          description: The workspace's document choices.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/DocumentPreferences"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+    put:
+      tags: [Documents]
+      summary: Change how documents look by default
+      description: Owners and managers. What is not sent stays as it was; a word sent empty goes back to the usual one.
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/DocumentPreferences"}}}
+      responses:
+        "200":
+          description: The workspace's document choices.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/DocumentPreferences"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
 components:
   securitySchemes:
     bearer:
@@ -1267,6 +1479,18 @@ components:
       in: header
       schema: {type: string, example: ar}
       description: One of en, ar, fr, es, ur.
+    DocumentPaper: {name: paper, in: query, schema: {type: string, enum: [a4, a5]}, description: The workspace's preference when left out.}
+    DocumentText: {name: text, in: query, schema: {type: string, enum: [small, normal, large]}}
+    DocumentSections:
+      name: sections
+      in: query
+      style: deepObject
+      explode: true
+      description: Turn sections on or off for this document, e.g. `sections[cost]=1&sections[schedule]=0`.
+      schema: {type: object, properties: {cost: {type: boolean}, overdue: {type: boolean}, schedule: {type: boolean}, signature: {type: boolean}}}
+    DocumentSummary: {name: summary, in: query, schema: {type: boolean}, description: A one-page summary without the line-by-line account.}
+    DocumentCompact: {name: compact, in: query, schema: {type: boolean}, description: A smaller header.}
+    DocumentLanguage: {name: language, in: query, schema: {type: string, enum: [en, ar, fr, es, ur]}, description: The asker's language when left out.}
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -1435,6 +1659,38 @@ components:
         sku: {type: string, maxLength: 60}
         default_price: {$ref: "#/components/schemas/Money"}
         cost: {$ref: "#/components/schemas/Money"}
+    BusinessProfile:
+      type: object
+      properties:
+        name_ar: {type: string, nullable: true}
+        name_en: {type: string, nullable: true}
+        phone: {type: string, nullable: true}
+        address: {type: string, nullable: true}
+        cr_number: {type: string, nullable: true}
+        vat_number: {type: string, nullable: true}
+        footer: {type: string, nullable: true, description: Printed at the foot of every page when the plan includes custom branding.}
+        logo: {type: string, nullable: true, description: "A data URI (data:image/png;base64,...); printed when the plan includes custom branding."}
+        signature: {type: string, nullable: true, description: A data URI of a PNG.}
+    BusinessProfileInput:
+      type: object
+      properties:
+        name_ar: {type: string, maxLength: 120, nullable: true}
+        name_en: {type: string, maxLength: 120, nullable: true}
+        phone: {type: string, maxLength: 40, nullable: true}
+        address: {type: string, maxLength: 255, nullable: true}
+        cr_number: {type: string, maxLength: 40, nullable: true}
+        vat_number: {type: string, maxLength: 40, nullable: true}
+        footer: {type: string, maxLength: 255, nullable: true}
+    DocumentPreferences:
+      type: object
+      properties:
+        paper: {type: string, enum: [a4, a5]}
+        text: {type: string, enum: [small, normal, large]}
+        sections: {type: object, properties: {cost: {type: boolean}, overdue: {type: boolean}, schedule: {type: boolean}, signature: {type: boolean}}}
+        wording:
+          type: object
+          description: The workspace's own words for these terms, up to 30 characters each; only the renamed ones are listed.
+          properties: {customer: {type: string}, contract: {type: string}, investor: {type: string}, instalment: {type: string}}
     Investor:
       type: object
       properties:

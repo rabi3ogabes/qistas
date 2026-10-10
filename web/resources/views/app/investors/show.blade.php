@@ -40,6 +40,7 @@
             @endif
             · <a class="link" href="{{ route('app.investors.index') }}">{{ __('All investors') }}</a>
         </x-slot:subtitle>
+        <x-document-menu id="investor-report" :action="route('app.investors.report', $investor)" :label="__('Report')" :period="true" :sections="['overdue', 'signature']" />
     </x-page-head>
 
     <section class="card summary summary-quad" aria-label="{{ __('Where this investor stands') }}">

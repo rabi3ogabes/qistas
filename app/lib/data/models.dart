@@ -331,6 +331,9 @@ class LedgerLine {
 
   /// A payment, or what an open contract's customer took, that may still be voided.
   bool get canVoid => (type == 'payment' || type == 'charge') && !voided;
+
+  /// Money that came in has a receipt (Win Plan PP8); a void or a charge does not.
+  bool get takesReceipt => type == 'payment' || type == 'down_payment';
 }
 
 @immutable

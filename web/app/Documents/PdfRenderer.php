@@ -23,6 +23,9 @@ use Mpdf\Output\Destination;
  * fails costs the workspace nothing.
  *
  * The view extends `documents.layout`; it may use `$branding` (logo path and accent colour; Qistas by default).
+ *
+ * [$page] sets the paper (A4 by default, A5, or a till roll [width, height] in millimetres), the size of the body text
+ * and a smaller header. A till roll is cut as long as what is printed on it.
  */
 final class PdfRenderer
 {
@@ -31,12 +34,13 @@ final class PdfRenderer
 
     /**
      * @param  array<string, mixed>  $data
-     * @param  array{accent?: string, ink?: string, logo?: string|null}  $branding
+     * @param  array{accent?: string, ink?: string, logo?: string|null, name?: string|null, footer?: string|null, qistas?: bool}  $branding
+     * @param  array{format?: string|array{0: int, 1: int}, font_size?: float, compact?: bool, roll?: bool}  $page
      *
      * @throws InvalidArgumentException when the view does not exist
      * @throws LogicException when an allowance is asked for and no workspace is active
      */
-    public function render(string $view, array $data, string $language, ?Feature $quota = null, array $branding = []): string
+    public function render(string $view, array $data, string $language, ?Feature $quota = null, array $branding = [], array $page = []): string
     {
         if (! View::exists($view)) {
             throw new InvalidArgumentException("There is no document view [{$view}].");
@@ -50,13 +54,25 @@ final class PdfRenderer
         App::setLocale($language);
 
         try {
-            $html = view($view, $data + ['language' => $language, 'rtl' => $rtl, 'branding' => $branding + self::BRAND])->render();
+            $html = view($view, $data + ['language' => $language, 'rtl' => $rtl, 'branding' => $branding + self::BRAND, 'fontSize' => $page['font_size'] ?? 10.5, 'compact' => $page['compact'] ?? false])->render();
         } finally {
             App::setLocale($previous);
         }
 
-        $pdf = $this->engine($rtl);
+        // Number formatting in Arabic and Urdu adds invisible direction marks; the PDF engine orders the text itself, and
+        // the brand's fonts have no shape for them (they would print as boxes).
+        $html = (string) preg_replace('/[\x{200E}\x{200F}\x{061C}\x{202A}-\x{202E}\x{2066}-\x{2069}]/u', '', $html);
+
+        $pdf = $this->engine($rtl, $page);
         $pdf->WriteHTML($html);
+
+        // A till roll: written once on a very long page to see how far the text went, then again on a page that long.
+        if (($page['roll'] ?? false) && is_array($page['format'] ?? null)) {
+            $height = (int) ceil($pdf->y + 6);
+            $pdf = $this->engine($rtl, ['format' => [$page['format'][0], max(60, $height)]] + $page);
+            $pdf->WriteHTML($html);
+        }
+
         $bytes = $pdf->Output('', Destination::STRING_RETURN);
 
         if ($quota !== null && $tenant !== null) {
@@ -66,8 +82,12 @@ final class PdfRenderer
         return $bytes;
     }
 
-    private function engine(bool $rtl): Mpdf
+    /** @param  array{format?: string|array{0: int, 1: int}, font_size?: float, compact?: bool, roll?: bool}  $page */
+    private function engine(bool $rtl, array $page = []): Mpdf
     {
+        $roll = $page['roll'] ?? false;
+        $compact = $page['compact'] ?? false;
+
         // Next to Laravel's other scratch folders; the system's temp folder on a host where storage is read-only.
         $temp = is_writable(storage_path('framework')) ? storage_path('framework/mpdf') : sys_get_temp_dir().'/qistas-mpdf';
         File::ensureDirectoryExists($temp);
@@ -77,7 +97,7 @@ final class PdfRenderer
 
         $pdf = new Mpdf([
             'mode' => 'utf-8',
-            'format' => 'A4',
+            'format' => $page['format'] ?? 'A4',
             'tempDir' => $temp,
             'fontDir' => array_merge($defaults['fontDir'], [resource_path('fonts')]),
             'fontdata' => $fonts['fontdata'] + [
@@ -85,13 +105,13 @@ final class PdfRenderer
                 'plexarabic' => ['R' => 'IBMPlexSansArabic-Regular.ttf', 'B' => 'IBMPlexSansArabic-Bold.ttf', 'useOTL' => 0xFF, 'useKashida' => 75],
             ],
             'default_font' => $rtl ? 'plexarabic' : 'geist',
-            'default_font_size' => 10.5,
-            'margin_left' => 16,
-            'margin_right' => 16,
-            'margin_top' => 30,
-            'margin_bottom' => 24,
-            'margin_header' => 10,
-            'margin_footer' => 10,
+            'default_font_size' => $page['font_size'] ?? 10.5,
+            'margin_left' => $roll ? 4 : 16,
+            'margin_right' => $roll ? 4 : 16,
+            'margin_top' => $roll ? 4 : ($compact ? 22 : 30),
+            'margin_bottom' => $roll ? 4 : 24,
+            'margin_header' => $roll ? 0 : ($compact ? 7 : 10),
+            'margin_footer' => $roll ? 0 : 10,
             // mPDF would otherwise swap in its own Arabic font (XBRiyaz) for Arabic text: the brand's fonts are the
             // only ones used, and a character one lacks (Arabic in an English document, Latin in an Arabic one) comes
             // from the other.

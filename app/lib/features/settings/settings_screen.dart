@@ -97,25 +97,23 @@ class SettingsScreen extends ConsumerWidget {
                 ],
               ),
             ),
-            if (hasTools || showsTeam || investors || products)
-              _Group(
-                id: 'workspace',
-                title: context.t('Workspace'),
-                child: Column(
-                  children: [
-                    if (showsTeam)
-                      _Row(key: const ValueKey('settings-team'), icon: Icons.groups_2_outlined, title: context.t('Team'), onTap: () => context.push('/team')),
-                    if (showsTeam && (investors || hasTools)) const _Divider(),
-                    if (investors)
-                      _Row(key: const ValueKey('settings-investors'), icon: Icons.savings_outlined, title: context.t('Investors'), onTap: () => context.push('/investors')),
-                    if (investors && (products || hasTools)) const _Divider(),
-                    if (products)
-                      _Row(key: const ValueKey('settings-products'), icon: Icons.inventory_2_outlined, title: context.t('Products'), onTap: () => context.push('/products')),
-                    if (products && hasTools) const _Divider(),
-                    if (hasTools) _Row(icon: Icons.tune_rounded, title: context.t('Instalment tools'), onTap: () => context.push('/tools')),
-                  ],
-                ),
+            _Group(
+              id: 'workspace',
+              title: context.t('Workspace'),
+              child: Column(
+                children: _divided([
+                  // Who the statements and receipts come from (Win Plan PP8): everyone may look.
+                  _Row(key: const ValueKey('settings-business'), icon: Icons.storefront_outlined, title: context.t('Business profile'), onTap: () => context.push('/settings/business')),
+                  if (showsTeam)
+                    _Row(key: const ValueKey('settings-team'), icon: Icons.groups_2_outlined, title: context.t('Team'), onTap: () => context.push('/team')),
+                  if (investors)
+                    _Row(key: const ValueKey('settings-investors'), icon: Icons.savings_outlined, title: context.t('Investors'), onTap: () => context.push('/investors')),
+                  if (products)
+                    _Row(key: const ValueKey('settings-products'), icon: Icons.inventory_2_outlined, title: context.t('Products'), onTap: () => context.push('/products')),
+                  if (hasTools) _Row(icon: Icons.tune_rounded, title: context.t('Instalment tools'), onTap: () => context.push('/tools')),
+                ]),
               ),
+            ),
             _Group(
               id: 'security',
               title: context.t('Security'),
@@ -512,3 +510,8 @@ class _Divider extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Divider(height: 1, indent: 66, color: context.qc.line);
 }
+
+/// Rows with a divider between each two.
+List<Widget> _divided(List<Widget> rows) => [
+      for (final (index, row) in rows.indexed) ...[if (index > 0) const _Divider(), row],
+    ];

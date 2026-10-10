@@ -21,6 +21,7 @@ import '../features/payments/payments_screen.dart';
 import '../features/products/products_screen.dart';
 import '../features/search/search_screen.dart';
 import '../features/security/app_lock_settings_screen.dart';
+import '../features/settings/business_profile_screen.dart';
 import '../features/settings/delete_account_screen.dart';
 import '../features/settings/devices_screen.dart';
 import '../features/settings/settings_screen.dart';
@@ -77,6 +78,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/team', builder: (_, _) => const TeamScreen()),
       GoRoute(path: '/devices', builder: (_, _) => const DevicesScreen()),
       GoRoute(path: '/products', builder: (_, _) => const ProductsScreen()),
+      GoRoute(path: '/settings/business', builder: (_, _) => const BusinessProfileScreen()),
       GoRoute(
         path: '/investors',
         builder: (_, _) => const InvestorsScreen(),

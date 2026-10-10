@@ -6,43 +6,12 @@ use App\Entitlements\Entitlements;
 use App\Entitlements\Feature;
 use App\Entitlements\LimitReached;
 use Illuminate\View\ViewException;
-use Smalot\PdfParser\Parser;
 
 /*
 | The PDF renderer is what statements, contracts and receipts will be made with. These tests read a rendered document
 | back with a PDF parser, which is how a person's copy-and-paste or a search engine would see it, so "the Arabic is
 | there and in the right order" is checked, not assumed.
 */
-
-/** The text of a PDF, as a parser extracts it. */
-function pdfText(string $pdf): string
-{
-    return (new Parser)->parseContent($pdf)->getText();
-}
-
-function pdfPages(string $pdf): int
-{
-    return count((new Parser)->parseContent($pdf)->getPages());
-}
-
-/** Shaped Arabic comes back from a parser as presentation forms, and sometimes visually reversed: compare in a neutral form. */
-function normalised(string $text): string
-{
-    return preg_replace('/\s+/u', '', Normalizer::normalize($text, Normalizer::FORM_KC)) ?? '';
-}
-
-function reversedByCharacter(string $text): string
-{
-    return implode('', array_reverse(mb_str_split($text)));
-}
-
-function containsArabic(string $text, string $expected): bool
-{
-    $haystack = normalised($text);
-    $needle = normalised($expected);
-
-    return str_contains($haystack, $needle) || str_contains(reversedByCharacter($haystack), $needle) || str_contains($haystack, reversedByCharacter($needle));
-}
 
 beforeEach(function () {
     $this->tenant = workspaceOn('free');

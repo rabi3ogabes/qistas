@@ -26,6 +26,7 @@
             @endif
             · <a class="link" href="{{ route('app.contracts.index') }}">{{ __('All contracts') }}</a>
         </x-slot:subtitle>
+        <x-document-menu id="contract-statement" :action="route('app.contracts.statement', $contract)" :label="__('Statement')" :sections="['signature']" />
     </x-page-head>
 
     <section class="card summary summary-trio" aria-label="{{ __('Where this contract stands') }}">
@@ -173,6 +174,7 @@
                                             </span>
                                             @if ($line->note && ! $isReversal)<span class="cell-sub">{{ $line->note }}</span>@endif
                                             @include('app.payments._who', ['line' => $line])
+                                            @if (in_array($line->type, ['payment', 'down_payment'], true))<a class="link line-receipt" href="{{ route('app.payments.receipt', $line) }}" target="_blank" rel="noopener"><x-icon name="fileText" :size="14" /> {{ __('Receipt') }}</a>@endif
                                             @if (! $voided && ! $isReversal && $after !== null && in_array($line->type, ['payment', 'charge'], true))
                                                 @can('void', $line)
                                                     <details class="confirm confirm-inline">

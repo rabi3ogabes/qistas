@@ -15,8 +15,11 @@ import '../../core/ui/errors.dart';
 import '../../data/models.dart';
 import '../common/add_flows.dart';
 import '../contracts/contracts_screen.dart';
+import '../documents/document_options_sheet.dart';
 import '../reminders/reminders.dart';
 import 'customers_screen.dart';
+
+
 
 final customerProvider = FutureProvider.autoDispose.family<Customer, String>((ref, id) => ref.watch(apiProvider).customer(id));
 
@@ -34,6 +37,8 @@ class CustomerDetailScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(customer.valueOrNull?.name ?? context.t('Customer')),
         actions: [
+          if (customer.hasValue)
+            IconButton(tooltip: context.t('Statement'), icon: const Icon(Icons.description_outlined), onPressed: () => showDocumentSheet(context, DocumentRequest.customer(id, customer.requireValue.name))),
           if (account?.canWrite == true && customer.hasValue)
             IconButton(tooltip: context.t('Edit'), icon: const Icon(Icons.edit_outlined), onPressed: () async {
               await context.push('/customers/$id/edit');

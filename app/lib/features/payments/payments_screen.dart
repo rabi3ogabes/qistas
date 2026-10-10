@@ -9,7 +9,9 @@ import '../../core/l10n/translations.dart';
 import '../../core/ui/paged.dart';
 import '../../data/models.dart';
 import '../contracts/contract_detail_screen.dart';
+import '../documents/document_options_sheet.dart';
 import 'payments_state.dart';
+
 
 /// The ledger across every contract: money in, newest first, with a way to open the contract behind each line.
 class PaymentsScreen extends ConsumerWidget {
@@ -43,6 +45,7 @@ class PaymentsScreen extends ConsumerWidget {
               language: language,
               showContract: true,
               onVoid: account?.canDelete == true && line.canVoid ? () => voidPaymentFlow(context, ref, line, currency: currency) : null,
+              onReceipt: () => showDocumentSheet(context, DocumentRequest.receipt(line.id, line.contractReference ?? 'payment')),
             ),
           ),
         ),

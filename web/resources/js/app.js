@@ -33,3 +33,6 @@ if (cockpit) import('./admin-features').then(({ initFeatureControl }) => initFea
 // So do the Appearance page and an event's editor.
 if (document.querySelector('[data-studio]')) import('./admin-appearance').then(({ initAppearanceStudio }) => initAppearanceStudio());
 if (document.querySelector('[data-event-editor]')) import('./admin-events').then(({ initEventEditor }) => initEventEditor());
+
+// The business profile page brings its signature pad.
+if (document.querySelector('[data-signature-pad], input[data-autosubmit]')) import('./business-profile').then(({ initBusinessProfile }) => initBusinessProfile());

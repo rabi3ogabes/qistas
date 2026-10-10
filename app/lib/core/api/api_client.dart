@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
@@ -81,6 +82,36 @@ class ApiClient {
 
   Future<Map<String, dynamic>> put(String path, {Object? body}) => _send('PUT', path, body: body);
 
+  /// A file the server makes, such as a statement as a PDF: its bytes, or the same errors as any other request.
+  Future<Uint8List> getBytes(String path, {Map<String, dynamic>? query}) async {
+    final token = await _tokens.read();
+    final Response<List<int>> response;
+
+    try {
+      response = await _dio.request<List<int>>(
+        path.startsWith('/') ? path.substring(1) : path,
+        queryParameters: query,
+        options: Options(method: 'GET', responseType: ResponseType.bytes, receiveTimeout: const Duration(seconds: 60), headers: {
+          'Accept': 'application/pdf, application/json',
+          'Accept-Language': _language(),
+          if (token != null) 'Authorization': 'Bearer $token',
+        }),
+      );
+    } on DioException {
+      throw const ApiException.network();
+    }
+
+    final status = response.statusCode ?? 0;
+    final bytes = Uint8List.fromList(response.data ?? const []);
+    if (status >= 200 && status < 300) return bytes;
+
+    await _fail(status, _decode(utf8.decode(bytes, allowMalformed: true)), token);
+  }
+
+  /// Sends a file (a logo, a signature) as `multipart/form-data` under [field].
+  Future<Map<String, dynamic>> upload(String path, {required String field, required List<int> bytes, required String filename}) =>
+      _send('POST', path, form: FormData.fromMap({field: MultipartFile.fromBytes(bytes, filename: filename)}));
+
   Future<Map<String, dynamic>> delete(String path) => _send('DELETE', path);
 
   Future<Map<String, dynamic>> _send(
@@ -89,6 +120,7 @@ class ApiClient {
     Map<String, dynamic>? query,
     Object? body,
     Map<String, String>? headers,
+    FormData? form,
   }) async {
     final token = await _tokens.read();
     final Response<String> response;
@@ -96,7 +128,7 @@ class ApiClient {
     try {
       response = await _dio.request<String>(
         path.startsWith('/') ? path.substring(1) : path,
-        data: body == null ? null : jsonEncode(body),
+        data: form ?? (body == null ? null : jsonEncode(body)),
         queryParameters: query,
         options: Options(method: method, headers: {
           'Accept': 'application/json',
@@ -115,6 +147,11 @@ class ApiClient {
 
     if (status >= 200 && status < 300) return decoded;
 
+    return _fail(status, decoded, token);
+  }
+
+  /// Turns an error answer into the right exception (and signs out once on a 401).
+  Future<Never> _fail(int status, Map<String, dynamic> decoded, String? token) async {
     final error = decoded['error'];
     final details = error is Map<String, dynamic> ? error : const <String, dynamic>{};
     final code = (details['code'] ?? 'http_$status').toString();

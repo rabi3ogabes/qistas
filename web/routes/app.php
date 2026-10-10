@@ -3,9 +3,11 @@
 use App\Http\Controllers\SchedulePreviewController;
 use App\Http\Controllers\Workspace\AccountDeletionController;
 use App\Http\Controllers\Workspace\BillingController;
+use App\Http\Controllers\Workspace\BusinessProfileController;
 use App\Http\Controllers\Workspace\ContractController;
 use App\Http\Controllers\Workspace\CustomerController;
 use App\Http\Controllers\Workspace\DashboardController;
+use App\Http\Controllers\Workspace\DocumentController;
 use App\Http\Controllers\Workspace\FileController;
 use App\Http\Controllers\Workspace\InvestorController;
 use App\Http\Controllers\Workspace\PaymentController;
@@ -53,8 +55,23 @@ Route::get('files/{file}', [FileController::class, 'show'])->name('files.show');
 
 // The settings of the features that are on for this workspace (empty until a feature declares one).
 Route::get('settings/tools', [ToolsController::class, 'show'])->name('settings.tools');
+// Who the documents come from, and how they look by default (Win Plan PP8).
+Route::get('settings/business', [BusinessProfileController::class, 'edit'])->name('settings.business');
+Route::put('settings/business', [BusinessProfileController::class, 'update'])->name('settings.business.update');
+Route::post('settings/business/{slot}', [BusinessProfileController::class, 'storeAsset'])->whereIn('slot', ['logo', 'signature'])->name('settings.business.assets.store');
+Route::delete('settings/business/{slot}', [BusinessProfileController::class, 'destroyAsset'])->whereIn('slot', ['logo', 'signature'])->name('settings.business.assets.destroy');
+Route::put('settings/documents', [BusinessProfileController::class, 'updatePreferences'])->name('settings.documents.update');
 Route::put('settings/tools/{key}', [ToolsController::class, 'update'])->name('settings.tools.update');
 Route::put('settings/security', [SecurityPolicyController::class, 'update'])->name('settings.security');
+
+// Statements, reports and receipts as PDF files (Win Plan PP8).
+Route::middleware('throttle:documents')->group(function (): void {
+    Route::get('customers/{customer}/statement', [DocumentController::class, 'customerStatement'])->name('customers.statement');
+    Route::get('contracts/{contract}/statement', [DocumentController::class, 'contractStatement'])->name('contracts.statement');
+    Route::get('payments/{transaction}/receipt', [DocumentController::class, 'receipt'])->name('payments.receipt');
+    Route::get('reports/transactions', [DocumentController::class, 'transactions'])->name('reports.transactions');
+    Route::get('investors/{investor}/report', [DocumentController::class, 'investorReport'])->whereUuid('investor')->name('investors.report');
+});
 
 Route::resource('customers', CustomerController::class);
 
