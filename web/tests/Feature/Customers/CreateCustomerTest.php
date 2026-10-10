@@ -10,6 +10,9 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Tenancy\CurrentTenant;
 
+// These tests are about how a limit behaves, so they set one; the free plan's real allowance is in FreePlanTest.
+beforeEach(fn () => limitFreePlan(Feature::Customers, 5));
+
 function newCustomerData(array $overrides = []): array
 {
     return array_merge(['name' => 'Layla Haddad', 'phone' => '+966501234567'], $overrides);

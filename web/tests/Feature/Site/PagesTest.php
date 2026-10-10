@@ -15,17 +15,17 @@ describe('the home page', function () {
     });
 
     it('states the free allowance from the admin’s plan settings, not from copy', function () {
-        $this->get('/')->assertSee('first 5 customers');
+        $this->get('/')->assertSee('first 20 customers');
 
         Plan::where('key', 'free')->sole()->setFeature(Feature::Customers, enabled: true, limit: 12);
 
-        $this->get('/')->assertSee('first 12 customers')->assertDontSee('first 5 customers');
+        $this->get('/')->assertSee('first 12 customers')->assertDontSee('first 20 customers');
     });
 
     it('does not promise a free allowance the admin has switched off', function () {
         Plan::where('key', 'free')->sole()->setFeature(Feature::Customers, enabled: false);
 
-        $this->get('/')->assertOk()->assertDontSee('first 5 customers')->assertDontSee('first 0 customers');
+        $this->get('/')->assertOk()->assertDontSee('first 20 customers')->assertDontSee('first 0 customers');
     });
 
     it('sets up the page for phones and for search engines', function () {

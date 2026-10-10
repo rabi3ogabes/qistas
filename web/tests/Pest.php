@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\CreateContract;
+use App\Entitlements\Feature;
 use App\Models\Contract;
 use App\Models\Customer;
 use App\Models\Installment;
@@ -42,6 +43,15 @@ function workspaceOn(string $plan = 'free'): Tenant
     $tenant->subscribeTo(Plan::where('key', $plan)->sole());
 
     return $tenant;
+}
+
+/**
+ * Give the free plan an explicit limit, as the admin would, so a test about how limits behave does not depend on the
+ * built-in allowance (Feature::defaultFor), which the product changes over time.
+ */
+function limitFreePlan(Feature $feature, ?int $limit): void
+{
+    Plan::where('key', 'free')->sole()->setFeature($feature, true, $limit);
 }
 
 /**

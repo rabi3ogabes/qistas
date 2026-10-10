@@ -8,6 +8,9 @@ use App\Models\Plan;
 use App\Models\Tenant;
 use App\Models\UsageCounter;
 
+// About how a monthly allowance behaves, so it sets one; the free plan's real allowance is in FreePlanTest.
+beforeEach(fn () => limitFreePlan(Feature::PdfStatements, 3));
+
 function quotaTenant(string $plan = 'free'): Tenant
 {
     $tenant = Tenant::factory()->create();

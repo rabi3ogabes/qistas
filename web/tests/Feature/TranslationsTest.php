@@ -151,18 +151,18 @@ describe('the pages in each language', function () {
     it('speaks the reader’s language on the pricing page', function (string $locale, string $text) {
         $this->get("/pricing?lang={$locale}")->assertOk()->assertSee($text);
     })->with([
-        'ar' => ['ar', 'حتى 5 عملاء'],
-        'fr' => ['fr', 'Jusqu’à 5 clients'],
-        'es' => ['es', 'Hasta 5 clientes'],
-        'ur' => ['ur', 'زیادہ سے زیادہ 5 گاہک'],
+        'ar' => ['ar', 'حتى 20 عميلًا'],
+        'fr' => ['fr', 'Jusqu’à 20 clients'],
+        'es' => ['es', 'Hasta 20 clientes'],
+        'ur' => ['ur', 'زیادہ سے زیادہ 20 گاہک'],
     ]);
 
     it('shows the localised free-allowance sentence', function (string $locale, string $text) {
         $this->get("/?lang={$locale}")->assertSee($text);
     })->with([
-        'ar' => ['ar', 'مجانًا لأول 5 عملاء لديك، دون بطاقة.'],
-        'fr' => ['fr', 'Gratuit pour vos 5 premiers clients, sans carte bancaire.'],
-        'es' => ['es', 'Gratis para tus primeros 5 clientes, sin tarjeta.'],
+        'ar' => ['ar', 'مجانًا لأول 20 عميلًا لديك، دون بطاقة.'],
+        'fr' => ['fr', 'Gratuit pour vos 20 premiers clients, sans carte bancaire.'],
+        'es' => ['es', 'Gratis para tus primeros 20 clientes, sin tarjeta.'],
     ]);
 
     it('translates framework validation messages', function (string $locale) {

@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\RecordPayment;
+use App\Entitlements\Feature;
 use App\Models\Customer;
 use App\Models\Plan;
 use App\Models\Tenant;
@@ -102,6 +103,7 @@ describe('the list', function () {
 
 describe('adding a customer', function () {
     it('shows the form with the plan usage', function () {
+        limitFreePlan(Feature::Customers, 5);
         [$user, $tenant] = owner();
         customerIn($tenant);
 
@@ -150,6 +152,7 @@ describe('adding a customer', function () {
     });
 
     it('stops at the plan limit with the upgrade sheet, creating nothing', function () {
+        limitFreePlan(Feature::Customers, 5);
         [$user, $tenant] = owner();
         foreach (range(1, 5) as $_) {
             customerIn($tenant);
@@ -164,6 +167,7 @@ describe('adding a customer', function () {
     });
 
     it('offers the upgrade instead of the form when the limit is already reached', function () {
+        limitFreePlan(Feature::Customers, 5);
         [$user, $tenant] = owner();
         foreach (range(1, 5) as $_) {
             customerIn($tenant);

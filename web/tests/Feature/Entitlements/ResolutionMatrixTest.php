@@ -94,7 +94,7 @@ describe('deploying this changes nothing for anyone', function () {
         expect($after)->toEqual($before)
             ->and(collect($after['features'])->every(fn (array $f) => $f['status'] === 'on' || $f['status'] === 'plan_locked'))->toBeTrue();
         // Free still has its five customers and Pro its unlimited ones.
-        expect($after['features']['customers']['limit'])->toBe($plan === 'free' ? 5 : null);
+        expect($after['features']['customers']['limit'])->toBe($plan === 'free' ? Feature::FREE_CUSTOMERS : null);
     })->with(['free', 'pro']);
 
     it('treats every feature as on at the platform level until an admin says otherwise', function () {

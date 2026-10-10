@@ -182,7 +182,10 @@ it('records who opened it and starts active', function () {
 });
 
 describe('the plan limit', function () {
-    it('lets a Free workspace hold five active contracts and refuses the sixth, creating nothing', function () {
+    // About how a limit behaves, so it sets one (the free plan has no contract limit of its own).
+    beforeEach(fn () => limitFreePlan(Feature::ActiveContracts, 5));
+
+    it('lets a workspace hold the active contracts its plan allows and refuses the next, creating nothing', function () {
         $tenant = workspaceOn('free');
         $customer = customerIn($tenant);
         fillContracts($tenant, $customer, 5);

@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\RecordPayment;
+use App\Entitlements\Feature;
 use App\Models\Customer;
 use App\Models\Plan;
 use App\Models\Tenant;
@@ -102,6 +103,7 @@ describe('adding', function () {
     });
 
     it('stops at the plan limit with a 402 the app can act on', function () {
+        limitFreePlan(Feature::Customers, 5);
         [, $tenant] = apiOwner();
         foreach (range(1, 5) as $_) {
             customerIn($tenant);

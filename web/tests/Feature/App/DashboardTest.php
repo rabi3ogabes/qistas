@@ -87,6 +87,8 @@ describe('the figures', function () {
 
 describe('plan usage', function () {
     it('shows how much of each limit is used', function () {
+        limitFreePlan(Feature::Customers, 5);
+        limitFreePlan(Feature::ActiveContracts, 5);
         [$user, $tenant] = makeAccount();
         customerIn($tenant);
         openContract($tenant); // brings its own customer: 2 customers, 1 contract
@@ -100,6 +102,7 @@ describe('plan usage', function () {
     });
 
     it('warns as a limit gets close and when it is full', function () {
+        limitFreePlan(Feature::Customers, 5);
         [$user, $tenant] = makeAccount();
         foreach (range(1, 4) as $_) {
             customerIn($tenant);

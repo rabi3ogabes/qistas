@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\RecordPayment;
+use App\Entitlements\Feature;
 use App\Models\AuditLog;
 use App\Models\Contract;
 use App\Models\Customer;
@@ -112,6 +113,7 @@ describe('opening', function () {
     });
 
     it('stops at the plan limit with a 402', function () {
+        limitFreePlan(Feature::ActiveContracts, 5);
         [, $tenant] = apiOwner();
         $customer = customerIn($tenant);
         foreach (range(1, 5) as $_) {

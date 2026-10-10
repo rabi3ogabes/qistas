@@ -38,9 +38,9 @@ describe('the default Free and Pro values', function () {
 
         expect($entitlement->enabled())->toBe($enabled)->and($entitlement->limit())->toBe($limit);
     })->with([
-        'customers' => [Feature::Customers, true, 5],
-        'active contracts' => [Feature::ActiveContracts, true, 5],
-        'pdf statements' => [Feature::PdfStatements, true, 3],
+        'customers' => [Feature::Customers, true, 20],
+        'active contracts' => [Feature::ActiveContracts, true, null],
+        'pdf statements' => [Feature::PdfStatements, true, 5],
         'csv export' => [Feature::ExportCsv, false, null],
         'advanced reports' => [Feature::AdvancedReports, false, null],
         'custom branding' => [Feature::CustomBranding, false, null],
@@ -56,7 +56,7 @@ describe('the default Free and Pro values', function () {
     it('treats a workspace with no subscription as Free', function () {
         $tenant = Tenant::factory()->create();
 
-        expect(Entitlements::for($tenant)->check(Feature::Customers)->limit())->toBe(5);
+        expect(Entitlements::for($tenant)->check(Feature::Customers)->limit())->toBe(Feature::FREE_CUSTOMERS);
     });
 
     it('covers every feature in the code with a type and a label', function (Feature $feature) {
@@ -71,7 +71,7 @@ describe('reading an entitlement', function () {
         $free = Entitlements::for(tenantOn('free'))->check(Feature::Customers);
         $pro = Entitlements::for(tenantOn('pro'))->check(Feature::Customers);
 
-        expect($free->used())->toBe(3)->and($free->remaining())->toBe(2)->and($free->unlimited())->toBeFalse()
+        expect($free->used())->toBe(3)->and($free->remaining())->toBe(Feature::FREE_CUSTOMERS - 3)->and($free->unlimited())->toBeFalse()
             ->and($pro->used())->toBe(3)->and($pro->remaining())->toBeNull()->and($pro->unlimited())->toBeTrue();
     });
 
@@ -89,6 +89,9 @@ describe('reading an entitlement', function () {
 });
 
 describe('creating things', function () {
+    // About how a limit behaves, so it sets one rather than relying on the free plan's built-in allowance.
+    beforeEach(fn () => limitFreePlan(Feature::Customers, 5));
+
     it('allows creation below the limit', function () {
         usage(Feature::Customers, 4);
 
@@ -145,10 +148,10 @@ describe('the admin matrix', function () {
     it('shows an edit on the very next check, with no stale cache', function () {
         $tenant = tenantOn('free');
         $entitlements = Entitlements::for($tenant);
-        expect($entitlements->check(Feature::Customers)->limit())->toBe(5);
+        expect($entitlements->check(Feature::Customers)->limit())->toBe(Feature::FREE_CUSTOMERS);
 
-        Plan::where('key', 'free')->sole()->setFeature(Feature::Customers, enabled: true, limit: 10);
-        expect($entitlements->check(Feature::Customers)->limit())->toBe(10);
+        Plan::where('key', 'free')->sole()->setFeature(Feature::Customers, enabled: true, limit: 30);
+        expect($entitlements->check(Feature::Customers)->limit())->toBe(30);
 
         Plan::where('key', 'free')->sole()->setFeature(Feature::ExportCsv, enabled: true);
         expect($entitlements->check(Feature::ExportCsv)->enabled())->toBeTrue();
@@ -263,7 +266,7 @@ describe('which plan applies', function () {
         $tenant = Tenant::factory()->create();
         $tenant->subscribeTo(Plan::where('key', 'pro')->sole(), status: $status, periodEnd: now()->addDays(10));
 
-        expect(Entitlements::for($tenant)->check(Feature::Customers)->limit())->toBe(5);
+        expect(Entitlements::for($tenant)->check(Feature::Customers)->limit())->toBe(Feature::FREE_CUSTOMERS);
     })->with(['canceled', 'expired']);
 
     it('keeps Pro through the grace period after a missed renewal, then reverts to Free', function () {
@@ -274,7 +277,7 @@ describe('which plan applies', function () {
         expect(Entitlements::for($tenant)->check(Feature::Customers)->unlimited())->toBeTrue();
 
         $this->travelTo('2026-10-09 12:00:00');
-        expect(Entitlements::for($tenant)->check(Feature::Customers)->limit())->toBe(5);
+        expect(Entitlements::for($tenant)->check(Feature::Customers)->limit())->toBe(Feature::FREE_CUSTOMERS);
     });
 
     it('treats a subscription with no end date as current', function () {
@@ -302,10 +305,10 @@ describe('the API payload', function () {
         expect($payload['plan'])->toBe(['key' => 'free', 'name' => 'Free'])
             ->and(array_keys($payload['features']))->toBe(array_map(fn (Feature $f) => $f->value, Feature::cases()))
             ->and($payload['features']['customers'])->toBe([
-                'type' => 'limit', 'status' => 'on', 'detail' => null, 'enabled' => true, 'limit' => 5, 'used' => 3, 'remaining' => 2, 'unlimited' => false,
+                'type' => 'limit', 'status' => 'on', 'detail' => null, 'enabled' => true, 'limit' => 20, 'used' => 3, 'remaining' => 17, 'unlimited' => false,
             ])
             ->and($payload['features']['pdf_statements'])->toBe([
-                'type' => 'quota', 'status' => 'on', 'detail' => null, 'enabled' => true, 'limit' => 3, 'used' => 0, 'remaining' => 3, 'unlimited' => false,
+                'type' => 'quota', 'status' => 'on', 'detail' => null, 'enabled' => true, 'limit' => 5, 'used' => 0, 'remaining' => 5, 'unlimited' => false,
             ])
             ->and($payload['features']['export_csv'])->toBe([
                 'type' => 'toggle', 'status' => 'plan_locked', 'detail' => null, 'enabled' => false, 'limit' => null, 'used' => null, 'remaining' => null, 'unlimited' => false,

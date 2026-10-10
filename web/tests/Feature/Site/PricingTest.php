@@ -13,8 +13,8 @@ describe('what a plan gives', function () {
     it('resolves every feature for the built-in plans from the documented defaults', function () {
         $free = PlanSettings::resolve(Plan::where('key', 'free')->sole());
 
-        expect($free['customers'])->toBe(['enabled' => true, 'limit' => 5])
-            ->and($free['pdf_statements'])->toBe(['enabled' => true, 'limit' => 3])
+        expect($free['customers'])->toBe(['enabled' => true, 'limit' => 20])
+            ->and($free['pdf_statements'])->toBe(['enabled' => true, 'limit' => 5])
             ->and($free['export_csv'])->toBe(['enabled' => false, 'limit' => null])
             ->and(array_keys($free))->toBe(array_map(fn (Feature $f) => $f->value, Feature::cases()));
     });
@@ -97,7 +97,7 @@ describe('the pricing catalogue', function () {
     });
 
     it('follows an admin edit on the very next read', function () {
-        expect(app(PricingCatalog::class)->offers()[0]->feature(Feature::Customers)['limit'])->toBe(5);
+        expect(app(PricingCatalog::class)->offers()[0]->feature(Feature::Customers)['limit'])->toBe(20);
 
         Plan::where('key', 'free')->sole()->setFeature(Feature::Customers, enabled: true, limit: 8);
 
@@ -105,7 +105,7 @@ describe('the pricing catalogue', function () {
     });
 
     it('knows what the free plan allows, for the copy that mentions it', function () {
-        expect(app(PricingCatalog::class)->freeAllowance(Feature::Customers))->toBe(5);
+        expect(app(PricingCatalog::class)->freeAllowance(Feature::Customers))->toBe(20);
 
         Plan::where('key', 'free')->sole()->setFeature(Feature::Customers, enabled: true, limit: 9);
 
@@ -131,13 +131,13 @@ describe('the pricing page', function () {
 
     it('shows exactly the features the admin enabled for each plan, and flips when the matrix changes', function () {
         $before = $this->get('/pricing')->getContent();
-        expect($before)->toContain('Up to 5 customers');
+        expect($before)->toContain('Up to 20 customers');
 
         Plan::where('key', 'free')->sole()->setFeature(Feature::Customers, enabled: true, limit: 7);
         Plan::where('key', 'free')->sole()->setFeature(Feature::ExportCsv, enabled: true);
 
         $after = $this->get('/pricing')->getContent();
-        expect($after)->toContain('Up to 7 customers')->not->toContain('Up to 5 customers');
+        expect($after)->toContain('Up to 7 customers')->not->toContain('Up to 20 customers');
         $this->get('/pricing')->assertSee('CSV export');
     });
 

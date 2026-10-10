@@ -153,6 +153,8 @@ describe('the allowance', function () {
     });
 
     it('stops at the plan’s monthly limit, and the document is not handed over', function () {
+        limitFreePlan(Feature::PdfStatements, 3);
+
         asTenant($this->tenant, function () {
             foreach (range(1, 3) as $_) {
                 $this->renderer->render('documents.sample', $this->data, 'en', quota: Feature::PdfStatements);

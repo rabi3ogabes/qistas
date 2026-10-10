@@ -16,6 +16,9 @@ enum Feature: string
     case CustomBranding = 'custom_branding';
     case ApiTokens = 'api_tokens';
 
+    /** How many customers the free plan keeps (tests and copy read this rather than repeating the number). */
+    public const FREE_CUSTOMERS = 20;
+
     public function type(): FeatureType
     {
         return match ($this) {
@@ -168,9 +171,11 @@ enum Feature: string
     public function defaultFor(string $planKey): ?array
     {
         return match ($planKey) {
+            // Win Plan 6.4: twice the leading rival's ten customers; the customer count is the limit that matters.
             'free' => match ($this) {
-                self::Customers, self::ActiveContracts => ['enabled' => true, 'limit' => 5],
-                self::PdfStatements => ['enabled' => true, 'limit' => 3],
+                self::Customers => ['enabled' => true, 'limit' => self::FREE_CUSTOMERS],
+                self::ActiveContracts => ['enabled' => true, 'limit' => null],
+                self::PdfStatements => ['enabled' => true, 'limit' => 5],
                 self::ApiTokens => ['enabled' => true, 'limit' => 1],
                 self::ExportCsv, self::AdvancedReports, self::CustomBranding => ['enabled' => false, 'limit' => null],
             },

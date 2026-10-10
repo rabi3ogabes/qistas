@@ -41,7 +41,7 @@ describe('registering', function () {
             ->assertJsonPath('data.tenant.currency', 'SAR')
             ->assertJsonPath('data.tenant.role', 'owner')
             ->assertJsonPath('data.plan.key', 'free')
-            ->assertJsonPath('data.entitlements.customers.limit', 5)
+            ->assertJsonPath('data.entitlements.customers.limit', 20)
             ->assertJsonPath('data.entitlements.customers.used', 0);
         expect($response->json('data.token'))->toMatch('/^\d+\|qst_\w+$/')->and($response->json('data.expires_at'))->not->toBeNull();
 

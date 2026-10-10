@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\RecordPayment;
+use App\Entitlements\Feature;
 use App\Models\AuditLog;
 use App\Models\Contract;
 use App\Models\Customer;
@@ -159,6 +160,7 @@ describe('the list', function () {
 
 describe('opening a contract', function () {
     it('shows the form with the plan usage and the customers to choose from', function () {
+        limitFreePlan(Feature::ActiveContracts, 5);
         [$user, $tenant] = owner();
         customerIn($tenant, ['name' => 'Ahmad']);
         customerIn($tenant, ['name' => 'Zainab']);
@@ -198,6 +200,7 @@ describe('opening a contract', function () {
     });
 
     it('offers the upgrade instead of the form at the plan limit', function () {
+        limitFreePlan(Feature::ActiveContracts, 5);
         [$user, $tenant] = owner();
         foreach (range(1, 5) as $_) {
             openContract($tenant);
@@ -297,6 +300,7 @@ describe('saving a contract', function () {
     });
 
     it('stops at the plan limit with the upgrade sheet, creating nothing', function () {
+        limitFreePlan(Feature::ActiveContracts, 5);
         [$user, $tenant] = owner();
         $customer = customerIn($tenant);
         foreach (range(1, 5) as $_) {

@@ -69,7 +69,7 @@ describe('with demo sign-in on', function () {
         $tenant = demoUsers()->sole()->tenants()->sole();
 
         expect($tenant->currentPlan()->key)->toBe('free');
-        $this->get('/app')->assertOk()->assertSee('4 of 5');
+        $this->get('/app')->assertOk()->assertSee('4 of 20');
     });
 
     it('never makes platform staff, so the admin area stays closed', function () {
@@ -267,7 +267,7 @@ describe('in the app', function () {
     it('signs in as a user on the Free plan', function () {
         $this->postJson('/api/v1/demo/user')->assertCreated()
             ->assertJsonPath('data.plan.key', 'free')
-            ->assertJsonPath('data.entitlements.customers.limit', 5);
+            ->assertJsonPath('data.entitlements.customers.limit', 20);
     });
 
     it('lets the token live only as long as the demo', function () {

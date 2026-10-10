@@ -21,7 +21,7 @@ describe('the signed-in account', function () {
             ->assertJsonPath('data.tenant.currency', 'SAR')
             ->assertJsonPath('data.tenant.role', 'owner')
             ->assertJsonPath('data.plan.key', 'free')
-            ->assertJsonPath('data.entitlements.customers', ['type' => 'limit', 'status' => 'on', 'detail' => null, 'enabled' => true, 'limit' => 5, 'used' => 3, 'remaining' => 2, 'unlimited' => false])
+            ->assertJsonPath('data.entitlements.customers', ['type' => 'limit', 'status' => 'on', 'detail' => null, 'enabled' => true, 'limit' => 20, 'used' => 3, 'remaining' => 17, 'unlimited' => false])
             ->assertJsonPath('data.entitlements.active_contracts.used', 1)
             ->assertJsonPath('data.entitlements.export_csv.enabled', false);
     });
@@ -77,7 +77,7 @@ describe('the plans', function () {
         $pro = collect($response->json('data'))->firstWhere('key', 'pro');
 
         expect($free['is_free'])->toBeTrue()->and($free['monthly_price'])->toBe('0.00')
-            ->and($free['features']['customers'])->toMatchArray(['enabled' => true, 'limit' => 5, 'type' => 'limit'])
+            ->and($free['features']['customers'])->toMatchArray(['enabled' => true, 'limit' => 20, 'type' => 'limit'])
             ->and($free['features']['export_csv']['enabled'])->toBeFalse()
             ->and($pro['is_free'])->toBeFalse()->and($pro['features']['customers']['limit'])->toBeNull()
             ->and($pro['features']['export_csv']['enabled'])->toBeTrue()
@@ -97,7 +97,7 @@ describe('the plans', function () {
         $english = collect($this->getJson('/api/v1/plans')->json('data'))->firstWhere('key', 'free')['features']['customers']['summary'];
         $arabic = collect($this->getJson('/api/v1/plans', ['Accept-Language' => 'ar'])->json('data'))->firstWhere('key', 'free')['features']['customers']['summary'];
 
-        expect($english)->toBe('Up to 5 customers')->and($arabic)->not->toBe($english);
+        expect($english)->toBe('Up to 20 customers')->and($arabic)->not->toBe($english);
     });
 
     it('list the cheapest first and include every feature', function () {

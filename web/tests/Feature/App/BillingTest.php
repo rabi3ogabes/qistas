@@ -16,7 +16,7 @@ it('shows the plan, how much of it is used, and what each plan includes', functi
     $this->actingAs($owner)->get('/app/billing')
         ->assertOk()
         ->assertSee('Your plan: Free', false)
-        ->assertSee('0 of 5')
+        ->assertSee('0 of 20')
         ->assertSee('What each plan includes')
         ->assertSee('Pro');
 });
