@@ -22,6 +22,24 @@ final class CronRunner
 {
     public const QUEUE = 'database';
 
+    /** Three quarters of PHP's memory limit in megabytes (a generous fixed budget when there is no limit). */
+    public static function memoryBudgetMb(): int
+    {
+        $limit = trim((string) ini_get('memory_limit'));
+        if ($limit === '' || $limit === '-1') {
+            return 2048;
+        }
+
+        $bytes = (int) $limit * match (strtolower(substr($limit, -1))) {
+            'g' => 1024 ** 3,
+            'm' => 1024 ** 2,
+            'k' => 1024,
+            default => 1,
+        };
+
+        return max(128, intdiv(intdiv($bytes, 1024 * 1024) * 3, 4));
+    }
+
     public function run(): CronRun
     {
         $run = CronRun::create(['started_at' => now(), 'outcome' => 'running']);
@@ -38,6 +56,9 @@ final class CronRunner
                 '--stop-when-empty' => true,
                 '--max-time' => max(1, (int) config('qistas.cron.max_seconds')),
                 '--tries' => 1,
+                // The worker's own default stops after a job once the process passes 128 MB, which a busy request can;
+                // let it use most of what PHP really allows instead.
+                '--memory' => self::memoryBudgetMb(),
             ]);
 
             $outcome = 'ok';

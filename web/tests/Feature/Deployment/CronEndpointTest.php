@@ -136,6 +136,17 @@ describe('what a call does', function () {
             ->and($run->finished_at)->not->toBeNull()->and($run->finished_at->gte($run->started_at))->toBeTrue();
     });
 
+    it('keeps working through the queue in a process that already uses a lot of memory', function () {
+        $ballast = str_repeat('x', 160 * 1024 * 1024); // past the worker's own 128 MB default
+        $tenant = workspaceOn('pro');
+        ProbeJob::dispatch($tenant->id)->onConnection('database');
+        ProbeJob::dispatch($tenant->id)->onConnection('database');
+
+        tick()->assertOk();
+
+        expect(strlen($ballast))->toBeGreaterThan(0)->and(CronRun::sole()->jobs)->toBe(2);
+    });
+
     it('is not stopped by one job that fails, and does the jobs behind it', function () {
         $tenant = workspaceOn('pro');
         BoomJob::dispatch()->onConnection('database');
