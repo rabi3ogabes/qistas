@@ -20,12 +20,17 @@ return new class extends Migration
             $table->decimal('amount', 18, 4);
             $table->string('reason', 500)->nullable();
             $table->foreignUuid('transaction_id')->nullable()->constrained()->nullOnDelete();
-            $table->foreignUuid('reverses_adjustment_id')->nullable()->unique()->constrained('contract_adjustments')->nullOnDelete();
+            $table->uuid('reverses_adjustment_id')->nullable()->unique(); // foreign key added below, once the table has its key
             $table->json('details')->nullable(); // the instalments it waived, with what each still owed
             $table->foreignUuid('created_by_user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamp('created_at')->useCurrent();
 
             $table->index(['tenant_id', 'contract_id']);
+        });
+
+        // PostgreSQL refuses a foreign key to a table's own key inside the statement that creates the key.
+        Schema::table('contract_adjustments', function (Blueprint $table) {
+            $table->foreign('reverses_adjustment_id')->references('id')->on('contract_adjustments')->nullOnDelete();
         });
 
         // A change to the plan, with the schedule before and after, why, and who confirmed it.
