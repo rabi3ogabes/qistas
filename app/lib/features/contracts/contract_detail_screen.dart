@@ -25,6 +25,7 @@ import '../payments/record_payment_sheet.dart';
 import '../reminders/reminders.dart';
 import 'contracts_screen.dart';
 import 'early_settlement_sheet.dart';
+import 'late_fees_section.dart';
 import 'ledger_line_sheet.dart';
 import 'open_account_screen.dart';
 import 'plan_access.dart';
@@ -332,6 +333,15 @@ class _Body extends ConsumerWidget {
                     foreground: onHero,
                   ),
                 ],
+                if (contract.lateFeesOwed.isPositive && contract.status != 'cancelled') ...[
+                  const SizedBox(height: 14),
+                  SoftChip(
+                    context.t('Includes :amount in late fees', {'amount': contract.lateFeesOwed.format(_currency)}),
+                    icon: Icons.timer_outlined,
+                    background: c.tintBlush,
+                    foreground: c.danger,
+                  ),
+                ],
                 if (contract.next != null && contract.isRunning) ...[
                   const SizedBox(height: 14),
                   SoftChip(
@@ -391,6 +401,12 @@ class _Body extends ConsumerWidget {
                 ),
               ],
             ),
+          ),
+        // Late fees (Win Plan K4): the policy the contract was made with and each fee, waived only by an owner or manager.
+        if (contract.lateFeePolicy != null || contract.lateFees.isNotEmpty)
+          Reveal(
+            order: order++,
+            child: LateFeesSection(contract: contract, currency: _currency, language: language, canWaive: account?.canDelete == true),
           ),
         Reveal(
           order: order++,

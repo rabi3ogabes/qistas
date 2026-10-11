@@ -121,3 +121,5 @@ Route::post('contracts/{contract}/plan', [PlanChangeController::class, 'planStor
 Route::get('customers/{customer}/payment', [PlanChangeController::class, 'customerPaymentShow'])->whereUuid('customer')->name('customers.payment.show');
 Route::post('customers/{customer}/payment', [PlanChangeController::class, 'customerPaymentStore'])->whereUuid('customer')->name('customers.payment.store');
 Route::post('payments/{transaction}/void', [PaymentController::class, 'void'])->name('payments.void');
+// Late fees (Win Plan K4): an owner or manager waives one, with the reason.
+Route::post('late-fees/{fee}/waive', [PaymentController::class, 'waiveFee'])->whereUuid('fee')->name('late-fees.waive');

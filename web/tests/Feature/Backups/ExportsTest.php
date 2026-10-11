@@ -83,7 +83,7 @@ describe('download everything', function () {
 
         $sheets = workbookSheets(exportFile(newExport()));
 
-        expect(array_keys($sheets))->toBe(['Customers', 'Contracts', 'Instalments', 'Payments', 'What was sold', 'Investors', 'Investor entries'])
+        expect(array_keys($sheets))->toBe(['Customers', 'Contracts', 'Instalments', 'Payments', 'Late fees', 'What was sold', 'Investors', 'Investor entries'])
             ->and(count($sheets['Customers']))->toBe(3)
             ->and(collect($sheets['Customers'])->flatten()->all())->toContain('سارة القحطاني', 'Ahmad Salem')->not->toContain('Someone Else Entirely')
             ->and(count($sheets['Contracts']))->toBe(2)

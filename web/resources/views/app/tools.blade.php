@@ -61,6 +61,8 @@
                                     <option value="{{ $option['value'] }}" @selected((string) $current === $option['value'])>{{ $option['label'] }}</option>
                                 @endforeach
                             </select>
+                        @elseif ($tool['type'] === 'amount')
+                            <input id="{{ $id }}" type="text" inputmode="decimal" dir="ltr" autocomplete="off" name="value" value="{{ $current }}" @disabled(! $canEdit) @if ($error) aria-invalid="true" @endif @if ($tool['help'] !== '') aria-describedby="{{ $id }}-hint" @endif>
                         @else
                             <input id="{{ $id }}" type="number" inputmode="numeric" name="value" value="{{ $current }}" @disabled(! $canEdit) @if ($error) aria-invalid="true" @endif @if ($tool['help'] !== '') aria-describedby="{{ $id }}-hint" @endif>
                         @endif

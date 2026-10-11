@@ -9,6 +9,7 @@ use App\Actions\CreateContract;
 use App\Actions\RecordCharge;
 use App\Domain\Contracts\SerialCheck;
 use App\Domain\Investors\MainInvestor;
+use App\Domain\LateFees\LateFeePolicy;
 use App\Domain\Ledger\LedgerLines;
 use App\Domain\Ledger\OpenAccount;
 use App\Entitlements\Entitlements;
@@ -22,6 +23,7 @@ use App\Models\ContractConversion;
 use App\Models\Customer;
 use App\Models\Installment;
 use App\Models\Investor;
+use App\Models\LateFee;
 use App\Models\Product;
 use App\Models\Transaction;
 use App\Reports\ContractProgress;
@@ -127,7 +129,10 @@ final class ContractController
         $lines = LedgerLines::withReversals(Transaction::query()->where('contract_id', $contract->id)->with('createdBy')
             ->orderByDesc('paid_at')->orderByDesc('created_at')->orderByDesc('id')->get());
 
-        $owed = $installments->reduce(fn (string $carry, Installment $i) => Money::add($carry, $i->remaining()), '0');
+        // Late fees (Win Plan K4) are owed with the instalments, and listed on their own.
+        $lateFees = LateFee::query()->where('contract_id', $contract->id)->with(['installment', 'waivedBy'])->orderBy('charged_on')->orderBy('period')->get();
+        $feesOwed = $contract->status === 'cancelled' ? '0' : $lateFees->reduce(fn (string $carry, LateFee $fee) => Money::add($carry, $fee->remaining()), '0');
+        $owed = $installments->reduce(fn (string $carry, Installment $i) => Money::add($carry, $i->remaining()), $feesOwed);
         $paid = $installments->reduce(fn (string $carry, Installment $i) => Money::add($carry, $i->paid_amount), '0');
         // The live schedule, in date order: superseded instalments (a plan change, Win Plan PP6) live in the history.
         $live = $installments->reject(fn (Installment $i) => $i->status === 'superseded')->sortBy(fn (Installment $i) => [$i->due_date->format('Y-m-d'), $i->number])->values();
@@ -145,6 +150,9 @@ final class ContractController
             'canTarget' => $features->check(Feature::PaymentTargeting)->enabled(),
             'paidAheadUntil' => $this->paidAheadUntil($contract, $live),
             'lines' => $lines,
+            'lateFees' => $lateFees,
+            'feesOwed' => $feesOwed,
+            'lateFeePolicy' => LateFeePolicy::fromArray($contract->late_fee_policy),
             // Which payments have been reversed already: they keep their line but can no longer be voided.
             'reversed' => $lines->pluck('reverses_transaction_id')->filter()->flip()->all(),
             'owed' => $contract->status === 'cancelled' ? '0' : $owed,

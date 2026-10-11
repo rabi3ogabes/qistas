@@ -12,7 +12,8 @@ use InvalidArgumentException;
  * What it costs to settle a contract today (Win Plan PP6, خصم سداد مبكر). Profit counts as money comes in, as the
  * investor ledger counts it: earned = round(paid on instalments x markup / total). The rebate is a percent of the profit
  * not yet earned, or an amount, never more than that profit, rounded half up to the cent; so the payoff always brings
- * back every cent of what was financed. Pure arithmetic: nothing is written.
+ * back every cent of what was financed. Open late fees (Win Plan K4) are added to the payoff whole: a rebate never
+ * comes off a fee. Pure arithmetic: nothing is written.
  */
 final readonly class EarlySettlementQuote
 {
@@ -28,14 +29,16 @@ final readonly class EarlySettlementQuote
         public bool $capped,
         public string $rebateType,
         public string $rebateValue,
+        public string $lateFees,
     ) {}
 
     /**
      * @param  Collection<int, Installment>  $installments  every instalment of the contract
+     * @param  string  $lateFees  what the contract's open late fees still owe
      *
      * @throws InvalidArgumentException when the rebate cannot be read
      */
-    public static function for(Contract $contract, Collection $installments, string $rebateType = 'none', string $rebateValue = '0'): self
+    public static function for(Contract $contract, Collection $installments, string $rebateType = 'none', string $rebateValue = '0', string $lateFees = '0'): self
     {
         if (! in_array($rebateType, self::REBATE_TYPES, true)) {
             throw new InvalidArgumentException('The rebate must be none, a percent or a fixed amount.');
@@ -72,18 +75,20 @@ final readonly class EarlySettlementQuote
             earnedProfit: $earned,
             unearnedProfit: $unearned,
             rebate: Money::add($rebate, '0', 2),
-            payoff: Money::sub($remaining, $rebate, 2),
+            payoff: Money::add(Money::sub($remaining, $rebate), $lateFees, 2),
             capped: $capped,
             rebateType: $rebateType,
             rebateValue: Money::add($value, '0', $rebateType === 'percent' ? 4 : 2),
+            lateFees: Money::add($lateFees, '0', 2),
         );
     }
 
-    /** @return array{remaining: string, earned_profit: string, unearned_profit: string, rebate: string, payoff: string, capped: bool, rebate_type: string, rebate_value: string} */
+    /** @return array{remaining: string, late_fees: string, earned_profit: string, unearned_profit: string, rebate: string, payoff: string, capped: bool, rebate_type: string, rebate_value: string} */
     public function toArray(): array
     {
         return [
             'remaining' => $this->remaining,
+            'late_fees' => $this->lateFees,
             'earned_profit' => $this->earnedProfit,
             'unearned_profit' => $this->unearnedProfit,
             'rebate' => $this->rebate,

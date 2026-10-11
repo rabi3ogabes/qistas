@@ -158,6 +158,33 @@ class _ToolCardState extends ConsumerState<_ToolCard> {
             ),
           ],
         ),
+      // Money or a percent (Win Plan K4): typed with decimals, sent as written, shown as the server keeps it.
+      'amount' => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            heading,
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _number,
+                    enabled: enabled,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [FilteringTextInputFormatter.allow(RegExp('[0-9\u0660-\u0669\u06F0-\u06F9.\u066B]'))],
+                    textDirection: TextDirection.ltr,
+                    decoration: InputDecoration(errorText: _error),
+                    onChanged: (_) => setState(() => _saved = false),
+                    onSubmitted: (_) => _submitAmount(),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                QButton(label: context.t('Save'), expand: false, kind: QButtonKind.quiet, loading: _saving, onPressed: enabled && _number.text != '${_value ?? ''}' ? _submitAmount : null),
+              ],
+            ),
+          ],
+        ),
       _ => Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -180,7 +207,7 @@ class _ToolCardState extends ConsumerState<_ToolCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           control,
-          if (tool.type != 'int' && _error != null) ...[const SizedBox(height: 8), Text(_error!, style: text.bodySmall?.copyWith(color: c.danger))],
+          if (tool.type != 'int' && tool.type != 'amount' && _error != null) ...[const SizedBox(height: 8), Text(_error!, style: text.bodySmall?.copyWith(color: c.danger))],
           if (_saved) ...[const SizedBox(height: 8), Row(children: [Icon(Icons.check_rounded, size: 16, color: c.positive), const SizedBox(width: 6), Text(context.t('Saved'), style: text.bodySmall?.copyWith(color: c.positive))])],
         ],
       ),
@@ -190,5 +217,11 @@ class _ToolCardState extends ConsumerState<_ToolCard> {
   void _submitNumber() {
     final parsed = int.tryParse(_number.text.trim());
     if (parsed != null) _save(parsed);
+  }
+
+  /// The server reads the amount (Arabic and Urdu digits too) and answers with it as it keeps it ("7.50").
+  void _submitAmount() {
+    final typed = _number.text.trim();
+    if (typed.isNotEmpty) _save(typed);
   }
 }

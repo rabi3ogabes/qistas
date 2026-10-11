@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Workspace;
 use App\Actions\AmendContract;
 use App\Actions\RecordCustomerPayment;
 use App\Actions\RecordPayment;
+use App\Domain\LateFees\LateFees;
 use App\Domain\Schedule\Frequencies;
 use App\Domain\Settlement\EarlySettlementQuote;
 use App\Domain\Settlement\QuoteChanged;
@@ -46,9 +47,9 @@ final class PlanChangeController
         $type = in_array($request->query('rebate_type'), EarlySettlementQuote::REBATE_TYPES, true) ? (string) $request->query('rebate_type') : 'none';
         $value = is_string($request->query('rebate_value')) && preg_match('/^\d{1,14}(\.\d{1,4})?$/', $request->query('rebate_value')) ? $request->query('rebate_value') : '0';
         try {
-            $quote = EarlySettlementQuote::for($contract, Installment::query()->where('contract_id', $contract->id)->get(), $type, $value);
+            $quote = EarlySettlementQuote::for($contract, Installment::query()->where('contract_id', $contract->id)->get(), $type, $value, LateFees::owed($contract));
         } catch (InvalidArgumentException) {
-            $quote = EarlySettlementQuote::for($contract, Installment::query()->where('contract_id', $contract->id)->get());
+            $quote = EarlySettlementQuote::for($contract, Installment::query()->where('contract_id', $contract->id)->get(), lateFees: LateFees::owed($contract));
         }
 
         return view('app.contracts.settle', ['contract' => $contract->load('customer'), 'quote' => $quote, 'currency' => $this->current->get()?->currency]);

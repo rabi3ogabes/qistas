@@ -174,7 +174,7 @@ describe('becoming open', function () {
 
         $done = $this->postJson("/api/v1/contracts/{$contract->id}/convert-to-open")->assertOk()->json('data');
 
-        expect($preview)->toBe(['superseded' => 2, 'opening_balance' => '150.00'])
+        expect($preview)->toBe(['superseded' => 2, 'opening_balance' => '150.00', 'late_fees' => '0.00'])
             ->and($done['conversion'])->toBe($preview)
             ->and($done['contract']['type'])->toBe('open')
             ->and($done['contract']['owed'])->toBe('150.00');

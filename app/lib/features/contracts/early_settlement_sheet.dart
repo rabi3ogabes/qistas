@@ -173,6 +173,7 @@ class _EarlySettlementSheetState extends ConsumerState<_EarlySettlementSheet> {
                   child: Column(
                     children: [
                       _Fact(context.t('Still owed'), format(quote.remaining)),
+                      if (quote.lateFees?.isPositive ?? false) _Fact(context.t('Late fees, paid in full'), format(quote.lateFees!)),
                       _Fact(context.t('Profit already earned'), format(quote.earnedProfit)),
                       _Fact(context.t('Profit not yet earned'), format(quote.unearnedProfit)),
                     ],

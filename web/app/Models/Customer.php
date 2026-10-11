@@ -42,7 +42,9 @@ class Customer extends Model
         .' FROM transactions t JOIN contracts oc ON oc.id = t.contract_id'
         ." WHERE oc.customer_id = customers.id AND oc.type = 'open' AND oc.status <> 'cancelled'"
         ." AND (t.type IN ('charge', 'charge_reversal') OR (t.type IN ('payment', 'reversal')"
-        .' AND NOT EXISTS (SELECT 1 FROM transaction_allocations a WHERE a.transaction_id = t.id))))';
+        .' AND NOT EXISTS (SELECT 1 FROM transaction_allocations a WHERE a.transaction_id = t.id))))'
+        .' + (SELECT COALESCE(SUM(f.amount - f.paid_amount), 0) FROM late_fees f JOIN contracts fc ON fc.id = f.contract_id'
+        ." WHERE fc.customer_id = customers.id AND fc.status <> 'cancelled' AND f.status = 'open')";
 
     /** The next instalment still to pay on a running contract. */
     private const NEXT_DUE_SQL = '(SELECT MIN(n.due_date) FROM installments n JOIN contracts nc ON nc.id = n.contract_id'

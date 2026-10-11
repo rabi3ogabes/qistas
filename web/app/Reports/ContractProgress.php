@@ -5,6 +5,7 @@ namespace App\Reports;
 use App\Domain\Ledger\OpenAccount;
 use App\Models\Contract;
 use App\Models\Installment;
+use App\Models\LateFee;
 use App\Support\Money;
 use Illuminate\Database\Query\JoinClause;
 
@@ -31,6 +32,9 @@ final class ContractProgress
             ->selectRaw('contract_id, SUM(amount - paid_amount) as owed')
             ->groupBy('contract_id')
             ->toBase()->pluck('owed', 'contract_id');
+        // Open late fees are owed too (Win Plan K4).
+        $fees = LateFee::query()->whereIn('contract_id', $contractIds)->where('status', 'open')
+            ->selectRaw('contract_id, SUM(amount - paid_amount) as owed')->groupBy('contract_id')->toBase()->pluck('owed', 'contract_id');
 
         // The next instalment is the earliest one not fully paid; numbers run in due-date order.
         $earliestUnpaid = Installment::query()
@@ -59,7 +63,7 @@ final class ContractProgress
             }
             $nextInstallment = $next[$id] ?? null;
             $progress[$id] = [
-                'owed' => Money::fromDatabase($owed[$id] ?? 0),
+                'owed' => Money::add(Money::fromDatabase($owed[$id] ?? 0), Money::fromDatabase($fees[$id] ?? 0), 2),
                 'next' => $nextInstallment,
                 // Due dates only grow, so if the next one is not overdue, none after it is.
                 'late' => $nextInstallment?->isOverdue() ?? false,

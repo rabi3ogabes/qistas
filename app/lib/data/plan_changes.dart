@@ -13,6 +13,7 @@ class EarlySettlementQuote {
     required this.rebate,
     required this.payoff,
     required this.capped,
+    this.lateFees,
   });
 
   factory EarlySettlementQuote.fromJson(Map<String, dynamic> json) {
@@ -25,6 +26,7 @@ class EarlySettlementQuote {
       rebate: money('rebate'),
       payoff: money('payoff'),
       capped: json['capped'] == true,
+      lateFees: json['late_fees'] == null ? null : money('late_fees'),
     );
   }
 
@@ -36,6 +38,9 @@ class EarlySettlementQuote {
 
   /// The discount asked for was more than the profit not yet earned, and was kept to it.
   final bool capped;
+
+  /// Open late fees (Win Plan K4), added whole to the payoff: a discount never comes off a fee.
+  final Money? lateFees;
 }
 
 /// One instalment of a schedule before or after a plan change.

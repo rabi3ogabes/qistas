@@ -10,6 +10,7 @@ use App\Actions\CreateContract;
 use App\Actions\RecordCharge;
 use App\Actions\RecordPayment;
 use App\Domain\Contracts\SerialCheck;
+use App\Domain\LateFees\LateFees;
 use App\Domain\Ledger\LedgerLines;
 use App\Domain\Ledger\OpenAccount;
 use App\Domain\Schedule\ScheduleGenerator;
@@ -140,7 +141,7 @@ final class ContractController
         }
 
         try {
-            $quote = EarlySettlementQuote::for($contract, Installment::query()->where('contract_id', $contract->id)->get(), $data['rebate_type'] ?? 'none', $data['rebate_value'] ?? '0');
+            $quote = EarlySettlementQuote::for($contract, Installment::query()->where('contract_id', $contract->id)->get(), $data['rebate_type'] ?? 'none', $data['rebate_value'] ?? '0', LateFees::owed($contract));
         } catch (InvalidArgumentException $e) {
             throw ValidationException::withMessages(['rebate_value' => __('A rebate is between 0 and 100 percent, or an amount of zero or more.')]);
         }
@@ -250,7 +251,7 @@ final class ContractController
         $after = $contract->isOpen() ? OpenAccount::runningBalances($contract) : [];
         LedgerLines::withReversals($lines)->each(fn (Transaction $line) => $line->setAttribute('balance_after', $after[$line->id] ?? null));
 
-        $contract->load(['customer', 'investor', 'items', 'adjustments', 'amendments.approvedBy']);
+        $contract->load(['customer', 'investor', 'items', 'adjustments', 'amendments.approvedBy', 'lateFees.installment', 'lateFees.waivedBy']);
         $this->attachProgress(collect([$contract]));
         $contract->setAttribute('paid', $installments->reduce(fn (string $carry, Installment $i) => Money::add($carry, $i->paid_amount), '0'));
         $contract->setRelation('installments', $installments);

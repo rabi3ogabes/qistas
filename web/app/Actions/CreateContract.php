@@ -4,6 +4,7 @@ namespace App\Actions;
 
 use App\Domain\Investors\InvestorLedger;
 use App\Domain\Investors\MainInvestor;
+use App\Domain\LateFees\LateFeePolicy;
 use App\Domain\Schedule\Discount;
 use App\Domain\Schedule\InvalidScheduleException;
 use App\Domain\Schedule\ScheduleGenerator;
@@ -103,6 +104,8 @@ final class CreateContract
                 'tax_percent' => isset($data['tax_percent']) && $data['tax_percent'] !== '' ? Money::parse((string) $data['tax_percent']) : null,
                 'tax_amount' => Discount::taxIn($net, $data['tax_percent'] ?? null),
                 'created_by_user_id' => $by?->id,
+                // The late-fee policy as it stands today, kept with the deal (Win Plan K4); a cash sale is not credit.
+                'late_fee_policy' => $type === 'scheduled' ? LateFeePolicy::forNewContract($tenant)?->toArray() : null,
             ]);
             $contract->save();
 

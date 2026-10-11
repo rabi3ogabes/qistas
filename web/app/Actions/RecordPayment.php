@@ -3,6 +3,7 @@
 namespace App\Actions;
 
 use App\Domain\Investors\InvestorLedger;
+use App\Domain\LateFees\LateFees;
 use App\Domain\Ledger\ContractSettlement;
 use App\Domain\Ledger\PaymentAllocator;
 use App\Domain\Settlement\EarlySettlementQuote;
@@ -10,6 +11,7 @@ use App\Domain\Settlement\QuoteChanged;
 use App\Models\Contract;
 use App\Models\ContractAdjustment;
 use App\Models\Installment;
+use App\Models\LateFee;
 use App\Models\Transaction;
 use App\Models\TransactionAllocation;
 use App\Models\User;
@@ -24,8 +26,9 @@ use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 
 /**
- * Takes a payment against a contract: writes the ledger line, applies it to the oldest instalments first,
- * and settles the contract when nothing is left. The one place payments are recorded.
+ * Takes a payment against a contract: writes the ledger line, applies it to what is due (the oldest instalments, then
+ * the late fees, then what is not due yet), and settles the contract when nothing is left. The one place payments are
+ * recorded.
  *
  * Safe to retry: the same idempotency key returns the original transaction instead of adding another.
  */
@@ -119,8 +122,9 @@ final class RecordPayment
                 }
 
                 $installments = Installment::query()->where('contract_id', $locked->id)->lockForUpdate()->orderBy('number')->get();
+                $fees = LateFees::open([$locked->id], lock: true);
                 try {
-                    $quote = EarlySettlementQuote::for($locked, $installments, $rebateType, $rebateValue);
+                    $quote = EarlySettlementQuote::for($locked, $installments, $rebateType, $rebateValue, LateFees::owed($locked));
                 } catch (InvalidArgumentException $e) {
                     throw ValidationException::withMessages(['rebate_value' => $e->getMessage()]);
                 }
@@ -130,9 +134,11 @@ final class RecordPayment
 
                 $transaction = null;
                 if (Money::isPositive($quote->payoff)) {
-                    $allocations = $this->allocator->allocate($this->rows($installments), $quote->payoff);
+                    // Every late fee is paid in full: the rebate comes off the profit on instalments, never off a fee.
+                    $allocations = $this->allocator->allocateWithFees($this->rows($installments), LateFees::rows($fees), $quote->payoff, $paidAt->format('Y-m-d'), feesFirst: true);
                     $transaction = $this->write($locked, 'payment', $quote->payoff, $method, $idempotencyKey, $by, $note, $paidAt, 'early_discount');
-                    $this->apply($transaction, $installments, $allocations, $paidAt);
+                    $this->apply($transaction, $installments, $allocations['installments'], $paidAt);
+                    LateFees::apply($transaction, $fees, $allocations['fees'], $paidAt);
                 }
 
                 // Whatever is still owed after the payoff is what the rebate covers: waived, with what each still owed.
@@ -189,7 +195,9 @@ final class RecordPayment
         }
 
         $installments = Installment::query()->where('contract_id', $locked->id)->lockForUpdate()->get();
+        $fees = LateFees::open([$locked->id], lock: true);
         $owed = $installments->reduce(fn (string $carry, Installment $i) => Money::add($carry, $i->remaining()), '0');
+        $owed = $fees->reduce(fn (string $carry, LateFee $fee) => Money::add($carry, $fee->remaining()), $owed);
 
         if (Money::cmp($amount, $owed) > 0) {
             throw ValidationException::withMessages(['amount' => Money::isZero($owed)
@@ -205,14 +213,16 @@ final class RecordPayment
             }
         }
 
+        // What is already due first, then the late fees, then what is not due yet (Win Plan K4, decision D3).
         try {
-            $allocations = $this->allocator->allocate($this->rows($installments), $amount, $applyTo);
+            $allocations = $this->allocator->allocateWithFees($this->rows($installments), LateFees::rows($fees), $amount, $paidAt->format('Y-m-d'), $applyTo);
         } catch (InvalidArgumentException $e) {
             throw ValidationException::withMessages(['amount' => $e->getMessage()]);
         }
 
         $transaction = $this->write($locked, 'payment', $amount, $method, $key, $by, $note, $paidAt, $tag, $batchId);
-        $this->apply($transaction, $installments, $allocations, $paidAt);
+        $this->apply($transaction, $installments, $allocations['installments'], $paidAt);
+        LateFees::apply($transaction, $fees, $allocations['fees'], $paidAt);
 
         ContractSettlement::sync($locked, $paidAt);
         // Its principal and profit go to whoever funded the contract, in the same transaction (Win Plan PP3).

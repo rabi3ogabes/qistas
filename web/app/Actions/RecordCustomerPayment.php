@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Domain\LateFees\LateFees;
 use App\Domain\Ledger\PaymentAllocator;
 use App\Models\Contract;
 use App\Models\Customer;
@@ -55,7 +56,7 @@ final class RecordCustomerPayment
             }
 
             return DB::transaction(function () use ($customer, $amount, $method, $idempotencyKey, $by, $note, $paidAt, $split): PaymentBatch {
-                $portions = $split === null ? $this->oldestFirst($customer, $amount) : $this->byHand($customer, $amount, $split);
+                $portions = $split === null ? $this->oldestFirst($customer, $amount, $paidAt) : $this->byHand($customer, $amount, $split);
 
                 $batch = (new PaymentBatch)->forceFill([
                     'customer_id' => $customer->id,
@@ -80,11 +81,12 @@ final class RecordCustomerPayment
     }
 
     /**
-     * The oldest instalment due first, across the customer's running contracts with a schedule.
+     * The oldest instalment due first, across the customer's running contracts with a schedule, then the late fees,
+     * then what is not due yet.
      *
      * @return array<string, string> amount by contract id, in the order they are paid
      */
-    private function oldestFirst(Customer $customer, string $amount): array
+    private function oldestFirst(Customer $customer, string $amount, ?CarbonInterface $paidAt = null): array
     {
         $contracts = Contract::query()->where('customer_id', $customer->id)->where('status', 'active')->where('type', '!=', 'open')->get()->keyBy('id');
         $rows = Installment::query()->whereIn('contract_id', $contracts->keys())->whereNotIn('status', Installment::CLOSED)->get()
@@ -97,21 +99,27 @@ final class RecordCustomerPayment
                 'contract_id' => $i->contract_id,
             ])->values()->all();
 
+        // Late fees in the same order as on one contract (Win Plan K4): after what is due, before what is not.
+        $fees = LateFees::open($contracts->keys()->all());
+        $feeContract = $fees->pluck('contract_id', 'id')->all();
+        $feeRows = array_map(fn (array $row) => [...$row, 'number' => $contracts[$feeContract[$row['id']]]->number * 10000 + $row['number']], LateFees::rows($fees));
+
         $owed = array_reduce($rows, fn (string $sum, array $row) => Money::add($sum, $row['remaining']), '0');
+        $owed = array_reduce($feeRows, fn (string $sum, array $row) => Money::add($sum, $row['remaining']), $owed);
         if (Money::cmp($amount, $owed) > 0) {
             throw ValidationException::withMessages(['amount' => __('The payment is more than the :owed this customer still owes.', ['owed' => Money::add($owed, '0', 2)])]);
         }
 
         try {
-            $allocations = $this->allocator->allocate($rows, $amount);
+            $allocations = $this->allocator->allocateWithFees($rows, $feeRows, $amount, ($paidAt ?? now())->format('Y-m-d'));
         } catch (InvalidArgumentException $e) {
             throw ValidationException::withMessages(['amount' => $e->getMessage()]);
         }
 
-        $contractOf = array_column($rows, 'contract_id', 'id');
+        $contractOf = array_column($rows, 'contract_id', 'id') + $feeContract;
         $portions = [];
-        foreach ($allocations as $allocation) {
-            $contractId = $contractOf[$allocation['installment_id']];
+        foreach ([...$allocations['installments'], ...$allocations['fees']] as $allocation) {
+            $contractId = $contractOf[$allocation['installment_id'] ?? $allocation['late_fee_id']];
             $portions[$contractId] = Money::add($portions[$contractId] ?? '0', $allocation['amount'], 2);
         }
 

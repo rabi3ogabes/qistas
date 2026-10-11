@@ -9,6 +9,7 @@ import 'billing.dart';
 import 'documents.dart';
 import 'help.dart';
 import 'investors.dart';
+import 'late_fees.dart';
 import 'models.dart';
 import 'notifications.dart';
 import 'plan_changes.dart';
@@ -520,6 +521,10 @@ class QistasApi {
 
   Future<LedgerLine> voidPayment(String id, {String? reason}) async =>
       LedgerLine.fromJson(_data(await _client.post('/payments/$id/void', body: {if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim()})));
+
+  /// Forgives what a late fee still owes (Win Plan K4); owners and managers only, always with a reason.
+  Future<LateFee> waiveLateFee(String id, {required String reason}) async =>
+      LateFee.fromJson(_data(await _client.post('/late-fees/$id/waive', body: {'reason': reason.trim()})));
 }
 
 /// What a person fills in to add or change a customer.

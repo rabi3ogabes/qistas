@@ -28,6 +28,7 @@ enum Feature: string
     case PaymentTargeting = 'payment_targeting';
     case StoreBilling = 'store_billing';
     case ManualBilling = 'manual_billing';
+    case LateFees = 'late_fees';
 
     /** How many customers the free plan keeps (tests and copy read this rather than repeating the number). */
     public const FREE_CUSTOMERS = 20;
@@ -39,7 +40,7 @@ enum Feature: string
             self::PdfStatements => FeatureType::Quota,
             self::ExportCsv, self::AdvancedReports, self::CustomBranding, self::FlexibleSchedules, self::OpenContracts, self::ContractItems, self::CustomerTags,
             self::InstalmentAlerts, self::DailyDigest, self::EarlySettlement, self::Reschedule, self::PaymentTargeting,
-            self::StoreBilling, self::ManualBilling => FeatureType::Toggle,
+            self::StoreBilling, self::ManualBilling, self::LateFees => FeatureType::Toggle,
         };
     }
 
@@ -66,6 +67,7 @@ enum Feature: string
             self::PaymentTargeting => __('Choose what a payment covers'),
             self::StoreBilling => __('Pro through Google Play'),
             self::ManualBilling => __('Pro by bank transfer'),
+            self::LateFees => __('Late fees'),
         };
     }
 
@@ -79,6 +81,7 @@ enum Feature: string
             self::FlexibleSchedules, self::OpenContracts, self::ContractItems, self::EarlySettlement, self::Reschedule, self::PaymentTargeting => FeatureGroup::ContractTerms,
             self::CustomerTags, self::InstalmentAlerts, self::DailyDigest => FeatureGroup::Collecting,
             self::StoreBilling, self::ManualBilling => FeatureGroup::Membership,
+            self::LateFees => FeatureGroup::LateCustomers,
         };
     }
 
@@ -106,6 +109,7 @@ enum Feature: string
             self::PaymentTargeting => __('Pick the instalment a payment covers, and take one payment across all of a customer’s contracts.'),
             self::StoreBilling => __('Owners subscribe to a paid plan in the Android app through Google Play; the purchase is checked with Google before the plan turns on.'),
             self::ManualBilling => __('Owners pay by bank transfer and upload the receipt on the website; the Qistas team approves it, or it turns on by itself when automatic approval is on.'),
+            self::LateFees => __('A fee for each period an instalment is late, after the grace days: an amount or a percent, once, daily, weekly or monthly, with caps, and optionally for charity. Each fee is its own line, paid or waived with a reason.'),
         };
     }
 
@@ -132,6 +136,7 @@ enum Feature: string
             self::PaymentTargeting => __('Payments go to the oldest instalment again, one contract at a time. Payments already made stay as they are.'),
             self::StoreBilling => __('The app stops offering subscriptions. Plans already bought keep running until the store ends them, and its messages are still applied.'),
             self::ManualBilling => __('The website stops taking bank transfer requests. Requests already sent can still be approved or rejected, and plans already given keep their end date.'),
+            self::LateFees => __('No new fees are charged. Fees already charged stay on their contracts and can still be paid or waived; each contract keeps the policy it was made with.'),
         };
     }
 
@@ -146,7 +151,7 @@ enum Feature: string
             self::Customers, self::ActiveContracts, self::PdfStatements, self::ExportCsv,
             self::AdvancedReports, self::CustomBranding, self::ApiTokens, self::Members, self::FlexibleSchedules, self::Investors, self::OpenContracts, self::ContractItems, self::CustomerTags,
             self::InstalmentAlerts, self::DailyDigest, self::EarlySettlement, self::Reschedule, self::PaymentTargeting,
-            self::StoreBilling, self::ManualBilling => [],
+            self::StoreBilling, self::ManualBilling, self::LateFees => [],
         };
     }
 
@@ -250,7 +255,7 @@ enum Feature: string
                 self::ApiTokens, self::Members, self::Investors => ['enabled' => true, 'limit' => 1],
                 self::ExportCsv, self::AdvancedReports, self::CustomBranding => ['enabled' => false, 'limit' => null],
                 self::FlexibleSchedules, self::OpenContracts, self::ContractItems, self::CustomerTags,
-                self::InstalmentAlerts, self::DailyDigest, self::EarlySettlement, self::Reschedule, self::PaymentTargeting => ['enabled' => true, 'limit' => null],
+                self::InstalmentAlerts, self::DailyDigest, self::EarlySettlement, self::Reschedule, self::PaymentTargeting, self::LateFees => ['enabled' => true, 'limit' => null],
                 // The platform's own switches are not part of any plan: only the switch decides.
                 self::StoreBilling, self::ManualBilling => ['enabled' => true, 'limit' => null],
             },

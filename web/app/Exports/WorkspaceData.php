@@ -9,6 +9,7 @@ use App\Models\Customer;
 use App\Models\Installment;
 use App\Models\Investor;
 use App\Models\InvestorEntry;
+use App\Models\LateFee;
 use App\Models\Transaction;
 use App\Support\Money;
 use App\Support\PaymentMethods;
@@ -17,9 +18,9 @@ use Generator;
 
 /**
  * Everything a business keeps, sheet by sheet (Win Plan PP10): customers (removed ones too), contracts, instalments,
- * payments and every other ledger line, what was sold, investors and their entries. Read from the ACTIVE workspace
- * only, a few hundred rows at a time, in the language that is set. Amounts become numbers so Excel can add them up; this
- * is the only place they leave exact decimal strings, and only for the spreadsheet.
+ * payments and every other ledger line, late fees (charity marked), what was sold, investors and their entries. Read
+ * from the ACTIVE workspace only, a few hundred rows at a time, in the language that is set. Amounts become numbers
+ * so Excel can add them up; this is the only place they leave exact decimal strings, and only for the spreadsheet.
  */
 final class WorkspaceData
 {
@@ -31,6 +32,7 @@ final class WorkspaceData
             new Sheet('contracts', __('Contracts'), [__('Contract'), __('Customer'), __('Type'), __('Status'), __('What was sold'), __('Contract date'), __('Price'), __('Discount'), __('Down payment'), __('Financed'), __('Markup'), __('Total to repay'), __('Instalments'), __('How often'), __('Grace days'), __('What it cost you'), __('Tax in the price'), __('Funded by'), __('Notes'), __('Settled on'), __('Cancelled on')], self::contracts()),
             new Sheet('instalments', __('Instalments'), [__('Contract'), '#', __('Due date'), __('Amount'), __('Paid'), __('Still owed'), __('Status'), __('Paid on')], self::instalments()),
             new Sheet('payments', __('Payments'), [__('Date'), __('Contract'), __('Customer'), __('Type'), __('Method'), __('Amount'), __('Note'), __('Recorded by'), __('Recorded')], self::payments()),
+            new Sheet('late_fees', __('Late fees'), [__('Contract'), '#', __('Charged on'), __('Amount'), __('Paid'), __('Status'), __('For charity'), __('Why it was waived')], self::lateFees()),
             new Sheet('items', __('What was sold'), [__('Contract'), __('Item'), __('Quantity'), __('Serial or IMEI'), __('Price'), __('Cost')], self::items()),
             new Sheet('investors', __('Investors'), [__('Name'), __('The business’s own money'), __('Commission, %'), __('Commercial registration'), __('Notes'), __('Archived on')], self::investors()),
             new Sheet('investor_entries', __('Investor entries'), [__('Date'), __('Investor'), __('Type'), __('Contract'), __('Amount'), __('Note')], self::investorEntries()),
@@ -88,6 +90,21 @@ final class WorkspaceData
                 self::day($line->paid_at), $line->contract?->reference(), $line->contract?->customer?->name, $types[$line->type] ?? $line->type,
                 in_array($line->type, ['payment', 'down_payment', 'reversal'], true) ? PaymentMethods::label($line->method) : null,
                 self::number($line->amount), $line->note, $line->createdBy?->name, $line->created_at->format('Y-m-d H:i'),
+            ];
+        }
+    }
+
+    /** @return Generator<list<string|int|float|null>> */
+    private static function lateFees(): Generator
+    {
+        $references = Contract::query()->get(['id', 'number', 'own_reference'])->mapWithKeys(fn (Contract $c) => [$c->id => $c->reference()]);
+        $numbers = Installment::query()->whereIn('id', LateFee::query()->select('installment_id'))->pluck('number', 'id');
+        $states = ['open' => __('Open'), 'paid' => __('Paid'), 'waived' => __('Waived')];
+
+        foreach (LateFee::query()->orderBy('charged_on')->orderBy('contract_id')->orderBy('period')->lazy(500) as $fee) {
+            yield [
+                $references[$fee->contract_id] ?? null, $numbers[$fee->installment_id] ?? null, self::day($fee->charged_on), self::number($fee->amount),
+                self::number($fee->paid_amount), $states[$fee->status] ?? $fee->status, $fee->charity ? __('Yes') : __('No'), $fee->waived_reason,
             ];
         }
     }

@@ -18,7 +18,11 @@
     $amendmentLabel = ['reschedule' => __('New count or amount'), 'skip' => __('Month skipped'), 'move' => __('Date moved')];
     $rebate = $contract->adjustments->reduce(fn (string $sum, $adjustment) => Money::add($sum, (string) $adjustment->amount, 2), '0.00');
     $markupPercent = rtrim(rtrim($contract->markup_value, '0'), '.');
-    $canTakePayment = $contract->status !== 'cancelled' && $next !== null;
+    // Late fees (Win Plan K4) can be all that is left to pay.
+    $canTakePayment = $contract->status !== 'cancelled' && ($next !== null || Money::isPositive($feesOwed));
+    $feeLabel = ['open' => __('Owed'), 'paid' => __('Paid'), 'waived' => __('Waived')];
+    $feeTone = ['open' => 'badge-bad', 'paid' => 'badge-ok', 'waived' => ''];
+    $feeWhen = ['once' => __('once'), 'daily' => __('every day it is late'), 'weekly' => __('every week it is late'), 'monthly' => __('every month it is late')];
 @endphp
 <x-layouts.app :title="$contract->reference()" section="contracts">
     <x-page-head :title="$contract->reference()">
@@ -40,6 +44,9 @@
             <p class="figure-value money">{{ Format::money($owed, $currency) }}</p>
             @if ($paidAheadUntil !== null)
                 <p class="figure-note">{{ __('Paid ahead until :date', ['date' => $paidAheadUntil->translatedFormat('j M Y')]) }}</p>
+            @endif
+            @if (Money::isPositive($feesOwed))
+                <p class="figure-note">{{ __('Includes :amount in late fees', ['amount' => Format::money($feesOwed, $currency)]) }}</p>
             @endif
         </div>
         <div class="figure">
@@ -64,8 +71,13 @@
                             @error('contract')<p class="alert alert-error" role="alert">{{ $message }}</p>@enderror
                             @error('idempotency_key')<p class="alert alert-error" role="alert">{{ $message }}</p>@enderror
 
-                            <x-field name="amount" :label="__('Amount received')" :value="Money::add($next->remaining(), '0', 2)" inputmode="decimal" autocomplete="off" dir="ltr" required
-                                     :hint="__('Next instalment: :amount, due :date.', ['amount' => Format::money($next->remaining(), $currency), 'date' => $next->due_date->translatedFormat('j M Y')])" />
+                            @if ($next !== null)
+                                <x-field name="amount" :label="__('Amount received')" :value="Money::add($next->remaining(), '0', 2)" inputmode="decimal" autocomplete="off" dir="ltr" required
+                                         :hint="__('Next instalment: :amount, due :date.', ['amount' => Format::money($next->remaining(), $currency), 'date' => $next->due_date->translatedFormat('j M Y')])" />
+                            @else
+                                <x-field name="amount" :label="__('Amount received')" :value="Money::add($feesOwed, '0', 2)" inputmode="decimal" autocomplete="off" dir="ltr" required
+                                         :hint="__('Every instalment is paid; :amount in late fees is still owed.', ['amount' => Format::money($feesOwed, $currency)])" />
+                            @endif
 
                             <div class="field">
                                 <label for="f-method">{{ __('How was it paid?') }}</label>
@@ -145,7 +157,9 @@
                     </div>
                 @endif
 
-                @if ($conversion !== null)
+                @if ($conversion !== null && Money::isPositive($conversion['late_fees']))
+                    <p class="field-hint">{{ __('To make this contract open, first collect or waive its late fees (:amount).', ['amount' => Format::money($conversion['late_fees'], $currency)]) }}</p>
+                @elseif ($conversion !== null)
                     {{-- Win Plan PP4: what becoming open does, in numbers, before anything changes. --}}
                     <details class="confirm">
                         <summary class="btn btn-quiet btn-sm">{{ __('Turn into an open contract') }}</summary>
@@ -243,6 +257,71 @@
                     </table>
                 </div>
             </section>
+
+            @if ($lateFeePolicy !== null || $lateFees->isNotEmpty())
+                {{-- Win Plan K4: each fee its own line, never added to an instalment; an owner or manager waives one, saying why. --}}
+                <section class="card" aria-labelledby="fees-title">
+                    <div class="card-head"><h2 id="fees-title">{{ __('Late fees') }}</h2></div>
+                    @if ($lateFeePolicy !== null)
+                        <p class="card-pad fee-policy">
+                            {{ __(':fee, :when, from the day after the grace days.', [
+                                'fee' => $lateFeePolicy->type === 'percent' ? __(':percent% of what is still owed on the instalment', ['percent' => rtrim(rtrim($lateFeePolicy->amount, '0'), '.')]) : Format::money($lateFeePolicy->amount, $currency),
+                                'when' => $feeWhen[$lateFeePolicy->frequency] ?? $lateFeePolicy->frequency,
+                            ]) }}
+                            @if ($lateFeePolicy->capPerInstallment !== null) {{ __('At most :amount per instalment.', ['amount' => Format::money($lateFeePolicy->capPerInstallment, $currency)]) }} @endif
+                            @if ($lateFeePolicy->capPerContract !== null) {{ __('At most :amount for the contract.', ['amount' => Format::money($lateFeePolicy->capPerContract, $currency)]) }} @endif
+                            @if ($lateFeePolicy->charity) {{ __('The fees go to charity.') }} @endif
+                        </p>
+                    @endif
+                    @if ($lateFees->isEmpty())
+                        <p class="card-pad muted">{{ __('No late fees so far.') }}</p>
+                    @else
+                        <div class="table-wrap">
+                            <table class="table table-stack">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">{{ __('Charged on') }}</th>
+                                        <th scope="col">{{ __('Instalment') }}</th>
+                                        <th scope="col" class="num">{{ __('Amount') }}</th>
+                                        <th scope="col" class="num">{{ __('Paid') }}</th>
+                                        <th scope="col">{{ __('Status') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($lateFees as $fee)
+                                        <tr data-fee="{{ $fee->status }}">
+                                            <td data-label="{{ __('Charged on') }}" class="money">{{ $fee->charged_on->translatedFormat('j M Y') }}</td>
+                                            <td data-label="{{ __('Instalment') }}" class="money">{{ $fee->installment?->number }}</td>
+                                            <td data-label="{{ __('Amount') }}" class="num money">{{ Format::money($fee->amount, $currency) }}</td>
+                                            <td data-label="{{ __('Paid') }}" class="num money">{{ Money::isZero($fee->paid_amount) ? '—' : Format::money($fee->paid_amount, $currency) }}</td>
+                                            <td data-label="{{ __('Status') }}">
+                                                <span class="badge {{ $feeTone[$fee->status] ?? '' }}">{{ $feeLabel[$fee->status] ?? $fee->status }}</span>
+                                                @if ($fee->charity)<span class="badge">{{ __('For charity') }}</span>@endif
+                                                @if ($fee->status === 'waived')
+                                                    <span class="cell-sub">{{ $fee->waived_reason }}</span>
+                                                    @if ($fee->waived_at)<span class="cell-sub">{{ $fee->waivedBy ? __('Waived by :name on :date', ['name' => $fee->waivedBy->name, 'date' => $fee->waived_at->translatedFormat('j M Y')]) : __('Waived on :date', ['date' => $fee->waived_at->translatedFormat('j M Y')]) }}</span>@endif
+                                                @elseif ($fee->status === 'open' && $contract->status !== 'cancelled')
+                                                    @can('waiveFees', $contract)
+                                                        <details class="confirm confirm-inline">
+                                                            <summary class="link">{{ __('Waive this fee') }}</summary>
+                                                            <form method="POST" action="{{ route('app.late-fees.waive', $fee) }}" class="form">
+                                                                @csrf
+                                                                <p>{{ __('The customer no longer owes what is left of this fee. What was paid on it stays paid.') }}</p>
+                                                                <x-reason-field :id="'waive-reason-'.$fee->id" required />
+                                                                <button class="btn btn-danger btn-sm">{{ __('Waive fee') }}</button>
+                                                            </form>
+                                                        </details>
+                                                    @endcan
+                                                @endif
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+                </section>
+            @endif
 
             @if ($contract->amendments->isNotEmpty())
                 {{-- Win Plan PP6: every change to the plan, with why and who, and what the schedule was. --}}

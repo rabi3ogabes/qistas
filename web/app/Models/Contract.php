@@ -47,6 +47,7 @@ use Illuminate\Support\Facades\DB;
  * @property Carbon|null $settled_at
  * @property Carbon|null $cancelled_at
  * @property Carbon|null $archived_at a finished contract put away; hidden from the lists until asked for
+ * @property array<string, mixed>|null $late_fee_policy the late-fee policy as it stood when it was made (Win Plan K4)
  */
 class Contract extends Model
 {
@@ -159,6 +160,12 @@ class Contract extends Model
         return $this->hasMany(ContractAmendment::class)->orderBy('created_at');
     }
 
+    /** @return HasMany<LateFee, $this> its late fees, oldest first (Win Plan K4) */
+    public function lateFees(): HasMany
+    {
+        return $this->hasMany(LateFee::class)->orderBy('charged_on')->orderBy('created_at')->orderBy('period');
+    }
+
     /** @return HasMany<Installment, $this> */
     public function installments(): HasMany
     {
@@ -188,6 +195,7 @@ class Contract extends Model
             'settled_at' => 'datetime',
             'cancelled_at' => 'datetime',
             'archived_at' => 'datetime',
+            'late_fee_policy' => 'array',
         ];
     }
 }

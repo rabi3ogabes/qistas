@@ -46,6 +46,7 @@ tags:
   - name: Customers
   - name: Contracts
   - name: Payments
+  - name: Late fees
   - name: Dashboard
   - name: API access tokens
   - name: Instalment tools
@@ -702,9 +703,10 @@ paths:
       tags: [Payments]
       summary: What a payment would cover, before it is taken
       description: >-
-        Worked out by the allocator that records payments (oldest instalment first) and never written. The same amount
-        recorded next covers exactly these instalments. More than is owed answers 422, as recording would. On an open
-        contract `covers` is empty and the amount comes off the balance.
+        Worked out by the allocator that records payments and never written: what is already due first (oldest
+        instalment first), then the open late fees, then what is not due yet. The same amount recorded next covers
+        exactly these. More than is owed (late fees included) answers 422, as recording would. On an open contract
+        `covers` is empty and the amount comes off the balance.
       parameters:
         - {name: contract, in: path, required: true, schema: {type: string, format: uuid}}
       requestBody:
@@ -733,6 +735,7 @@ paths:
                             amount: {$ref: "#/components/schemas/Money"}
                             settles: {type: boolean, description: The instalment is paid in full.}
                       left_on_last: {type: [string, "null"], description: "What stays owed on the last instalment it touches."}
+                      late_fees: {type: string, example: "10.00", description: "What goes to late fees (Win Plan K4)."}
                       owed_after: {$ref: "#/components/schemas/Money"}
         "401": {$ref: "#/components/responses/Unauthenticated"}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -742,8 +745,9 @@ paths:
       tags: [Payments]
       summary: Record a payment
       description: |
-        Applied to the oldest unpaid instalment first; on an open contract it comes off the balance and may go past it
-        (the customer then has credit). Safe to retry with an `Idempotency-Key`.
+        Applied to what is already due first (the oldest unpaid instalment first), then to open late fees, then to
+        instalments not yet due; on an open contract it comes off the balance and may go past it (the customer then has
+        credit). Safe to retry with an `Idempotency-Key`.
       parameters:
         - {name: contract, in: path, required: true, schema: {type: string, format: uuid}}
         - {$ref: "#/components/parameters/IdempotencyKey"}
@@ -795,7 +799,7 @@ paths:
       summary: Void a payment
       description: |
         Owners and managers only. Adds a reversal; the original line is never changed. Only instalment payments can be
-        voided, once.
+        voided, once. What it paid on instalments and late fees is put back exactly (a fee waived since stays waived).
       parameters:
         - {name: transaction, in: path, required: true, schema: {type: string, format: uuid}}
       requestBody:
@@ -818,12 +822,46 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "422": {$ref: "#/components/responses/ValidationFailed"}
+  /late-fees/{fee}/waive:
+    post:
+      tags: [Late fees]
+      summary: Waive a late fee (Win Plan K4)
+      description: |
+        Owners and managers only, with a reason, which is kept and audited. What is still owed on the fee is forgiven;
+        what was paid on it stays paid. Works whether the late_fees feature is on or off. A fee that is not open, or on
+        a cancelled contract, answers 422 (`fee`). When the fee was the last thing owed, the contract is settled. Fees
+        are charged by the nightly job and listed on their contract (`late_fees`).
+      parameters:
+        - {name: fee, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: {type: string, maxLength: 500}
+      responses:
+        "200":
+          description: The fee, waived.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/LateFee"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+        "429": {$ref: "#/components/responses/RateLimited"}
   /settings/tools:
     get:
       tags: [Instalment tools]
       summary: The tools this workspace can configure
       description: |
-        The settings of every feature that is `on` for the workspace, each with its kind (`switch`, `int` or `select`),
+        The settings of every feature that is `on` for the workspace, each with its kind (`switch`, `int`, `amount` or `select`),
         its current `value` and, for a select, its `options`. The list is empty until a feature declares a setting.
         Anyone in the workspace may read it; `meta.can_edit` says whether this person may change it (owner and manager).
         Draw the controls from this answer: a new tool needs no new screen.
@@ -2208,10 +2246,10 @@ components:
       properties:
         key: {type: string, example: reports.window_days}
         feature: {type: string, example: advanced_reports}
-        type: {type: string, enum: [switch, int, select]}
+        type: {type: string, enum: [switch, int, select, amount]}
         label: {type: string}
         help: {type: string}
-        value: {description: "A boolean, a whole number or the chosen option's value."}
+        value: {description: "A boolean, a whole number, an amount (a string with two decimals; Arabic and Urdu digits are read) or the chosen option's value."}
         options:
           type: array
           description: Only for a select.
@@ -2407,6 +2445,7 @@ components:
       type: object
       properties:
         remaining: {type: string, example: "825.00"}
+        late_fees: {type: string, example: "0.00", description: "Open late fees, added to the payoff whole: a rebate never comes off a fee."}
         earned_profit: {type: string, example: "25.00"}
         unearned_profit: {type: string, example: "75.00"}
         rebate: {type: string, example: "37.50"}
@@ -2898,8 +2937,40 @@ components:
                 due_date: {type: string, format: date}
                 remaining: {$ref: "#/components/schemas/Money"}
             - {type: "null"}
+        late_fee_policy:
+          oneOf:
+            - {$ref: "#/components/schemas/LateFeePolicy"}
+            - {type: "null"}
+        late_fees: {type: array, description: Single contract only. Every late fee charged, oldest first., items: {$ref: "#/components/schemas/LateFee"}}
         installments: {type: array, items: {$ref: "#/components/schemas/Installment"}}
         transactions: {type: array, items: {$ref: "#/components/schemas/Transaction"}}
+    LateFeePolicy:
+      type: object
+      description: The workspace's late-fee policy as it stood when the contract was made (Win Plan K4); a later change never alters it.
+      properties:
+        type: {type: string, enum: [fixed, percent], description: "fixed: an amount; percent: of what is still owed on the instalment when the fee is charged."}
+        amount: {type: string, example: "10.00"}
+        frequency: {type: string, enum: [once, daily, weekly, monthly], description: From the day after the instalment's grace days.}
+        cap_installment: {type: [string, "null"], description: "The most an instalment's fees add up to (waived ones count); null for no cap."}
+        cap_contract: {type: [string, "null"], description: The same for the whole contract.}
+        charity: {type: boolean, description: The fees go to charity and are kept apart from the business's income.}
+    LateFee:
+      type: object
+      description: One fee for one period an instalment was late, its own line (never added to the instalment).
+      properties:
+        id: {type: string, format: uuid}
+        installment_id: {type: string, format: uuid}
+        installment_number: {type: integer}
+        period: {type: integer, description: 1 for the first period late, 2 for the next, and so on.}
+        charged_on: {type: string, format: date, description: "The first day of that period, on the workspace's calendar."}
+        amount: {$ref: "#/components/schemas/Money"}
+        paid_amount: {$ref: "#/components/schemas/Money"}
+        remaining: {$ref: "#/components/schemas/Money"}
+        status: {type: string, enum: [open, paid, waived]}
+        charity: {type: boolean}
+        waived_reason: {type: [string, "null"]}
+        waived_at: {type: [string, "null"], format: date-time}
+        waived_by: {type: [object, "null"], properties: {id: {type: string}, name: {type: string}}}
     ContractPage:
       allOf:
         - {$ref: "#/components/schemas/Page"}
@@ -2943,6 +3014,7 @@ components:
       properties:
         superseded: {type: integer, description: Unpaid instalments set aside.}
         opening_balance: {$ref: "#/components/schemas/Money"}
+        late_fees: {type: string, description: "Open late fees: while more than zero, converting answers 422 until they are collected or waived."}
     Transaction:
       type: object
       description: >-

@@ -8,6 +8,7 @@ use App\Billing\BillingSettings;
 use App\Billing\Store\GooglePlayBilling;
 use App\Billing\Store\StoreBilling;
 use App\Billing\Store\UnconfiguredStoreBilling;
+use App\Domain\LateFees\LateFeePolicy;
 use App\Entitlements\Entitlements;
 use App\Entitlements\Feature;
 use App\Entitlements\FeatureCatalogue;
@@ -145,6 +146,9 @@ class AppServiceProvider extends ServiceProvider
             label: fn () => __('Late limit, in days'),
             help: fn () => __('The morning summary counts the customers later than this.'),
         ));
+
+        // The late-fee policy (Win Plan K4), copied into each contract when it is made.
+        LateFeePolicy::register(app(SettingsRegistry::class));
 
         // Only a super admin changes what the platform has on, off or in beta; an admin may look.
         Gate::define('manage-platform-features', fn (User $user): bool => $user->platform_role === 'super_admin');

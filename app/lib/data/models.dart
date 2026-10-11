@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../core/money.dart';
+import 'late_fees.dart';
 import 'plan_changes.dart';
 
 // Plain immutable models of what the API returns. No code generation: each reads its own JSON. Amounts are read
@@ -384,6 +385,8 @@ class Contract {
     this.paidAheadUntil,
     this.earlySettlementRebate,
     this.amendments = const [],
+    this.lateFeePolicy,
+    this.lateFees = const [],
   });
 
   factory Contract.fromJson(Map<String, dynamic> json) {
@@ -424,6 +427,8 @@ class Contract {
       paidAheadUntil: _text(json['paid_ahead_until']),
       earlySettlementRebate: _moneyOrNull(json['early_settlement_rebate']),
       amendments: _list(json['amendments']).map(ContractAmendment.fromJson).toList(),
+      lateFeePolicy: LateFeePolicy.fromJson(json['late_fee_policy']),
+      lateFees: _list(json['late_fees']).map(LateFee.fromJson).toList(),
       notes: _text(json['notes']),
       customerId: _text(customer['id']),
       customerName: _text(customer['name']),
@@ -498,6 +503,15 @@ class Contract {
 
   /// Every change to the plan, oldest first (Win Plan PP6).
   final List<ContractAmendment> amendments;
+
+  /// The late-fee policy the contract was made with (Win Plan K4); null when it charges none.
+  final LateFeePolicy? lateFeePolicy;
+
+  /// Every late fee charged, oldest first.
+  final List<LateFee> lateFees;
+
+  /// What its open late fees still owe (part of [owed]).
+  Money get lateFeesOwed => lateFees.fold(Money.zero, (Money sum, fee) => fee.isOpen ? sum + fee.remaining : sum);
 
   /// What the customer pays for it less what it cost: null until the cost is known.
   Money? get margin => costPrice == null ? null : principal - (discountAmount ?? Money.zero) + markupAmount - costPrice!;
@@ -890,7 +904,7 @@ class SignedIn {
 }
 
 /// One thing the owner can set for the workspace, described by the server so that a new tool needs no new screen:
-/// a switch, a whole number or one of a few choices.
+/// a switch, a whole number, an amount or one of a few choices.
 @immutable
 class Tool {
   const Tool({required this.key, required this.type, required this.label, required this.help, required this.value, this.options = const []});
@@ -908,7 +922,7 @@ class Tool {
 
   final String key;
 
-  /// switch, int or select.
+  /// switch, int, amount (a decimal string, as the server writes it) or select.
   final String type;
   final String label;
   final String help;

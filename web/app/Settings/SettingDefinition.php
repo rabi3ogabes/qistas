@@ -3,6 +3,8 @@
 namespace App\Settings;
 
 use App\Entitlements\Feature;
+use App\Support\Digits;
+use App\Support\Money;
 use Closure;
 use Illuminate\Validation\Rule;
 use InvalidArgumentException;
@@ -17,10 +19,11 @@ use InvalidArgumentException;
  */
 final readonly class SettingDefinition
 {
-    public const TYPES = ['switch', 'int', 'select'];
+    public const TYPES = ['switch', 'int', 'select', 'amount'];
 
     /**
-     * @param  string  $type  switch (on/off), int (a whole number) or select (one of $options)
+     * @param  string  $type  switch (on/off), int (a whole number), amount (money or a percent, up to two decimals, kept as an
+     *                        exact string) or select (one of $options)
      * @param  list<mixed>  $rules  extra Laravel validation rules for the value (for example `min:1`)
      * @param  array<string, string|Closure>  $options  for a select: allowed value => its label
      */
@@ -73,10 +76,17 @@ final readonly class SettingDefinition
         $kind = match ($this->type) {
             'int' => ['required', 'integer'],
             'switch' => ['required', 'boolean'],
+            'amount' => ['required', 'numeric', 'decimal:0,2', 'min:0'],
             default => ['required', Rule::in(array_map('strval', array_keys($this->options)))],
         };
 
         return [...$kind, ...$this->rules];
+    }
+
+    /** What a person typed, made readable: an amount typed with Arabic or Urdu digits becomes ASCII. */
+    public function normalize(mixed $value): mixed
+    {
+        return $this->type === 'amount' && is_string($value) ? trim(Digits::toAscii($value)) : $value;
     }
 
     /** Turn what was stored or submitted into the kind this setting holds. */
@@ -85,6 +95,7 @@ final readonly class SettingDefinition
         return match ($this->type) {
             'int' => (int) $value,
             'switch' => filter_var($value, FILTER_VALIDATE_BOOLEAN),
+            'amount' => Money::add(Money::parse((string) $value), '0', 2),
             default => (string) $value,
         };
     }

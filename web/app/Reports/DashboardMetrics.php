@@ -5,6 +5,7 @@ namespace App\Reports;
 use App\Domain\Ledger\OpenAccount;
 use App\Models\Contract;
 use App\Models\Installment;
+use App\Models\LateFee;
 use App\Models\Tenant;
 use App\Models\Transaction;
 use App\Support\Money;
@@ -73,7 +74,15 @@ final class DashboardMetrics
         $open = Contract::query()->where('type', 'open')->where('status', '!=', 'cancelled')->pluck('id')->all();
         $owedOnAccount = array_reduce(OpenAccount::balances($open), fn (string $sum, string $balance) => Money::isPositive($balance) ? Money::add($sum, $balance, 2) : $sum, '0.00');
 
-        return Money::add($this->owed($this->liveInstallments()), $owedOnAccount, 2);
+        return Money::add(Money::add($this->owed($this->liveInstallments()), $owedOnAccount, 2), $this->openFees(), 2);
+    }
+
+    /** What open late fees still owe on contracts that are not cancelled (Win Plan K4); every one of them is late. */
+    private function openFees(): string
+    {
+        return $this->money(LateFee::query()->join('contracts', 'contracts.id', '=', 'late_fees.contract_id')
+            ->where('contracts.status', '!=', 'cancelled')->where('late_fees.status', 'open')
+            ->sum(DB::raw('late_fees.amount - late_fees.paid_amount')));
     }
 
     private function overdue(CarbonInterface $now): string
@@ -81,7 +90,7 @@ final class DashboardMetrics
         // whereDate compares the calendar day on every database; a bare comparison would depend on how the
         // column happens to be stored (a date on PostgreSQL, text with a time part on SQLite).
         // Late means past the last day of grace (the due date itself when a contract has no grace days).
-        return $this->owed($this->liveInstallments()->whereDate('installments.grace_until', '<', $now->toDateString()));
+        return Money::add($this->owed($this->liveInstallments()->whereDate('installments.grace_until', '<', $now->toDateString())), $this->openFees(), 2);
     }
 
     private function collectedInMonth(CarbonInterface $now): string

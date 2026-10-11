@@ -4,6 +4,7 @@ namespace App\Domain\Ledger;
 
 use App\Models\Contract;
 use App\Models\ContractAdjustment;
+use App\Models\LateFee;
 use App\Models\Transaction;
 use App\Reports\CustomerBalances;
 use App\Support\Money;
@@ -14,7 +15,8 @@ use Illuminate\Support\Collection;
  * A customer's account, line by line (Win Plan PP8). A scheduled or cash contract opens with what the customer owes for
  * it: the price less any discount, plus the markup (its total plus the down payment). Every payment and down payment
  * takes from that, a void adds it back, an early-settlement rebate takes off what it waived (Win Plan PP6; its void adds
- * it back), and a cancelled contract closes at nothing owed. An open contract is its charges
+ * it back), each late fee adds to it and its waiver takes off what was not paid on it (Win Plan K4), and a cancelled
+ * contract closes at nothing owed. An open contract is its charges
  * and the payments that went on its account (see OpenAccount), so a converted contract starts from the balance it was
  * converted with. The running balance after the last line is what the rest of the app says is still owed.
  *
@@ -107,6 +109,22 @@ final class Statement
             }
         }
 
+        // Late fees (Win Plan K4): each is owed from the day its period began; a waiver forgives whatever was not
+        // paid on it.
+        if (! $contract->isOpen()) {
+            foreach (LateFee::query()->where('contract_id', $contract->id)->orderBy('charged_on')->orderBy('period')->get() as $fee) {
+                $amount = Money::add($fee->amount, '0', 2);
+                $balance = Money::add($balance, $amount, 2);
+                $lines[] = self::line($fee->charged_on, $contract, 'late_fee', $amount, null, null, 1, $fee->charged_on->format('Y-m-d').' 00:00:00.000000|'.$fee->id);
+
+                $forgiven = Money::sub($fee->amount, $fee->paid_amount, 2);
+                if ($fee->status === 'waived' && $fee->waived_at !== null && Money::isPositive($forgiven)) {
+                    $balance = Money::sub($balance, $forgiven, 2);
+                    $lines[] = self::line($fee->waived_at, $contract, 'late_fee_waived', null, $forgiven, null, 1, $fee->waived_at->format('Y-m-d H:i:s.u').'|'.$fee->id);
+                }
+            }
+        }
+
         // A cancelled contract owes nothing: what was left is written off on the day it was cancelled.
         if ($contract->status === 'cancelled' && $contract->cancelled_at !== null && Money::cmp($balance, '0') > 0) {
             $lines[] = self::line($contract->cancelled_at, $contract, 'cancelled', null, $balance, null, 2, '');
@@ -131,6 +149,9 @@ final class Statement
     {
         $today ??= today();
         $owed = app(CustomerBalances::class)->forContracts($contracts->pluck('id')->all());
+        // Every open late fee is late by nature (Win Plan K4).
+        $fees = LateFee::query()->whereIn('contract_id', $contracts->pluck('id')->all())->where('status', 'open')
+            ->selectRaw('contract_id, SUM(amount - paid_amount) as owed')->groupBy('contract_id')->toBase()->pluck('owed', 'contract_id');
 
         $result = [];
         foreach ($contracts as $contract) {
@@ -141,6 +162,7 @@ final class Statement
                         $overdue = Money::add($overdue, $installment->remaining(), 2);
                     }
                 }
+                $overdue = Money::add($overdue, Money::fromDatabase($fees[$contract->id] ?? 0), 2);
             }
             $result[$contract->id] = ['owed' => $contract->status === 'cancelled' ? '0.00' : Money::add($owed[$contract->id] ?? '0', '0', 2), 'overdue' => $overdue];
         }

@@ -274,7 +274,11 @@ class _CoveragePreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final amount = this.amount;
-    final coverage = amount == null || contract.installments.isEmpty ? null : paymentCoverage(contract.installments, amount, first: first);
+    final now = DateTime.now();
+    final today = '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final coverage = amount == null || contract.installments.isEmpty
+        ? null
+        : paymentCoverage(contract.installments, amount, first: first, fees: contract.lateFees, today: today);
     if (coverage == null) return const SizedBox.shrink();
     final c = context.qc;
     final text = Theme.of(context).textTheme;
@@ -288,6 +292,8 @@ class _CoveragePreview extends StatelessWidget {
             spacing: 6,
             runSpacing: 6,
             children: [
+              // Late fees come after what is due and before what is not (Win Plan K4).
+              if (coverage.toFees != null) QBadge(context.t('Late fees: :amount', {'amount': coverage.toFees!.format(currency)}), tone: QTone.info),
               for (final covered in coverage.covers)
                 QBadge(
                   covered.settles

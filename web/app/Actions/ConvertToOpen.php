@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Domain\LateFees\LateFees;
 use App\Entitlements\Entitlements;
 use App\Entitlements\Feature;
 use App\Entitlements\FeatureLocked;
@@ -28,7 +29,7 @@ final class ConvertToOpen
     public function __construct(private readonly CurrentTenant $current) {}
 
     /**
-     * @return array{superseded: int, opening_balance: string}
+     * @return array{superseded: int, opening_balance: string, late_fees: string} late_fees: to collect or waive first
      *
      * @throws ValidationException|FeatureUnavailable|FeatureLocked
      */
@@ -45,10 +46,17 @@ final class ConvertToOpen
                         : __('Only a running contract can become open.')]);
                 }
 
+                // Late fees have no place on a running tab: they are collected or waived first (Win Plan K4).
+                $fees = LateFees::owed($locked);
+                if (! $preview && Money::isPositive($fees)) {
+                    throw ValidationException::withMessages(['contract' => __('Collect or waive the late fees before making this contract open.')]);
+                }
+
                 $unpaid = Installment::query()->where('contract_id', $locked->id)->whereNotIn('status', Installment::CLOSED)->lockForUpdate()->get();
                 $outcome = [
                     'superseded' => $unpaid->count(),
                     'opening_balance' => Money::add($unpaid->reduce(fn (string $sum, Installment $i) => Money::add($sum, $i->remaining()), '0'), '0', 2),
+                    'late_fees' => $fees,
                 ];
                 if ($preview) {
                     return $outcome;

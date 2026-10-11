@@ -57,6 +57,12 @@ final class ContractPolicy
         return $this->cancel($user, $contract);
     }
 
+    /** Waive a late fee (Win Plan K4): money is given up, so it is the owner's or a manager's. */
+    public function waiveFees(User $user, Contract $contract): bool
+    {
+        return $this->cancel($user, $contract);
+    }
+
     private function role(User $user): ?TenantRole
     {
         $tenantId = app(CurrentTenant::class)->id();

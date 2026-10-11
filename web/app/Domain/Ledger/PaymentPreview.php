@@ -2,8 +2,10 @@
 
 namespace App\Domain\Ledger;
 
+use App\Domain\LateFees\LateFees;
 use App\Models\Contract;
 use App\Models\Installment;
+use App\Models\LateFee;
 use App\Support\Money;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
@@ -18,8 +20,10 @@ final class PaymentPreview
     public function __construct(private readonly PaymentAllocator $allocator) {}
 
     /**
+     * late_fees in the answer is what goes to late fees (Win Plan K4).
+     *
      * @param  string  $amount  positive, at most two decimals
-     * @return array{covers: list<array{number: int, due_date: string, amount: string, settles: bool}>, left_on_last: ?string, owed_after: string}
+     * @return array{covers: list<array{number: int, due_date: string, amount: string, settles: bool}>, left_on_last: ?string, late_fees: string, owed_after: string}
      *
      * @throws ValidationException when the amount could not be recorded either
      */
@@ -28,11 +32,13 @@ final class PaymentPreview
         $amount = Money::add(Money::parse($amount), '0', 2);
 
         if ($contract->isOpen()) {
-            return ['covers' => [], 'left_on_last' => null, 'owed_after' => Money::sub(OpenAccount::balance($contract), $amount, 2)];
+            return ['covers' => [], 'left_on_last' => null, 'late_fees' => '0.00', 'owed_after' => Money::sub(OpenAccount::balance($contract), $amount, 2)];
         }
 
         $installments = Installment::query()->where('contract_id', $contract->id)->orderBy('number')->get()->keyBy('id');
+        $fees = LateFees::open([$contract->id]);
         $owed = $installments->reduce(fn (string $sum, Installment $i) => Money::add($sum, $i->remaining()), '0');
+        $owed = $fees->reduce(fn (string $sum, LateFee $fee) => Money::add($sum, $fee->remaining()), $owed);
         if (Money::cmp($amount, $owed) > 0) {
             throw ValidationException::withMessages(['amount' => Money::isZero($owed)
                 ? __('Nothing is owed on this contract.')
@@ -40,16 +46,16 @@ final class PaymentPreview
         }
 
         try {
-            $allocations = $this->allocator->allocate($installments->map(fn (Installment $i) => [
+            $allocations = $this->allocator->allocateWithFees($installments->map(fn (Installment $i) => [
                 'id' => $i->id, 'number' => $i->number, 'due_date' => $i->due_date->format('Y-m-d'), 'remaining' => $i->remaining(),
-            ])->values()->all(), $amount);
+            ])->values()->all(), LateFees::rows($fees), $amount, today()->format('Y-m-d'));
         } catch (InvalidArgumentException $e) {
             throw ValidationException::withMessages(['amount' => $e->getMessage()]);
         }
 
         $covers = [];
         $left = null;
-        foreach ($allocations as $allocation) {
+        foreach ($allocations['installments'] as $allocation) {
             $installment = $installments[$allocation['installment_id']];
             $after = Money::sub($installment->remaining(), $allocation['amount'], 2);
             $covers[] = [
@@ -61,6 +67,8 @@ final class PaymentPreview
             $left = $after;
         }
 
-        return ['covers' => $covers, 'left_on_last' => $left, 'owed_after' => Money::sub($owed, $amount, 2)];
+        $toFees = array_reduce($allocations['fees'], fn (string $sum, array $allocation) => Money::add($sum, $allocation['amount'], 2), '0.00');
+
+        return ['covers' => $covers, 'left_on_last' => $left, 'late_fees' => $toFees, 'owed_after' => Money::sub($owed, $amount, 2)];
     }
 }

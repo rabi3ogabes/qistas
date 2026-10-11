@@ -65,7 +65,7 @@ final class TenantSettings
 
         Entitlements::for($this->tenant)->assertEnabled($definition->feature);
 
-        $validated = Validator::make(['value' => $value], ['value' => $definition->validationRules()])->validate();
+        $validated = Validator::make(['value' => $definition->normalize($value)], ['value' => $definition->validationRules()])->validate();
         $after = $definition->cast($validated['value']);
         $before = $this->get($key);
 

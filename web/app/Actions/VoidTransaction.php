@@ -3,6 +3,7 @@
 namespace App\Actions;
 
 use App\Domain\Investors\InvestorLedger;
+use App\Domain\LateFees\LateFees;
 use App\Domain\Ledger\ContractSettlement;
 use App\Models\Contract;
 use App\Models\ContractAdjustment;
@@ -18,7 +19,8 @@ use Illuminate\Validation\ValidationException;
 /**
  * Cancels a payment, or what an open contract's customer took, the only way a ledger allows: by adding a reversal. The
  * original stays untouched; the reversal carries the same amounts negated, and re-opens exactly the instalments the
- * payment had paid. A charge's reversal is a `charge_reversal`, so it is never mistaken for money going back out.
+ * payment had paid, and the late fees it had paid. A charge's reversal is a `charge_reversal`, so it is never mistaken
+ * for money going back out.
  */
 final class VoidTransaction
 {
@@ -68,6 +70,9 @@ final class VoidTransaction
                     'amount' => $negated,
                 ])->save();
             }
+
+            // And exactly what it put on late fees (Win Plan K4); a fee waived since stays waived.
+            LateFees::reverse($original, $reversal, $at);
 
             // Voiding the payment that settled a contract early brings back what its rebate had waived (Win Plan PP6).
             $rebate = ContractAdjustment::query()->where('transaction_id', $original->id)->where('type', 'early_rebate')->whereNull('reverses_adjustment_id')->first();

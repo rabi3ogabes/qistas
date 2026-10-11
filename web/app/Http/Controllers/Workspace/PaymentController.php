@@ -4,12 +4,15 @@ namespace App\Http\Controllers\Workspace;
 
 use App\Actions\RecordPayment;
 use App\Actions\VoidTransaction;
+use App\Actions\WaiveLateFee;
 use App\Domain\Ledger\LedgerLines;
 use App\Entitlements\Entitlements;
 use App\Entitlements\Feature;
 use App\Http\Requests\PaymentRequest;
 use App\Http\Requests\VoidPaymentRequest;
+use App\Http\Requests\WaiveLateFeeRequest;
 use App\Models\Contract;
+use App\Models\LateFee;
 use App\Models\Transaction;
 use App\Support\Format;
 use App\Tenancy\CurrentTenant;
@@ -60,5 +63,13 @@ final class PaymentController
 
         return redirect()->route('app.contracts.show', $transaction->contract_id)
             ->with('status', __('Payment voided. The original line stays in the history.'));
+    }
+
+    public function waiveFee(WaiveLateFeeRequest $request, LateFee $fee, WaiveLateFee $waive): RedirectResponse
+    {
+        $waive->handle($fee, $request->reason(), $request->user());
+
+        return redirect()->route('app.contracts.show', $fee->contract_id)
+            ->with('status', __('Late fee waived. The reason is kept with it.'));
     }
 }

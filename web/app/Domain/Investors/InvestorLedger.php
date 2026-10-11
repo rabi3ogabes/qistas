@@ -2,6 +2,7 @@
 
 namespace App\Domain\Investors;
 
+use App\Domain\LateFees\LateFees;
 use App\Models\Contract;
 use App\Models\ContractAdjustment;
 use App\Models\ContractConversion;
@@ -16,7 +17,8 @@ use Illuminate\Database\Eloquent\Builder;
  * Keeps each investor's money in step with the contracts they fund (Win Plan PP3, decision D7):
  *
  *   a contract opens    -> funding_out   = - the amount financed (the down payment never left the business)
- *   a payment comes in  -> principal_back + profit_share = the payment, profit counted as money comes in:
+ *   a payment comes in  -> principal_back + profit_share = the payment less what it paid on late fees (Win Plan K4),
+ *                          profit counted as money comes in:
  *                          profit so far = round(paid so far x markup / total), so a contract paid in full has credited
  *                          exactly its markup, to the cent, however the payments were split
  *                          (a partner then passes its commission % of that profit to the main investor)
@@ -53,7 +55,9 @@ final class InvestorLedger
         }
         $investor = Investor::query()->findOrFail($contract->investor_id);
 
-        $amount = Money::add($payment->amount, '0', 2);
+        // Late fees are the business's (or charity's), never an investor's (Win Plan K4): only what went to
+        // instalments counts.
+        $amount = Money::sub($payment->amount, LateFees::paidBy($payment), 2);
         $profitBefore = $this->sum($this->contractEntries($contract)->where('type', 'profit_share'));
         $paidBefore = $this->sum($this->contractEntries($contract)->whereIn('type', ['principal_back', 'profit_share']));
 

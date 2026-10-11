@@ -20,3 +20,6 @@ Schedule::command('qistas:export-workspaces')->hourly()->withoutOverlapping(30);
 // The morning summary and the instalment alerts (Win Plan PP9): each person is told at their own time, once.
 Schedule::command('qistas:send-digests')->everyFiveMinutes()->withoutOverlapping(10);
 Schedule::command('qistas:instalment-alerts')->everyFiveMinutes()->withoutOverlapping(10);
+
+// Late fees (Win Plan K4): each workspace soon after its own midnight, once a day; a missed run is caught up next time.
+Schedule::command('qistas:charge-late-fees')->everyFiveMinutes()->withoutOverlapping(10);

@@ -114,6 +114,9 @@ class ContractResource extends JsonResource
                 'approved_by' => $amendment->approvedBy === null ? null : ['id' => $amendment->approvedBy->id, 'name' => $amendment->approvedBy->name],
                 'created_at' => $this->moment($amendment->created_at),
             ])->values()->all()),
+            // Late fees (Win Plan K4): the policy the contract was made with (null: it has none), and each fee charged.
+            'late_fee_policy' => $this->late_fee_policy,
+            'late_fees' => $this->whenLoaded('lateFees', fn () => LateFeeResource::collection($this->lateFees)),
             'installments' => $this->whenLoaded('installments', fn () => InstallmentResource::collection($this->installments)),
             'transactions' => $this->whenLoaded('transactions', fn () => TransactionResource::collection($this->transactions)),
         ];
