@@ -67,6 +67,9 @@
         <div class="fc-panel">
             <p class="fc-off">{{ $card['off_behaviour'] }}</p>
 
+            @if ($card['scope'] === 'platform')
+                <p class="fc-quiet">{{ __('A switch for the whole platform, not part of any plan: when it is on, every business has it.') }}</p>
+            @else
             <h4>{{ __('Included in plans') }}</h4>
             <ul class="fc-plans">
                 @foreach ($card['plans'] as $plan)
@@ -94,6 +97,7 @@
                 @endforeach
             </ul>
             @error('limit')<p class="fc-error" role="alert">{{ $message }}</p>@enderror
+            @endif
 
             @unless ($locked)
                 <h4>{{ __('Early access') }}</h4>

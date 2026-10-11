@@ -42,7 +42,7 @@ final class SiteController
 
     public function pricing(): View
     {
-        return view('site.pricing', ['offers' => $this->catalog->offers(), 'features' => Feature::cases()]);
+        return view('site.pricing', ['offers' => $this->catalog->offers(), 'features' => Feature::planFeatures()]);
     }
 
     public function terms(): View

@@ -295,30 +295,36 @@ class _PlanCard extends StatelessWidget {
     final text = Theme.of(context).textTheme;
 
     if (!account.isFree) {
-      return Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: c.tintSand),
-              child: Icon(Icons.workspace_premium_rounded, color: c.accentText),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(context.t('Pro is on'), style: text.titleMedium),
-                  const SizedBox(height: 2),
-                  Text(context.t('Every feature is open to your workspace.'), style: text.bodySmall?.copyWith(color: c.inkMuted)),
-                ],
+      // Opens the plans: until when, how it was paid, and Google Play's page for a plan bought there.
+      return InkWell(
+        onTap: () => context.push('/plans'),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: c.tintSand),
+                child: Icon(Icons.workspace_premium_rounded, color: c.accentText),
               ),
-            ),
-            const SizedBox(width: 8),
-            QBadge(account.planName, tone: QTone.gold),
-          ],
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(context.t('Pro is on'), style: text.titleMedium),
+                    const SizedBox(height: 2),
+                    Text(context.t('Every feature is open to your workspace.'), style: text.bodySmall?.copyWith(color: c.inkMuted)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              QBadge(account.planName, tone: QTone.gold),
+              const SizedBox(width: 4),
+              Icon(Icons.chevron_right_rounded, size: 22, color: c.inkMuted),
+            ],
+          ),
         ),
       );
     }

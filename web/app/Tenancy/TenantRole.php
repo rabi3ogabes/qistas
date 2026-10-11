@@ -41,6 +41,12 @@ enum TenantRole: string
         return in_array($this, [self::Owner, self::Manager, self::Accountant], true);
     }
 
+    /** Buys and pays for the workspace's plan (Win Plan PP13): the owner alone. */
+    public function managesBilling(): bool
+    {
+        return $this === self::Owner;
+    }
+
     /** May delete records. */
     public function canDelete(): bool
     {

@@ -29,7 +29,12 @@ describe('what a plan gives', function () {
     it('gives a plan the admin created nothing until it is configured', function () {
         $plan = Plan::create(['name' => 'Studio', 'description' => null, 'sort_order' => 30, 'is_public' => true]);
 
-        expect(collect(PlanSettings::resolve($plan))->every(fn ($v) => $v === ['enabled' => false, 'limit' => null]))->toBeTrue();
+        $settings = PlanSettings::resolve($plan);
+        $planOnly = collect(Feature::planFeatures())->map(fn (Feature $f) => $settings[$f->value]);
+
+        // The platform's own switches (how a business pays) are not part of any plan: only the switch decides them.
+        expect($planOnly->every(fn ($v) => $v === ['enabled' => false, 'limit' => null]))->toBeTrue()
+            ->and($settings[Feature::StoreBilling->value]['enabled'])->toBeTrue();
     });
 
     it('is exactly what the entitlement engine applies to a workspace on that plan', function (string $key) {
@@ -90,7 +95,7 @@ describe('the pricing catalogue', function () {
         $offers = app(PricingCatalog::class)->offers();
 
         expect($offers->pluck('plan.key')->all())->toBe(['free', 'pro'])
-            ->and($offers[0]->features())->toHaveCount(count(Feature::cases()))
+            ->and($offers[0]->features())->toHaveCount(count(Feature::planFeatures()))
             ->and($offers[0]->feature(Feature::Customers)['enabled'])->toBeTrue()
             ->and($offers[0]->feature(Feature::ExportCsv)['enabled'])->toBeFalse()
             ->and($offers[1]->feature(Feature::ExportCsv)['enabled'])->toBeTrue();

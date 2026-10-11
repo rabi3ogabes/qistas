@@ -10,6 +10,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:qistas/app/app.dart';
 import 'package:qistas/app/chrome.dart';
 import 'package:qistas/app/providers.dart';
+import 'package:qistas/core/billing/store_gateway.dart';
 import 'package:qistas/core/config.dart';
 import 'package:qistas/core/design/widgets.dart';
 import 'package:qistas/core/l10n/translations.dart';
@@ -93,6 +94,7 @@ Future<void> pumpApp(
   DeviceAuth? deviceAuth,
   FakeClock? clock,
   PushService? push,
+  StoreGateway? store,
 }) async {
   if (realFonts) await loadBrandFonts();
   for (final code in AppConfig.locales) {
@@ -122,6 +124,8 @@ Future<void> pumpApp(
         if (clock != null) clockProvider.overrideWithValue(clock.call),
         // No Firebase in tests: a phone that takes no pushes unless a test gives one.
         pushServiceProvider.overrideWithValue(push ?? NoPushService()),
+        // No app store in tests unless a test gives one.
+        storeGatewayProvider.overrideWithValue(store),
         ...overrides,
         // The words are read from disk at once, so a test never waits on asset loading that fake time cannot advance.
         translationsProvider.overrideWith((ref) {
@@ -178,6 +182,8 @@ Future<void> tapButton(WidgetTester tester, String label) async {
   final finder = find.widgetWithText(QButton, label);
   expect(finder, findsWidgets, reason: 'no "$label" button on screen');
   await tester.ensureVisible(finder.first);
+  // ensureVisible jumps the scroll position; lay the frame out so the tap lands where the button now is.
+  await tester.pump();
   await tester.tap(finder.first);
   await settle(tester);
 }

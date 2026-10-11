@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AppearanceController;
 use App\Http\Controllers\Admin\AppearanceEventController;
+use App\Http\Controllers\Admin\BillingController;
 use App\Http\Controllers\Admin\BusinessController;
 use App\Http\Controllers\Admin\DemoAccountsController;
 use App\Http\Controllers\Admin\FeaturesController;
@@ -28,6 +29,18 @@ Route::prefix('businesses')->name('businesses.')->controller(BusinessController:
     Route::get('/', 'index')->name('index');
     Route::get('{tenant}', 'show')->whereUuid('tenant')->name('show');
     Route::put('{tenant}/plan', 'changePlan')->whereUuid('tenant')->middleware('throttle:30,1')->name('plan');
+});
+
+// Billing (Win Plan PP13): bank transfers waiting for a decision, with their receipts, and the billing settings. Any
+// platform staff may look; a super admin decides and changes settings ('manage-plans', checked in the controller).
+Route::prefix('billing')->name('billing.')->controller(BillingController::class)->group(function () {
+    Route::get('/', 'index')->name('index');
+    Route::get('requests/{paymentRequest}/receipt', 'receipt')->whereUuid('paymentRequest')->name('receipt');
+    Route::middleware('throttle:60,1')->group(function () {
+        Route::post('requests/{paymentRequest}/approve', 'approve')->whereUuid('paymentRequest')->name('approve');
+        Route::post('requests/{paymentRequest}/reject', 'reject')->whereUuid('paymentRequest')->name('reject');
+        Route::put('settings', 'settings')->name('settings');
+    });
 });
 
 // Feature control: what the platform has on, off or in beta. Anyone on the platform team may look; only a super admin

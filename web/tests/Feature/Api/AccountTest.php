@@ -100,11 +100,11 @@ describe('the plans', function () {
         expect($english)->toBe('Up to 20 customers')->and($arabic)->not->toBe($english);
     });
 
-    it('list the cheapest first and include every feature', function () {
+    it('list the cheapest first and include every feature a plan is made of', function () {
         $data = $this->getJson('/api/v1/plans')->json('data');
 
         expect(array_column($data, 'key'))->toBe(['free', 'pro'])
-            ->and(array_keys($data[0]['features']))->toBe(array_map(fn (Feature $f) => $f->value, Feature::cases()));
+            ->and(array_keys($data[0]['features']))->toBe(array_map(fn (Feature $f) => $f->value, Feature::planFeatures()));
     });
 
     it('do not include plans that are not public', function () {

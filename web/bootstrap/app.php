@@ -42,6 +42,11 @@ return Application::configure(basePath: dirname(__DIR__))
             Route::middleware('throttle:30,1')
                 ->prefix('internal')
                 ->group(base_path('routes/internal.php'));
+
+            // Stores telling us about subscriptions (Google Play): no session either; every push is signed by Google.
+            Route::middleware('throttle:120,1')
+                ->prefix('webhooks')
+                ->group(base_path('routes/webhooks.php'));
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {

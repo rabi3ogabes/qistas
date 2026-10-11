@@ -12,6 +12,7 @@ use App\Http\Controllers\Workspace\DashboardController;
 use App\Http\Controllers\Workspace\DocumentController;
 use App\Http\Controllers\Workspace\FileController;
 use App\Http\Controllers\Workspace\InvestorController;
+use App\Http\Controllers\Workspace\ManualPaymentController;
 use App\Http\Controllers\Workspace\PaymentController;
 use App\Http\Controllers\Workspace\PlanChangeController;
 use App\Http\Controllers\Workspace\ProductController;
@@ -26,6 +27,8 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', DashboardController::class)->name('dashboard');
 
 Route::get('billing', BillingController::class)->name('billing');
+// Paying by bank transfer, with the receipt (Win Plan PP13). The website only; the app never offers it.
+Route::post('billing/manual-requests', [ManualPaymentController::class, 'store'])->middleware('throttle:10,1')->name('billing.manual.store');
 
 // Delete my account: the owner deletes the business after 30 days (and can restore it until then); anyone else their login.
 Route::get('account/delete', [AccountDeletionController::class, 'show'])->name('account.delete.show');

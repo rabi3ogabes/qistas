@@ -278,6 +278,15 @@
         .plan-compare { grid-template-columns: 1fr; }
     }
 
+    /* Plan and billing (Win Plan PP13): how the plan was paid, and the bank transfer with its receipt. */
+    .plan-until { margin: .25rem 0 1rem; color: var(--q-ink-muted); }
+    .transfer-status { display: flex; flex-wrap: wrap; align-items: baseline; gap: .375rem .75rem; padding: .875rem 1rem; border: 1px solid var(--q-line); border-radius: var(--q-r-md); }
+    .transfer-status .cell-sub { flex-basis: 100%; }
+    .transfer-note { flex-basis: 100%; margin: .25rem 0 0; padding-inline-start: .75rem; border-inline-start: 3px solid var(--q-danger); }
+    .transfer-to { padding: 1rem 1.125rem; border-radius: var(--q-r-md); background: color-mix(in srgb, var(--q-accent) 9%, var(--q-surface)); border: 1px solid color-mix(in srgb, var(--q-accent) 35%, transparent); }
+    .transfer-to .figure-label { margin: 0 0 .375rem; }
+    .transfer-bank { margin: 0; white-space: pre-line; font-weight: 600; line-height: 1.6; overflow-wrap: anywhere; user-select: all; }
+
     /* Remind everyone (Win Plan PP9): one row per customer, the WhatsApp button always at the end of the line. */
     .remind-list { margin: 0; padding: 0; list-style: none; counter-reset: remind; }
     .remind-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: .5rem 1rem; padding: .875rem 1.25rem; border-bottom: 1px solid color-mix(in srgb, var(--q-line) 70%, transparent); }

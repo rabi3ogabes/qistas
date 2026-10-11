@@ -1328,3 +1328,29 @@ fieldset:has(input[value="date"]:checked) .biz-until, .biz-until:has([aria-inval
 .biz-history-what { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: 0; }
 .biz-history-why { margin: 0; color: color-mix(in srgb, var(--q-ink) 85%, var(--q-bg)); }
 
+
+/* Billing (Win Plan PP13): each waiting transfer reads as one line of facts with its decision at the end. */
+.bill-queue .card-head { display: flex; align-items: center; gap: .5rem; }
+.bill-list { margin: 0; padding: 0; list-style: none; }
+.bill-item { display: grid; gap: .75rem; padding: 1rem 1.25rem; border-top: 1px solid var(--q-line); }
+.bill-who { display: grid; gap: .125rem; justify-items: start; }
+.bill-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr)); gap: .5rem 1.25rem; margin: 0; }
+.bill-facts div { display: grid; gap: .125rem; }
+.bill-facts dt { font-size: .8125rem; color: var(--q-ink-muted); }
+.bill-facts dd { margin: 0; font-weight: 600; }
+.bill-ref { font-family: inherit; letter-spacing: .02em; overflow-wrap: anywhere; }
+.bill-actions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: .5rem; }
+.bill-actions form { margin: 0; }
+.bill-reject[open] { flex-basis: 100%; }
+.bill-reject[open] { padding: .75rem; border: 1px solid var(--q-line); border-radius: var(--q-r-md); }
+.bill-reject summary { list-style: none; cursor: pointer; }
+.bill-reject summary::-webkit-details-marker { display: none; }
+.bill-reject[open] summary { margin-bottom: .75rem; }
+@media (min-width: 900px) {
+    .bill-item { grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr); align-items: start; column-gap: 1.5rem; }
+    .bill-actions { grid-column: 2; }
+}
+.bill-group { margin: 0; padding: 1rem 0 0; border: 0; border-top: 1px solid var(--q-line); }
+.bill-group legend { padding: 0; font-weight: 600; float: left; width: 100%; margin-bottom: .75rem; }
+.bill-group legend + * { clear: both; }
+.bill-ready { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: 0; }

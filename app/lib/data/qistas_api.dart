@@ -5,6 +5,7 @@ import '../core/api/api_client.dart';
 import '../core/money.dart';
 import '../domain/schedule_generator.dart';
 import 'backups.dart';
+import 'billing.dart';
 import 'documents.dart';
 import 'investors.dart';
 import 'models.dart';
@@ -98,6 +99,14 @@ class QistasApi {
   }
 
   Future<Dashboard> dashboard() async => Dashboard.fromJson(_data(await _client.get('/dashboard')));
+
+  /// Where the plan stands and what the app may sell (Win Plan PP13).
+  Future<BillingState> billing() async => BillingState.fromJson(_data(await _client.get('/billing')));
+
+  /// Hands a Google Play purchase to the server, which asks Google before anything turns on. Refusals arrive as
+  /// ApiException purchase_invalid, purchase_pending, purchase_inactive, purchase_elsewhere or store_unavailable.
+  Future<BillingState> verifyPlayPurchase({required String productId, required String purchaseToken}) async =>
+      BillingState.fromJson(_data(await _client.post('/billing/play/verify', body: {'product_id': productId, 'purchase_token': purchaseToken})));
 
   /// The look to wear (see LookController). [etag] is the tag of the look the app has: 304 means it is still current.
   Future<({int status, Map<String, dynamic>? data, String? etag})> appearance({String? etag}) async {

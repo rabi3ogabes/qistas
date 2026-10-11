@@ -63,6 +63,6 @@ final readonly class PlanOffer
     /** @return list<array{feature: Feature, enabled: bool, limit: ?int, summary: string, short: string}> every feature, in catalogue order */
     public function features(): array
     {
-        return array_map(fn (Feature $f) => $this->feature($f), Feature::cases());
+        return array_map(fn (Feature $f) => $this->feature($f), Feature::planFeatures());
     }
 }

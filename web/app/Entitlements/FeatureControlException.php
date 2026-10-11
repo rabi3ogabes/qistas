@@ -6,7 +6,7 @@ use RuntimeException;
 
 /**
  * A change to a switch that is not allowed, with a stable code for programs and a sentence for people:
- * `core_feature`, `reason_required`, `invalid_limit`, `unknown_preset`, `no_snapshot`, `unknown_workspace`.
+ * `core_feature`, `platform_feature`, `reason_required`, `invalid_limit`, `unknown_preset`, `no_snapshot`, `unknown_workspace`.
  */
 final class FeatureControlException extends RuntimeException
 {
@@ -18,6 +18,11 @@ final class FeatureControlException extends RuntimeException
     public static function coreFeature(Feature $feature): self
     {
         return new self('core_feature', __(':feature is a core feature: it is always on, and the plans decide who gets it.', ['feature' => $feature->label()]));
+    }
+
+    public static function platformFeature(Feature $feature): self
+    {
+        return new self('platform_feature', __(':feature is a switch for the whole platform, not part of a plan.', ['feature' => $feature->label()]));
     }
 
     public static function reasonRequired(): self

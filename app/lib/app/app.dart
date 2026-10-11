@@ -6,6 +6,7 @@ import '../core/config.dart';
 import '../core/design/qistas_theme.dart';
 import '../core/l10n/translations.dart';
 import '../data/appearance.dart';
+import '../features/billing/purchases.dart';
 import '../features/notifications/alerts.dart';
 import '../features/security/app_lock_gate.dart';
 import 'providers.dart';
@@ -20,6 +21,8 @@ class QistasApp extends ConsumerWidget {
     final router = ref.watch(routerProvider);
     // Keeps this phone registered for pushes while someone is signed in, and opens what a tapped push points to.
     ref.watch(pushRegistrationProvider);
+    // Takes in every store purchase (Win Plan PP13), even one that completes while no plans screen is open.
+    ref.watch(purchaseControllerProvider.notifier);
     final language = ref.watch(localeProvider);
     final mode = ref.watch(themeModeProvider);
     final brandFonts = ref.watch(brandFontsProvider);

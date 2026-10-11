@@ -117,11 +117,23 @@ class Tenant extends Model
         return $subscription?->isCurrent() ? $subscription->plan : Plan::default();
     }
 
-    /** Put the workspace on a plan, changing its one subscription in place. */
-    public function subscribeTo(Plan $plan, string $status = 'active', ?CarbonInterface $periodEnd = null): Subscription
+    /**
+     * Put the workspace on a plan, changing its one subscription in place. Where it came from is written every time, so
+     * a store's purchase token never outlives a plan given another way (a later message about it then finds nothing).
+     *
+     * @param  array{source?: string|null, store_product_id?: string|null, purchase_token_hash?: string|null, auto_renew?: bool|null, store_status?: string|null}  $origin
+     */
+    public function subscribeTo(Plan $plan, string $status = 'active', ?CarbonInterface $periodEnd = null, array $origin = []): Subscription
     {
         $subscription = $this->subscription()->firstOrNew();
-        $subscription->forceFill(['plan_id' => $plan->id, 'status' => $status, 'current_period_end' => $periodEnd])->save();
+        $subscription->forceFill([
+            'plan_id' => $plan->id, 'status' => $status, 'current_period_end' => $periodEnd,
+            'source' => $origin['source'] ?? null,
+            'store_product_id' => $origin['store_product_id'] ?? null,
+            'purchase_token_hash' => $origin['purchase_token_hash'] ?? null,
+            'auto_renew' => $origin['auto_renew'] ?? null,
+            'store_status' => $origin['store_status'] ?? null,
+        ])->save();
         $subscription->setRelation('plan', $plan);
         $this->setRelation('subscription', $subscription);
 

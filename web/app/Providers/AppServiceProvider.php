@@ -4,6 +4,10 @@ namespace App\Providers;
 
 use App\Activity\ActivityRecorder;
 use App\Activity\LastActivity;
+use App\Billing\BillingSettings;
+use App\Billing\Store\GooglePlayBilling;
+use App\Billing\Store\StoreBilling;
+use App\Billing\Store\UnconfiguredStoreBilling;
 use App\Entitlements\Entitlements;
 use App\Entitlements\Feature;
 use App\Entitlements\FeatureCatalogue;
@@ -63,6 +67,16 @@ class AppServiceProvider extends ServiceProvider
             return is_array($account) && isset($account['project_id'], $account['client_email'], $account['private_key'])
                 ? new FcmPushSender($account)
                 : new LogPushSender;
+        });
+
+        // The store that sells subscriptions in the app (Win Plan PP13): Google Play once the super admin has saved its
+        // package and service account in /admin/billing, and until then a store that decides nothing.
+        $this->app->bind(StoreBilling::class, function ($app): StoreBilling {
+            $settings = $app->make(BillingSettings::class);
+            $package = $settings->playPackage();
+            $account = $settings->playAccount();
+
+            return $package !== null && $account !== null ? new GooglePlayBilling($package, $account) : new UnconfiguredStoreBilling;
         });
 
         // One per request: the live look is read once however many parts of a page ask for it.

@@ -102,12 +102,11 @@ class UpgradeSheet extends ConsumerWidget {
             if (kIsWeb) ...[
               QButton(label: context.t('See plans and upgrade'), kind: QButtonKind.gold, icon: Icons.open_in_new, onPressed: () => openBilling(reason.upgradeUrl)),
             ] else ...[
-              // Store rules: Pro is not sold inside the phone app. Say where it can be activated, without a purchase link.
-              QNotice(context.t('Pro can be activated from your account on our website. It will appear in this app as soon as it is on.'), tone: QTone.info, icon: Icons.info_outline),
-              const SizedBox(height: 12),
+              // In the phone app Pro is bought on the plans screen, through Google Play, and nowhere else (Play policy).
               QButton(
-                label: context.t('Compare plans'),
-                kind: QButtonKind.quiet,
+                label: context.t('See Pro'),
+                kind: QButtonKind.gold,
+                icon: Icons.workspace_premium_outlined,
                 onPressed: () {
                   Navigator.of(context).pop();
                   context.push('/plans');

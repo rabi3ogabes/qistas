@@ -11,8 +11,15 @@ use Illuminate\Support\Carbon;
  * A workspace's plan. Written only by trusted code (sign-up, billing, admin) through forceFill, never from
  * request data: nothing here is mass-assignable.
  *
- * @property string $status
+ * @property string $tenant_id
+ * @property string $plan_id
+ * @property string $status active | trialing | past_due | on_hold | paused | canceled | expired
  * @property Carbon|null $current_period_end
+ * @property string|null $source play | appstore | web | manual | admin; null for sign-up and sandbox plans
+ * @property string|null $store_product_id
+ * @property string|null $purchase_token_hash
+ * @property bool|null $auto_renew
+ * @property string|null $store_status
  */
 class Subscription extends Model
 {
@@ -49,6 +56,6 @@ class Subscription extends Model
 
     protected function casts(): array
     {
-        return ['current_period_end' => 'datetime'];
+        return ['current_period_end' => 'datetime', 'auto_renew' => 'boolean'];
     }
 }

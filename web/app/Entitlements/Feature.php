@@ -26,6 +26,8 @@ enum Feature: string
     case EarlySettlement = 'early_settlement';
     case Reschedule = 'reschedule';
     case PaymentTargeting = 'payment_targeting';
+    case StoreBilling = 'store_billing';
+    case ManualBilling = 'manual_billing';
 
     /** How many customers the free plan keeps (tests and copy read this rather than repeating the number). */
     public const FREE_CUSTOMERS = 20;
@@ -36,7 +38,8 @@ enum Feature: string
             self::Customers, self::ActiveContracts, self::ApiTokens, self::Members, self::Investors => FeatureType::Limit,
             self::PdfStatements => FeatureType::Quota,
             self::ExportCsv, self::AdvancedReports, self::CustomBranding, self::FlexibleSchedules, self::OpenContracts, self::ContractItems, self::CustomerTags,
-            self::InstalmentAlerts, self::DailyDigest, self::EarlySettlement, self::Reschedule, self::PaymentTargeting => FeatureType::Toggle,
+            self::InstalmentAlerts, self::DailyDigest, self::EarlySettlement, self::Reschedule, self::PaymentTargeting,
+            self::StoreBilling, self::ManualBilling => FeatureType::Toggle,
         };
     }
 
@@ -61,6 +64,8 @@ enum Feature: string
             self::EarlySettlement => __('Early settlement'),
             self::Reschedule => __('Change the payment plan'),
             self::PaymentTargeting => __('Choose what a payment covers'),
+            self::StoreBilling => __('Pro through Google Play'),
+            self::ManualBilling => __('Pro by bank transfer'),
         };
     }
 
@@ -73,6 +78,7 @@ enum Feature: string
             self::Members, self::Investors => FeatureGroup::Team,
             self::FlexibleSchedules, self::OpenContracts, self::ContractItems, self::EarlySettlement, self::Reschedule, self::PaymentTargeting => FeatureGroup::ContractTerms,
             self::CustomerTags, self::InstalmentAlerts, self::DailyDigest => FeatureGroup::Collecting,
+            self::StoreBilling, self::ManualBilling => FeatureGroup::Membership,
         };
     }
 
@@ -98,6 +104,8 @@ enum Feature: string
             self::EarlySettlement => __('Settle a contract early with a discount on the profit not yet earned; the quote shows the payoff before anything is written.'),
             self::Reschedule => __('A new amount or count for what is left, a skipped month or a moved date, with the reason kept. Paid instalments never move.'),
             self::PaymentTargeting => __('Pick the instalment a payment covers, and take one payment across all of a customer’s contracts.'),
+            self::StoreBilling => __('Owners subscribe to a paid plan in the Android app through Google Play; the purchase is checked with Google before the plan turns on.'),
+            self::ManualBilling => __('Owners pay by bank transfer and upload the receipt on the website; the Qistas team approves it, or it turns on by itself when automatic approval is on.'),
         };
     }
 
@@ -122,6 +130,8 @@ enum Feature: string
             self::EarlySettlement => __('Early settlement is no longer offered. Contracts already settled early stay as they are.'),
             self::Reschedule => __('Plans can no longer be changed. Changes already made stay, with their history.'),
             self::PaymentTargeting => __('Payments go to the oldest instalment again, one contract at a time. Payments already made stay as they are.'),
+            self::StoreBilling => __('The app stops offering subscriptions. Plans already bought keep running until the store ends them, and its messages are still applied.'),
+            self::ManualBilling => __('The website stops taking bank transfer requests. Requests already sent can still be approved or rejected, and plans already given keep their end date.'),
         };
     }
 
@@ -135,7 +145,8 @@ enum Feature: string
         return match ($this) {
             self::Customers, self::ActiveContracts, self::PdfStatements, self::ExportCsv,
             self::AdvancedReports, self::CustomBranding, self::ApiTokens, self::Members, self::FlexibleSchedules, self::Investors, self::OpenContracts, self::ContractItems, self::CustomerTags,
-            self::InstalmentAlerts, self::DailyDigest, self::EarlySettlement, self::Reschedule, self::PaymentTargeting => [],
+            self::InstalmentAlerts, self::DailyDigest, self::EarlySettlement, self::Reschedule, self::PaymentTargeting,
+            self::StoreBilling, self::ManualBilling => [],
         };
     }
 
@@ -157,7 +168,17 @@ enum Feature: string
     /** 'workspace' features are assigned to plans; 'platform' ones (membership billing) are only switched. */
     public function scope(): string
     {
-        return 'workspace';
+        return $this->group() === FeatureGroup::Membership ? 'platform' : 'workspace';
+    }
+
+    /**
+     * The features a plan is made of, for price lists and comparisons: everything but the platform's own switches.
+     *
+     * @return list<Feature>
+     */
+    public static function planFeatures(): array
+    {
+        return array_values(array_filter(self::cases(), fn (Feature $feature) => $feature->scope() === 'workspace'));
     }
 
     /** A feature that already worked before the switch system: always on, its platform switch cannot be changed. */
@@ -230,10 +251,12 @@ enum Feature: string
                 self::ExportCsv, self::AdvancedReports, self::CustomBranding => ['enabled' => false, 'limit' => null],
                 self::FlexibleSchedules, self::OpenContracts, self::ContractItems, self::CustomerTags,
                 self::InstalmentAlerts, self::DailyDigest, self::EarlySettlement, self::Reschedule, self::PaymentTargeting => ['enabled' => true, 'limit' => null],
+                // The platform's own switches are not part of any plan: only the switch decides.
+                self::StoreBilling, self::ManualBilling => ['enabled' => true, 'limit' => null],
             },
             // Win Plan 6.4: Pro includes three people (the owner and two more), with no purchase per member.
             'pro' => $this === self::Members ? ['enabled' => true, 'limit' => 3] : ['enabled' => true, 'limit' => null],
-            default => null,
+            default => $this->scope() === 'platform' ? ['enabled' => true, 'limit' => null] : null,
         };
     }
 }

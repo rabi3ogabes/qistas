@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\ActivityController;
 use App\Http\Controllers\Api\V1\AppearanceController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BackupController;
+use App\Http\Controllers\Api\V1\BillingController;
 use App\Http\Controllers\Api\V1\BusinessProfileController;
 use App\Http\Controllers\Api\V1\ContractController;
 use App\Http\Controllers\Api\V1\CustomerController;
@@ -50,6 +51,10 @@ Route::name('api.')->group(function (): void {
         Route::post('auth/logout-all', [AuthController::class, 'logoutAll'])->name('auth.logout-all');
 
         Route::get('me', MeController::class)->name('me');
+
+        // Buy Pro your way (Win Plan PP13): what the workspace is on, and a Google Play purchase checked with Google.
+        Route::get('billing', [BillingController::class, 'show'])->name('billing.show');
+        Route::post('billing/play/verify', [BillingController::class, 'verifyPlay'])->middleware('throttle:api-money')->name('billing.play.verify');
         Route::get('dashboard', DashboardController::class)->name('dashboard');
 
         Route::get('settings/tools', [ToolsController::class, 'index'])->name('settings.tools.index');

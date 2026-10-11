@@ -68,10 +68,14 @@ final class FeatureControl
     /**
      * What one plan gives for one feature. Core features' plan settings are editable: that is today's plan matrix.
      *
-     * @throws FeatureControlException when the limit is not allowed for this kind of feature
+     * @throws FeatureControlException when the limit is not allowed for this kind of feature, or the feature is one of
+     *                                 the platform's own switches (not part of any plan)
      */
     public function setPlan(Feature $feature, Plan $plan, bool $enabled, ?int $limit, ?User $by): void
     {
+        if ($feature->scope() === 'platform') {
+            throw FeatureControlException::platformFeature($feature);
+        }
         $before = PlanSettings::resolve($plan)[$feature->value];
 
         try {

@@ -253,6 +253,73 @@ paths:
                   data: {$ref: "#/components/schemas/Account"}
         "401": {$ref: "#/components/responses/Unauthenticated"}
         "403": {$ref: "#/components/responses/Forbidden"}
+  /billing:
+    get:
+      tags: [Account]
+      summary: The workspace's plan, how it was paid, and what the app may sell (Win Plan PP13)
+      description: |
+        `store.available` is true only for the owner of a real workspace while Google Play billing is switched on and set
+        up. The app offers subscriptions only then, buying with `store.account_ref` as the obfuscated account id, so the
+        purchase can only ever be attached to this workspace. Paying by bank transfer is never offered in the app.
+      responses:
+        "200":
+          description: Where the plan stands.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/BillingState"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /billing/play/verify:
+    post:
+      tags: [Account]
+      summary: Attach a Google Play subscription purchase to the workspace
+      description: |
+        The server asks Google Play about the purchase token; nothing the phone says is trusted. On success the workspace
+        is on the plan the product buys until the period Google reports, and the purchase is acknowledged. Safe to repeat
+        (a restore on a new phone changes nothing). The owner alone buys.
+
+        Errors: `purchase_invalid` (Google does not confirm it, or it is not a product on sale), `purchase_pending` (the
+        payment is not complete yet), `purchase_inactive` (it lapsed), `purchase_elsewhere` (bought for, or already
+        attached to, another workspace), `store_unavailable` (Google Play could not be asked; try again).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [product_id, purchase_token]
+              properties:
+                product_id: {type: string, maxLength: 100, example: qistas_pro}
+                purchase_token: {type: string, maxLength: 2000}
+      responses:
+        "200":
+          description: The purchase is attached; where the plan stands now.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/BillingState"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/FeatureUnavailable"}
+        "409":
+          description: "`purchase_elsewhere`: the purchase belongs to another workspace."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "422":
+          description: "`purchase_invalid`, `purchase_pending`, `purchase_inactive` or `validation_failed`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "503":
+          description: "`store_unavailable`: Google Play could not be asked. Nothing changed; try again."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
   /dashboard:
     get:
       tags: [Dashboard]
@@ -2101,6 +2168,35 @@ components:
         tenant: {$ref: "#/components/schemas/Tenant"}
         plan: {$ref: "#/components/schemas/PlanRef"}
         entitlements: {$ref: "#/components/schemas/Entitlements"}
+    BillingState:
+      type: object
+      description: Where a workspace's plan stands and how it can buy one (Win Plan PP13).
+      properties:
+        plan:
+          type: object
+          properties:
+            key: {type: string, example: pro}
+            name: {type: string, example: Pro}
+        status:
+          type: [string, "null"]
+          enum: [active, trialing, past_due, null]
+          description: Null on the free plan.
+        until: {type: [string, "null"], format: date, description: "The last day of the period paid; null when it does not lapse or on the free plan."}
+        source: {type: [string, "null"], enum: [play, appstore, web, manual, admin, null], description: "How the plan was paid: Google Play, the App Store, the website, a bank transfer, or given by the Qistas team."}
+        auto_renew: {type: [boolean, "null"]}
+        can_buy: {type: boolean, description: "The owner of a real workspace (not a demo or test one)."}
+        store:
+          type: object
+          properties:
+            available: {type: boolean}
+            account_ref: {type: [string, "null"], description: "Pass as the obfuscated account id when buying."}
+            products:
+              type: array
+              items:
+                type: object
+                properties:
+                  plan_key: {type: string, example: pro}
+                  product_id: {type: string, example: qistas_pro}
     Account:
       type: object
       properties:
