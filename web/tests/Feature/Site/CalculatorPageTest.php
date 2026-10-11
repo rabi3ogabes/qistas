@@ -66,10 +66,15 @@ it('opens a shared link with the plan in it, worked out by the contract engine',
         ->and($html)->toContain('&quot;price&quot;:&quot;5000&quot;')->toContain('&quot;count&quot;:&quot;12&quot;');
 });
 
-it('falls back to the example plan for inputs it cannot use, instead of failing', function () {
-    $this->get('/installment-calculator?price=lots&down=-5&count=9999&markup=abc&currency=XXX')->assertOk()
-        ->assertSee('&quot;price&quot;:&quot;1200&quot;', false);
-});
+it('falls back to the example plan for inputs it cannot use, instead of failing', function (string $query) {
+    $this->get('/installment-calculator?'.$query)->assertOk()->assertSee('&quot;price&quot;:&quot;1200&quot;', false);
+})->with([
+    'nothing usable' => 'price=lots&down=-5&count=9999&markup=abc&currency=XXX',
+    'too many instalments' => 'price=5000&count=9999',
+    'no instalments' => 'price=5000&count=0',
+    'a down payment as large as the price' => 'price=5000&down=5000',
+    'a profit over 100%' => 'price=5000&markup=150',
+]);
 
 it('is listed for search engines and linked from the website', function () {
     $this->get('/sitemap.xml')->assertOk()->assertSee(url('/installment-calculator'));
