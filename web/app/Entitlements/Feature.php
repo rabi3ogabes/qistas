@@ -23,6 +23,9 @@ enum Feature: string
     case CustomerTags = 'customer_tags';
     case InstalmentAlerts = 'instalment_alerts';
     case DailyDigest = 'daily_digest';
+    case EarlySettlement = 'early_settlement';
+    case Reschedule = 'reschedule';
+    case PaymentTargeting = 'payment_targeting';
 
     /** How many customers the free plan keeps (tests and copy read this rather than repeating the number). */
     public const FREE_CUSTOMERS = 20;
@@ -33,7 +36,7 @@ enum Feature: string
             self::Customers, self::ActiveContracts, self::ApiTokens, self::Members, self::Investors => FeatureType::Limit,
             self::PdfStatements => FeatureType::Quota,
             self::ExportCsv, self::AdvancedReports, self::CustomBranding, self::FlexibleSchedules, self::OpenContracts, self::ContractItems, self::CustomerTags,
-            self::InstalmentAlerts, self::DailyDigest => FeatureType::Toggle,
+            self::InstalmentAlerts, self::DailyDigest, self::EarlySettlement, self::Reschedule, self::PaymentTargeting => FeatureType::Toggle,
         };
     }
 
@@ -55,6 +58,9 @@ enum Feature: string
             self::CustomerTags => __('Customer tags'),
             self::InstalmentAlerts => __('Instalment alerts and remind-all'),
             self::DailyDigest => __('Morning summary'),
+            self::EarlySettlement => __('Early settlement'),
+            self::Reschedule => __('Change the payment plan'),
+            self::PaymentTargeting => __('Choose what a payment covers'),
         };
     }
 
@@ -65,7 +71,7 @@ enum Feature: string
             self::Customers, self::ActiveContracts, self::PdfStatements, self::ExportCsv,
             self::AdvancedReports, self::CustomBranding, self::ApiTokens => FeatureGroup::Core,
             self::Members, self::Investors => FeatureGroup::Team,
-            self::FlexibleSchedules, self::OpenContracts, self::ContractItems => FeatureGroup::ContractTerms,
+            self::FlexibleSchedules, self::OpenContracts, self::ContractItems, self::EarlySettlement, self::Reschedule, self::PaymentTargeting => FeatureGroup::ContractTerms,
             self::CustomerTags, self::InstalmentAlerts, self::DailyDigest => FeatureGroup::Collecting,
         };
     }
@@ -89,6 +95,9 @@ enum Feature: string
             self::CustomerTags => __('Tags such as “Shop 2” or “Government staff” that group customers and filter every list.'),
             self::InstalmentAlerts => __('An alert on each instalment’s due date and once it is late, a checklist that reminds everyone due today on WhatsApp, and the business’s own reminder wording.'),
             self::DailyDigest => __('Each morning, at the time each person chooses, how many pay today, how many are late and how much.'),
+            self::EarlySettlement => __('Settle a contract early with a discount on the profit not yet earned; the quote shows the payoff before anything is written.'),
+            self::Reschedule => __('A new amount or count for what is left, a skipped month or a moved date, with the reason kept. Paid instalments never move.'),
+            self::PaymentTargeting => __('Pick the instalment a payment covers, and take one payment across all of a customer’s contracts.'),
         };
     }
 
@@ -110,6 +119,9 @@ enum Feature: string
             self::CustomerTags => __('Tags disappear from the lists and the forms. Customers keep their tags for when it is switched back on.'),
             self::InstalmentAlerts => __('No more instalment alerts, and the remind-all checklist closes. Choices and wording are kept for when it is switched back on.'),
             self::DailyDigest => __('No more morning summaries. Each person’s chosen time is kept.'),
+            self::EarlySettlement => __('Early settlement is no longer offered. Contracts already settled early stay as they are.'),
+            self::Reschedule => __('Plans can no longer be changed. Changes already made stay, with their history.'),
+            self::PaymentTargeting => __('Payments go to the oldest instalment again, one contract at a time. Payments already made stay as they are.'),
         };
     }
 
@@ -123,7 +135,7 @@ enum Feature: string
         return match ($this) {
             self::Customers, self::ActiveContracts, self::PdfStatements, self::ExportCsv,
             self::AdvancedReports, self::CustomBranding, self::ApiTokens, self::Members, self::FlexibleSchedules, self::Investors, self::OpenContracts, self::ContractItems, self::CustomerTags,
-            self::InstalmentAlerts, self::DailyDigest => [],
+            self::InstalmentAlerts, self::DailyDigest, self::EarlySettlement, self::Reschedule, self::PaymentTargeting => [],
         };
     }
 
@@ -139,7 +151,7 @@ enum Feature: string
     /** Part of the "essentials" preset: the small set worth switching on for every workspace first. */
     public function isEssential(): bool
     {
-        return in_array($this, [self::Members, self::FlexibleSchedules, self::OpenContracts, self::ContractItems, self::CustomerTags, self::InstalmentAlerts, self::DailyDigest], true);
+        return in_array($this, [self::Members, self::FlexibleSchedules, self::OpenContracts, self::ContractItems, self::CustomerTags, self::InstalmentAlerts, self::DailyDigest, self::EarlySettlement, self::Reschedule, self::PaymentTargeting], true);
     }
 
     /** 'workspace' features are assigned to plans; 'platform' ones (membership billing) are only switched. */
@@ -217,7 +229,7 @@ enum Feature: string
                 self::ApiTokens, self::Members, self::Investors => ['enabled' => true, 'limit' => 1],
                 self::ExportCsv, self::AdvancedReports, self::CustomBranding => ['enabled' => false, 'limit' => null],
                 self::FlexibleSchedules, self::OpenContracts, self::ContractItems, self::CustomerTags,
-                self::InstalmentAlerts, self::DailyDigest => ['enabled' => true, 'limit' => null],
+                self::InstalmentAlerts, self::DailyDigest, self::EarlySettlement, self::Reschedule, self::PaymentTargeting => ['enabled' => true, 'limit' => null],
             },
             // Win Plan 6.4: Pro includes three people (the owner and two more), with no purchase per member.
             'pro' => $this === self::Members ? ['enabled' => true, 'limit' => 3] : ['enabled' => true, 'limit' => null],

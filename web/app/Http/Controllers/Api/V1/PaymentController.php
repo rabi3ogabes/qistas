@@ -6,6 +6,8 @@ use App\Actions\RecordPayment;
 use App\Actions\VoidTransaction;
 use App\Domain\Ledger\LedgerLines;
 use App\Domain\Ledger\PaymentPreview;
+use App\Entitlements\Entitlements;
+use App\Entitlements\Feature;
 use App\Http\Requests\PaymentRequest;
 use App\Http\Requests\VoidPaymentRequest;
 use App\Http\Resources\TransactionResource;
@@ -42,10 +44,14 @@ final class PaymentController
     public function store(PaymentRequest $request, Contract $contract, RecordPayment $record): JsonResponse
     {
         $data = $request->validated();
+        // Choosing the instalment is its own feature (Win Plan PP6); a plain payment never needs it.
+        if (($data['apply_to'] ?? null) !== null) {
+            Entitlements::for($contract->tenant)->assertEnabled(Feature::PaymentTargeting);
+        }
 
         $payment = $record->handle(
             $contract, $data['amount'], $data['method'], $data['idempotency_key'] ?? null,
-            $request->user(), $data['note'] ?? null, $request->paidAt(), $data['tag'] ?? null,
+            $request->user(), $data['note'] ?? null, $request->paidAt(), $data['tag'] ?? null, $data['apply_to'] ?? null,
         );
 
         // A retry that finds the first attempt answers with it, and says so: 200 instead of 201.

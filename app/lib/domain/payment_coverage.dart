@@ -31,11 +31,15 @@ class PaymentCoverage {
 /// What [amount] would pay, by the server's own rule (App\Domain\Ledger\PaymentAllocator): the oldest due first, ties by
 /// number, each filled before the next is touched. Null when it is not a payment the server would take (nothing, or
 /// more than is owed).
-PaymentCoverage? paymentCoverage(List<Installment> installments, Money amount) {
+/// [first], when given, is filled before any other (Win Plan PP6), as the server does with apply_to.
+PaymentCoverage? paymentCoverage(List<Installment> installments, Money amount, {String? first}) {
   final owed = installments.fold(Money.zero, (Money sum, i) => i.remaining.isPositive ? sum + i.remaining : sum);
   if (!amount.isPositive || amount > owed) return null;
 
-  final ordered = [...installments]..sort((a, b) => a.dueDate == b.dueDate ? a.number.compareTo(b.number) : a.dueDate.compareTo(b.dueDate));
+  int rank(Installment i) => i.id == first ? 0 : 1;
+  final ordered = [...installments]..sort((a, b) => rank(a) != rank(b)
+      ? rank(a).compareTo(rank(b))
+      : (a.dueDate == b.dueDate ? a.number.compareTo(b.number) : a.dueDate.compareTo(b.dueDate)));
   final covers = <CoveredInstallment>[];
   Money? leftOnLast;
   var left = amount;

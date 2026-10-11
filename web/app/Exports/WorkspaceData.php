@@ -67,7 +67,7 @@ final class WorkspaceData
     private static function instalments(): Generator
     {
         $references = Contract::query()->get(['id', 'number', 'own_reference'])->mapWithKeys(fn (Contract $c) => [$c->id => $c->reference()]);
-        $states = ['paid' => __('Paid'), 'superseded' => __('Moved to the open account'), 'overdue' => __('Overdue'), 'partial' => __('Part paid'), 'upcoming' => __('Upcoming')];
+        $states = ['paid' => __('Paid'), 'superseded' => __('Moved to the open account'), 'waived' => __('Waived'), 'overdue' => __('Overdue'), 'partial' => __('Part paid'), 'upcoming' => __('Upcoming')];
 
         foreach (Installment::query()->orderBy('contract_id')->orderBy('number')->lazy(500) as $installment) {
             yield [

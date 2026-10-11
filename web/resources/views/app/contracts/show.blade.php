@@ -13,8 +13,10 @@
     $state = $late ? 'late' : $contract->status;
     $statusTone = ['active' => 'badge-info', 'late' => 'badge-bad', 'settled' => 'badge-ok', 'cancelled' => ''];
     $statusLabel = ['active' => __('Active'), 'late' => __('Late'), 'settled' => __('Settled'), 'cancelled' => __('Cancelled')];
-    $installmentLabel = ['paid' => __('Paid'), 'overdue' => __('Overdue'), 'partial' => __('Partly paid'), 'upcoming' => __('Upcoming'), 'superseded' => __('Superseded')];
-    $installmentTone = ['paid' => 'badge-ok', 'overdue' => 'badge-bad', 'partial' => 'badge-warn', 'upcoming' => '', 'superseded' => ''];
+    $installmentLabel = ['paid' => __('Paid'), 'overdue' => __('Overdue'), 'partial' => __('Partly paid'), 'upcoming' => __('Upcoming'), 'superseded' => __('Superseded'), 'waived' => __('Waived')];
+    $installmentTone = ['paid' => 'badge-ok', 'overdue' => 'badge-bad', 'partial' => 'badge-warn', 'upcoming' => '', 'superseded' => '', 'waived' => ''];
+    $amendmentLabel = ['reschedule' => __('New count or amount'), 'skip' => __('Month skipped'), 'move' => __('Date moved')];
+    $rebate = $contract->adjustments->reduce(fn (string $sum, $adjustment) => Money::add($sum, (string) $adjustment->amount, 2), '0.00');
     $markupPercent = rtrim(rtrim($contract->markup_value, '0'), '.');
     $canTakePayment = $contract->status !== 'cancelled' && $next !== null;
 @endphp
@@ -36,6 +38,9 @@
         <div class="figure figure-lead" @if ($late) data-tone="danger" @endif>
             <p class="figure-label">{{ __('Still owed') }}</p>
             <p class="figure-value money">{{ Format::money($owed, $currency) }}</p>
+            @if ($paidAheadUntil !== null)
+                <p class="figure-note">{{ __('Paid ahead until :date', ['date' => $paidAheadUntil->translatedFormat('j M Y')]) }}</p>
+            @endif
         </div>
         <div class="figure">
             <p class="figure-label">{{ __('Paid on instalments') }}</p>
@@ -73,6 +78,19 @@
                             </div>
 
                             <x-field name="paid_at" type="date" :label="__('Date received (optional)')" :hint="__('Leave empty if it was received today.')" />
+                            @if ($canTarget)
+                                {{-- Win Plan PP6: the instalment it covers first; whatever is over goes to the oldest. --}}
+                                <div class="field">
+                                    <label for="f-apply">{{ __('Pay towards') }}</label>
+                                    <select id="f-apply" name="apply_to" @error('apply_to') aria-invalid="true" @enderror>
+                                        <option value="">{{ __('The oldest instalment first') }}</option>
+                                        @foreach ($installments->reject(fn ($i) => in_array($i->status, \App\Models\Installment::CLOSED, true)) as $open)
+                                            <option value="{{ $open->id }}" @selected(old('apply_to') === $open->id)>{{ $open->due_date->translatedFormat('j M Y') }}, {{ Format::money($open->remaining(), $currency) }}</option>
+                                        @endforeach
+                                    </select>
+                                    @error('apply_to')<p class="field-error" role="alert">{{ $message }}</p>@enderror
+                                </div>
+                            @endif
                             <x-field name="note" :label="__('Note (optional)')" autocomplete="off" :hint="__('A receipt number or a reference, for your records.')" />
 
                             <button class="btn">{{ __('Record payment') }}</button>
@@ -117,7 +135,15 @@
                     @endif
                     @if ($contract->notes)<div><dt>{{ __('Notes') }}</dt><dd class="prewrap">{{ $contract->notes }}</dd></div>@endif
                     @if ($contract->cancelled_at)<div><dt>{{ __('Cancelled on') }}</dt><dd class="money">{{ $contract->cancelled_at->translatedFormat('j M Y') }}</dd></div>@endif
+                    @if (Money::isPositive($rebate))<div><dt>{{ __('Early settlement discount') }}</dt><dd class="money">−{{ Format::money($rebate, $currency) }}</dd></div>@endif
                 </dl>
+
+                @if ($canSettle || $canAmend)
+                    <div class="contract-actions">
+                        @if ($canSettle)<a class="btn btn-quiet btn-sm" href="{{ route('app.contracts.settle.show', $contract) }}">{{ __('Settle early') }}</a>@endif
+                        @if ($canAmend)<a class="btn btn-quiet btn-sm" href="{{ route('app.contracts.plan.show', $contract) }}">{{ __('Change the payment plan') }}</a>@endif
+                    </div>
+                @endif
 
                 @if ($conversion !== null)
                     {{-- Win Plan PP4: what becoming open does, in numbers, before anything changes. --}}
@@ -206,7 +232,7 @@
                             @foreach ($installments as $installment)
                                 @php $installmentState = $installment->displayState(); @endphp
                                 <tr data-state="{{ $installmentState }}">
-                                    <td data-label="#" class="money">{{ $installment->number }}</td>
+                                    <td data-label="#" class="money">{{ $loop->iteration }}</td>
                                     <td data-label="{{ __('Due date') }}" class="money">{{ $installment->due_date->translatedFormat('j M Y') }}</td>
                                     <td data-label="{{ __('Amount') }}" class="num money">{{ Format::money($installment->amount, $currency) }}</td>
                                     <td data-label="{{ __('Paid') }}" class="num money">{{ Money::isZero($installment->paid_amount) ? '—' : Format::money($installment->paid_amount, $currency) }}</td>
@@ -217,6 +243,28 @@
                     </table>
                 </div>
             </section>
+
+            @if ($contract->amendments->isNotEmpty())
+                {{-- Win Plan PP6: every change to the plan, with why and who, and what the schedule was. --}}
+                <section class="card" aria-labelledby="plan-history-title">
+                    <div class="card-head"><h2 id="plan-history-title">{{ __('Plan changes') }}</h2></div>
+                    <ol class="plan-history">
+                        @foreach ($contract->amendments->reverse() as $amendment)
+                            <li>
+                                <p class="plan-history-head"><strong>{{ $amendmentLabel[$amendment->type] ?? $amendment->type }}</strong> <span class="muted">{{ $amendment->created_at->translatedFormat('j M Y') }}@if ($amendment->approvedBy), {{ $amendment->approvedBy->name }}@endif</span></p>
+                                <p class="prewrap">{{ $amendment->reason }}</p>
+                                <details>
+                                    <summary class="link">{{ __('Instalments before: :before. After: :after.', ['before' => count($amendment->old_schedule), 'after' => count($amendment->new_schedule)]) }}</summary>
+                                    <div class="plan-compare">
+                                        <ol class="plan-rows">@foreach ($amendment->old_schedule as $row)<li><span class="money">{{ \Illuminate\Support\Carbon::parse($row['due_date'])->translatedFormat('j M Y') }}</span><span class="money">{{ Format::money($row['amount'], $currency) }}</span></li>@endforeach</ol>
+                                        <ol class="plan-rows plan-rows-new">@foreach ($amendment->new_schedule as $row)<li><span class="money">{{ \Illuminate\Support\Carbon::parse($row['due_date'])->translatedFormat('j M Y') }}</span><span class="money">{{ Format::money($row['amount'], $currency) }}</span></li>@endforeach</ol>
+                                    </div>
+                                </details>
+                            </li>
+                        @endforeach
+                    </ol>
+                </section>
+            @endif
 
             <section class="card" aria-labelledby="history-title">
                 <div class="card-head"><h2 id="history-title">{{ __('Payments') }}</h2></div>

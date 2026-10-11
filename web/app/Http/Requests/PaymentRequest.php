@@ -34,6 +34,8 @@ class PaymentRequest extends FormRequest
             'tag' => ['nullable', Rule::in(Transaction::TAGS)],
             // Makes a retry (a double click, a flaky connection) record one payment, not two.
             'idempotency_key' => ['nullable', 'string', 'regex:/^[A-Za-z0-9_.:\-]{1,100}$/'],
+            // The instalment to fill first (Win Plan PP6); RecordPayment checks it belongs to the contract.
+            'apply_to' => ['nullable', 'uuid'],
         ];
     }
 
@@ -70,6 +72,7 @@ class PaymentRequest extends FormRequest
             'paid_at' => $text('paid_at'),
             'note' => $text('note'),
             'tag' => $text('tag'),
+            'apply_to' => $text('apply_to'),
             // The API takes it as the Idempotency-Key header; the web form sends it as a field.
             'idempotency_key' => $text('idempotency_key') ?? (trim((string) $this->header('Idempotency-Key')) ?: null),
         ]);

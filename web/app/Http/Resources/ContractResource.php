@@ -21,6 +21,20 @@ class ContractResource extends JsonResource
 {
     use Presents;
 
+    /** The due date the contract is paid up to, when that is still ahead of today; null otherwise. */
+    private function paidAheadUntil(): ?string
+    {
+        $last = null;
+        foreach ($this->installments->reject(fn (Installment $i) => in_array($i->status, Installment::SET_ASIDE, true))->sortBy(fn (Installment $i) => [$i->due_date->format('Y-m-d'), $i->number]) as $installment) {
+            if ($installment->status !== 'paid') {
+                break;
+            }
+            $last = $installment;
+        }
+
+        return $last !== null && $last->due_date->isAfter(today()) && $this->status === 'active' ? $this->day($last->due_date) : null;
+    }
+
     /** @return array<string, mixed> */
     public function toArray(Request $request): array
     {
@@ -86,6 +100,20 @@ class ContractResource extends JsonResource
                 'due_date' => $this->day($next->due_date),
                 'remaining' => $this->money($next->remaining()),
             ]),
+            // Paid ahead (Win Plan PP6): the instalments from the first are all paid up to one not yet due.
+            'paid_ahead_until' => $this->whenLoaded('installments', fn () => $this->paidAheadUntil()),
+            // An early settlement's discount, net of its void if it was voided (Win Plan PP6).
+            'early_settlement_rebate' => $this->whenLoaded('adjustments', fn () => $this->adjustments->isEmpty() ? null
+                : $this->money($this->adjustments->reduce(fn (string $sum, $adjustment) => bcadd($sum, (string) $adjustment->amount, 4), '0'))),
+            'amendments' => $this->whenLoaded('amendments', fn () => $this->amendments->map(fn ($amendment) => [
+                'id' => $amendment->id,
+                'type' => $amendment->type,
+                'reason' => $amendment->reason,
+                'old_schedule' => $amendment->old_schedule,
+                'new_schedule' => $amendment->new_schedule,
+                'approved_by' => $amendment->approvedBy === null ? null : ['id' => $amendment->approvedBy->id, 'name' => $amendment->approvedBy->name],
+                'created_at' => $this->moment($amendment->created_at),
+            ])->values()->all()),
             'installments' => $this->whenLoaded('installments', fn () => InstallmentResource::collection($this->installments)),
             'transactions' => $this->whenLoaded('transactions', fn () => TransactionResource::collection($this->transactions)),
         ];

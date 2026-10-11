@@ -12,6 +12,7 @@
         'charge' => __('They took'),
         'charge_reversal' => __('Taken back off the balance'),
         'cancelled' => __('Contract cancelled'),
+        'early_rebate' => $line['credit'] !== null ? __('Early settlement discount') : __('Early settlement discount voided'),
         default => $line['kind'],
     };
 @endphp

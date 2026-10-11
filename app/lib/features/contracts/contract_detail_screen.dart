@@ -16,6 +16,7 @@ import '../../core/money.dart';
 import '../../core/ui/errors.dart';
 import '../../core/ui/reason_dialog.dart';
 import '../../data/models.dart';
+import '../../data/plan_changes.dart';
 import '../customers/customer_detail_screen.dart';
 import '../documents/document_options_sheet.dart';
 import '../payments/payment_success.dart';
@@ -23,8 +24,10 @@ import '../payments/payments_state.dart';
 import '../payments/record_payment_sheet.dart';
 import '../reminders/reminders.dart';
 import 'contracts_screen.dart';
+import 'early_settlement_sheet.dart';
 import 'ledger_line_sheet.dart';
 import 'open_account_screen.dart';
+import 'plan_access.dart';
 
 
 
@@ -232,6 +235,9 @@ class _Body extends ConsumerWidget {
 
   String get _currency => account?.currency ?? '';
 
+  /// The schedule as it stands, in date order: instalments a plan change replaced live in its history (Win Plan PP6).
+  List<Installment> get _live => contract.installments.where((i) => i.status != 'superseded').toList()..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+
   /// The instalment to chase, as a reminder wants it: who, what is owed, since or until when.
   DueItem? _dueItem(Customer? customer) {
     final next = contract.next;
@@ -317,6 +323,15 @@ class _Body extends ConsumerWidget {
                     ],
                   ),
                 ],
+                if (contract.paidAheadUntil != null) ...[
+                  const SizedBox(height: 14),
+                  SoftChip(
+                    context.t('Paid ahead until :date', {'date': formatDay(contract.paidAheadUntil!, language)}),
+                    icon: Icons.verified_outlined,
+                    background: onHero.withValues(alpha: 0.12),
+                    foreground: onHero,
+                  ),
+                ],
                 if (contract.next != null && contract.isRunning) ...[
                   const SizedBox(height: 14),
                   SoftChip(
@@ -350,7 +365,7 @@ class _Body extends ConsumerWidget {
               ),
             ),
           ),
-        if (contract.installments.isNotEmpty)
+        if (_live.isNotEmpty)
           Reveal(
             order: order++,
             child: Column(
@@ -361,13 +376,14 @@ class _Body extends ConsumerWidget {
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                   child: Column(
                     children: [
-                      for (final (index, installment) in contract.installments.indexed)
+                      for (final (index, installment) in _live.indexed)
                         _TimelineRow(
                           installment: installment,
+                          position: index + 1,
                           currency: _currency,
                           language: language,
                           isFirst: index == 0,
-                          isLast: index == contract.installments.length - 1,
+                          isLast: index == _live.length - 1,
                           isNext: contract.next?.number == installment.number && contract.isRunning,
                         ),
                     ],
@@ -463,6 +479,29 @@ class _Body extends ConsumerWidget {
             ],
           ),
         ),
+        if (contract.amendments.isNotEmpty) ...[
+          QSectionTitle(context.t('Plan changes')),
+          for (final amendment in contract.amendments.reversed)
+            Padding(padding: const EdgeInsets.only(bottom: 10), child: _AmendmentCard(amendment: amendment, currency: _currency, language: language)),
+        ],
+        if (canSettleEarly(account, contract)) ...[
+          const SizedBox(height: 24),
+          QButton(
+            label: context.t('Settle early'),
+            kind: QButtonKind.quiet,
+            icon: Icons.verified_outlined,
+            onPressed: () => showEarlySettlementSheet(context, contract, currency: _currency),
+          ),
+        ],
+        if (canChangePlan(account, contract)) ...[
+          SizedBox(height: canSettleEarly(account, contract) ? 10 : 24),
+          QButton(
+            label: context.t('Change the payment plan'),
+            kind: QButtonKind.quiet,
+            icon: Icons.edit_calendar_outlined,
+            onPressed: () => context.push('/contracts/${contract.id}/plan'),
+          ),
+        ],
         if (account?.canDelete == true && contract.isRunning && (account?.entitlements['open_contracts']?.isOn ?? false)) ...[
           const SizedBox(height: 28),
           QButton(
@@ -533,15 +572,65 @@ class InstallmentStateBadge extends StatelessWidget {
         'paid' => QBadge(context.t('Paid'), tone: QTone.ok),
         'overdue' => QBadge(context.t('Overdue'), tone: QTone.bad),
         'partial' => QBadge(context.t('Part paid'), tone: QTone.warn),
+        'waived' => QBadge(context.t('Waived')),
+        'superseded' => QBadge(context.t('Superseded')),
         _ => QBadge(context.t('Upcoming')),
       };
 }
 
+/// A change to the plan, kept on the contract (Win Plan PP6): what, why, who and when, and the schedule before and after.
+class _AmendmentCard extends StatelessWidget {
+  const _AmendmentCard({required this.amendment, required this.currency, required this.language});
+
+  final ContractAmendment amendment;
+  final String currency;
+  final String language;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.qc;
+    final text = Theme.of(context).textTheme;
+    final title = switch (amendment.type) {
+      'skip' => context.t('Month skipped'),
+      'move' => context.t('Date moved'),
+      _ => context.t('New count or amount'),
+    };
+
+    return QCard(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text(title, style: text.titleSmall)),
+              Text(formatMoment(amendment.createdAt.toLocal(), language), style: text.bodySmall?.copyWith(color: c.inkMuted)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(amendment.reason, style: text.bodyMedium),
+          const SizedBox(height: 6),
+          Text(
+            [
+              context.t('Instalments before: :before. After: :after.', {'before': amendment.before.length, 'after': amendment.after.length}),
+              ?amendment.approvedBy,
+            ].join('  '),
+            style: text.bodySmall?.copyWith(color: c.inkMuted),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// One instalment on the schedule's timeline: a node that says where it stands, joined to its neighbours by a line.
 class _TimelineRow extends StatelessWidget {
-  const _TimelineRow({required this.installment, required this.currency, required this.language, required this.isFirst, required this.isLast, required this.isNext});
+  const _TimelineRow({required this.installment, required this.position, required this.currency, required this.language, required this.isFirst, required this.isLast, required this.isNext});
 
   final Installment installment;
+
+  /// Its place in the schedule as it stands (numbers run on after a plan change).
+  final int position;
   final String currency;
   final String language;
   final bool isFirst;
@@ -601,7 +690,7 @@ class _TimelineRow extends StatelessWidget {
                           runSpacing: 4,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
-                            Text('#${installment.number}', style: text.bodySmall?.copyWith(color: c.inkMuted)),
+                            Text('#$position', style: text.bodySmall?.copyWith(color: c.inkMuted)),
                             InstallmentStateBadge(state),
                           ],
                         ),

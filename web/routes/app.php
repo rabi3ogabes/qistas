@@ -13,6 +13,7 @@ use App\Http\Controllers\Workspace\DocumentController;
 use App\Http\Controllers\Workspace\FileController;
 use App\Http\Controllers\Workspace\InvestorController;
 use App\Http\Controllers\Workspace\PaymentController;
+use App\Http\Controllers\Workspace\PlanChangeController;
 use App\Http\Controllers\Workspace\ProductController;
 use App\Http\Controllers\Workspace\ReminderController;
 use App\Http\Controllers\Workspace\SecurityPolicyController;
@@ -108,4 +109,12 @@ Route::post('contracts/{contract}/convert-to-open', [ContractController::class, 
 
 Route::get('payments', [PaymentController::class, 'index'])->name('payments.index');
 Route::post('contracts/{contract}/payments', [PaymentController::class, 'store'])->name('contracts.payments.store');
+
+// Settle early, change the plan, pay across contracts (Win Plan PP6).
+Route::get('contracts/{contract}/settle', [PlanChangeController::class, 'settleShow'])->whereUuid('contract')->name('contracts.settle.show');
+Route::post('contracts/{contract}/settle', [PlanChangeController::class, 'settleStore'])->whereUuid('contract')->name('contracts.settle.store');
+Route::get('contracts/{contract}/plan', [PlanChangeController::class, 'planShow'])->whereUuid('contract')->name('contracts.plan.show');
+Route::post('contracts/{contract}/plan', [PlanChangeController::class, 'planStore'])->whereUuid('contract')->name('contracts.plan.store');
+Route::get('customers/{customer}/payment', [PlanChangeController::class, 'customerPaymentShow'])->whereUuid('customer')->name('customers.payment.show');
+Route::post('customers/{customer}/payment', [PlanChangeController::class, 'customerPaymentStore'])->whereUuid('customer')->name('customers.payment.store');
 Route::post('payments/{transaction}/void', [PaymentController::class, 'void'])->name('payments.void');

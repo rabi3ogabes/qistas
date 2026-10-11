@@ -5,15 +5,20 @@ namespace App\Actions;
 use App\Domain\Investors\InvestorLedger;
 use App\Domain\Ledger\ContractSettlement;
 use App\Domain\Ledger\PaymentAllocator;
+use App\Domain\Settlement\EarlySettlementQuote;
+use App\Domain\Settlement\QuoteChanged;
 use App\Models\Contract;
+use App\Models\ContractAdjustment;
 use App\Models\Installment;
 use App\Models\Transaction;
 use App\Models\TransactionAllocation;
 use App\Models\User;
+use App\Support\Audit;
 use App\Support\Money;
 use App\Tenancy\CurrentTenant;
 use Carbon\CarbonInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
@@ -37,6 +42,8 @@ final class RecordPayment
      * @param  ?string  $idempotencyKey  1-100 characters from A-Z a-z 0-9 _ . : -
      * @param  ?CarbonInterface  $paidAt  when the money was received (default now; never in the future)
      * @param  ?string  $tag  one of Transaction::TAGS (an advance, a refund, an early-payment discount)
+     * @param  ?string  $applyTo  the instalment to fill first (Win Plan PP6); the rest goes to the oldest
+     * @param  ?string  $batchId  the payment across contracts this line is part of (Win Plan PP6)
      *
      * @throws ValidationException naming the field at fault
      */
@@ -49,18 +56,20 @@ final class RecordPayment
         ?string $note = null,
         ?CarbonInterface $paidAt = null,
         ?string $tag = null,
+        ?string $applyTo = null,
+        ?string $batchId = null,
     ): Transaction {
         $this->validateFormat($amount, $method, $idempotencyKey, $paidAt, $tag);
         $amount = Money::add(Money::parse($amount), '0', 2);
         $paidAt ??= now();
 
-        return $this->current->use($contract->tenant, function () use ($contract, $amount, $method, $idempotencyKey, $by, $note, $paidAt, $tag): Transaction {
+        return $this->current->use($contract->tenant, function () use ($contract, $amount, $method, $idempotencyKey, $by, $note, $paidAt, $tag, $applyTo, $batchId): Transaction {
             if ($idempotencyKey !== null && ($existing = Transaction::where('idempotency_key', $idempotencyKey)->first()) !== null) {
                 return $this->replay($existing, $contract, $amount, $method);
             }
 
             try {
-                return DB::transaction(fn () => $this->record($contract, $amount, $method, $idempotencyKey, $by, $note, $paidAt, $tag));
+                return DB::transaction(fn () => $this->record($contract, $amount, $method, $idempotencyKey, $by, $note, $paidAt, $tag, $applyTo, $batchId));
             } catch (UniqueConstraintViolationException $e) {
                 // Two requests with the same key arrived together and the other one won: answer with its result.
                 $existing = $idempotencyKey === null ? null : Transaction::where('idempotency_key', $idempotencyKey)->first();
@@ -70,7 +79,99 @@ final class RecordPayment
         });
     }
 
-    private function record(Contract $contract, string $amount, string $method, ?string $key, ?User $by, ?string $note, CarbonInterface $paidAt, ?string $tag): Transaction
+    /**
+     * Settles a contract early (Win Plan PP6): takes the payoff, waives what the rebate covers, writes one adjustment
+     * line and settles the contract, all at once. The payoff must be the one the person was shown; if money came in
+     * meanwhile it has changed, and nothing is written. Safe to retry with the same key.
+     *
+     * @throws QuoteChanged when [$expectedPayoff] is no longer the payoff
+     * @throws ValidationException when the contract cannot be settled early, or the rebate cannot be read
+     */
+    public function settle(
+        Contract $contract,
+        string $rebateType,
+        string $rebateValue,
+        string $expectedPayoff,
+        string $method,
+        ?string $idempotencyKey = null,
+        ?User $by = null,
+        ?string $note = null,
+        ?CarbonInterface $paidAt = null,
+    ): Transaction|ContractAdjustment {
+        $this->validateFormat('1', $method, $idempotencyKey, $paidAt);
+        $paidAt ??= now();
+
+        return $this->current->use($contract->tenant, function () use ($contract, $rebateType, $rebateValue, $expectedPayoff, $method, $idempotencyKey, $by, $note, $paidAt): Transaction|ContractAdjustment {
+            if ($idempotencyKey !== null && ($existing = Transaction::where('idempotency_key', $idempotencyKey)->first()) !== null) {
+                if ($existing->contract_id !== $contract->id || $existing->tag !== 'early_discount') {
+                    throw ValidationException::withMessages(['idempotency_key' => __('This key was already used for a different payment.')]);
+                }
+
+                return $existing;
+            }
+
+            return DB::transaction(function () use ($contract, $rebateType, $rebateValue, $expectedPayoff, $method, $idempotencyKey, $by, $note, $paidAt): Transaction|ContractAdjustment {
+                $locked = Contract::query()->whereKey($contract->id)->lockForUpdate()->firstOrFail();
+                if ($locked->status !== 'active' || $locked->isOpen()) {
+                    throw ValidationException::withMessages(['contract' => $locked->status === 'settled'
+                        ? __('Nothing is owed on this contract.')
+                        : __('Only a running contract with a schedule can be settled early.')]);
+                }
+
+                $installments = Installment::query()->where('contract_id', $locked->id)->lockForUpdate()->orderBy('number')->get();
+                try {
+                    $quote = EarlySettlementQuote::for($locked, $installments, $rebateType, $rebateValue);
+                } catch (InvalidArgumentException $e) {
+                    throw ValidationException::withMessages(['rebate_value' => $e->getMessage()]);
+                }
+                if (Money::cmp($quote->payoff, Money::parse($expectedPayoff)) !== 0) {
+                    throw new QuoteChanged($quote);
+                }
+
+                $transaction = null;
+                if (Money::isPositive($quote->payoff)) {
+                    $allocations = $this->allocator->allocate($this->rows($installments), $quote->payoff);
+                    $transaction = $this->write($locked, 'payment', $quote->payoff, $method, $idempotencyKey, $by, $note, $paidAt, 'early_discount');
+                    $this->apply($transaction, $installments, $allocations, $paidAt);
+                }
+
+                // Whatever is still owed after the payoff is what the rebate covers: waived, with what each still owed.
+                $waived = [];
+                foreach ($installments as $installment) {
+                    $installment->refresh();
+                    if (! in_array($installment->status, Installment::CLOSED, true)) {
+                        $waived[] = ['installment_id' => $installment->id, 'amount' => Money::add($installment->remaining(), '0', 2)];
+                        $installment->forceFill(['status' => 'waived'])->save();
+                    }
+                }
+
+                $adjustment = null;
+                if (Money::isPositive($quote->rebate)) {
+                    $adjustment = (new ContractAdjustment)->forceFill([
+                        'contract_id' => $locked->id,
+                        'type' => 'early_rebate',
+                        'amount' => $quote->rebate,
+                        'reason' => $note,
+                        'transaction_id' => $transaction?->id,
+                        'details' => ['waived' => $waived],
+                        'created_by_user_id' => $by?->id,
+                    ]);
+                    $adjustment->save();
+                }
+
+                ContractSettlement::sync($locked, $paidAt);
+                if ($transaction !== null) {
+                    // Every cent financed goes back to the investor; the rebate comes out of profit only (Win Plan PP3).
+                    $this->investors->creditPayment($transaction);
+                }
+                Audit::record('contract.settled_early', $locked, ['payoff' => $quote->payoff, 'rebate' => $quote->rebate], $locked->tenant_id, $by?->id);
+
+                return $transaction ?? $adjustment ?? throw ValidationException::withMessages(['contract' => __('Nothing is owed on this contract.')]);
+            });
+        });
+    }
+
+    private function record(Contract $contract, string $amount, string $method, ?string $key, ?User $by, ?string $note, CarbonInterface $paidAt, ?string $tag, ?string $applyTo = null, ?string $batchId = null): Transaction
     {
         // Payments on one contract take turns: the second waits here and then sees the first one's effect.
         $locked = Contract::query()->whereKey($contract->id)->lockForUpdate()->firstOrFail();
@@ -81,7 +182,7 @@ final class RecordPayment
 
         // An open contract takes money on account: no instalments to pay, and paying ahead leaves the customer credit.
         if ($locked->isOpen()) {
-            $transaction = $this->write($locked, 'payment', $amount, $method, $key, $by, $note, $paidAt, $tag);
+            $transaction = $this->write($locked, 'payment', $amount, $method, $key, $by, $note, $paidAt, $tag, $batchId);
             $this->investors->creditPayment($transaction);
 
             return $transaction;
@@ -96,19 +197,47 @@ final class RecordPayment
                 : __('The payment is more than the :owed still owed on this contract.', ['owed' => Money::add($owed, '0', 2)])]);
         }
 
+        // The instalment the person chose (Win Plan PP6) must be this contract's, and still owe something.
+        if ($applyTo !== null) {
+            $chosen = $installments->firstWhere('id', $applyTo);
+            if ($chosen === null || ! Money::isPositive($chosen->remaining())) {
+                throw ValidationException::withMessages(['apply_to' => __('Choose an instalment of this contract that still owes something.')]);
+            }
+        }
+
         try {
-            $allocations = $this->allocator->allocate(
-                $installments->map(fn (Installment $i) => [
-                    'id' => $i->id, 'number' => $i->number, 'due_date' => $i->due_date->format('Y-m-d'), 'remaining' => $i->remaining(),
-                ])->all(),
-                $amount,
-            );
+            $allocations = $this->allocator->allocate($this->rows($installments), $amount, $applyTo);
         } catch (InvalidArgumentException $e) {
             throw ValidationException::withMessages(['amount' => $e->getMessage()]);
         }
 
-        $transaction = $this->write($locked, 'payment', $amount, $method, $key, $by, $note, $paidAt, $tag);
+        $transaction = $this->write($locked, 'payment', $amount, $method, $key, $by, $note, $paidAt, $tag, $batchId);
+        $this->apply($transaction, $installments, $allocations, $paidAt);
 
+        ContractSettlement::sync($locked, $paidAt);
+        // Its principal and profit go to whoever funded the contract, in the same transaction (Win Plan PP3).
+        $this->investors->creditPayment($transaction);
+
+        return $transaction;
+    }
+
+    /**
+     * @param  Collection<int, Installment>  $installments
+     * @return list<array{id: string, number: int, due_date: string, remaining: string}>
+     */
+    private function rows($installments): array
+    {
+        return $installments->map(fn (Installment $i) => [
+            'id' => $i->id, 'number' => $i->number, 'due_date' => $i->due_date->format('Y-m-d'), 'remaining' => $i->remaining(),
+        ])->values()->all();
+    }
+
+    /**
+     * @param  Collection<int, Installment>  $installments
+     * @param  list<array{installment_id: string, amount: string}>  $allocations
+     */
+    private function apply(Transaction $transaction, $installments, array $allocations, CarbonInterface $paidAt): void
+    {
         $byId = $installments->keyBy('id');
         foreach ($allocations as $allocation) {
             $byId[$allocation['installment_id']]->applyPayment($allocation['amount'], $paidAt);
@@ -118,15 +247,9 @@ final class RecordPayment
                 'amount' => $allocation['amount'],
             ])->save();
         }
-
-        ContractSettlement::sync($locked, $paidAt);
-        // Its principal and profit go to whoever funded the contract, in the same transaction (Win Plan PP3).
-        $this->investors->creditPayment($transaction);
-
-        return $transaction;
     }
 
-    private function write(Contract $contract, string $type, string $amount, string $method, ?string $key, ?User $by, ?string $note, CarbonInterface $paidAt, ?string $tag): Transaction
+    private function write(Contract $contract, string $type, string $amount, string $method, ?string $key, ?User $by, ?string $note, CarbonInterface $paidAt, ?string $tag, ?string $batchId = null): Transaction
     {
         $transaction = (new Transaction)->forceFill([
             'contract_id' => $contract->id,
@@ -139,6 +262,7 @@ final class RecordPayment
             'tag' => $tag,
             'idempotency_key' => $key,
             'created_by_user_id' => $by?->id,
+            'batch_id' => $batchId,
         ]);
         $transaction->save();
 

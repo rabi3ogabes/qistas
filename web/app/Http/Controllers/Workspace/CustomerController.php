@@ -11,6 +11,7 @@ use App\Http\Requests\CustomerRequest;
 use App\Models\Contract;
 use App\Models\Customer;
 use App\Models\Tag;
+use App\Models\Transaction;
 use App\Reports\CustomerBalances;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\RedirectResponse;
@@ -75,6 +76,10 @@ final class CustomerController
             'contracts' => $contracts,
             'owed' => $balances->forContracts($contracts->pluck('id')->all()),
             'currency' => $this->current->get()?->currency,
+            // One payment across their contracts (Win Plan PP6), once two or more are running.
+            'canPayAcross' => $contracts->where('status', 'active')->where('type', '!=', 'open')->count() > 1
+                && Gate::allows('create', Transaction::class)
+                && Entitlements::for($this->current->get())->check(Feature::PaymentTargeting)->enabled(),
         ]);
     }
 

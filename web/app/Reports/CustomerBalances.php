@@ -27,7 +27,7 @@ final class CustomerBalances
         $owed = Installment::query()
             ->join('contracts', 'contracts.id', '=', 'installments.contract_id')
             ->where('contracts.status', '!=', 'cancelled')
-            ->where('installments.status', '!=', 'superseded')
+            ->whereNotIn('installments.status', Installment::SET_ASIDE)
             ->whereIn('contracts.customer_id', $customerIds)
             ->selectRaw('contracts.customer_id as customer_id, SUM(installments.amount - installments.paid_amount) as owed')
             ->groupBy('contracts.customer_id')
@@ -66,7 +66,7 @@ final class CustomerBalances
 
         $owed = Installment::query()
             ->whereIn('contract_id', $contractIds)
-            ->where('status', '!=', 'superseded')
+            ->whereNotIn('status', Installment::SET_ASIDE)
             ->selectRaw('contract_id, SUM(amount - paid_amount) as owed')
             ->groupBy('contract_id')
             ->toBase()->pluck('owed', 'contract_id');

@@ -255,6 +255,29 @@
     .archived-list { display: grid; gap: .5rem; margin: .75rem 0 0; padding: 0; list-style: none; }
     .archived-only { margin: 0; padding: .875rem 1.25rem 0; }
 
+    /* Settle early, change the plan (Win Plan PP6). */
+    .contract-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .settle-payoff { margin: 0; font-size: clamp(2rem, 5vw, 2.75rem); font-weight: 700; letter-spacing: -.01em; line-height: 1.1; }
+    .settle-saves { margin: 0; color: var(--q-positive); font-weight: 600; }
+    .settle-rebate { display: grid; gap: .75rem; }
+    .plan-fields { display: grid; gap: .75rem; }
+    /* Only the fields the chosen change reads; without :has() every field stays visible and still works. */
+    .plan-form:has(input[name="type"][value="reschedule"]:checked) [data-for]:not([data-for~="reschedule"]),
+    .plan-form:has(input[name="type"][value="skip"]:checked) [data-for]:not([data-for~="skip"]),
+    .plan-form:has(input[name="type"][value="move"]:checked) [data-for]:not([data-for~="move"]) { display: none; }
+    .plan-compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+    .plan-compare-title { margin: 0 0 .5rem; font-size: .875rem; color: var(--q-ink-muted); font-weight: 600; }
+    .plan-rows { margin: 0; padding: 0; list-style: none; display: grid; gap: .25rem; }
+    .plan-rows li { display: flex; justify-content: space-between; gap: .75rem; padding: .375rem .5rem; border-radius: .5rem; background: color-mix(in srgb, var(--q-line) 25%, transparent); }
+    .plan-rows-new li { background: color-mix(in srgb, var(--q-accent) 12%, transparent); }
+    .plan-history { margin: 0; padding: 0 1.25rem 1rem; list-style: none; display: grid; gap: 1rem; }
+    .plan-history li { display: grid; gap: .375rem; padding-top: 1rem; border-top: 1px solid color-mix(in srgb, var(--q-line) 70%, transparent); }
+    .plan-history li:first-child { border-top: 0; }
+    .plan-history-head { margin: 0; display: flex; flex-wrap: wrap; gap: .5rem; align-items: baseline; }
+    @media (max-width: 639px) {
+        .plan-compare { grid-template-columns: 1fr; }
+    }
+
     /* Remind everyone (Win Plan PP9): one row per customer, the WhatsApp button always at the end of the line. */
     .remind-list { margin: 0; padding: 0; list-style: none; counter-reset: remind; }
     .remind-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: .5rem 1rem; padding: .875rem 1.25rem; border-bottom: 1px solid color-mix(in srgb, var(--q-line) 70%, transparent); }

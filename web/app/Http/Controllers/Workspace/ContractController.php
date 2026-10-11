@@ -28,6 +28,7 @@ use App\Reports\ContractProgress;
 use App\Support\Format;
 use App\Support\Money;
 use App\Tenancy\CurrentTenant;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -128,11 +129,21 @@ final class ContractController
 
         $owed = $installments->reduce(fn (string $carry, Installment $i) => Money::add($carry, $i->remaining()), '0');
         $paid = $installments->reduce(fn (string $carry, Installment $i) => Money::add($carry, $i->paid_amount), '0');
-        $next = $installments->first(fn (Installment $i) => $i->status !== 'paid');
+        // The live schedule, in date order: superseded instalments (a plan change, Win Plan PP6) live in the history.
+        $live = $installments->reject(fn (Installment $i) => $i->status === 'superseded')->sortBy(fn (Installment $i) => [$i->due_date->format('Y-m-d'), $i->number])->values();
+        $next = $live->first(fn (Installment $i) => ! in_array($i->status, Installment::CLOSED, true));
+        $tenant = $this->current->get();
+        $features = Entitlements::for($tenant);
+        $scheduled = $contract->status === 'active' && $contract->type === 'scheduled';
 
         return view('app.contracts.show', [
-            'contract' => $contract->load(['customer', 'investor', 'items']),
-            'installments' => $installments,
+            'contract' => $contract->load(['customer', 'investor', 'items', 'adjustments', 'amendments.approvedBy']),
+            'installments' => $live,
+            // Win Plan PP6: what the owner may do to the plan, and which instalment a payment covers.
+            'canSettle' => $scheduled && Gate::allows('settle', $contract) && $features->check(Feature::EarlySettlement)->enabled(),
+            'canAmend' => $scheduled && Gate::allows('amend', $contract) && $features->check(Feature::Reschedule)->enabled(),
+            'canTarget' => $features->check(Feature::PaymentTargeting)->enabled(),
+            'paidAheadUntil' => $this->paidAheadUntil($contract, $live),
             'lines' => $lines,
             // Which payments have been reversed already: they keep their line but can no longer be voided.
             'reversed' => $lines->pluck('reverses_transaction_id')->filter()->flip()->all(),
@@ -145,6 +156,24 @@ final class ContractController
                 && Entitlements::for($this->current->get())->check(Feature::OpenContracts)->enabled()
                 ? app(ConvertToOpen::class)->handle($contract, preview: true) : null,
         ]);
+    }
+
+    /**
+     * The due date the instalments are paid up to, when it is still ahead of today (Win Plan PP6).
+     *
+     * @param  \Illuminate\Support\Collection<int, Installment>  $live
+     */
+    private function paidAheadUntil(Contract $contract, $live): ?CarbonInterface
+    {
+        $last = null;
+        foreach ($live as $installment) {
+            if ($installment->status !== 'paid') {
+                break;
+            }
+            $last = $installment;
+        }
+
+        return $contract->status === 'active' && $last !== null && $last->due_date->isAfter(today()) ? $last->due_date : null;
     }
 
     /** An open contract's page: the balance, "they took" and "they paid", and the account with the balance after each line. */

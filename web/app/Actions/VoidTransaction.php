@@ -5,6 +5,7 @@ namespace App\Actions;
 use App\Domain\Investors\InvestorLedger;
 use App\Domain\Ledger\ContractSettlement;
 use App\Models\Contract;
+use App\Models\ContractAdjustment;
 use App\Models\Installment;
 use App\Models\Transaction;
 use App\Models\TransactionAllocation;
@@ -65,6 +66,26 @@ final class VoidTransaction
                     'transaction_id' => $reversal->id,
                     'installment_id' => $allocation->installment_id,
                     'amount' => $negated,
+                ])->save();
+            }
+
+            // Voiding the payment that settled a contract early brings back what its rebate had waived (Win Plan PP6).
+            $rebate = ContractAdjustment::query()->where('transaction_id', $original->id)->where('type', 'early_rebate')->whereNull('reverses_adjustment_id')->first();
+            if ($rebate !== null && ! ContractAdjustment::query()->where('reverses_adjustment_id', $rebate->id)->exists()) {
+                foreach ($rebate->details['waived'] ?? [] as $waived) {
+                    $installment = Installment::query()->whereKey($waived['installment_id'])->lockForUpdate()->first();
+                    if ($installment !== null && $installment->status === 'waived') {
+                        $installment->reopen();
+                    }
+                }
+                (new ContractAdjustment)->forceFill([
+                    'contract_id' => $contract->id,
+                    'type' => 'early_rebate',
+                    'amount' => Money::sub('0', $rebate->amount),
+                    'reason' => $reason,
+                    'transaction_id' => $reversal->id,
+                    'reverses_adjustment_id' => $rebate->id,
+                    'created_by_user_id' => $by?->id,
                 ])->save();
             }
 

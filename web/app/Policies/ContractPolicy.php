@@ -45,6 +45,18 @@ final class ContractPolicy
         return $this->cancel($user, $contract);
     }
 
+    /** Settle early with a discount (Win Plan PP6): money is given up, so it is the owner's or a manager's. */
+    public function settle(User $user, Contract $contract): bool
+    {
+        return $this->cancel($user, $contract);
+    }
+
+    /** Confirm a change to the plan (Win Plan PP6): anyone who writes may preview one; owners and managers confirm. */
+    public function amend(User $user, Contract $contract): bool
+    {
+        return $this->cancel($user, $contract);
+    }
+
     private function role(User $user): ?TenantRole
     {
         $tenantId = app(CurrentTenant::class)->id();

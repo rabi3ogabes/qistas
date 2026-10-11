@@ -16,11 +16,12 @@ final class PaymentAllocator
     /**
      * @param  list<array{id: string, number: int, due_date: string, remaining: string}>  $installments
      * @param  string  $amount  a positive amount with at most two decimals, not more than the total remaining
+     * @param  ?string  $first  an instalment to fill before any other (Win Plan PP6); the rest then go oldest first
      * @return list<array{installment_id: string, amount: string}> only the instalments that receive money, in order
      *
      * @throws InvalidArgumentException when the amount is not payable against these instalments
      */
-    public function allocate(array $installments, string $amount): array
+    public function allocate(array $installments, string $amount, ?string $first = null): array
     {
         $left = Money::parse($amount);
         if (! Money::isPositive($left)) {
@@ -30,7 +31,7 @@ final class PaymentAllocator
             throw new InvalidArgumentException('A payment can have at most two decimals.');
         }
 
-        usort($installments, fn (array $a, array $b) => [$a['due_date'], $a['number']] <=> [$b['due_date'], $b['number']]);
+        usort($installments, fn (array $a, array $b) => [$a['id'] !== $first, $a['due_date'], $a['number']] <=> [$b['id'] !== $first, $b['due_date'], $b['number']]);
 
         $allocations = [];
         foreach ($installments as $installment) {

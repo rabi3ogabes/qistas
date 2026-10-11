@@ -3,6 +3,7 @@
 namespace App\Domain\Ledger;
 
 use App\Models\Contract;
+use App\Models\ContractAdjustment;
 use App\Models\Transaction;
 use App\Reports\CustomerBalances;
 use App\Support\Money;
@@ -12,7 +13,8 @@ use Illuminate\Support\Collection;
 /**
  * A customer's account, line by line (Win Plan PP8). A scheduled or cash contract opens with what the customer owes for
  * it: the price less any discount, plus the markup (its total plus the down payment). Every payment and down payment
- * takes from that, a void adds it back, and a cancelled contract closes at nothing owed. An open contract is its charges
+ * takes from that, a void adds it back, an early-settlement rebate takes off what it waived (Win Plan PP6; its void adds
+ * it back), and a cancelled contract closes at nothing owed. An open contract is its charges
  * and the payments that went on its account (see OpenAccount), so a converted contract starts from the balance it was
  * converted with. The running balance after the last line is what the rest of the app says is still owed.
  *
@@ -90,6 +92,19 @@ final class Statement
 
             $balance = Money::add($balance, $adds ? $abs : Money::sub('0', $abs), 2);
             $lines[] = self::line($transaction->paid_at, $contract, $transaction->type, $adds ? $abs : null, $adds ? null : $abs, $transaction, 1, $transaction->created_at->format('Y-m-d H:i:s.u').$transaction->id);
+        }
+
+        // The rebate of an early settlement, right after the payment that settled the contract (and its void after the void).
+        if (! $contract->isOpen()) {
+            $moments = collect($lines)->filter(fn (array $line) => $line['transaction'] !== null)->mapWithKeys(fn (array $line) => [$line['transaction']->id => [$line['date'], $line['at']]]);
+            foreach (ContractAdjustment::query()->where('contract_id', $contract->id)->orderBy('created_at')->get() as $adjustment) {
+                [$date, $at] = $moments[$adjustment->transaction_id] ?? [$adjustment->created_at, $adjustment->created_at->format('Y-m-d H:i:s.u')];
+                $amount = Money::add($adjustment->amount, '0', 2);
+                $credit = Money::isPositive($amount);
+                $abs = $credit ? $amount : Money::sub('0', $amount, 2);
+                $balance = Money::add($balance, $credit ? Money::sub('0', $abs) : $abs, 2);
+                $lines[] = self::line($date, $contract, $adjustment->type, $credit ? null : $abs, $credit ? $abs : null, null, 1, $at.'|'.$adjustment->id);
+            }
         }
 
         // A cancelled contract owes nothing: what was left is written off on the day it was cancelled.

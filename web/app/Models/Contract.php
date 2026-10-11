@@ -147,6 +147,18 @@ class Contract extends Model
         return $this->hasMany(Transaction::class);
     }
 
+    /** @return HasMany<ContractAdjustment, $this> the early-settlement rebate and its void, if any (Win Plan PP6) */
+    public function adjustments(): HasMany
+    {
+        return $this->hasMany(ContractAdjustment::class)->orderBy('created_at');
+    }
+
+    /** @return HasMany<ContractAmendment, $this> every change to the plan, oldest first (Win Plan PP6) */
+    public function amendments(): HasMany
+    {
+        return $this->hasMany(ContractAmendment::class)->orderBy('created_at');
+    }
+
     /** @return HasMany<Installment, $this> */
     public function installments(): HasMany
     {

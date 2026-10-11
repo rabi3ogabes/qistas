@@ -37,7 +37,7 @@ class Customer extends Model
 
     /** What a customer owes, worked out the same way as App\Reports\CustomerBalances, for ordering a list by it. */
     private const OWED_SQL = '(SELECT COALESCE(SUM(i.amount - i.paid_amount), 0) FROM installments i JOIN contracts c ON c.id = i.contract_id'
-        ." WHERE c.customer_id = customers.id AND c.status <> 'cancelled' AND i.status <> 'superseded')"
+        ." WHERE c.customer_id = customers.id AND c.status <> 'cancelled' AND i.status NOT IN ('superseded', 'waived'))"
         ." + (SELECT COALESCE(SUM(CASE WHEN t.type IN ('charge', 'charge_reversal') THEN t.amount ELSE -t.amount END), 0)"
         .' FROM transactions t JOIN contracts oc ON oc.id = t.contract_id'
         ." WHERE oc.customer_id = customers.id AND oc.type = 'open' AND oc.status <> 'cancelled'"
@@ -46,7 +46,7 @@ class Customer extends Model
 
     /** The next instalment still to pay on a running contract. */
     private const NEXT_DUE_SQL = '(SELECT MIN(n.due_date) FROM installments n JOIN contracts nc ON nc.id = n.contract_id'
-        ." WHERE nc.customer_id = customers.id AND nc.status = 'active' AND n.status NOT IN ('paid', 'superseded'))";
+        ." WHERE nc.customer_id = customers.id AND nc.status = 'active' AND n.status NOT IN ('paid', 'superseded', 'waived'))";
 
     /** @return HasMany<Contract, $this> */
     public function contracts(): HasMany

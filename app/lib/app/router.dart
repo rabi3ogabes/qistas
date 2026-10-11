@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/register_screen.dart';
 import '../features/billing/plans_screen.dart';
+import '../features/contracts/change_plan_screen.dart';
 import '../features/contracts/contract_detail_screen.dart';
 import '../features/contracts/contract_form_screen.dart';
 import '../features/contracts/contracts_screen.dart';
@@ -127,7 +128,10 @@ final routerProvider = Provider<GoRouter>((ref) {
               builder: (_, _) => const ContractsScreen(),
               routes: [
                 GoRoute(path: 'new', builder: (_, state) => ContractFormScreen(customerId: state.uri.queryParameters['customer'])),
-                GoRoute(path: ':id', builder: (_, state) => ContractDetailScreen(id: state.pathParameters['id']!, recordPayment: state.uri.queryParameters['pay'] == '1')),
+                GoRoute(path: ':id', builder: (_, state) => ContractDetailScreen(id: state.pathParameters['id']!, recordPayment: state.uri.queryParameters['pay'] == '1'), routes: [
+                  // Change the plan (Win Plan PP6).
+                  GoRoute(path: 'plan', builder: (_, state) => ChangePlanScreen(id: state.pathParameters['id']!)),
+                ]),
               ],
             ),
           ]),

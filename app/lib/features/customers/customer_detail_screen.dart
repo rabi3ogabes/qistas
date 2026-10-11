@@ -15,7 +15,9 @@ import '../../core/ui/errors.dart';
 import '../../data/models.dart';
 import '../common/add_flows.dart';
 import '../contracts/contracts_screen.dart';
+import '../contracts/plan_access.dart';
 import '../documents/document_options_sheet.dart';
+import '../payments/customer_payment_sheet.dart';
 import '../reminders/reminders.dart';
 import 'customers_screen.dart';
 import 'tags.dart';
@@ -223,6 +225,19 @@ class _Body extends ConsumerWidget {
               else
                 for (final contract in current)
                   Padding(padding: const EdgeInsets.only(bottom: 10), child: ContractRow(contract: contract, currency: currency, language: language)),
+              // One payment across their contracts (Win Plan PP6), once two or more are running.
+              if (canTargetPayments(account) && (account?.canWrite ?? false) && current.where((k) => k.isRunning && !k.isOpen).length > 1) ...[
+                const SizedBox(height: 4),
+                QButton(
+                  label: context.t('Take a payment across contracts'),
+                  kind: QButtonKind.quiet,
+                  icon: Icons.account_balance_wallet_outlined,
+                  onPressed: () async {
+                    if (await showCustomerPaymentSheet(context, customer, currency: currency)) ref.invalidate(customerProvider(customer.id));
+                  },
+                ),
+                const SizedBox(height: 8),
+              ],
               if (archived.isNotEmpty)
                 Theme(
                   data: Theme.of(context).copyWith(dividerColor: Colors.transparent),

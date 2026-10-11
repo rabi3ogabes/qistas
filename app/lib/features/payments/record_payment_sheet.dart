@@ -13,6 +13,7 @@ import '../../data/models.dart';
 import '../../data/qistas_api.dart';
 import '../../domain/payment_coverage.dart';
 import '../billing/upgrade_sheet.dart';
+import '../contracts/plan_access.dart';
 
 /// How a customer paid, in words.
 String methodLabel(BuildContext context, String method) => switch (method) {
@@ -58,6 +59,9 @@ class _RecordPaymentSheetState extends ConsumerState<RecordPaymentSheet> {
   final _note = TextEditingController();
   String _method = 'cash';
   DateTime _day = DateTime.now();
+
+  /// The instalment to fill first (Win Plan PP6); null pays the oldest first.
+  String? _applyTo;
   bool _saving = false;
   String? _amountError;
   String? _problem;
@@ -81,7 +85,7 @@ class _RecordPaymentSheetState extends ConsumerState<RecordPaymentSheet> {
     super.dispose();
   }
 
-  String _fingerprint(Money amount) => '${amount.toDecimalString()}|$_method|${isoDay(_day)}|${_note.text.trim()}';
+  String _fingerprint(Money amount) => '${amount.toDecimalString()}|$_method|${isoDay(_day)}|${_note.text.trim()}|${_applyTo ?? ''}';
 
   Future<void> _pickDay() async {
     final now = DateTime.now();
@@ -135,6 +139,7 @@ class _RecordPaymentSheetState extends ConsumerState<RecordPaymentSheet> {
             idempotencyKey: _key,
             note: _note.text,
             paidOn: _day,
+            applyTo: _applyTo,
           );
       if (mounted) Navigator.of(context).pop(payment);
     } on UpgradeRequired catch (e) {
@@ -150,6 +155,9 @@ class _RecordPaymentSheetState extends ConsumerState<RecordPaymentSheet> {
       });
     }
   }
+
+  /// The instalments still owing, in date order: the ones a payment can be pointed at.
+  List<Installment> get _open => widget.contract.installments.where((i) => i.remaining.isPositive).toList()..sort((a, b) => a.dueDate.compareTo(b.dueDate));
 
   @override
   Widget build(BuildContext context) {
@@ -200,7 +208,23 @@ class _RecordPaymentSheetState extends ConsumerState<RecordPaymentSheet> {
                     : null,
                 onChanged: (_) => setState(() {}),
               ),
-              _CoveragePreview(contract: widget.contract, amount: Money.parseTyped(_amount.text), currency: widget.currency),
+              if (canTargetPayments(ref.watch(accountProvider)) && _open.length > 1) ...[
+                const SizedBox(height: 14),
+                Text(context.t('Pay towards'), style: text.labelLarge),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<String?>(
+                  key: const ValueKey('apply-to'),
+                  initialValue: _applyTo,
+                  isExpanded: true,
+                  items: [
+                    DropdownMenuItem<String?>(child: Text(context.t('The oldest instalment first'))),
+                    for (final installment in _open)
+                      DropdownMenuItem<String?>(value: installment.id, child: Text('${formatDay(installment.dueDate, language)}, ${installment.remaining.format(widget.currency)}')),
+                  ],
+                  onChanged: _saving ? null : (value) => setState(() => _applyTo = value),
+                ),
+              ],
+              _CoveragePreview(contract: widget.contract, amount: Money.parseTyped(_amount.text), currency: widget.currency, first: _applyTo),
               const SizedBox(height: 16),
               Text(context.t('Paid by'), style: text.labelLarge),
               const SizedBox(height: 8),
@@ -240,16 +264,17 @@ class _RecordPaymentSheetState extends ConsumerState<RecordPaymentSheet> {
 
 /// What the amount typed will cover, worked out as the server will (Win Plan PP16): "#2 in full", "#3: 25.00 of 275.00".
 class _CoveragePreview extends StatelessWidget {
-  const _CoveragePreview({required this.contract, required this.amount, required this.currency});
+  const _CoveragePreview({required this.contract, required this.amount, required this.currency, this.first});
 
   final Contract contract;
   final Money? amount;
   final String currency;
+  final String? first;
 
   @override
   Widget build(BuildContext context) {
     final amount = this.amount;
-    final coverage = amount == null || contract.installments.isEmpty ? null : paymentCoverage(contract.installments, amount);
+    final coverage = amount == null || contract.installments.isEmpty ? null : paymentCoverage(contract.installments, amount, first: first);
     if (coverage == null) return const SizedBox.shrink();
     final c = context.qc;
     final text = Theme.of(context).textTheme;

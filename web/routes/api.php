@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\BackupController;
 use App\Http\Controllers\Api\V1\BusinessProfileController;
 use App\Http\Controllers\Api\V1\ContractController;
 use App\Http\Controllers\Api\V1\CustomerController;
+use App\Http\Controllers\Api\V1\CustomerPaymentController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\DemoController;
 use App\Http\Controllers\Api\V1\DeviceController;
@@ -120,6 +121,13 @@ Route::name('api.')->group(function (): void {
         Route::get('reminders/due-today', [ReminderController::class, 'dueToday'])->name('reminders.due-today');
         Route::get('message-templates', [ReminderController::class, 'templates'])->name('message-templates.index');
         Route::put('message-templates/{key}', [ReminderController::class, 'updateTemplate'])->name('message-templates.update');
+
+        // Settle early, change the plan, pay across contracts (Win Plan PP6).
+        Route::get('contracts/{contract}/early-settlement', [ContractController::class, 'earlySettlement'])->whereUuid('contract')->name('contracts.early-settlement.show');
+        Route::post('contracts/{contract}/early-settlement', [ContractController::class, 'settleEarly'])->whereUuid('contract')->middleware('throttle:api-money')->name('contracts.early-settlement.store');
+        Route::post('contracts/{contract}/amendments/preview', [ContractController::class, 'previewAmendment'])->whereUuid('contract')->name('contracts.amendments.preview');
+        Route::post('contracts/{contract}/amendments', [ContractController::class, 'amend'])->whereUuid('contract')->name('contracts.amendments.store');
+        Route::post('customers/{customer}/payments', CustomerPaymentController::class)->whereUuid('customer')->middleware('throttle:api-money')->name('customers.payments.store');
 
         Route::post('contracts/preview', SchedulePreviewController::class)->name('contracts.preview');
         Route::apiResource('contracts', ContractController::class)->only(['index', 'store', 'show']);

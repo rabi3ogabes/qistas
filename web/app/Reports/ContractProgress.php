@@ -27,7 +27,7 @@ final class ContractProgress
 
         $owed = Installment::query()
             ->whereIn('contract_id', $contractIds)
-            ->where('status', '!=', 'superseded')
+            ->whereNotIn('status', Installment::SET_ASIDE)
             ->selectRaw('contract_id, SUM(amount - paid_amount) as owed')
             ->groupBy('contract_id')
             ->toBase()->pluck('owed', 'contract_id');

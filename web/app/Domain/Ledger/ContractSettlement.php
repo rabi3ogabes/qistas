@@ -20,7 +20,8 @@ final class ContractSettlement
             return;
         }
 
-        $allPaid = ! Installment::where('contract_id', $contract->id)->where('status', '!=', 'paid')->exists();
+        // Settled when nothing is left owing: every instalment paid, or set aside by a plan change or an early settlement.
+        $allPaid = ! Installment::where('contract_id', $contract->id)->whereNotIn('status', Installment::CLOSED)->exists();
 
         if ($allPaid && $contract->status === 'active') {
             $contract->forceFill(['status' => 'settled', 'settled_at' => $at])->save();

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../core/money.dart';
+import 'plan_changes.dart';
 
 // Plain immutable models of what the API returns. No code generation: each reads its own JSON. Amounts are read
 // from the API's two-decimal strings into [Money]; nothing here ever touches a double for money.
@@ -380,6 +381,9 @@ class Contract {
     this.discountType = 'none',
     this.items = const [],
     this.archived = false,
+    this.paidAheadUntil,
+    this.earlySettlementRebate,
+    this.amendments = const [],
   });
 
   factory Contract.fromJson(Map<String, dynamic> json) {
@@ -417,6 +421,9 @@ class Contract {
       discountType: (json['discount_type'] ?? 'none').toString(),
       items: _list(json['items']).map(ContractItem.fromJson).toList(),
       archived: json['archived'] == true,
+      paidAheadUntil: _text(json['paid_ahead_until']),
+      earlySettlementRebate: _moneyOrNull(json['early_settlement_rebate']),
+      amendments: _list(json['amendments']).map(ContractAmendment.fromJson).toList(),
       notes: _text(json['notes']),
       customerId: _text(customer['id']),
       customerName: _text(customer['name']),
@@ -482,6 +489,15 @@ class Contract {
 
   /// Put away by the shop once finished (Win Plan PP12): out of the lists, still in every report.
   final bool archived;
+
+  /// The due date the instalments are paid up to, while it is still ahead (Win Plan PP6).
+  final String? paidAheadUntil;
+
+  /// The discount it was settled early with (Win Plan PP6); zero when that settlement was voided.
+  final Money? earlySettlementRebate;
+
+  /// Every change to the plan, oldest first (Win Plan PP6).
+  final List<ContractAmendment> amendments;
 
   /// What the customer pays for it less what it cost: null until the cost is known.
   Money? get margin => costPrice == null ? null : principal - (discountAmount ?? Money.zero) + markupAmount - costPrice!;

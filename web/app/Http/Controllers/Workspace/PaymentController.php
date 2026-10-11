@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Workspace;
 use App\Actions\RecordPayment;
 use App\Actions\VoidTransaction;
 use App\Domain\Ledger\LedgerLines;
+use App\Entitlements\Entitlements;
+use App\Entitlements\Feature;
 use App\Http\Requests\PaymentRequest;
 use App\Http\Requests\VoidPaymentRequest;
 use App\Models\Contract;
@@ -38,10 +40,14 @@ final class PaymentController
     public function store(PaymentRequest $request, Contract $contract, RecordPayment $record): RedirectResponse
     {
         $data = $request->validated();
+        // Choosing the instalment is its own feature (Win Plan PP6); a plain payment never needs it.
+        if (($data['apply_to'] ?? null) !== null) {
+            Entitlements::for($contract->tenant)->assertEnabled(Feature::PaymentTargeting);
+        }
 
         $payment = $record->handle(
             $contract, $data['amount'], $data['method'], $data['idempotency_key'] ?? null,
-            $request->user(), $data['note'] ?? null, $request->paidAt(), $data['tag'] ?? null,
+            $request->user(), $data['note'] ?? null, $request->paidAt(), $data['tag'] ?? null, $data['apply_to'] ?? null,
         );
 
         return redirect()->route('app.contracts.show', $contract)

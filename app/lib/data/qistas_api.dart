@@ -9,6 +9,7 @@ import 'documents.dart';
 import 'investors.dart';
 import 'models.dart';
 import 'notifications.dart';
+import 'plan_changes.dart';
 
 /// A fresh key for one attempt at one payment. Showing the same key again for the same attempt (a double tap, a
 /// retry after a dropped connection) makes the server record one payment, not two.
@@ -379,6 +380,47 @@ class QistasApi {
   Future<Contract> archiveContract(String id, {bool archived = true}) async =>
       Contract.fromJson(_data(await _client.post('/contracts/$id/${archived ? 'archive' : 'unarchive'}')));
 
+  // ---------------------------------------------------------------- settle early, change the plan (Win Plan PP6)
+
+  /// What settling early costs today: [rebateType] none, percent (of the profit not yet earned) or fixed.
+  Future<EarlySettlementQuote> earlySettlementQuote(String contractId, {String rebateType = 'none', String rebateValue = '0'}) async =>
+      EarlySettlementQuote.fromJson(_data(await _client.get('/contracts/$contractId/early-settlement', query: {
+        if (rebateType != 'none') 'rebate_type': rebateType,
+        if (rebateType != 'none') 'rebate_value': rebateValue,
+      })));
+
+  /// Settles at [payoff], the figure the person was shown. A figure that went stale answers ApiException quote_changed.
+  Future<Contract> settleEarly(
+    String contractId, {
+    required String rebateType,
+    required String rebateValue,
+    required Money payoff,
+    required String method,
+    required String idempotencyKey,
+    String? note,
+  }) async =>
+      Contract.fromJson(_data(await _client.post('/contracts/$contractId/early-settlement', headers: {'Idempotency-Key': idempotencyKey}, body: {
+        if (rebateType != 'none') 'rebate_type': rebateType,
+        if (rebateType != 'none') 'rebate_value': rebateValue,
+        'payoff': payoff.toDecimalString(),
+        'method': method,
+        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+      })));
+
+  Future<PlanPreview> previewPlanChange(String contractId, PlanChange change) async =>
+      PlanPreview.fromJson(_data(await _client.post('/contracts/$contractId/amendments/preview', body: change.toJson())));
+
+  Future<void> changePlan(String contractId, PlanChange change, {required String reason}) async =>
+      _client.post('/contracts/$contractId/amendments', body: {...change.toJson(), 'reason': reason.trim()});
+
+  /// One payment across a customer's contracts, the oldest instalment due first.
+  Future<void> payAcrossContracts(String customerId, {required Money amount, required String method, required String idempotencyKey, String? note}) async =>
+      _client.post('/customers/$customerId/payments', headers: {'Idempotency-Key': idempotencyKey}, body: {
+        'amount': amount.toDecimalString(),
+        'method': method,
+        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+      });
+
   // ----------------------------------------------------------------- payments
 
   Future<Paged<LedgerLine>> payments({String? contractId, int page = 1}) async => Paged.fromJson(
@@ -395,6 +437,7 @@ class QistasApi {
     String? note,
     DateTime? paidOn,
     String? tag,
+    String? applyTo,
   }) async {
     final json = await _client.post(
       '/contracts/$contractId/payments',
@@ -404,6 +447,7 @@ class QistasApi {
         'method': method,
         if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
         'tag': ?tag,
+        'apply_to': ?applyTo,
         if (paidOn != null) 'paid_at': '${paidOn.year.toString().padLeft(4, '0')}-${paidOn.month.toString().padLeft(2, '0')}-${paidOn.day.toString().padLeft(2, '0')}',
       },
     );

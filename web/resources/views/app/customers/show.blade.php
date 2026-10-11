@@ -17,6 +17,9 @@
             </form>
             <a class="btn btn-quiet" href="{{ route('app.customers.edit', $customer) }}"><x-icon name="pencil" :size="18" /> {{ __('Edit') }}</a>
         @endcan
+        @if ($canPayAcross ?? false)
+            <a class="btn btn-quiet" href="{{ route('app.customers.payment.show', $customer) }}"><x-icon name="wallet" :size="18" /> {{ __('Take a payment across contracts') }}</a>
+        @endif
         @can('create', \App\Models\Contract::class)
             <a class="btn" href="{{ url('/app/contracts/create') }}?customer={{ $customer->id }}"><x-icon name="plus" :size="18" /> {{ __('Open a contract') }}</a>
         @endcan

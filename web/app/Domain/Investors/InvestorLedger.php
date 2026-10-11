@@ -3,6 +3,7 @@
 namespace App\Domain\Investors;
 
 use App\Models\Contract;
+use App\Models\ContractAdjustment;
 use App\Models\ContractConversion;
 use App\Models\Investor;
 use App\Models\InvestorEntry;
@@ -19,6 +20,8 @@ use Illuminate\Database\Eloquent\Builder;
  *                          profit so far = round(paid so far x markup / total), so a contract paid in full has credited
  *                          exactly its markup, to the cent, however the payments were split
  *                          (a partner then passes its commission % of that profit to the main investor)
+ *   a contract is settled early (Win Plan PP6) -> the settling payment brings back every cent of principal not yet
+ *                          back, and only the rest is profit: the rebate comes out of profit, never out of the money lent
  *   a payment is voided -> the very same entries, negated
  *   an open contract's customer takes goods -> funding_out = - the charge (voiding it gives that back); the opening
  *                          line of a contract that became open funds nothing: that money was already out
@@ -61,6 +64,11 @@ final class InvestorLedger
             $profitAfter = Money::add($contract->markup_amount, '0', 2);
         }
         $profit = $this->clamp(Money::sub($profitAfter, $profitBefore, 2), $amount);
+        if ($this->settlesEarly($payment)) {
+            $principalBefore = $this->sum($this->contractEntries($contract)->where('type', 'principal_back'));
+            $principalLeft = Money::sub(Money::add($contract->financed, '0', 2), $principalBefore, 2);
+            $profit = $this->clamp(Money::sub($amount, Money::isNegative($principalLeft) ? '0' : $principalLeft, 2), $amount);
+        }
         $principal = Money::sub($amount, $profit, 2);
         $on = $payment->paid_at;
 
@@ -153,6 +161,12 @@ final class InvestorLedger
         }
 
         return $contract;
+    }
+
+    /** The payment that settled a contract early carries its rebate (Win Plan PP6). */
+    private function settlesEarly(Transaction $payment): bool
+    {
+        return ContractAdjustment::query()->where('transaction_id', $payment->id)->where('type', 'early_rebate')->whereNull('reverses_adjustment_id')->exists();
     }
 
     /** @return Builder<InvestorEntry> */

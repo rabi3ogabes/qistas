@@ -103,7 +103,7 @@ final class DashboardMetrics
         $row = Installment::query()
             ->join('contracts', 'contracts.id', '=', 'installments.contract_id')
             ->where('contracts.status', '!=', 'cancelled')
-            ->where('installments.status', '!=', 'superseded')
+            ->whereNotIn('installments.status', Installment::SET_ASIDE)
             ->whereDate('installments.due_date', '>=', $now->copy()->startOfMonth()->toDateString())
             ->whereDate('installments.due_date', '<=', $now->copy()->endOfMonth()->toDateString())
             ->selectRaw('COALESCE(SUM(installments.amount), 0) as due, COALESCE(SUM(installments.paid_amount), 0) as paid')
@@ -188,7 +188,7 @@ final class DashboardMetrics
             Installment::query()
                 ->join('contracts', 'contracts.id', '=', 'installments.contract_id')
                 ->where('contracts.status', '!=', 'cancelled')
-                ->where('installments.status', '!=', 'superseded')
+                ->whereNotIn('installments.status', Installment::SET_ASIDE)
                 ->whereDate('installments.due_date', '>=', $now->copy()->startOfMonth()->toDateString())
                 ->whereDate('installments.due_date', '<=', $now->copy()->endOfMonth()->toDateString())
                 ->sum('installments.amount'),
@@ -285,7 +285,7 @@ final class DashboardMetrics
         return Installment::query()
             ->join('contracts', 'contracts.id', '=', 'installments.contract_id')
             ->where('contracts.status', '!=', 'cancelled')
-            ->where('installments.status', '!=', 'superseded');
+            ->whereNotIn('installments.status', Installment::SET_ASIDE);
     }
 
     /** @param  Builder<Installment>  $query */

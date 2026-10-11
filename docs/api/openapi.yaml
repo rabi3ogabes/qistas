@@ -1806,6 +1806,163 @@ paths:
           content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/NotificationPreferences"}}}}}
         "401": {$ref: "#/components/responses/Unauthenticated"}
         "422": {$ref: "#/components/responses/ValidationFailed"}
+  /contracts/{contract}/early-settlement:
+    parameters:
+      - {name: contract, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [Contracts]
+      summary: What settling early costs today
+      description: Needs the `early_settlement` feature. Profit counts as money comes in (paid x markup / total); the rebate is a percent of the profit not yet earned, or an amount, never more than that profit, rounded half up. Nothing is written.
+      parameters:
+        - {name: rebate_type, in: query, schema: {type: string, enum: [none, percent, fixed], default: none}}
+        - {name: rebate_value, in: query, schema: {type: string, example: "50"}}
+      responses:
+        "200":
+          description: The quote.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/EarlySettlementQuote"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/FeatureUnavailable"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+    post:
+      tags: [Contracts]
+      summary: Settle early at the payoff shown
+      description: |
+        Owners and managers. Takes the payoff (one payment tagged early_discount, applied oldest first), waives what the
+        rebate covers, writes one adjustment and settles the contract. If money came in since the quote, the payoff has
+        changed: 409 `quote_changed` with the new quote, and nothing is written. Safe to retry with an `Idempotency-Key`.
+        Voiding the payment brings the contract, the waived instalments and the rebate back.
+      parameters:
+        - {$ref: "#/components/parameters/IdempotencyKey"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [payoff, method]
+              properties:
+                rebate_type: {type: string, enum: [none, percent, fixed]}
+                rebate_value: {type: string}
+                payoff: {$ref: "#/components/schemas/Money"}
+                method: {type: string, enum: [cash, bank_transfer, card, cheque, other]}
+                paid_at: {type: string}
+                note: {type: string, maxLength: 500}
+      responses:
+        "201":
+          description: The settled contract.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/Contract"}}}}}
+        "200": {description: "A retry: the contract as the first attempt left it."}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409":
+          description: The payoff has changed since it was shown.
+          content: {application/json: {schema: {type: object, properties: {error: {$ref: "#/components/schemas/Error"}, data: {$ref: "#/components/schemas/EarlySettlementQuote"}}}}}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+  /contracts/{contract}/amendments/preview:
+    parameters:
+      - {name: contract, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      tags: [Contracts]
+      summary: What a change to the plan would do, writing nothing
+      description: Needs the `reschedule` feature; anyone who writes. Only instalments nobody has paid towards change.
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/AmendmentInput"}}}
+      responses:
+        "200":
+          description: The old and the new schedule.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      old_schedule: {type: array, items: {$ref: "#/components/schemas/ScheduleRow"}}
+                      new_schedule: {type: array, items: {$ref: "#/components/schemas/ScheduleRow"}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/FeatureUnavailable"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+  /contracts/{contract}/amendments:
+    parameters:
+      - {name: contract, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      tags: [Contracts]
+      summary: Change the plan, with the reason
+      description: Owners and managers. The untouched instalments are superseded (kept as history) and new ones written after the last number; paid ones never move, and the agreed total never changes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - {$ref: "#/components/schemas/AmendmentInput"}
+                - {type: object, required: [reason], properties: {reason: {type: string, maxLength: 500}}}
+      responses:
+        "201":
+          description: The change and the contract after it.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      amendment: {$ref: "#/components/schemas/ContractAmendment"}
+                      contract: {$ref: "#/components/schemas/Contract"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+  /customers/{customer}/payments:
+    parameters:
+      - {name: customer, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      tags: [Payments]
+      summary: One payment across a customer's contracts
+      description: Needs the `payment_targeting` feature. The oldest instalment due first across the customer's running contracts with a schedule, or a split chosen by hand. One ledger line on each contract, tied together as a batch. All or nothing; safe to retry with an `Idempotency-Key`.
+      parameters:
+        - {$ref: "#/components/parameters/IdempotencyKey"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, method]
+              properties:
+                amount: {$ref: "#/components/schemas/Money"}
+                method: {type: string, enum: [cash, bank_transfer, card, cheque, other]}
+                paid_at: {type: string}
+                note: {type: string, maxLength: 1000}
+                split:
+                  type: array
+                  items: {type: object, required: [contract_id, amount], properties: {contract_id: {type: string, format: uuid}, amount: {$ref: "#/components/schemas/Money"}}}
+      responses:
+        "201":
+          description: The batch and its payments.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id: {type: string, format: uuid}
+                      amount: {type: string}
+                      method: {type: string}
+                      payments: {type: array, items: {$ref: "#/components/schemas/Transaction"}}
+        "200": {description: "A retry: the batch already recorded."}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/FeatureUnavailable"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
 components:
   securitySchemes:
     bearer:
@@ -2038,6 +2195,44 @@ components:
         instalment_due: {type: object, properties: {enabled: {type: boolean, default: false}}}
         instalment_late: {type: object, properties: {enabled: {type: boolean, default: true}, repeat: {type: string, enum: [daily, weekly, monthly], default: weekly}}}
         quiet_hours: {type: object, properties: {enabled: {type: boolean, default: false}, from: {type: string, default: "22:00"}, to: {type: string, default: "08:00"}}}
+    EarlySettlementQuote:
+      type: object
+      properties:
+        remaining: {type: string, example: "825.00"}
+        earned_profit: {type: string, example: "25.00"}
+        unearned_profit: {type: string, example: "75.00"}
+        rebate: {type: string, example: "37.50"}
+        payoff: {type: string, example: "787.50"}
+        capped: {type: boolean, description: The rebate asked for was more than the profit not yet earned.}
+        rebate_type: {type: string, enum: [none, percent, fixed]}
+        rebate_value: {type: string}
+    AmendmentInput:
+      type: object
+      required: [type]
+      properties:
+        type: {type: string, enum: [reschedule, skip, move]}
+        count: {type: integer, minimum: 1, maximum: 600, description: "reschedule: what is left over this many instalments."}
+        amount: {type: string, description: "reschedule: what is left at this amount each, the remainder last."}
+        first_due_date: {type: string, format: date, description: "reschedule: the first new instalment."}
+        frequency: {type: string, description: "reschedule: defaults to the contract's."}
+        installment_id: {type: string, format: uuid, description: "skip and move: an instalment nobody has paid towards."}
+        due_date: {type: string, format: date, description: "move: its new date."}
+    ScheduleRow:
+      type: object
+      properties:
+        number: {type: integer}
+        due_date: {type: string, format: date}
+        amount: {type: string}
+    ContractAmendment:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        type: {type: string, enum: [reschedule, skip, move]}
+        reason: {type: string}
+        old_schedule: {type: array, items: {$ref: "#/components/schemas/ScheduleRow"}}
+        new_schedule: {type: array, items: {$ref: "#/components/schemas/ScheduleRow"}}
+        approved_by: {type: [object, "null"], properties: {id: {type: string}, name: {type: string}}}
+        created_at: {type: string, format: date-time}
     Tag:
       type: object
       properties:
@@ -2474,6 +2669,12 @@ components:
         cancelled_at: {type: [string, "null"], format: date-time}
         archived: {type: boolean, description: A finished contract put away; hidden from the lists until status=archived.}
         archived_at: {type: [string, "null"], format: date-time}
+        paid_ahead_until: {type: [string, "null"], format: date, description: "Single contract only: the due date the instalments are paid up to, when it is still ahead of today."}
+        early_settlement_rebate: {type: [string, "null"], description: "Single contract only: the discount it was settled early with (0.00 if that was voided)."}
+        amendments:
+          type: array
+          description: Single contract only. Every change to the plan, oldest first.
+          items: {$ref: "#/components/schemas/ContractAmendment"}
         customer:
           type: object
           properties:
@@ -2506,8 +2707,8 @@ components:
         amount: {$ref: "#/components/schemas/Money"}
         paid_amount: {$ref: "#/components/schemas/Money"}
         remaining: {$ref: "#/components/schemas/Money"}
-        status: {type: string, enum: [pending, partial, paid]}
-        state: {type: string, enum: [paid, overdue, partial, upcoming], description: "What a person should see."}
+        status: {type: string, enum: [pending, partial, paid, superseded, waived]}
+        state: {type: string, enum: [paid, overdue, partial, upcoming, superseded, waived], description: "What a person should see. Superseded: set aside by a plan change or a conversion to open. Waived: what an early-settlement rebate took off."}
         paid_at: {type: [string, "null"], format: date-time}
     PaymentInput:
       type: object
@@ -2519,6 +2720,7 @@ components:
         note: {type: string, maxLength: 1000}
         tag: {type: string, enum: [advance, refund, early_discount, unpaid]}
         idempotency_key: {type: string, description: "The Idempotency-Key header may be used instead."}
+        apply_to: {type: string, format: uuid, description: "An instalment of this contract to fill first; the rest goes to the oldest. Needs the payment_targeting feature."}
     ChargeResult:
       type: object
       properties:

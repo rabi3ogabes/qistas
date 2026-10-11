@@ -40,13 +40,33 @@ class Installment extends Model
         return $this->belongsTo(Contract::class);
     }
 
-    /** No longer owed: paid, or superseded when its contract became open (Win Plan PP4) and kept only as history. */
-    public const CLOSED = ['paid', 'superseded'];
+    /**
+     * No longer owed: paid; superseded when its contract became open (Win Plan PP4) or its plan changed (PP6) and kept
+     * only as history; or waived, what an early-settlement rebate took off (PP6).
+     */
+    public const CLOSED = ['paid', 'superseded', 'waived'];
 
-    /** What is still owed on this instalment; nothing once it was superseded (the open contract carries it now). */
+    /** Set aside: whatever they still show unpaid is owed by nobody (another row or the rebate carries it). */
+    public const SET_ASIDE = ['superseded', 'waived'];
+
+    /** What is still owed on this instalment; nothing once it was set aside. */
     public function remaining(): string
     {
-        return $this->status === 'superseded' ? '0' : Money::sub($this->amount, $this->paid_amount);
+        return in_array($this->status, self::SET_ASIDE, true) ? '0' : Money::sub($this->amount, $this->paid_amount);
+    }
+
+    /**
+     * Brings the status back in line with what is paid (after the rebate that waived it was voided). The only other way
+     * an instalment changes after the contract is opened.
+     */
+    public function reopen(): void
+    {
+        $status = match (true) {
+            Money::cmp($this->paid_amount, $this->amount) >= 0 => 'paid',
+            Money::isZero($this->paid_amount) => 'pending',
+            default => 'partial',
+        };
+        $this->forceFill(['status' => $status])->save();
     }
 
     /**
@@ -80,12 +100,13 @@ class Installment extends Model
         return ! in_array($this->status, self::CLOSED, true) && ($this->grace_until ?? $this->due_date)->lt($today->copy()->startOfDay());
     }
 
-    /** What a person sees: paid, superseded, overdue (past its date), partial (part-paid, not yet due) or upcoming. */
+    /** What a person sees: paid, superseded, waived, overdue (past its date), partial (part-paid, not yet due) or upcoming. */
     public function displayState(?CarbonInterface $today = null): string
     {
         return match (true) {
             $this->status === 'paid' => 'paid',
             $this->status === 'superseded' => 'superseded',
+            $this->status === 'waived' => 'waived',
             $this->isOverdue($today) => 'overdue',
             $this->status === 'partial' => 'partial',
             default => 'upcoming',
