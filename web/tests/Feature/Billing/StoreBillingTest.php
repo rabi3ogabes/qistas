@@ -286,6 +286,17 @@ describe('Google’s notifications', function () {
             ->and(StoreEvent::query()->sole()->outcome)->toBe('refunded');
     });
 
+    it('ends Pro at once on Google’s refund notice, even while the purchase still reads as running', function () {
+        [$store, $tenant] = onPlay();
+        // Just after a refund Google can still describe the subscription as cancelled with time left.
+        $store->record('play-token-1', playPurchase($tenant, ['state' => 'canceled', 'autoRenew' => false, 'acknowledged' => true]));
+
+        playNotification(subscriptionChanged(12))->assertNoContent();
+
+        expect(subscriptionOf($tenant)->status)->toBe('canceled')->and($tenant->fresh()->currentPlan()->key)->toBe('free')
+            ->and(StoreEvent::query()->sole()->outcome)->toBe('refunded');
+    });
+
     it('ends Pro at once when Google voids the purchase', function () {
         [, $tenant] = onPlay();
 

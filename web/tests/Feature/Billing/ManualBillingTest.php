@@ -76,7 +76,8 @@ describe('the owner reports a transfer', function () {
         [$owner, $tenant] = transferOwner();
 
         reportTransfer($owner)->assertRedirect();
-        reportTransfer($owner)->assertRedirect();
+        // The same key again is the same request: thanked, not refused.
+        reportTransfer($owner)->assertRedirect()->assertSessionHasNoErrors();
         expect(ManualPaymentRequest::withoutGlobalScopes()->where('tenant_id', $tenant->id)->count())->toBe(1);
 
         reportTransfer($owner, ['idempotency_key' => 'web-transfer-2'])->assertSessionHasErrors('request');
@@ -86,8 +87,12 @@ describe('the owner reports a transfer', function () {
     it('takes a picture or a PDF as the receipt, and only a plan with a price', function () {
         [$owner, $tenant] = transferOwner();
 
-        reportTransfer($owner, ['receipt' => UploadedFile::fake()->createWithContent('receipt.jpg', 'just some text')])->assertSessionHasErrors('receipt');
+        reportTransfer($owner, ['receipt' => UploadedFile::fake()->createWithContent('receipt.jpg', 'just some text')])
+            ->assertSessionHasErrors(['receipt' => 'Send the receipt as a picture (JPG or PNG) or a PDF.']);
         reportTransfer($owner, ['plan' => 'free'])->assertSessionHasErrors('plan');
+        // A paid plan the admin has not priced yet cannot be paid for.
+        Plan::query()->forceCreate(['name' => 'Studio', 'key' => 'studio', 'is_default' => false, 'is_public' => true, 'sort_order' => 30]);
+        reportTransfer($owner, ['plan' => 'studio'])->assertSessionHasErrors('plan');
         reportTransfer($owner, ['period' => 'week'])->assertSessionHasErrors('period');
 
         expect(ManualPaymentRequest::withoutGlobalScopes()->count())->toBe(0);
