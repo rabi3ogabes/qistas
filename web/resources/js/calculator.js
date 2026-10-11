@@ -1,6 +1,7 @@
-// The home-page instalment calculator. It asks the server (POST /schedule-preview) for the schedule, so the
-// numbers come from the same engine that writes real contracts, never from a second copy of the maths in
-// JavaScript. Money is only *formatted* here; every amount stays an exact decimal string until display.
+// The instalment calculator (home page and /installment-calculator). It asks the server (POST /schedule-preview) for
+// the schedule, so the numbers come from the same engine that writes real contracts, never from a second copy of the
+// maths in JavaScript. Money is only *formatted* here; every amount stays an exact decimal string until display. On the
+// calculator page the address follows the plan, so it can be shared (Win Plan PP15).
 
 export function planCalculator() {
     return {
@@ -23,6 +24,8 @@ export function planCalculator() {
         messages: {},
         timer: null,
         controller: null,
+        shareBase: null,
+        copied: false,
 
         init() {
             const config = JSON.parse(this.$el.dataset.config);
@@ -32,6 +35,13 @@ export function planCalculator() {
             this.currency = config.currency;
             this.messages = config.messages;
             this.schedule = config.initial;
+            this.shareBase = config.share;
+            if (config.plan) {
+                this.price = config.plan.price;
+                this.down = config.plan.down;
+                this.markup = config.plan.markup;
+                this.count = config.plan.count;
+            }
         },
 
         // Debounced: typing "1500" asks once, not four times.
@@ -39,7 +49,33 @@ export function planCalculator() {
             clearTimeout(this.timer);
             this.loading = true;
             this.timer = setTimeout(() => this.run(), 220);
+            this.moved();
         },
+
+        // Keeps the address in step with the plan, without adding a history entry per keystroke.
+        moved() {
+            this.copied = false;
+            if (this.shareBase && window.history.replaceState) window.history.replaceState(null, '', this.shareUrl);
+        },
+
+        async copy() {
+            try {
+                await navigator.clipboard.writeText(this.shareUrl);
+                this.copied = true;
+            } catch (e) {
+                window.prompt('', this.shareUrl);
+            }
+        },
+
+        get shareUrl() {
+            const query = new URLSearchParams({ price: this.price, down: this.down || '0', markup: this.markup || '0', count: this.count, currency: this.currency });
+            const lang = document.documentElement.lang;
+            if (lang) query.set('lang', lang);
+
+            return this.shareBase + '?' + query.toString();
+        },
+
+        get shareLabel() { return this.copied ? this.messages.copied : this.messages.share; },
 
         async run() {
             if (this.controller) this.controller.abort();
@@ -98,6 +134,7 @@ export function planCalculator() {
         get times() { return this.hasResult ? String(this.schedule.installments.length) : ''; },
         get total() { return this.hasResult ? this.money(this.schedule.total) : ''; },
         get markupAmount() { return this.hasResult ? this.money(this.schedule.markup) : ''; },
+        get lastDate() { return this.hasResult ? this.shortDate(this.schedule.installments[this.schedule.installments.length - 1].due_date) : ''; },
         get financed() { return this.hasResult ? this.money(this.schedule.financed) : ''; },
         get rows() {
             if (!this.hasResult) return [];

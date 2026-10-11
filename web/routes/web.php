@@ -5,6 +5,7 @@ use App\Http\Controllers\DemoLoginController;
 use App\Http\Controllers\DocumentVerificationController;
 use App\Http\Controllers\ExportFileController;
 use App\Http\Controllers\InvitationController;
+use App\Http\Controllers\ManifestController;
 use App\Http\Controllers\RobotsController;
 use App\Http\Controllers\SchedulePreviewController;
 use App\Http\Controllers\SecurityController;
@@ -16,6 +17,8 @@ use Illuminate\Support\Facades\Route;
 // The public website.
 Route::get('/', [SiteController::class, 'home'])->name('home');
 Route::get('/pricing', [SiteController::class, 'pricing'])->name('pricing');
+// The instalment calculator for search (Win Plan PP15): the plan is in the address, so a link can be shared.
+Route::get('/installment-calculator', [SiteController::class, 'calculator'])->name('calculator');
 Route::get('/terms', [SiteController::class, 'terms'])->name('terms');
 Route::get('/privacy', [SiteController::class, 'privacy'])->name('privacy');
 // An invitation link into a business: anyone may open it; joining needs a login, which can be made right there.
@@ -29,6 +32,8 @@ Route::post('/invite/{token}/register', [InvitationController::class, 'register'
 Route::get('/account/delete', [SiteController::class, 'accountDeletion'])->name('account.delete.info');
 Route::get('/sitemap.xml', SitemapController::class)->name('sitemap');
 Route::get('/robots.txt', RobotsController::class)->name('robots');
+// The web app, installable from the browser (Win Plan PL04).
+Route::get('/manifest.webmanifest', ManifestController::class)->name('manifest');
 
 // The colours chosen in the admin, as CSS variables (linked by every page of the website and the web app).
 Route::get('/theme.css', ThemeCssController::class)->name('theme.css');

@@ -145,7 +145,7 @@
                 </details>
                 <details>
                     <summary>{{ __('How do I pay for Pro?') }} <x-icon name="chevronDown" :size="20" /></summary>
-                    <div class="faq-answer"><p>{{ __('By card, monthly or yearly. Cancel at any time and you keep Pro until the end of the period you paid for.') }}</p></div>
+                    <div class="faq-answer"><p>{{ __('Monthly or yearly: in the Android app through Google Play, or by bank transfer from your account on the website. You keep Pro until the end of the period you paid for.') }}</p></div>
                 </details>
                 <details>
                     <summary>{{ __('Which payment methods can I record?') }} <x-icon name="chevronDown" :size="20" /></summary>
@@ -153,7 +153,7 @@
                 </details>
                 <details>
                     <summary>{{ __('Is there a mobile app?') }} <x-icon name="chevronDown" :size="20" /></summary>
-                    <div class="faq-answer"><p>{{ __('The iPhone and Android app is in development. Qistas works in your phone’s browser today, with the same account.') }}</p></div>
+                    <div class="faq-answer"><p>{{ __('Yes. The Android app uses the same account as the website, and Qistas also works in any phone’s browser. The iPhone app is on its way.') }}</p></div>
                 </details>
                 <details>
                     <summary>{{ __('Is my data safe?') }} <x-icon name="chevronDown" :size="20" /></summary>

@@ -21,14 +21,18 @@ import '../investors/investors_screen.dart';
 import '../payments/payments_state.dart';
 import '../products/products_screen.dart';
 import '../products/scanner.dart';
+import 'contract_draft.dart';
 import 'sold_items.dart';
 
 /// Opens a contract: who it is for, what was sold and how it is paid. The schedule is worked out on the phone as
 /// the numbers are typed (the same arithmetic the server uses), so the customer can be shown it before anything is saved.
 class ContractFormScreen extends ConsumerStatefulWidget {
-  const ContractFormScreen({super.key, this.customerId});
+  const ContractFormScreen({super.key, this.customerId, this.draft});
 
   final String? customerId;
+
+  /// A plan from the calculator to start from (Win Plan PP15).
+  final ContractDraft? draft;
 
   @override
   ConsumerState<ContractFormScreen> createState() => _ContractFormScreenState();
@@ -105,6 +109,20 @@ class _ContractFormScreenState extends ConsumerState<ContractFormScreen> {
   void initState() {
     super.initState();
     if (widget.customerId != null) _loadCustomer(widget.customerId!);
+    final draft = widget.draft;
+    if (draft != null) {
+      _principal.text = draft.principal;
+      _down.text = draft.downPayment == '0.00' ? '' : draft.downPayment;
+      final markup = Money.parseTyped(draft.markupPercent);
+      if (markup != null && markup.isPositive) {
+        _markupType = 'percent';
+        _markup.text = draft.markupPercent;
+      }
+      _count = draft.count;
+      _frequency = draft.frequency;
+      _firstDue = draft.firstDue;
+      _firstDueTouched = true;
+    }
   }
 
   @override

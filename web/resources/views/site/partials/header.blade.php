@@ -1,6 +1,7 @@
 @php
     $links = [
         ['href' => route('home').'#how', 'label' => __('How it works'), 'current' => false],
+        ['href' => route('calculator'), 'label' => __('Calculator'), 'current' => request()->routeIs('calculator')],
         ['href' => route('pricing'), 'label' => __('Pricing'), 'current' => request()->routeIs('pricing')],
         ['href' => route('home').'#faq', 'label' => __('Questions'), 'current' => false],
     ];

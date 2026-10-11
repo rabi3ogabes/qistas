@@ -10,6 +10,7 @@
                 <h2 class="footer-title">{{ __('Product') }}</h2>
                 <ul class="footer-links">
                     <li><a href="{{ route('home') }}#how">{{ __('How it works') }}</a></li>
+                    <li><a href="{{ route('calculator') }}">{{ __('Instalment calculator') }}</a></li>
                     <li><a href="{{ route('pricing') }}">{{ __('Pricing') }}</a></li>
                     <li><a href="{{ route('home') }}#faq">{{ __('Questions') }}</a></li>
                     <li><a href="{{ route('login') }}">{{ __('Sign in') }}</a></li>

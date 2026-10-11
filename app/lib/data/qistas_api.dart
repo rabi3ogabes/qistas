@@ -7,6 +7,7 @@ import '../domain/schedule_generator.dart';
 import 'backups.dart';
 import 'billing.dart';
 import 'documents.dart';
+import 'help.dart';
 import 'investors.dart';
 import 'models.dart';
 import 'notifications.dart';
@@ -99,6 +100,27 @@ class QistasApi {
   }
 
   Future<Dashboard> dashboard() async => Dashboard.fromJson(_data(await _client.get('/dashboard')));
+
+  /// How to reach the Qistas team (Win Plan PP17).
+  Future<SupportInfo> supportInfo() async => SupportInfo.fromJson(_data(await _client.get('/support')));
+
+  /// The person's own questions, with the team's replies, newest first.
+  Future<List<SupportTicket>> supportTickets() async {
+    final json = await _client.get('/support/tickets');
+
+    return [for (final item in json['data'] as List<dynamic>) SupportTicket.fromJson(item as Map<String, dynamic>)];
+  }
+
+  /// Sends a question or a problem. Only these fields go: never a password or a token.
+  Future<SupportTicket> sendSupportTicket({required String category, required String message, required String appVersion, required String platform}) async =>
+      SupportTicket.fromJson(_data(await _client.post('/support/tickets', body: {'category': category, 'message': message, 'app_version': appVersion, 'platform': platform})));
+
+  /// What is new in the versions after [since], newest first, in the person's language.
+  Future<List<ReleaseNote>> releaseNotes({required String since}) async {
+    final json = await _client.get('/release-notes', query: {'since': since});
+
+    return [for (final item in json['data'] as List<dynamic>) ReleaseNote.fromJson(item as Map<String, dynamic>)];
+  }
 
   /// Where the plan stands and what the app may sell (Win Plan PP13).
   Future<BillingState> billing() async => BillingState.fromJson(_data(await _client.get('/billing')));

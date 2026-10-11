@@ -7,7 +7,7 @@ use Illuminate\Http\Response;
 /** The public pages, each with its language alternates, for search engines. */
 final class SitemapController
 {
-    private const PAGES = ['/', '/pricing', '/terms', '/privacy'];
+    private const PAGES = ['/', '/installment-calculator', '/pricing', '/terms', '/privacy'];
 
     public function __invoke(): Response
     {

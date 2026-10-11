@@ -1354,3 +1354,16 @@ fieldset:has(input[value="date"]:checked) .biz-until, .biz-until:has([aria-inval
 .bill-group legend { padding: 0; font-weight: 600; float: left; width: 100%; margin-bottom: .75rem; }
 .bill-group legend + * { clear: both; }
 .bill-ready { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: 0; }
+
+/* Support (Win Plan PP17): each ticket reads as the message, who sent it from where, the replies, then the answer box. */
+.help-queue .card-head { display: flex; align-items: center; gap: .5rem; }
+.help-list { margin: 0; padding: 0; list-style: none; }
+.help-item { display: grid; gap: .5rem; padding: 1rem 1.25rem; border-top: 1px solid var(--q-line); }
+.help-head { display: flex; flex-wrap: wrap; align-items: center; gap: .375rem .75rem; }
+.help-wait { margin-inline-start: auto; font-size: .8125rem; color: var(--q-ink-muted); }
+.help-wait.is-late { color: var(--q-danger); font-weight: 600; }
+.help-message { margin: 0; white-space: pre-line; overflow-wrap: anywhere; font-size: 1rem; }
+.help-reply { margin-inline-start: 1rem; padding: .625rem .875rem; border-inline-start: 3px solid var(--q-accent); background: color-mix(in srgb, var(--q-accent) 7%, var(--q-surface)); border-radius: 0 var(--q-r-md) var(--q-r-md) 0; }
+.help-reply p { margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
+.help-answer { margin-top: .25rem; }
+.help-actions { display: flex; flex-wrap: wrap; gap: .5rem; }

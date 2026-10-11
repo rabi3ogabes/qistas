@@ -30,8 +30,8 @@ Future<void> addCustomer(BuildContext context, WidgetRef ref) async {
   await context.push('/customers/new');
 }
 
-/// Opening a contract on a full plan answers with the upgrade sheet, never with an empty form.
-Future<void> addContract(BuildContext context, WidgetRef ref, {String? customerId}) async {
+/// Whether one more contract fits the plan; when it does not, the upgrade sheet says so and the answer is false.
+Future<bool> mayAddContract(BuildContext context, WidgetRef ref) async {
   final contracts = ref.read(accountProvider)?.entitlement('active_contracts');
 
   if (contracts != null && !contracts.allowsMore) {
@@ -46,8 +46,15 @@ Future<void> addContract(BuildContext context, WidgetRef ref, {String? customerI
       ),
     );
 
-    return;
+    return false;
   }
+
+  return true;
+}
+
+/// Opening a contract on a full plan answers with the upgrade sheet, never with an empty form.
+Future<void> addContract(BuildContext context, WidgetRef ref, {String? customerId}) async {
+  if (!await mayAddContract(context, ref) || !context.mounted) return;
 
   await context.push(customerId == null ? '/contracts/new' : '/contracts/new?customer=$customerId');
 }

@@ -7,6 +7,7 @@ import { initSheets } from './sheet';
 import { initLanguageSwitchers } from './language';
 import { initAdminNav } from './admin-nav';
 import { initWelcomeBanners } from './banner';
+import { registerServiceWorker } from './install';
 
 window.Alpine = Alpine;
 Alpine.data('planCalculator', planCalculator);
@@ -39,3 +40,6 @@ if (document.querySelector('[data-event-editor]')) import('./admin-events').then
 
 // The business profile page brings its signature pad.
 if (document.querySelector('[data-signature-pad], input[data-autosubmit]')) import('./business-profile').then(({ initBusinessProfile }) => initBusinessProfile());
+
+// The web app can be installed from the browser (Win Plan PL04).
+registerServiceWorker();

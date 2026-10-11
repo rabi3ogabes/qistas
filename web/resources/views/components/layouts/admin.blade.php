@@ -8,6 +8,8 @@
         ['overview', __('Overview'), route('admin.home'), 'home'],
         ['businesses', __('Businesses'), route('admin.businesses.index'), 'accounts'],
         ['billing', __('Billing'), route('admin.billing.index'), 'wallet'],
+        ['support', __('Support'), route('admin.support.index'), 'life'],
+        ['release-notes', __('What’s new'), route('admin.release-notes.index'), 'megaphone'],
         ['features', __('Feature control'), route('admin.features.index'), 'sliders'],
         \Illuminate\Support\Facades\Route::has('admin.appearance.index') ? ['appearance', __('Appearance'), route('admin.appearance.index'), 'palette'] : null,
     ]));

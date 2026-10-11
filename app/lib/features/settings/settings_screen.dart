@@ -195,6 +195,9 @@ class SettingsScreen extends ConsumerWidget {
               title: context.t('Help'),
               child: Column(
                 children: [
+                  // Win Plan PP17: answers, and a person to talk to.
+                  _Row(icon: Icons.support_agent_outlined, title: context.t('Get help'), onTap: () => context.push('/help')),
+                  const _Divider(),
                   _Row(icon: Icons.public_rounded, title: context.t('Open the website'), external: true, onTap: () => _open('/')),
                   const _Divider(),
                   _Row(icon: Icons.lock_outline_rounded, title: context.t('Privacy'), external: true, onTap: () => _open('/privacy')),

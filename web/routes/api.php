@@ -21,8 +21,10 @@ use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\PlanController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\PushTokenController;
+use App\Http\Controllers\Api\V1\ReleaseNoteController;
 use App\Http\Controllers\Api\V1\ReminderController;
 use App\Http\Controllers\Api\V1\SchedulePreviewController;
+use App\Http\Controllers\Api\V1\SupportController;
 use App\Http\Controllers\Api\V1\TagController;
 use App\Http\Controllers\Api\V1\TeamController;
 use App\Http\Controllers\Api\V1\TokenController;
@@ -55,6 +57,12 @@ Route::name('api.')->group(function (): void {
         // Buy Pro your way (Win Plan PP13): what the workspace is on, and a Google Play purchase checked with Google.
         Route::get('billing', [BillingController::class, 'show'])->name('billing.show');
         Route::post('billing/play/verify', [BillingController::class, 'verifyPlay'])->middleware('throttle:api-money')->name('billing.play.verify');
+
+        // Help inside the app (Win Plan PP17): how to reach the team, the person's questions with the replies, and what's new.
+        Route::get('support', [SupportController::class, 'info'])->name('support.info');
+        Route::get('support/tickets', [SupportController::class, 'index'])->name('support.tickets.index');
+        Route::post('support/tickets', [SupportController::class, 'store'])->middleware('throttle:10,60')->name('support.tickets.store');
+        Route::get('release-notes', ReleaseNoteController::class)->name('release-notes');
         Route::get('dashboard', DashboardController::class)->name('dashboard');
 
         Route::get('settings/tools', [ToolsController::class, 'index'])->name('settings.tools.index');

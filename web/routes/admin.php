@@ -7,6 +7,8 @@ use App\Http\Controllers\Admin\BusinessController;
 use App\Http\Controllers\Admin\DemoAccountsController;
 use App\Http\Controllers\Admin\FeaturesController;
 use App\Http\Controllers\Admin\HomeController;
+use App\Http\Controllers\Admin\ReleaseNoteController;
+use App\Http\Controllers\Admin\SupportController;
 use App\Http\Controllers\Admin\TestWorkspaceController;
 use Illuminate\Support\Facades\Route;
 
@@ -30,6 +32,18 @@ Route::prefix('businesses')->name('businesses.')->controller(BusinessController:
     Route::get('{tenant}', 'show')->whereUuid('tenant')->name('show');
     Route::put('{tenant}/plan', 'changePlan')->whereUuid('tenant')->middleware('throttle:30,1')->name('plan');
 });
+
+// Support (Win Plan PP17): the ticket queue and the support WhatsApp number; what's new in each app version.
+Route::prefix('support')->name('support.')->controller(SupportController::class)->group(function () {
+    Route::get('/', 'index')->name('index');
+    Route::middleware('throttle:60,1')->group(function () {
+        Route::post('tickets/{ticket}/reply', 'reply')->whereUuid('ticket')->name('reply');
+        Route::post('tickets/{ticket}/close', 'close')->whereUuid('ticket')->name('close');
+        Route::put('settings', 'settings')->name('settings');
+    });
+});
+Route::get('release-notes', [ReleaseNoteController::class, 'index'])->name('release-notes.index');
+Route::post('release-notes', [ReleaseNoteController::class, 'store'])->middleware('throttle:60,1')->name('release-notes.store');
 
 // Billing (Win Plan PP13): bank transfers waiting for a decision, with their receipts, and the billing settings. Any
 // platform staff may look; a super admin decides and changes settings ('manage-plans', checked in the controller).

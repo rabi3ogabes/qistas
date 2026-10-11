@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#F7F3EA">
+    <title>Qistas · Offline</title>
+    <link rel="icon" href="/brand/app-icon-192.png">
+    <style>
+        :root { --bg: #F7F3EA; --ink: #0B1F44; --muted: #4A5671; --gold: #C9A25B; --line: #E4DCCB; }
+        @media (prefers-color-scheme: dark) { :root { --bg: #071634; --ink: #F7F3EA; --muted: #B7BFD0; --line: #1E2F55; } }
+        * { box-sizing: border-box; }
+        html { -webkit-text-size-adjust: 100%; }
+        body {
+            margin: 0; min-height: 100svh; display: grid; place-items: center; padding: max(24px, env(safe-area-inset-top)) 16px;
+            background: var(--bg); color: var(--ink); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
+        }
+        main { width: min(100%, 26rem); text-align: center; }
+        img { width: 72px; height: 72px; border-radius: 18px; }
+        h1 { margin: 1.25rem 0 .5rem; font-size: 1.375rem; line-height: 1.3; }
+        p { margin: 0 0 .5rem; color: var(--muted); }
+        hr { width: 3rem; margin: 1.5rem auto; border: 0; border-top: 2px solid var(--gold); }
+        [lang="ar"] { font-family: system-ui, "Segoe UI", Tahoma, sans-serif; }
+        button {
+            margin-top: 1.5rem; min-height: 48px; padding: 0 1.5rem; border: 0; border-radius: 999px; background: var(--ink); color: var(--bg);
+            font: inherit; font-weight: 600; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+        }
+        button:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
+    </style>
+</head>
+<body>
+    <main>
+        <img src="/brand/app-icon-192.png" alt="Qistas" width="72" height="72">
+        <h1>You are offline</h1>
+        <p>Qistas needs a connection to show your records. Nothing was lost: try again once you are back online.</p>
+        <hr>
+        <div lang="ar" dir="rtl">
+            <h1>لا يوجد اتصال</h1>
+            <p>يحتاج قسطاس إلى اتصال لعرض سجلاتك. لم يضِع شيء: حاول مرة أخرى عند عودة الاتصال.</p>
+        </div>
+        <button type="button" onclick="location.reload()">Try again · حاول مرة أخرى</button>
+    </main>
+</body>
+</html>

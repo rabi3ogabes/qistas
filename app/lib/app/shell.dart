@@ -11,6 +11,7 @@ import '../core/l10n/translations.dart';
 import '../data/appearance.dart';
 import '../data/models.dart';
 import '../features/dashboard/dashboard_screen.dart';
+import '../features/help/whats_new.dart';
 import 'chrome.dart';
 import 'language_button.dart';
 import 'providers.dart';
@@ -38,6 +39,10 @@ class _AppShellState extends ConsumerState<AppShell> with WidgetsBindingObserver
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // After an update, what changed (Win Plan PP17), once the first screen is up.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(checkWhatsNew(context, ref));
+    });
   }
 
   @override

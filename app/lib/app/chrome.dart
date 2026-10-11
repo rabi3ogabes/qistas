@@ -209,6 +209,8 @@ Future<void> showQuickActions(BuildContext context, WidgetRef ref) async {
   await showModalBottomSheet<void>(
     context: context,
     useSafeArea: true,
+    // As tall as its tiles; on a small phone it scrolls rather than cut the last row off.
+    isScrollControlled: true,
     builder: (sheet) {
       final text = Theme.of(sheet).textTheme;
 
@@ -220,7 +222,7 @@ Future<void> showQuickActions(BuildContext context, WidgetRef ref) async {
           );
 
       return SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -246,6 +248,15 @@ Future<void> showQuickActions(BuildContext context, WidgetRef ref) async {
                 ),
               ] else
                 Row(children: [tile(Icons.search, sheet.t('Search'), sheet.t('Find a customer or contract'), () => context.push('/search'))]),
+              const SizedBox(height: 12),
+              // Win Plan PP15 and PP17: work out a plan with no customer needed, and reach a person.
+              Row(
+                children: [
+                  tile(Icons.calculate_outlined, sheet.t('Calculator'), sheet.t('Work out a plan, nothing saved'), () => context.push('/calculator')),
+                  const SizedBox(width: 12),
+                  tile(Icons.support_agent_outlined, sheet.t('Help'), sheet.t('Answers, and a person to talk to'), () => context.push('/help')),
+                ],
+              ),
             ],
           ),
         ),

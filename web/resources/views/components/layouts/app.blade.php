@@ -15,6 +15,9 @@
     <meta name="color-scheme" content="light dark">
     <title>{{ $title }} · {{ config('qistas.app_name') }}</title>
     <link rel="icon" type="image/svg+xml" href="{{ asset('brand/favicon.svg') }}">
+    {{-- Installable from the browser (Win Plan PL04); resources/js/install.js registers the service worker. --}}
+    <link rel="manifest" href="{{ route('manifest') }}">
+    <link rel="apple-touch-icon" href="{{ asset('brand/apple-touch-icon.png') }}">
     @include('partials.mode-script')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <x-brand-head />

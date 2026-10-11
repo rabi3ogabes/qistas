@@ -35,6 +35,7 @@
     @include('partials.mode-script')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <x-brand-head />
+    {{ $head ?? '' }}
 </head>
 <body>
     <x-demo-banner />

@@ -97,6 +97,12 @@
     .calc-schedule tbody tr + tr td { border-top: 1px solid color-mix(in srgb, var(--q-line) 60%, transparent); }
     .calc-balance { display: flex; align-items: center; gap: .5rem; margin: .875rem 0 0; font-size: .875rem; color: var(--q-positive); }
     .calc-cta { margin-top: 1.25rem; }
+    /* The calculator page (Win Plan PP15): what the tool promises beside it, and the link that carries the plan. */
+    .calc-points { display: grid; gap: .5rem; margin: 1.25rem 0 0; padding: 0; list-style: none; }
+    .calc-points li { display: flex; align-items: flex-start; gap: .5rem; }
+    .calc-points .i { flex: none; margin-top: .2rem; color: var(--q-accent); }
+    .calc-share { margin-top: 1.25rem; }
+    .calc-share + .calc-cta { margin-top: .625rem; }
     .calc[data-loading="true"] .calc-result { opacity: .6; transition: opacity var(--q-t-base) var(--q-ease-out); }
 
     /* ---------- Sections ---------- */

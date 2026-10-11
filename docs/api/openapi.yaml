@@ -54,6 +54,7 @@ tags:
   - name: Products
   - name: Documents
   - name: Backups
+  - name: Help
 paths:
   /plans:
     get:
@@ -320,6 +321,99 @@ paths:
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
+  /support:
+    get:
+      tags: [Help]
+      summary: How to reach the Qistas team (Win Plan PP17)
+      description: |
+        `whatsapp` is the support number in international form (digits only, as wa.me wants it), or null until the
+        platform sets one. `code` names the workspace in a message without revealing anything private; the app adds its
+        version, and never a password.
+      responses:
+        "200":
+          description: How to reach the team, and the reply promise.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      whatsapp: {type: [string, "null"], example: "966501234567"}
+                      code: {type: string, example: Q-3F9A2C}
+                      reply_hours: {type: integer, example: 24}
+                      missing_data_hours: {type: integer, example: 4}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+  /support/tickets:
+    get:
+      tags: [Help]
+      summary: The signed-in person's questions, with the team's replies, newest first
+      responses:
+        "200":
+          description: Up to 50 tickets.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: "#/components/schemas/SupportTicket"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+    post:
+      tags: [Help]
+      summary: Send a question or report a problem
+      description: Only the fields below are read; a password or a token sent along is never kept. Ten an hour.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [category, message]
+              properties:
+                category: {type: string, enum: [question, problem, missing_data, billing, idea]}
+                message: {type: string, maxLength: 5000}
+                app_version: {type: [string, "null"], example: 1.16.0}
+                platform: {type: [string, "null"], enum: [android, ios, web, null]}
+      responses:
+        "201":
+          description: Sent.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/SupportTicket"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+  /release-notes:
+    get:
+      tags: [Help]
+      summary: What's new in the app versions after one (Win Plan PP17)
+      description: Published notes only, newest first, in the reader's language or in English for a version not translated yet.
+      parameters:
+        - {name: since, in: query, required: false, schema: {type: string, example: 1.15.0}, description: "The version the app last showed notes for; only later ones are returned."}
+      responses:
+        "200":
+          description: The notes.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        version: {type: string, example: 1.16.0}
+                        language: {type: string, example: ar}
+                        body: {type: string}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
   /dashboard:
     get:
       tags: [Dashboard]
@@ -2197,6 +2291,24 @@ components:
                 properties:
                   plan_key: {type: string, example: pro}
                   product_id: {type: string, example: qistas_pro}
+    SupportTicket:
+      type: object
+      description: A question or problem sent from the app, with the team's replies (Win Plan PP17).
+      properties:
+        id: {type: string, format: uuid}
+        category: {type: string, enum: [question, problem, missing_data, billing, idea]}
+        message: {type: string}
+        status: {type: string, enum: [open, answered, closed]}
+        app_version: {type: [string, "null"]}
+        created_at: {type: string, format: date-time}
+        first_reply_at: {type: [string, "null"], format: date-time}
+        replies:
+          type: array
+          items:
+            type: object
+            properties:
+              body: {type: string}
+              created_at: {type: string, format: date-time}
     Account:
       type: object
       properties:
