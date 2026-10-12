@@ -44,10 +44,30 @@ listed. The trial run is made again against the books as they are at that moment
 What was read (the cells) and the planned rows are **encrypted** in the database, ID numbers are only ever shown masked,
 and the cells are dropped once the import is done. Audited (`import.confirmed`).
 
+## Notebook photos and PDF reports (AI reading)
+
+A shop with no Excel file photographs a notebook page, or sends the PDF reports another app exports. Claude
+(`App\Import\Ai\ClaudeReader`, the Anthropic Messages API) reads it into the same columns a template has; the rows
+then go through **the same trial run and the same confirm** as a file, so nothing read by mistake is saved unchecked.
+
+- **Switches:** offered only once the Qistas team saves the Anthropic key in `/admin/ai` (encrypted, never shown again;
+  the model is `claude-sonnet-5-5` unless changed there) and **Reading notebook photos and PDFs** is on in
+  `/admin/features`. Without the key, photos are never mentioned to shops.
+- **Plans:** a monthly allowance of pages (Free: none, shown as part of Pro; **Pro: 50 pages a month**). A PDF has at
+  most 20 pages at a time. Everything is checked before anything is sent: the key, the plan, the page count, the pages
+  left. Pages are counted only when the reading succeeds; a page that cannot be read costs nothing.
+- **Privacy:** only what the shop chose is sent. A photo is drawn again (at most 2000px, as JPEG) before it is sent,
+  which leaves its hidden data (location, camera) behind. Nothing is saved until the shop confirms, the same as a file.
+- **Before switching it on (owner):** the privacy policy names its providers by kind ("infrastructure and database
+  hosting, email delivery and payment processing"); reading documents with an AI provider is a new kind. Add it, with
+  the lawyer, before the switch goes on.
+
 ## Where it is
 
 - **Web:** Customers → "Bring your customers in" (`/app/import`): the file, the trial run with its columns and rows,
-  confirm.
+  confirm. With AI reading, the same field takes a JPEG, PNG or PDF, with the pages left this month.
 - **App:** Settings → "Bring your customers in": choose a file from the phone, the same review, confirm at the bottom.
-- **API:** `POST /imports` (multipart `file`), `GET|PUT /imports/{id}` (`mapping`), `POST /imports/{id}/confirm`,
+  With AI reading: "Take a photo of the notebook" (the camera) and "Choose a photo or PDF".
+- **API:** `GET /imports/options` (rows allowed, whether photos and PDFs are read, pages left), `POST /imports`
+  (multipart `file`: xlsx, csv, jpeg, png or pdf), `GET|PUT /imports/{id}` (`mapping`), `POST /imports/{id}/confirm`,
   `GET /imports/template.xlsx?language=`.

@@ -20,13 +20,28 @@
                     <form method="POST" action="{{ route('app.import.store') }}" enctype="multipart/form-data" class="form">
                         @csrf
                         <div class="field">
-                            <label for="import-file">{{ __('Excel or CSV file') }}</label>
-                            <input id="import-file" type="file" name="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+                            @php $reads = $ai['available'] && $ai['included']; @endphp
+                            <label for="import-file">{{ $reads ? __('Excel or CSV file, a notebook photo or a PDF report') : __('Excel or CSV file') }}</label>
+                            <input id="import-file" type="file" name="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet{{ $reads ? ',image/jpeg,image/png,application/pdf' : '' }}" required>
                             @error('file')<p class="field-error" role="alert">{{ $message }}</p>@enderror
                             @if ($entitlement->limit() !== null)
                                 <p class="field-hint">{{ __('Up to :count rows at a time.', ['count' => $entitlement->limit()]) }}</p>
                             @endif
                         </div>
+                        @if ($ai['available'])
+                            <div class="import-ai">
+                                <x-icon name="sparkles" :size="18" />
+                                <p>
+                                    @if ($ai['included'])
+                                        {{ __('A photo of a notebook page, or the PDF reports from your old app, are read for you into the same rows. You check every row before anything is saved.') }}
+                                        @if ($ai['pages_left'] !== null)<br><span class="muted">{{ __('Pages left this month: :count', ['count' => $ai['pages_left']]) }}</span>@endif
+                                    @else
+                                        {{ __('Part of Pro: a photo of a notebook page, or the PDF reports from your old app, read for you into the same rows.') }}
+                                        <a class="link" href="{{ route('pricing') }}">{{ __('See Pro') }}</a>
+                                    @endif
+                                </p>
+                            </div>
+                        @endif
                         <div class="form-actions">
                             <button class="btn btn-gold" type="submit"><x-icon name="upload" :size="18" /> {{ __('Read the file') }}</button>
                             <a class="btn btn-ghost" href="{{ route('app.import.template') }}"><x-icon name="download" :size="18" /> {{ __('Download a template') }}</a>

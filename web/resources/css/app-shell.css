@@ -557,6 +557,9 @@
     .import-fields > div { display: grid; grid-template-columns: minmax(8rem, 40%) 1fr; gap: 1rem; padding: .625rem 0; border-bottom: 1px solid var(--q-line); }
     .import-fields dt { font-weight: 600; }
     .import-fields dd { margin: 0; color: var(--q-ink-muted); overflow-wrap: anywhere; }
+    .import-ai { display: flex; gap: .625rem; align-items: flex-start; padding: .875rem 1rem; border-radius: var(--q-r-md); background: var(--q-tint-sand); color: var(--q-ink); }
+    .import-ai p { margin: 0; }
+    .import-ai > svg { flex: none; margin-top: .125rem; color: var(--q-accent-text); }
     .import-columns { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); gap: .75rem 1rem; }
     .import-rows tr[data-state="problem"] td:first-child { box-shadow: inset 3px 0 0 var(--q-danger); }
     [dir="rtl"] .import-rows tr[data-state="problem"] td:first-child { box-shadow: inset -3px 0 0 var(--q-danger); }

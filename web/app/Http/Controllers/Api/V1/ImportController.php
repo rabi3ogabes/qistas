@@ -2,7 +2,11 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Entitlements\Entitlements;
+use App\Entitlements\Feature;
+use App\Entitlements\FeatureStatus;
 use App\Http\Resources\ImportResource;
+use App\Import\Ai\AiSettings;
 use App\Import\ApplyImport;
 use App\Import\Fields;
 use App\Import\ImportTemplate;
@@ -54,6 +58,26 @@ final class ImportController
         Gate::authorize('import');
 
         return new ImportResource($apply->handle($import, $request->user()));
+    }
+
+    /**
+     * What this workspace may bring in: the rows a file may have, and whether photos and PDFs are read (available: the
+     * key is saved and the feature is on; included: the plan has it) with the pages left this month.
+     */
+    public function options(AiSettings $settings): JsonResponse
+    {
+        Gate::authorize('import');
+        $features = Entitlements::for(app(CurrentTenant::class)->get() ?? abort(404));
+        $ai = $features->check(Feature::AiReading);
+
+        return response()->json(['data' => [
+            'rows_limit' => $features->check(Feature::Import)->limit(),
+            'ai' => [
+                'available' => $settings->configured() && $ai->status() !== FeatureStatus::PlatformOff,
+                'included' => $ai->enabled(),
+                'pages_left' => $ai->enabled() ? $ai->remaining() : 0,
+            ],
+        ]]);
     }
 
     /** An empty sheet with the column names in [language], to fill in and send back. */

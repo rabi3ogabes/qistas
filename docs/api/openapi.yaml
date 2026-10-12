@@ -1102,6 +1102,11 @@ paths:
         Columns are recognised in Arabic, English, French, Spanish and Urdu. Nothing is saved but the import itself:
         every row is planned and every problem is named by its row and column. A file may have at most the rows the
         plan allows at once (Free 100; 422 `file` otherwise). Owners and managers, with the import feature on.
+
+        A notebook photo (JPEG or PNG) or a PDF report (at most 20 pages) is read by Claude into the same rows, once the
+        Qistas team has saved the Anthropic key (422 `file` before that). Reading is counted in pages a month (Pro 50):
+        402 `feature_locked` on a plan without it, 402 `limit_reached` when the pages left would not cover the file.
+        Pages are counted only when the reading succeeds; a page that cannot be read is 422 `file`. Source `ai`.
       requestBody:
         required: true
         content:
@@ -1112,9 +1117,41 @@ paths:
           description: The trial run.
           content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/Import"}}}}}
         "401": {$ref: "#/components/responses/Unauthenticated"}
+        "402": {$ref: "#/components/responses/PlanLimit"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "422": {$ref: "#/components/responses/ValidationFailed"}
         "429": {$ref: "#/components/responses/RateLimited"}
+  /imports/options:
+    get:
+      tags: [Import]
+      summary: What this workspace may bring in
+      description: |
+        The rows a file may have at once (null: no limit), and whether photos and PDFs are read. `available`: the key is
+        saved and the feature is not switched off for everyone, so the choice is shown; `included`: the plan has it (if
+        not, show it as part of Pro); `pages_left`: pages that may still be read this month (null: no limit; 0 when not
+        included).
+      responses:
+        "200":
+          description: The options.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [rows_limit, ai]
+                    properties:
+                      rows_limit: {type: [integer, "null"], example: 100}
+                      ai:
+                        type: object
+                        required: [available, included, pages_left]
+                        properties:
+                          available: {type: boolean}
+                          included: {type: boolean}
+                          pages_left: {type: [integer, "null"], example: 50}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
   /imports/template.xlsx:
     get:
       tags: [Import]

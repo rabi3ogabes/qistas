@@ -41,6 +41,35 @@ class ImportJob {
   bool get isDone => status == 'done';
 }
 
+/// What a workspace may bring in: the rows a file may have, and whether notebook photos and PDF reports are read.
+@immutable
+class ImportOptions {
+  const ImportOptions({this.rowsLimit, this.aiAvailable = false, this.aiIncluded = false, this.pagesLeft});
+
+  factory ImportOptions.fromJson(Map<String, dynamic> json) {
+    final ai = json['ai'] as Map<String, dynamic>? ?? const {};
+
+    return ImportOptions(
+      rowsLimit: (json['rows_limit'] as num?)?.toInt(),
+      aiAvailable: ai['available'] == true,
+      aiIncluded: ai['included'] == true,
+      pagesLeft: (ai['pages_left'] as num?)?.toInt(),
+    );
+  }
+
+  /// The rows a file may have at once; null when there is no limit.
+  final int? rowsLimit;
+
+  /// The key is saved and reading is not switched off: photos and PDFs are offered.
+  final bool aiAvailable;
+
+  /// The plan has it; otherwise it is shown as part of Pro.
+  final bool aiIncluded;
+
+  /// Pages that may still be read this month; null when there is no limit.
+  final int? pagesLeft;
+}
+
 @immutable
 class ImportColumn {
   const ImportColumn({required this.index, required this.header, this.field});

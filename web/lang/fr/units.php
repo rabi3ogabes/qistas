@@ -8,4 +8,5 @@ return [
     'members' => 'personne|personnes',
     'investors' => 'investisseur|investisseurs',
     'import' => 'ligne par import|lignes par import',
+    'ai_reading' => 'page lue par l’IA par mois|pages lues par l’IA par mois',
 ];

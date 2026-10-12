@@ -399,8 +399,11 @@ class QistasApi {
 
   // Bringing a shop's books in (Win Plan K9): a trial run, the columns chosen again, one confirm.
 
+  /// A notebook photo or a PDF report is read by Claude, which can take most of a minute: the answer is waited for longer.
   Future<ImportJob> startImport(List<int> bytes, String filename) async =>
-      ImportJob.fromJson(_data(await _client.upload('/imports', field: 'file', bytes: bytes, filename: filename)));
+      ImportJob.fromJson(_data(await _client.upload('/imports', field: 'file', bytes: bytes, filename: filename, wait: const Duration(seconds: 150))));
+
+  Future<ImportOptions> importOptions() async => ImportOptions.fromJson(_data(await _client.get('/imports/options')));
 
   /// [mapping] names a column by its index and the field it is (null leaves it out).
   Future<ImportJob> remapImport(String id, Map<int, String?> mapping) async =>

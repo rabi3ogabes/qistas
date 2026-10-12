@@ -8,11 +8,8 @@ use App\Models\Tenant;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Testing\TestResponse;
 use Laravel\Sanctum\Sanctum;
-use OpenSpout\Common\Entity\Row;
 use OpenSpout\Reader\XLSX\Reader;
-use OpenSpout\Writer\XLSX\Writer;
 
 /*
 | Bringing a shop's books in (Win Plan K9, RP17, decision D8): an Excel or CSV file whose columns are recognised in five
@@ -33,33 +30,6 @@ function importOwner(bool $openContracts = true): array
     }
 
     return [$user, $tenant];
-}
-
-/** @param  list<list<mixed>>  $rows  the first is the header row */
-function xlsxOf(array $rows): string
-{
-    $path = tempnam(sys_get_temp_dir(), 'imp').'.xlsx';
-    $writer = new Writer;
-    $writer->openToFile($path);
-    foreach ($rows as $row) {
-        $writer->addRow(Row::fromValues($row));
-    }
-    $writer->close();
-    $bytes = (string) file_get_contents($path);
-    @unlink($path);
-
-    return $bytes;
-}
-
-function sendBooks(string $bytes, string $name = 'customers.xlsx'): TestResponse
-{
-    return test()->post('/api/v1/imports', ['file' => upload($bytes, $name)], ['Accept' => 'application/json']);
-}
-
-/** @return array<int, array<string, mixed>> the trial's rows by their row number in the sheet */
-function rowsOf(TestResponse $response): array
-{
-    return collect($response->json('data.rows'))->keyBy('row')->all();
 }
 
 const IMPORT_HEADERS = ['الاسم', 'رقم الجوال', 'Total', 'المدفوع', 'عدد الأقساط', 'تاريخ أول قسط', 'المتبقي', 'السلعة'];

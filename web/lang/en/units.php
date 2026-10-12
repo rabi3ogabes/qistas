@@ -9,4 +9,5 @@ return [
     'members' => 'person|people',
     'investors' => 'investor|investors',
     'import' => 'row per import|rows per import',
+    'ai_reading' => 'AI-read page per month|AI-read pages per month',
 ];

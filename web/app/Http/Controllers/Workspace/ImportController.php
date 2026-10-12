@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Workspace;
 
 use App\Entitlements\Entitlements;
 use App\Entitlements\Feature;
+use App\Entitlements\FeatureStatus;
+use App\Import\Ai\AiSettings;
 use App\Import\ApplyImport;
 use App\Import\Fields;
 use App\Import\ImportTemplate;
@@ -25,13 +27,16 @@ final class ImportController
 {
     public function __construct(private readonly CurrentTenant $current) {}
 
-    public function index(): View
+    public function index(AiSettings $settings): View
     {
         Gate::authorize('import');
         $tenant = $this->current->get() ?? abort(404);
+        $ai = Entitlements::for($tenant)->check(Feature::AiReading);
 
         return view('app.import.index', [
             'entitlement' => Entitlements::for($tenant)->check(Feature::Import),
+            // Photos and PDFs (decision D8): offered once the key is saved; read only on a plan that includes it.
+            'ai' => ['available' => $settings->configured() && $ai->status() !== FeatureStatus::PlatformOff, 'included' => $ai->enabled(), 'pages_left' => $ai->remaining()],
             'recent' => Import::query()->latest()->limit(5)->get(['id', 'filename', 'status', 'summary', 'created_at']),
             'fields' => Fields::keys(),
         ]);

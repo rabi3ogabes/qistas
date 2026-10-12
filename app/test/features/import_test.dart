@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -6,6 +7,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart' hide Route;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qistas/core/design/widgets.dart';
+import 'package:qistas/features/billing/plans_screen.dart';
 import 'package:qistas/features/documents/document_options_sheet.dart';
 import 'package:qistas/features/import/import_screen.dart';
 
@@ -53,15 +55,24 @@ Map<String, dynamic> importJson({String status = 'trial', String? owesUs}) => {
       'created_at': '2026-10-12T10:00:00Z', 'confirmed_at': status == 'done' ? '2026-10-12T10:05:00Z' : null,
     };
 
-/// What the file picker handed over, and the documents shared.
+/// What a workspace may bring in: with the key saved and the plan including it, photos and PDFs are read.
+Map<String, dynamic> optionsJson({bool available = true, bool included = true, int? pagesLeft = 50}) => {
+      'data': {'rows_limit': 100, 'ai': {'available': available, 'included': included, 'pages_left': pagesLeft}},
+    };
+
+/// What the pickers handed over, and the documents shared.
 class FakeFiles {
-  int picked = 0;
+  final List<ImportPick> picked = [];
   final List<String> shared = [];
 
-  Future<({Uint8List bytes, String name})?> pick() async {
-    picked++;
+  Future<({Uint8List bytes, String name})?> pick(ImportPick kind) async {
+    picked.add(kind);
 
-    return (bytes: Uint8List.fromList(utf8.encode('name,phone\nAhmad,0501234567\n')), name: 'customers.csv');
+    return switch (kind) {
+      ImportPick.sheet => (bytes: Uint8List.fromList(utf8.encode('name,phone\nAhmad,0501234567\n')), name: 'customers.csv'),
+      ImportPick.camera => (bytes: Uint8List.fromList(const [0xFF, 0xD8, 0xFF, 0xE0]), name: 'notebook.jpg'),
+      ImportPick.photoOrPdf => (bytes: Uint8List.fromList(utf8.encode('%PDF-1.7')), name: 'report.pdf'),
+    };
   }
 }
 
@@ -94,7 +105,7 @@ void main() {
 
     await tapButton(tester, 'Choose a file');
 
-    expect(files.picked, 1);
+    expect(files.picked, [ImportPick.sheet]);
     final form = server.requestsTo('POST /imports').single.data as FormData;
     expect(form.files.single.key, 'file');
     expect(form.files.single.value.filename, 'customers.csv');
@@ -147,6 +158,73 @@ void main() {
 
     expect(server.requestsTo('GET /imports/template.xlsx').single.queryParameters['language'], 'en');
     expect(files.shared, ['qistas-customers.xlsx']);
+  });
+
+  testWidgets('reads a photo of the notebook once the key is saved, saying it takes a moment', (tester) async {
+    final answer = Completer<FakeResponse>();
+    final server = workspaceServer(account: importAccount(), routes: {
+      'GET /imports/options': always(json(200, optionsJson())),
+      'POST /imports': (_) => answer.future,
+    });
+    final files = await pumpImport(tester, server);
+    await openImport(tester);
+    await tester.scrollUntilVisible(find.text('Pages left this month: 50'), 200, scrollable: find.byType(Scrollable).first);
+
+    // The answer is held back: the page is still being read.
+    await tapButton(tester, 'Take a photo of the notebook');
+
+    expect(files.picked, [ImportPick.camera]);
+    final request = server.requestsTo('POST /imports').single;
+    expect((request.data as FormData).files.single.value.filename, 'notebook.jpg');
+    // A page can take Claude most of a minute; an Excel file's 30 seconds would give up on it.
+    expect(request.receiveTimeout, const Duration(seconds: 150));
+    expect(find.text('Reading the page. This can take up to a minute.'), findsOneWidget);
+
+    answer.complete(json(201, {'data': {...importJson(), 'source': 'ai', 'filename': 'notebook.jpg'}}));
+    await settle(tester);
+    expect(find.text('Ahmad Salem'), findsOneWidget);
+  });
+
+  testWidgets('reads a PDF report, and says so when the month’s pages are used up', (tester) async {
+    final server = workspaceServer(account: importAccount(), routes: {
+      'GET /imports/options': always(json(200, optionsJson(pagesLeft: 1))),
+      'POST /imports': always(apiError(402, 'limit_reached', 'The pages read this month are used up.')),
+    });
+    final files = await pumpImport(tester, server);
+    await openImport(tester);
+
+    await tapButton(tester, 'Choose a photo or PDF');
+
+    expect(files.picked, [ImportPick.photoOrPdf]);
+    expect((server.requestsTo('POST /imports').single.data as FormData).files.single.value.filename, 'report.pdf');
+    expect(find.text('The pages read this month are used up.'), findsOneWidget);
+  });
+
+  testWidgets('says reading photos is part of Pro when the plan does not have it', (tester) async {
+    final server = workspaceServer(account: importAccount(), routes: {'GET /imports/options': always(json(200, optionsJson(included: false, pagesLeft: 0)))});
+    await pumpImport(tester, server);
+    await openImport(tester);
+
+    expect(find.widgetWithText(QButton, 'Take a photo of the notebook'), findsNothing);
+    expect(find.text('Pages left this month: 0'), findsNothing);
+    await tester.scrollUntilVisible(find.text('Part of Pro: a photo of a notebook page, or the PDF reports from your old app, read for you into the same rows.'), 200, scrollable: find.byType(Scrollable).first);
+
+    await tapButton(tester, 'See Pro');
+    expect(find.byType(PlansScreen), findsOneWidget);
+  });
+
+  testWidgets('does not mention photos before the key is saved, or when the options cannot be had', (tester) async {
+    for (final options in [always(json(200, optionsJson(available: false))), null]) {
+      final server = workspaceServer(account: importAccount(), routes: {'GET /imports/options': ?options});
+      await pumpImport(tester, server);
+      await openImport(tester);
+
+      expect(find.widgetWithText(QButton, 'Choose a file'), findsOneWidget);
+      expect(find.widgetWithText(QButton, 'Take a photo of the notebook'), findsNothing);
+      expect(find.widgetWithText(QButton, 'Choose a photo or PDF'), findsNothing);
+      expect(find.textContaining('Part of Pro'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    }
   });
 
   testWidgets('is only for owners and managers, with the switch on', (tester) async {

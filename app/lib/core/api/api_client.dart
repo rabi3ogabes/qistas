@@ -110,8 +110,9 @@ class ApiClient {
   }
 
   /// Sends a file (a logo, a signature, a photo) as `multipart/form-data` under [field], with any plain [fields] beside it.
-  Future<Map<String, dynamic>> upload(String path, {required String field, required List<int> bytes, required String filename, Map<String, String> fields = const {}}) =>
-      _send('POST', path, form: FormData.fromMap({...fields, field: MultipartFile.fromBytes(bytes, filename: filename)}));
+  /// [wait] is how long the answer may take, when the server has slow work to do with the file.
+  Future<Map<String, dynamic>> upload(String path, {required String field, required List<int> bytes, required String filename, Map<String, String> fields = const {}, Duration? wait}) =>
+      _send('POST', path, form: FormData.fromMap({...fields, field: MultipartFile.fromBytes(bytes, filename: filename)}), wait: wait);
 
   Future<Map<String, dynamic>> delete(String path) => _send('DELETE', path);
 
@@ -122,6 +123,7 @@ class ApiClient {
     Object? body,
     Map<String, String>? headers,
     FormData? form,
+    Duration? wait,
   }) async {
     final token = await _tokens.read();
     final Response<String> response;
@@ -131,7 +133,7 @@ class ApiClient {
         path.startsWith('/') ? path.substring(1) : path,
         data: form ?? (body == null ? null : jsonEncode(body)),
         queryParameters: query,
-        options: Options(method: method, headers: {
+        options: Options(method: method, receiveTimeout: wait, headers: {
           'Accept': 'application/json',
           'Accept-Language': _language(),
           if (body != null) 'Content-Type': 'application/json',

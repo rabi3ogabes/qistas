@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AiController;
 use App\Http\Controllers\Admin\AppearanceController;
 use App\Http\Controllers\Admin\AppearanceEventController;
 use App\Http\Controllers\Admin\BillingController;
@@ -43,6 +44,9 @@ Route::prefix('support')->name('support.')->controller(SupportController::class)
     });
 });
 Route::get('release-notes', [ReleaseNoteController::class, 'index'])->name('release-notes.index');
+// Reading notebook photos and PDFs (Win Plan K9): the Anthropic key, never shown back.
+Route::get('ai', [AiController::class, 'index'])->name('ai.index');
+Route::put('ai', [AiController::class, 'update'])->middleware('throttle:30,1')->name('ai.update');
 Route::post('release-notes', [ReleaseNoteController::class, 'store'])->middleware('throttle:60,1')->name('release-notes.store');
 
 // Billing (Win Plan PP13): bank transfers waiting for a decision, with their receipts, and the billing settings. Any

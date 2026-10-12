@@ -178,6 +178,7 @@ Route::name('api.')->group(function (): void {
         Route::get('files/{file}', [FileController::class, 'show'])->whereUuid('file')->name('files.show');
         // Bringing a shop's books in (Win Plan K9): a trial run, the columns chosen again, one confirm.
         Route::get('imports/template.xlsx', [ImportController::class, 'template'])->name('imports.template');
+        Route::get('imports/options', [ImportController::class, 'options'])->name('imports.options');
         Route::post('imports', [ImportController::class, 'store'])->middleware('throttle:documents')->name('imports.store');
         Route::get('imports/{import}', [ImportController::class, 'show'])->whereUuid('import')->name('imports.show');
         Route::put('imports/{import}', [ImportController::class, 'update'])->whereUuid('import')->name('imports.update');

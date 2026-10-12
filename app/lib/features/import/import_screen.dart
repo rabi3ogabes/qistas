@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../app/providers.dart';
 import '../../core/api/api_exception.dart';
@@ -16,14 +17,38 @@ import '../../core/ui/errors.dart';
 import '../../data/imports.dart';
 import '../documents/document_options_sheet.dart';
 
-/// Picks an Excel or CSV file from the phone: its bytes and its name, or null when the person backs out. A provider, so
-/// tests answer for the file picker.
-final importFilePickerProvider = Provider<Future<({Uint8List bytes, String name})?> Function()>((ref) => () async {
-      final file = await FilePicker.pickFile(type: FileType.custom, allowedExtensions: const ['xlsx', 'csv']);
+/// Where the books come from: an Excel or CSV file, a photo of the notebook taken now, or a photo or PDF report kept on
+/// the phone.
+enum ImportPick { sheet, camera, photoOrPdf }
+
+/// Picks what to bring in: its bytes and its name, or null when the person backs out. A provider, so tests answer for
+/// the camera and the file picker.
+final importFilePickerProvider = Provider<Future<({Uint8List bytes, String name})?> Function(ImportPick)>((ref) => (pick) async {
+      if (pick == ImportPick.camera) {
+        // The server draws it again without its hidden data; 2000px keeps handwriting readable.
+        final photo = await ImagePicker().pickImage(source: ImageSource.camera, maxWidth: 2000, maxHeight: 2000, imageQuality: 85);
+        if (photo == null) return null;
+
+        return (bytes: await photo.readAsBytes(), name: photo.name);
+      }
+
+      final file = await FilePicker.pickFile(
+        type: FileType.custom,
+        allowedExtensions: pick == ImportPick.sheet ? const ['xlsx', 'csv'] : const ['jpg', 'jpeg', 'png', 'pdf'],
+      );
       if (file == null) return null;
 
       return (bytes: await file.readAsBytes(), name: file.name);
     });
+
+/// Whether notebook photos and PDFs are offered. When the answer cannot be had, only files are offered.
+final importOptionsProvider = FutureProvider.autoDispose<ImportOptions>((ref) async {
+  try {
+    return await ref.read(apiProvider).importOptions();
+  } on ApiException {
+    return const ImportOptions();
+  }
+});
 
 /// Bringing a shop's books in (Win Plan K9): a file from the phone, the trial run with every problem by row and column,
 /// the columns chosen again if the file named them its own way, then one confirm. Nothing is saved before it.
@@ -60,8 +85,8 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
     }
   }
 
-  Future<void> _choose() => _run('choose', () async {
-        final picked = await ref.read(importFilePickerProvider)();
+  Future<void> _choose(ImportPick pick) => _run(pick.name, () async {
+        final picked = await ref.read(importFilePickerProvider)(pick);
         if (picked == null) return null;
 
         return ref.read(apiProvider).startImport(picked.bytes, picked.name);
@@ -156,7 +181,12 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
         ),
         const SizedBox(height: 24),
         if (_problem != null) ...[QNotice(_problem!, icon: Icons.error_outline), const SizedBox(height: 12)],
-        QButton(label: context.t('Choose a file'), icon: Icons.folder_open_outlined, loading: _working == 'choose', onPressed: _working == null ? _choose : null),
+        QButton(
+          label: context.t('Choose a file'),
+          icon: Icons.folder_open_outlined,
+          loading: _working == ImportPick.sheet.name,
+          onPressed: _working == null ? () => _choose(ImportPick.sheet) : null,
+        ),
         const SizedBox(height: 10),
         QButton(label: context.t('Get the template'), icon: Icons.download_outlined, kind: QButtonKind.quiet, loading: _working == 'template', onPressed: _working == null ? _template : null),
         const SizedBox(height: 16),
@@ -164,7 +194,65 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
           context.t('A balance with a number of instalments and a first due date becomes a contract with its plan, and what was paid becomes one payment dated today. A balance alone becomes an open account.'),
           style: text.bodySmall?.copyWith(color: c.inkMuted),
         ),
+        if (ref.watch(importOptionsProvider).value case final options? when options.aiAvailable) ...[
+          const SizedBox(height: 24),
+          _reading(context, options),
+        ],
       ],
+    );
+  }
+
+  /// A notebook page or another app's PDF report, read by Claude into the same trial run (decision D8). Shown once the
+  /// key is saved; on a plan without it, as part of Pro.
+  Widget _reading(BuildContext context, ImportOptions options) {
+    final c = context.qc;
+    final text = Theme.of(context).textTheme;
+    final reading = _working == ImportPick.camera.name || _working == ImportPick.photoOrPdf.name;
+
+    return QCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.auto_awesome_outlined, size: 20, color: c.accent),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  options.aiIncluded
+                      ? context.t('A photo of a notebook page, or the PDF reports from your old app, are read for you into the same rows. You check every row before anything is saved.')
+                      : context.t('Part of Pro: a photo of a notebook page, or the PDF reports from your old app, read for you into the same rows.'),
+                  style: text.bodyMedium,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (options.aiIncluded) ...[
+            QButton(
+              label: context.t('Take a photo of the notebook'),
+              icon: Icons.photo_camera_outlined,
+              loading: _working == ImportPick.camera.name,
+              onPressed: _working == null ? () => _choose(ImportPick.camera) : null,
+            ),
+            const SizedBox(height: 10),
+            QButton(
+              label: context.t('Choose a photo or PDF'),
+              icon: Icons.picture_as_pdf_outlined,
+              kind: QButtonKind.quiet,
+              loading: _working == ImportPick.photoOrPdf.name,
+              onPressed: _working == null ? () => _choose(ImportPick.photoOrPdf) : null,
+            ),
+            const SizedBox(height: 10),
+            if (reading)
+              Text(context.t('Reading the page. This can take up to a minute.'), style: text.bodySmall?.copyWith(color: c.inkMuted))
+            else if (options.pagesLeft != null)
+              Text(context.t('Pages left this month: :count', {'count': '${options.pagesLeft}'}), style: text.bodySmall?.copyWith(color: c.inkMuted)),
+          ] else
+            QButton(label: context.t('See Pro'), icon: Icons.workspace_premium_outlined, kind: QButtonKind.quiet, onPressed: () => context.push('/plans')),
+        ],
+      ),
     );
   }
 
