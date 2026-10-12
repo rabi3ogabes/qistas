@@ -48,7 +48,7 @@ Future<void> loadBrandFonts() async {
   }
 }
 
-/// Writes what the screen shows now to `<folder>/<name>.png`.
+/// Writes what the screen shows now to `<folder>/<name>.png` ([name] may have folders of its own: `ar/1-today`).
 Future<void> snapshot(WidgetTester tester, String name, {double pixelRatio = 2}) async {
   final folder = screenshotFolder;
   if (folder == null) return;
@@ -61,6 +61,7 @@ Future<void> snapshot(WidgetTester tester, String name, {double pixelRatio = 2})
     return data!.buffer.asUint8List();
   });
 
-  Directory(folder).createSync(recursive: true);
-  File('$folder/$name.png').writeAsBytesSync(Uint8List.fromList(bytes!));
+  File('$folder/$name.png')
+    ..parent.createSync(recursive: true)
+    ..writeAsBytesSync(Uint8List.fromList(bytes!));
 }

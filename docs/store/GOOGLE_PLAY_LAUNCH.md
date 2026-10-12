@@ -76,24 +76,46 @@ Then re-run the latest **Mobile app** workflow, or push any change to `app/`. Th
 | Data safety | See the next table. |
 | Account deletion | In the app (Settings, then Security, then Delete my account) and on the web at `https://qistas-puce.vercel.app/account/delete`. |
 
-### Data safety answers (as the app works today)
+### Data safety answers (as the app works today, 12 October 2026)
+
+Written from the app's code. Its Android permissions are the internet and the fingerprint lock, plus what its parts add:
+the camera (scanning a code, photographing a page or a contract), notifications and Google Play billing. There is no ad,
+analytics or crash-reporting kit. *Check* each answer against Google's current form, and update it when a switch below
+changes what the app handles.
 
 | Question | Answer |
 |---|---|
-| Does the app collect or share user data? | Collects: yes. Shares with third parties: no (hosting and database providers act on our behalf, which Google does not count as sharing). |
-| Encrypted in transit? | Yes. |
+| Does the app collect or share user data? | Collects: yes. Shares with third parties: **no**. Hosting, the database, e-mail delivery and (once switched on) the AI provider that reads notebook photos act on our behalf, which Google does not count as sharing. |
+| Encrypted in transit? | Yes (HTTPS only; the app refuses plain HTTP). |
 | Can users ask for their data to be deleted? | Yes, in the app and on the web. |
 | Personal info: name, email address | Collected, for **account management** and **app functionality**. Required. |
-| Personal info: phone number, address, other info (customers' details the business enters, including an optional national ID, which is stored encrypted) | Collected, for **app functionality**. Optional, entered by the user. |
-| Financial info: other financial info (the amounts of the business's contracts and payments) | Collected, for **app functionality**. |
-| Location, contacts, photos, app activity, device or other IDs, crash logs, diagnostics | **Not collected** today. Update this form when push notifications (Firebase) and crash reports arrive in Sprint 1, Task 14. |
+| Personal info: phone number, address, other info (the customers' details a business enters, including an optional national ID, stored encrypted) | Collected, for **app functionality**. Optional, entered by the user. Picking a customer from the phone's contacts copies only that one contact's name and number. |
+| Financial info: other financial info (the business's contracts and payments) | Collected, for **app functionality**. Required. |
+| Financial info: purchase history | Collected once **Pro through Google Play** is switched on (the purchase is checked with Google), for **account management**. |
+| Photos | Optional: the shop's logo today; contract and ID photos once **Guarantors, photos and signatures** is on; notebook pages once **Reading notebook photos and PDFs** is on. For **app functionality**. A photo is drawn again without its location before it is kept or sent. |
+| Files and docs | Optional: Excel, CSV or PDF files once **Import from Excel** is on, for **app functionality**. |
+| Device or other IDs | Collected once push notifications are set up (the Firebase token that lets the server send this phone an alert), for **app functionality**. |
+| Location, contacts list, messages, audio, calendar, health, web history, app activity, crash logs, diagnostics | **Not collected.** |
 
 ## 6. Store listing
 
-Use the copy in the Win Plan, section 6.7 (`docs/features/win-plan.html`): title, short description, full description
-bullets, and the eight screenshots, in Arabic, English, French and Urdu. A native speaker should read every
-non-English line first. Google also asks for a 512 × 512 icon and a 1024 × 500 feature graphic; ask Claude to produce
-both from the brand files.
+Everything is ready in `docs/store/`:
+
+| What | Where |
+|---|---|
+| Title, short description and full description, in Arabic, English, French, Spanish and Urdu | `docs/store/listing/<language>.md`. Play's limits are checked by `app/test/store/listing_test.dart`. Each file says which lines join the full description when a feature is switched on; add them as you switch features on. A native speaker reads every non-English line first. |
+| Phone screenshots, 1080 × 1920, seven per language | `docs/store/screenshots/<language>/`, in Play's order: Today, a WhatsApp reminder, the plan calculator, a contract, a statement, the app lock, five languages by night. Arabic leads in Arabic listings. |
+| App icon, 512 × 512 | `docs/store/graphics/icon-512.png` |
+| Feature graphic, 1024 × 500 | `docs/store/graphics/feature-graphic.png` |
+
+The screenshots are drawn from the real app with sample data in each market's names and money. They show only what
+is switched on for everyone today. After switching features on (investors, flexible schedules, remind-all), or after a
+redesign, draw them again and commit them:
+
+```powershell
+cd app
+$env:QISTAS_SCREENSHOTS = "../docs/store/screenshots"; flutter test test/visual/store_screenshots_test.dart; Remove-Item Env:QISTAS_SCREENSHOTS
+```
 
 ## 7. Closed test, then production
 
@@ -103,6 +125,19 @@ both from the brand files.
 3. Send the testers the opt-in link. They install the app from Google Play and keep it installed for 14 days.
 4. Then **Apply for production** and answer Google's questions about the test.
 5. In production, use a **staged rollout** (for example 10%, then 50%, then 100%) so a problem reaches few people.
+
+### Before pressing "Apply for production"
+
+- [ ] The switches you want at launch are on in `/admin/features`, and the listing's waiting lines for them are added
+      to `docs/store/listing/*.md`; the screenshots are drawn again if the screens changed.
+- [ ] The Data safety form matches the table above for the switches that are on.
+- [ ] The demo switch (Vercel `QISTAS_DEMO_LOGIN=true`) is on for the review, and the App access answer says how to use
+      it.
+- [ ] A support e-mail and the privacy policy link are filled in the store listing's contact details.
+- [ ] "What's new" for the release, at most 500 characters in each language.
+- [ ] The release is the newest `qistas-app-<version>.aab`, signed with the upload key.
+- [ ] The privacy policy names every kind of provider in use, including the AI provider before AI reading is switched
+      on (with the lawyer).
 
 ## When something goes wrong
 

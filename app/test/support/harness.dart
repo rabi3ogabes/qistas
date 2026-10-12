@@ -37,16 +37,21 @@ class FakeServer {
   /// While true every request fails to connect, as with no signal.
   bool offline = false;
 
+  /// Rewrites every answer before the app reads it (the store pictures put names and money in the listing's language).
+  String Function(String body)? rewrite;
+
   /// Replace or add an answer while a test runs.
   void on(String route, Route handler) => _routes[route] = handler;
 
-  FutureOr<FakeResponse> _answer(RequestOptions options) {
+  Future<FakeResponse> _answer(RequestOptions options) async {
     if (offline) throw DioException.connectionError(requestOptions: options, reason: 'offline');
 
     final path = _pathOf(options.path);
     final handler = _routes['${options.method} $path'];
+    final response = handler == null ? apiError(404, 'not_found', 'Nothing planned for ${options.method} $path') : await handler(options);
+    final change = rewrite;
 
-    return handler == null ? apiError(404, 'not_found', 'Nothing planned for ${options.method} $path') : handler(options);
+    return change == null ? response : FakeResponse(response.status, change(response.body), headers: response.headers);
   }
 
   /// How many times a route was called.
@@ -80,7 +85,7 @@ FakeServer workspaceServer({Map<String, dynamic>? account, Map<String, Route> ro
 /// Starts the real app on a phone-sized screen with the network faked.
 ///
 /// [signedIn] puts a token in the secure store (as after a previous launch); [cachedAccount] is the copy kept in
-/// preferences for launching offline.
+/// preferences for launching offline. [frame] wraps the app (a store picture's caption around it).
 Future<void> pumpApp(
   WidgetTester tester,
   FakeServer server, {
@@ -95,6 +100,7 @@ Future<void> pumpApp(
   FakeClock? clock,
   PushService? push,
   StoreGateway? store,
+  Widget Function(Widget app)? frame,
 }) async {
   if (realFonts) await loadBrandFonts();
   for (final code in AppConfig.locales) {
@@ -136,7 +142,7 @@ Future<void> pumpApp(
           return Future.value(Translations(language, {for (final entry in table.entries) entry.key: entry.value.toString()}));
         }),
       ],
-      child: RepaintBoundary(key: screenshotKey, child: const QistasApp()),
+      child: RepaintBoundary(key: screenshotKey, child: frame == null ? const QistasApp() : frame(const QistasApp())),
     ),
   );
   await settle(tester);

@@ -48,6 +48,19 @@ void main() {
     expect(expected.total, Money.parse('4600.00'));
   });
 
+  testWidgets('keeps the total, the profit and the last date apart on a phone, however long the amounts', (tester) async {
+    await pumpApp(tester, workspaceServer(), size: const Size(390, 800));
+    await openCalculator(tester);
+    await typeIntoKey(tester, 'calc-price', '3600');
+    await typeIntoKey(tester, 'calc-down', '600');
+    await typeIntoKey(tester, 'calc-markup', '10');
+    await settle(tester);
+
+    final total = tester.getRect(find.text('SAR 3,300.00').first);
+    final profit = tester.getRect(find.text('SAR 300.00').first);
+    expect(profit.left - total.right, greaterThanOrEqualTo(8));
+  });
+
   testWidgets('says what is wrong instead of showing a plan that cannot be', (tester) async {
     await pumpApp(tester, workspaceServer());
     await openCalculator(tester);

@@ -149,11 +149,17 @@ class _NavItem extends StatelessWidget {
               child: Icon(selected ? destination.selectedIcon : destination.icon, size: 22, color: selected ? c.ink : c.inkMuted),
             ),
             const SizedBox(height: 3),
-            Text(
-              destination.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: text.labelSmall?.copyWith(color: selected ? c.ink : c.inkMuted, fontWeight: selected ? FontWeight.w700 : FontWeight.w500, fontSize: 11.5),
+            // A long name (French's "Tableau de bord") shrinks a little to fit rather than losing its end.
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  destination.label,
+                  maxLines: 1,
+                  style: text.labelSmall?.copyWith(color: selected ? c.ink : c.inkMuted, fontWeight: selected ? FontWeight.w700 : FontWeight.w500, fontSize: 11.5),
+                ),
+              ),
             ),
           ],
         ),

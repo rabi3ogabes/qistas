@@ -276,6 +276,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
         if (_problem != null) ...[QNotice(_problem!, icon: Icons.error_outline), const SizedBox(height: 12)],
         QCard(
           child: Row(
+            spacing: 12,
             children: [
               Expanded(child: _Figure(label: job.isDone ? context.t('Brought in') : context.t('Ready to bring in'), value: '${summary.ready}', note: context.t('Rows read: :count', {'count': '${summary.rows}'}))),
               Expanded(child: _Figure(label: context.t('New customers'), value: '${summary.customers}', note: context.t('Contracts: :count', {'count': '${summary.contracts}'}))),

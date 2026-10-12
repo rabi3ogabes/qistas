@@ -277,6 +277,8 @@ class _Result extends StatelessWidget {
             const SizedBox(height: 16),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
+              // A gap between the three, so long amounts shrink rather than run into each other.
+              spacing: 12,
               children: [
                 Expanded(child: _Figure(label: context.t('Total to repay'), value: result.total.format(currency), style: small)),
                 Expanded(child: _Figure(label: context.t('Profit'), value: result.markup.format(currency), style: small)),

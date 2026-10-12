@@ -200,6 +200,7 @@ class _Forecast extends ConsumerWidget {
               _Figure(label: context.t('Expected in the next 30 days'), value: forecast.windows[30]!.format(currency), lead: true),
               const SizedBox(height: 12),
               Row(
+                spacing: 12,
                 children: [
                   Expanded(child: _Figure(label: context.t('Next 60 days'), value: forecast.windows[60]!.format(currency))),
                   Expanded(child: _Figure(label: context.t('Next 90 days'), value: forecast.windows[90]!.format(currency))),
@@ -346,6 +347,7 @@ class _Profit extends ConsumerWidget {
               const SizedBox(height: 12),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 12,
                 children: [
                   Expanded(child: _Figure(label: context.t('Collected of what fell due'), value: profit.collectionRate == null ? '—' : '${profit.collectionRate}%')),
                   Expanded(

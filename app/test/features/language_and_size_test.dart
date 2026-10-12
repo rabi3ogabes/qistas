@@ -1,3 +1,4 @@
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -30,6 +31,13 @@ void main() {
       final second = tester.getCenter(find.text('Customers').last).dx;
 
       expect(first, lessThan(second));
+    });
+
+    testWidgets('the bottom bar shows each section’s whole name on a narrow phone, even French’s longest', (tester) async {
+      await pumpApp(tester, workspaceServer(), language: 'fr', size: const Size(360, 780));
+
+      // A long name shrinks a little to fit its place rather than losing its end.
+      expect(tester.renderObject<RenderParagraph>(find.text('Tableau de bord').last).didExceedMaxLines, isFalse);
     });
 
     testWidgets('amounts and phone numbers keep their digits and direction in every language', (tester) async {
