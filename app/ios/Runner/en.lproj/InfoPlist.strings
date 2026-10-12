@@ -1,0 +1,5 @@
+/* What iOS shows for Qistas in this language: its name under the icon, and why it asks for each permission. */
+"CFBundleDisplayName" = "Qistas";
+"NSCameraUsageDescription" = "Qistas uses the camera when you scan a product's code or photograph a contract or a notebook page.";
+"NSPhotoLibraryUsageDescription" = "Qistas opens your photos only when you choose one: your shop's logo, a contract photo or a notebook page.";
+"NSFaceIDUsageDescription" = "Qistas uses Face ID to lock the app, so only you can open your books.";

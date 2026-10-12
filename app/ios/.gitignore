@@ -32,3 +32,6 @@ Runner/GeneratedPluginRegistrant.*
 !default.mode2v3
 !default.pbxuser
 !default.perspectivev3
+
+# Firebase settings for iPhone pushes: written from a secret by the iPhone workflow, never committed.
+Runner/GoogleService-Info.plist

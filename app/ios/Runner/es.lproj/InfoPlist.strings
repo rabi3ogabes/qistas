@@ -1,0 +1,5 @@
+/* What iOS shows for Qistas in this language: its name under the icon, and why it asks for each permission. */
+"CFBundleDisplayName" = "Qistas";
+"NSCameraUsageDescription" = "Qistas usa la cámara cuando escaneas el código de un producto o fotografías un contrato o una página del cuaderno.";
+"NSPhotoLibraryUsageDescription" = "Qistas solo abre tus fotos cuando eliges una: el logo de tu tienda, la foto de un contrato o una página del cuaderno.";
+"NSFaceIDUsageDescription" = "Qistas usa Face ID para bloquear la app: solo tú abres tus cuentas.";

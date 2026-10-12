@@ -1,0 +1,106 @@
+name: iPhone app
+
+# The iPhone app (Sprint 2 Task 9, Win Plan PL02). Every change to app/ is built for iOS on GitHub's Macs, unsigned, so
+# the iPhone project never breaks unseen. Once the owner's App Store Connect secrets exist, the same run also archives
+# the app, signs it (Xcode's automatic signing with the API key) and sends it to TestFlight; without them that job is
+# skipped and shows grey. The owner's steps: docs/store/APP_STORE_LAUNCH.md.
+
+on:
+  push:
+    branches: [main]
+    paths: ["app/**", ".github/workflows/ios.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: app
+
+env:
+  FLUTTER_VERSION: "3.41.2"
+
+jobs:
+  build:
+    name: Build for iPhone (unsigned)
+    runs-on: macos-15
+    timeout-minutes: 45
+    outputs:
+      signing: ${{ steps.secrets.outputs.signing }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Build the iPhone app without signing
+        run: flutter build ios --release --no-codesign
+      - name: Are the App Store Connect secrets set?
+        id: secrets
+        env:
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+        run: |
+          if [ -n "$TEAM_ID" ] && [ -n "$KEY_ID" ] && [ -n "$ISSUER_ID" ] && [ -n "$PRIVATE_KEY" ]; then
+            echo "signing=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "signing=false" >> "$GITHUB_OUTPUT"
+            echo "The iPhone app builds. No App Store Connect secrets yet, so it is not signed or sent to TestFlight (docs/store/APP_STORE_LAUNCH.md)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  testflight:
+    name: Sign and send to TestFlight
+    needs: build
+    if: needs.build.outputs.signing == 'true'
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Firebase settings, for pushes (when the secret exists)
+        env:
+          GOOGLE_SERVICE_INFO_PLIST: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST }}
+        run: |
+          if [ -n "$GOOGLE_SERVICE_INFO_PLIST" ]; then
+            printf '%s' "$GOOGLE_SERVICE_INFO_PLIST" > ios/Runner/GoogleService-Info.plist
+          else
+            echo "No GOOGLE_SERVICE_INFO_PLIST secret: this build takes no pushes (alerts wait in the inbox)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - run: flutter pub get
+      - name: Prepare the release (version from pubspec.yaml, build number from this run)
+        run: flutter build ios --release --no-codesign --build-number=${{ github.run_number }}
+      - name: Archive, sign and upload to App Store Connect
+        working-directory: app/ios
+        env:
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+        run: |
+          key="$RUNNER_TEMP/AuthKey_$KEY_ID.p8"
+          printf '%s' "$PRIVATE_KEY" > "$key"
+          auth=(-allowProvisioningUpdates -authenticationKeyPath "$key" -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER_ID")
+
+          xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive" "${auth[@]}" DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_STYLE=Automatic archive
+
+          plutil -replace teamID -string "$TEAM_ID" ExportOptions.plist
+          # destination "upload": the export signs for the App Store and sends the build to App Store Connect.
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Runner.xcarchive" -exportOptionsPlist ExportOptions.plist \
+            -exportPath "$RUNNER_TEMP/export" "${auth[@]}"
+
+          rm -f "$key"
+          echo "Sent to TestFlight: build ${{ github.run_number }}. It appears in App Store Connect after Apple processes it." >> "$GITHUB_STEP_SUMMARY"

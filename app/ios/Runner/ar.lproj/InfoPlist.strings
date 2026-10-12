@@ -1,0 +1,5 @@
+/* What iOS shows for Qistas in this language: its name under the icon, and why it asks for each permission. */
+"CFBundleDisplayName" = "قسطاس";
+"NSCameraUsageDescription" = "يستخدم قسطاس الكاميرا عندما تمسح رمز منتج أو تصوّر عقدًا أو صفحة من الدفتر.";
+"NSPhotoLibraryUsageDescription" = "لا يفتح قسطاس صورك إلا عندما تختار واحدة: شعار متجرك أو صورة عقد أو صفحة من الدفتر.";
+"NSFaceIDUsageDescription" = "يستخدم قسطاس Face ID لقفل التطبيق، فلا يفتح دفترك أحد غيرك.";
