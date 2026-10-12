@@ -30,6 +30,7 @@
     p { margin: 0; }
     .muted { color: #56607A; }
     .small { font-size: {{ round($size * 0.82, 1) }}pt; }
+    .narrowed { margin-top: 2pt; font-weight: bold; }
     .head { width: 100%; border-bottom: 1.2pt solid {{ $branding['accent'] }}; }
     .word { font-size: {{ $compact ? 13 : 16 }}pt; font-weight: bold; color: {{ $branding['ink'] }}; }
     .foot { width: 100%; border-top: 0.5pt solid #E3DCCB; font-size: 7.5pt; color: #56607A; }

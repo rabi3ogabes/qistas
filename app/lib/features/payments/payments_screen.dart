@@ -25,6 +25,15 @@ class PaymentsScreen extends ConsumerWidget {
 
     return SectionScaffold(
       title: context.t('Payments'),
+      actions: [
+        // The period's payments as a PDF, narrowed to an investor or a product if asked; not for collectors.
+        if (account?.seesReports ?? false)
+          IconButton(
+            tooltip: context.t('Payments report'),
+            icon: const Icon(Icons.summarize_outlined),
+            onPressed: () => showDocumentSheet(context, const DocumentRequest.payments()),
+          ),
+      ],
       body: PagedListView<LedgerLine>(
         provider: paymentsListProvider,
         separated: false,

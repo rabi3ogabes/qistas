@@ -3,6 +3,7 @@
 namespace App\Documents\Templates;
 
 use App\Documents\DocumentOptions;
+use App\Documents\Narrowing;
 use App\Documents\Template;
 use App\Models\Transaction;
 use App\Support\Money;
@@ -57,7 +58,7 @@ final class TransactionsReport implements Template
         $this->reference = $from->format('Y-m-d').' / '.$to->format('Y-m-d');
         $this->total = $total;
 
-        return ['lines' => $lines, 'total' => $total, 'byMethod' => $byMethod, 'from' => $from, 'to' => $to];
+        return ['lines' => $lines, 'total' => $total, 'byMethod' => $byMethod, 'from' => $from, 'to' => $to, 'narrowedTo' => Narrowing::of($options)];
     }
 
     public function reference(): string

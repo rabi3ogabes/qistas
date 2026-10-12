@@ -14,6 +14,7 @@
 @section('content')
     <h1>{{ __('Payments report') }}</h1>
     <p class="muted">{{ __('From :from to :to', ['from' => Dates::day($from), 'to' => Dates::day($to)]) }}</p>
+    @include('documents._narrowed')
 
     <table class="owed"><tr>
         <td><strong>{{ __('Received') }}</strong><br><span class="muted small">{{ __('Payments: :count', ['count' => $lines->count()]) }}</span></td>

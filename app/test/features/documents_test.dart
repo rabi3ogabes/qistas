@@ -1,9 +1,12 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart' hide Route;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pdf/pdf.dart' show PdfPageFormat;
 import 'package:qistas/core/design/widgets.dart';
+import 'package:qistas/core/l10n/formats.dart';
 import 'package:qistas/features/documents/document_options_sheet.dart';
 import 'package:qistas/features/settings/business_profile_screen.dart';
 
@@ -27,11 +30,21 @@ Map<String, dynamic> preferencesJson() => {
       'paper': 'a4', 'text': 'normal', 'sections': {'cost': false, 'overdue': true, 'schedule': true, 'signature': true}, 'wording': <String, String>{},
     };
 
-/// What the share sheet was handed: the file's name and its bytes.
+/// What the share sheet was handed (the file's name and its bytes), and what was sent to the printer (the name, the
+/// paper and the bytes).
 class SharedFiles {
   final List<(String, List<int>)> files = [];
+  final List<(String, String, List<int>)> printed = [];
+
+  /// A phone with no print service: printing fails.
+  bool printerMissing = false;
 
   Future<void> share(String path, String subject) async => files.add((path.split(Platform.pathSeparator).last, File(path).readAsBytesSync()));
+
+  Future<void> print(Uint8List bytes, String name, String paper) async {
+    if (printerMissing) throw Exception('no print service');
+    printed.add((name, paper, bytes));
+  }
 }
 
 Future<SharedFiles> pumpWithSharing(WidgetTester tester, FakeServer server) async {
@@ -40,6 +53,7 @@ Future<SharedFiles> pumpWithSharing(WidgetTester tester, FakeServer server) asyn
   addTearDown(() => folder.deleteSync(recursive: true));
   await pumpApp(tester, server, overrides: [
     documentSharerProvider.overrideWithValue(shared.share),
+    documentPrinterProvider.overrideWithValue(shared.print),
     documentFolderProvider.overrideWithValue(() async => folder),
   ]);
 
@@ -53,6 +67,8 @@ Future<void> tapFirst(WidgetTester tester, Finder finder) async {
   await tester.tap(finder.first);
   await settle(tester);
 }
+
+Map<String, dynamic> galaxyJson() => {'id': 'p1', 'name': 'Galaxy S25', 'sku': null, 'default_price': null, 'cost': null, 'archived': false};
 
 FakeServer documentServer(Map<String, Route> routes) => workspaceServer(routes: {
       'GET /settings/documents': always(json(200, {'data': preferencesJson()})),
@@ -123,6 +139,118 @@ void main() {
 
     expect(server.requestsTo('GET /payments/t1/receipt.pdf').single.queryParameters['paper'], '80mm');
     expect(shared.files.single.$1, 'receipt-C-0007.pdf');
+  });
+
+  testWidgets('prints a receipt at its till roll’s width, straight from the phone', (tester) async {
+    final server = documentServer({
+      'POST /contracts/k1/payments': always(json(201, {'data': lineJson()})),
+      'GET /payments/t1/receipt.pdf': always(pdf()),
+    });
+    final shared = await pumpWithSharing(tester, server);
+    await tapFirst(tester, find.widgetWithText(FilledButton, 'Record payment').last);
+    await tapButton(tester, 'Record payment');
+
+    await tapButton(tester, 'Send receipt');
+    await tapText(tester, 'Till roll, 58 mm');
+    await tapButton(tester, 'Print');
+
+    expect(server.requestsTo('GET /payments/t1/receipt.pdf').single.queryParameters['paper'], '58mm');
+    final (name, paper, bytes) = shared.printed.single;
+    expect((name, paper), ('receipt-C-0007.pdf', '58mm'));
+    expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
+    expect(shared.files, isEmpty);
+  });
+
+  testWidgets('sends the month’s payments report, narrowed to one investor and one product (Win Plan RP11)', (tester) async {
+    final server = documentServer({
+      'GET /me': always(json(200, {'data': accountWithInvestors()})),
+      'GET /investors': always(json(200, {'data': investorsJson(partner: true)})),
+      'GET /products': always(json(200, {'data': [galaxyJson()]})),
+      'GET /reports/transactions.pdf': always(pdf()),
+    });
+    final shared = await pumpWithSharing(tester, server);
+    await tapText(tester, 'Payments', last: true);
+
+    await tapTooltip(tester, 'Payments report');
+    await tapText(tester, 'All investors');
+    await tapText(tester, 'Khalid Al-Harbi', last: true);
+    await tapText(tester, 'All products');
+    await tapText(tester, 'Galaxy S25', last: true);
+    await tapButton(tester, 'Share');
+
+    final now = DateTime.now();
+    final query = server.requestsTo('GET /reports/transactions.pdf').single.queryParameters;
+    expect(query['from'], isoDay(DateTime(now.year, now.month)));
+    expect(query['to'], isoDay(now));
+    expect(query['investor'], 'i2');
+    expect(query['product'], 'p1');
+    expect(query.containsKey('sections[overdue]'), isFalse);
+    expect(shared.files.single.$1, 'payments-report.pdf');
+  });
+
+  testWidgets('keeps the payments report from a collector', (tester) async {
+    await pumpWithSharing(tester, documentServer({'GET /me': always(json(200, {'data': accountJson(role: 'collector')}))}));
+    await tapText(tester, 'Payments', last: true);
+
+    expect(find.byTooltip('Payments report'), findsNothing);
+  });
+
+  testWidgets('prints a customer’s statement from the day chosen, and the whole account until one is', (tester) async {
+    final server = documentServer({'GET /customers/c1/statement.pdf': always(pdf())});
+    final shared = await pumpWithSharing(tester, server);
+    await tapText(tester, 'Customers', last: true);
+    await tapText(tester, 'Ahmad Salem');
+
+    await tapTooltip(tester, 'Statement');
+    expect(find.text('From the start'), findsOneWidget);
+    await tapText(tester, 'From the start');
+    await tapText(tester, 'OK');
+    await tapButton(tester, 'Print');
+
+    final now = DateTime.now();
+    final query = server.requestsTo('GET /customers/c1/statement.pdf').single.queryParameters;
+    expect(query['from'], isoDay(DateTime(now.year, now.month)));
+    expect(query.containsKey('to'), isFalse);
+    expect(shared.printed.single.$1, 'statement-Ahmad-Salem.pdf');
+    expect(shared.printed.single.$2, 'a4');
+  });
+
+  test('prints each paper at its own size', () {
+    expect(paperFormat('80mm'), PdfPageFormat.roll80);
+    expect(paperFormat('58mm'), PdfPageFormat.roll57);
+    expect(paperFormat('a5'), PdfPageFormat.a5);
+    expect(paperFormat('a4'), PdfPageFormat.a4);
+  });
+
+  testWidgets('says so when the phone cannot print, and keeps the choices open to share instead', (tester) async {
+    final server = documentServer({'GET /customers/c1/statement.pdf': always(pdf())});
+    final shared = await pumpWithSharing(tester, server)
+      ..printerMissing = true;
+    await tapText(tester, 'Customers', last: true);
+    await tapText(tester, 'Ahmad Salem');
+
+    await tapTooltip(tester, 'Statement');
+    await tapButton(tester, 'Print');
+
+    expect(find.text('This phone could not print it. Share it to the printer’s app instead.'), findsOneWidget);
+    expect(find.widgetWithText(QButton, 'Share'), findsOneWidget);
+    expect(shared.printed, isEmpty);
+  });
+
+  testWidgets('never offers a collector the investors', (tester) async {
+    final server = documentServer({
+      'GET /me': always(json(200, {'data': accountWithInvestors(role: 'collector')})),
+      'GET /investors': always(json(200, {'data': investorsJson(partner: true)})),
+      'GET /products': always(json(200, {'data': [galaxyJson()]})),
+    });
+    await pumpWithSharing(tester, server);
+    await tapText(tester, 'Customers', last: true);
+    await tapText(tester, 'Ahmad Salem');
+
+    await tapTooltip(tester, 'Statement');
+
+    expect(find.text('All products'), findsOneWidget);
+    expect(find.text('All investors'), findsNothing);
   });
 
   testWidgets('keeps the business profile and saves a signature drawn on the screen as a PNG', (tester) async {

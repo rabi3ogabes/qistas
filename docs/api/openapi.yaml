@@ -1536,7 +1536,8 @@ paths:
       summary: A customer's statement
       description: |
         Every contract of the customer with what is still owed and late today, then the account line by line with a
-        running balance (a period with `from` and `to`; one contract with `contract`). Counts once against the plan's
+        running balance (a period with `from` and `to`; one contract with `contract`; the contracts one investor funds
+        with `investor`, or that sold one product with `product`, named on the document). Counts once against the plan's
         monthly allowance of documents; the same document asked for again within ten minutes is not counted twice. The
         cost section is only ever shown to someone who sees the business's money.
       parameters:
@@ -1550,6 +1551,8 @@ paths:
         - {name: from, in: query, schema: {type: string, format: date}}
         - {name: to, in: query, schema: {type: string, format: date}}
         - {name: contract, in: query, schema: {type: string, format: uuid}}
+        - {name: investor, in: query, schema: {type: string, format: uuid}, description: Only contracts this investor funds.}
+        - {name: product, in: query, schema: {type: string, format: uuid}, description: Only contracts that sold this product.}
       responses:
         "200":
           description: The PDF. `X-Document-Code` carries the code its QR code opens at `/verify/{code}`.
@@ -1616,7 +1619,7 @@ paths:
     get:
       tags: [Documents]
       summary: The money that came in over a period
-      description: One line each, with the total for each way of paying (this month so far unless `from` and `to` are given). Not for collectors (403).
+      description: One line each, with the total for each way of paying (this month so far unless `from` and `to` are given). Narrowed by `investor` or `product`, the lines and totals follow and the document names the filter. Not for collectors (403).
       parameters:
         - {$ref: "#/components/parameters/DocumentPaper"}
         - {$ref: "#/components/parameters/DocumentText"}

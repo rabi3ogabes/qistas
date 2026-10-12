@@ -7,7 +7,7 @@
     <x-page-head :title="__('Payments')">
         <x-slot:subtitle>{{ __('Every payment received, newest first. To take one, open the contract it belongs to.') }}</x-slot:subtitle>
         @if (auth()->user()?->roleIn((string) app(\App\Tenancy\CurrentTenant::class)->id())?->seesInvestors())
-            <x-document-menu id="payments-report" :action="route('app.reports.transactions')" :label="__('Payments report')" :period="true" :sections="['signature']" />
+            <x-document-menu id="payments-report" :action="route('app.reports.transactions')" :label="__('Payments report')" :period="true" :sections="['signature']" :filters="true" />
         @endif
     </x-page-head>
 

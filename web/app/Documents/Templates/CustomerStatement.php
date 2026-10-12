@@ -3,17 +3,20 @@
 namespace App\Documents\Templates;
 
 use App\Documents\DocumentOptions;
+use App\Documents\Narrowing;
 use App\Documents\Template;
 use App\Domain\Ledger\Statement;
 use App\Models\Contract;
 use App\Models\Customer;
 use App\Support\Money;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
 /**
  * A customer's account: every contract with what is owed and late today, then every line of the period with a running
- * balance (or one contract only, when asked).
+ * balance (or one contract only, when asked). It can be narrowed to the contracts one investor funds or that sold one
+ * product, and the balance follows.
  */
 final class CustomerStatement implements Template
 {
@@ -42,6 +45,8 @@ final class CustomerStatement implements Template
     {
         $contracts = Contract::query()->where('customer_id', $this->customer->id)
             ->when($options->contract !== null, fn ($query) => $query->whereKey($options->contract))
+            ->when($options->investor !== null, fn (Builder $query) => $query->where('investor_id', $options->investor))
+            ->when($options->product !== null, fn (Builder $query) => $query->whereHas('items', fn (Builder $item) => $item->where('product_id', $options->product)))
             ->with(['installments', 'items'])->orderBy('number')->get();
 
         $balances = Statement::owedAndOverdue($contracts);
@@ -69,6 +74,7 @@ final class CustomerStatement implements Template
             'statement' => Statement::of($contracts, $options->from, $options->to),
             'owed' => $owed,
             'overdue' => $overdue,
+            'narrowedTo' => Narrowing::of($options),
         ];
     }
 

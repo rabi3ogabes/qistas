@@ -24,6 +24,7 @@
             {{ __('Up to :date', ['date' => Dates::day(($options->to ?? $issuedAt))]) }}
         @endif
     </p>
+    @include('documents._narrowed')
 
     <table class="facts">
         <tr><td class="label">{{ $options->word('customer') }}</td><td><strong>{{ $customer->name }}</strong>@if ($customer->phone)<br><span class="muted">{{ $customer->phone }}</span>@endif</td></tr>
