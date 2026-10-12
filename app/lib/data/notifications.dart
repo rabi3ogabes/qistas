@@ -59,11 +59,23 @@ class AlertPreferences {
     this.quiet = false,
     this.quietFrom = '22:00',
     this.quietTo = '08:00',
+    this.kinds = const [],
+    this.channels = const [],
+    this.allowed = const {},
+    this.choices = const {},
   });
 
   factory AlertPreferences.fromJson(Map<String, dynamic> json) {
     final data = json['data'] as Map<String, dynamic>? ?? json;
+    final meta = json['meta'] as Map<String, dynamic>? ?? const {};
     Map<String, dynamic> part(String key) => data[key] as Map<String, dynamic>? ?? const {};
+    Map<String, bool> flags(Object? value) => {
+          for (final channel in noticeChannels) channel: value is Map && value[channel] == true,
+        };
+
+    final kinds = [for (final kind in meta['kinds'] as List<dynamic>? ?? const []) NoticeKind.fromJson(kind as Map<String, dynamic>)];
+    final channels = meta['channels'] as Map<String, dynamic>? ?? const {};
+    final allowed = meta['allowed'] as Map<String, dynamic>? ?? const {};
 
     return AlertPreferences(
       digest: part('daily_digest')['enabled'] as bool? ?? true,
@@ -74,8 +86,20 @@ class AlertPreferences {
       quiet: part('quiet_hours')['enabled'] as bool? ?? false,
       quietFrom: part('quiet_hours')['from'] as String? ?? '22:00',
       quietTo: part('quiet_hours')['to'] as String? ?? '08:00',
+      kinds: kinds,
+      channels: [
+        for (final key in noticeChannels)
+          if (channels[key] is Map) NoticeChannel(key: key, label: (channels[key] as Map)['label']?.toString() ?? key, available: (channels[key] as Map)['available'] == true),
+      ],
+      allowed: {for (final kind in kinds) kind.key: flags(allowed[kind.key])},
+      choices: {
+        for (final kind in kinds) kind.key: NoticeChoice(enabled: part(kind.key)['enabled'] as bool? ?? true, channels: flags(part(kind.key)['channels'])),
+      },
     );
   }
+
+  /// The kinds whose on/off switch is one of the alert settings above (the rest are switched here, kind by kind).
+  static const alertKinds = {'daily_digest', 'instalment_due', 'instalment_late'};
 
   final bool digest;
   final String digestTime;
@@ -88,12 +112,41 @@ class AlertPreferences {
   final String quietFrom;
   final String quietTo;
 
-  Map<String, dynamic> toJson() => {
-        'daily_digest': {'enabled': digest, 'time': digestTime},
-        'instalment_due': {'enabled': due},
-        'instalment_late': {'enabled': late, 'repeat': lateRepeat},
-        'quiet_hours': {'enabled': quiet, 'from': quietFrom, 'to': quietTo},
+  /// Every kind of notice, as the server names them (empty from a server older than the channels).
+  final List<NoticeKind> kinds;
+
+  /// In the app, by e-mail, by text message: each with whether it is set up for this person.
+  final List<NoticeChannel> channels;
+
+  /// What the admin allows, kind by kind and channel by channel.
+  final Map<String, Map<String, bool>> allowed;
+
+  /// This person's choice for each kind.
+  final Map<String, NoticeChoice> choices;
+
+  /// Whether [kind] is on: the alert switches above for the alerts, the kind's own switch for the rest.
+  bool isOn(String kind) => switch (kind) {
+        'daily_digest' => digest,
+        'instalment_due' => due,
+        'instalment_late' => late,
+        _ => choices[kind]?.enabled ?? true,
       };
+
+  /// The channels to offer for [kind]: set up, and allowed by the admin.
+  List<NoticeChannel> offered(String kind) => [for (final channel in channels) if (channel.available && (allowed[kind]?[channel.key] ?? false)) channel];
+
+  Map<String, dynamic> toJson() {
+    Map<String, dynamic> withChannels(String kind, Map<String, dynamic> part) => choices[kind] == null ? part : {...part, 'channels': choices[kind]!.channels};
+
+    return {
+      'daily_digest': withChannels('daily_digest', {'enabled': digest, 'time': digestTime}),
+      'instalment_due': withChannels('instalment_due', {'enabled': due}),
+      'instalment_late': withChannels('instalment_late', {'enabled': late, 'repeat': lateRepeat}),
+      for (final kind in kinds)
+        if (!alertKinds.contains(kind.key) && choices[kind.key] != null) kind.key: {'enabled': choices[kind.key]!.enabled, 'channels': choices[kind.key]!.channels},
+      'quiet_hours': {'enabled': quiet, 'from': quietFrom, 'to': quietTo},
+    };
+  }
 
   AlertPreferences copyWith({bool? digest, String? digestTime, bool? due, bool? late, String? lateRepeat, bool? quiet, String? quietFrom, String? quietTo}) =>
       AlertPreferences(
@@ -105,7 +158,76 @@ class AlertPreferences {
         quiet: quiet ?? this.quiet,
         quietFrom: quietFrom ?? this.quietFrom,
         quietTo: quietTo ?? this.quietTo,
+        kinds: kinds,
+        channels: channels,
+        allowed: allowed,
+        choices: choices,
       );
+
+  /// [kind] switched on or off, or one of its channels changed.
+  AlertPreferences withNotice(String kind, {bool? enabled, String? channel, bool? on}) {
+    final current = choices[kind] ?? const NoticeChoice(enabled: true, channels: {'push': true, 'email': false, 'sms': false});
+    final next = NoticeChoice(
+      enabled: enabled ?? current.enabled,
+      channels: channel == null ? current.channels : {...current.channels, channel: on ?? false},
+    );
+
+    return AlertPreferences(
+      digest: digest,
+      digestTime: digestTime,
+      due: due,
+      late: late,
+      lateRepeat: lateRepeat,
+      quiet: quiet,
+      quietFrom: quietFrom,
+      quietTo: quietTo,
+      kinds: kinds,
+      channels: channels,
+      allowed: allowed,
+      choices: {...choices, kind: next},
+    );
+  }
+}
+
+/// Where a notice can reach a person (Sprint 3 Task 1b).
+const noticeChannels = ['push', 'email', 'sms'];
+
+/// One kind of notice, as the server names it in the person's language.
+@immutable
+class NoticeKind {
+  const NoticeKind({required this.key, required this.group, required this.label, required this.description});
+
+  factory NoticeKind.fromJson(Map<String, dynamic> json) => NoticeKind(
+        key: json['key'].toString(),
+        group: (json['group'] ?? 'alerts').toString(),
+        label: (json['label'] ?? json['key']).toString(),
+        description: (json['description'] ?? '').toString(),
+      );
+
+  final String key;
+
+  /// alerts | billing | support
+  final String group;
+  final String label;
+  final String description;
+}
+
+@immutable
+class NoticeChannel {
+  const NoticeChannel({required this.key, required this.label, required this.available});
+
+  /// push | email | sms
+  final String key;
+  final String label;
+  final bool available;
+}
+
+@immutable
+class NoticeChoice {
+  const NoticeChoice({required this.enabled, required this.channels});
+
+  final bool enabled;
+  final Map<String, bool> channels;
 }
 
 /// One customer on the remind-all checklist, with the message already written by the server.

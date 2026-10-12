@@ -2,22 +2,31 @@
 
 namespace App\Notifications\Alerts;
 
+use App\Mail\NoticeMail;
 use App\Models\AppNotification;
 use App\Models\NotificationLogEntry;
 use App\Models\PushToken;
 use App\Models\User;
+use App\Notifications\Channels;
 use App\Notifications\Push\PushMessage;
 use App\Notifications\Push\PushSender;
+use App\Sms\SmsSender;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 
 /**
- * Tells one person one thing (Win Plan PP9), in the workspace in context: an entry in their inbox, a line in the log for
- * each instalment it covers (whose unique dedupe key makes the same alert impossible to send twice), then a push to each
- * of their phones.
+ * Tells one person one thing (Win Plan PP9, Sprint 3 Task 1b), in the workspace in context, on the channels Channels
+ * decides: in the app (an entry in their inbox, then a push to each of their phones), by e-mail, by text message. A line
+ * in the log for each thing it covers has a unique dedupe key, so the same notice can never go twice, even when it goes
+ * nowhere because the person switched it off.
  */
 final class Notifier
 {
-    public function __construct(private readonly PushSender $sender) {}
+    public function __construct(
+        private readonly PushSender $sender,
+        private readonly Channels $channels,
+        private readonly SmsSender $sms,
+    ) {}
 
     /**
      * The keys among [$keys] already decided (sent or skipped).
@@ -35,21 +44,37 @@ final class Notifier
      */
     public function notify(User $user, PushMessage $message, array $covers): void
     {
-        DB::transaction(function () use ($user, $message, $covers): void {
-            AppNotification::create([
-                'user_id' => $user->id,
-                'type' => $message->type,
-                'title' => $message->title,
-                'body' => $message->body,
-                'data' => $message->data,
-            ]);
+        $channels = $this->channels->for($user, $message->type);
+        $inApp = in_array('push', $channels, true);
+
+        DB::transaction(function () use ($user, $message, $covers, $channels, $inApp): void {
+            if ($inApp) {
+                AppNotification::create([
+                    'user_id' => $user->id,
+                    'type' => $message->type,
+                    'title' => $message->title,
+                    'body' => $message->body,
+                    'data' => $message->data,
+                ]);
+            }
             foreach ($covers as $cover) {
-                NotificationLogEntry::create($cover + ['user_id' => $user->id, 'channel' => 'push', 'status' => 'sent', 'sent_at' => now()]);
+                NotificationLogEntry::create($cover + [
+                    'user_id' => $user->id, 'channel' => $channels === [] ? 'none' : implode(',', $channels),
+                    'status' => $channels === [] ? 'skipped' : 'sent', 'sent_at' => now(),
+                ]);
             }
         });
 
-        foreach (PushToken::query()->where('user_id', $user->id)->whereNull('revoked_at')->get() as $token) {
-            $this->sender->send($token, $message);
+        if ($inApp) {
+            foreach (PushToken::query()->where('user_id', $user->id)->whereNull('revoked_at')->get() as $token) {
+                $this->sender->send($token, $message);
+            }
+        }
+        if (in_array('email', $channels, true)) {
+            Mail::to($user)->locale($user->locale ?: config('app.locale'))->queue(new NoticeMail($message));
+        }
+        if (in_array('sms', $channels, true)) {
+            $this->sms->send((string) $user->getAttribute('phone'), $message->title.': '.$message->body);
         }
     }
 

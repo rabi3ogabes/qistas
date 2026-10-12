@@ -557,6 +557,17 @@
     .import-fields > div { display: grid; grid-template-columns: minmax(8rem, 40%) 1fr; gap: 1rem; padding: .625rem 0; border-bottom: 1px solid var(--q-line); }
     .import-fields dt { font-weight: 600; }
     .import-fields dd { margin: 0; color: var(--q-ink-muted); overflow-wrap: anywhere; }
+    /* Each person's notices (Sprint 3 Task 1b): a kind with its switch, and the channels it reaches them on. */
+    .notify-list { margin: 0; padding: 0; list-style: none; }
+    .notify-row { display: grid; gap: .75rem; padding: 1rem 1.25rem; border-top: 1px solid var(--q-line); }
+    @media (min-width: 760px) { .notify-row { grid-template-columns: minmax(0, 1fr) auto; align-items: center; } }
+    .notify-kind { display: flex; gap: .75rem; align-items: flex-start; cursor: pointer; }
+    .notify-kind input { margin-top: .25rem; }
+    .notify-kind > span { display: grid; gap: .125rem; }
+    .notify-title { font-weight: 600; }
+    .notify-channels { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .chip-check { display: inline-flex; align-items: center; gap: .375rem; padding: .375rem .75rem; border: 1px solid var(--q-line); border-radius: 999px; cursor: pointer; font-size: .9375rem; }
+    .chip-check:has(input:checked) { border-color: var(--q-accent); background: var(--q-tint-sand); }
     .import-ai { display: flex; gap: .625rem; align-items: flex-start; padding: .875rem 1rem; border-radius: var(--q-r-md); background: var(--q-tint-sand); color: var(--q-ink); }
     .import-ai p { margin: 0; }
     .import-ai > svg { flex: none; margin-top: .125rem; color: var(--q-accent-text); }

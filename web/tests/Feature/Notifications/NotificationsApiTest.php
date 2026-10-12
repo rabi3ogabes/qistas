@@ -64,18 +64,26 @@ describe('preferences', function () {
     it('starts with the summary at nine, late alerts weekly, due-date alerts off and no quiet hours', function () {
         apiOwner();
 
+        $app = ['push' => true, 'email' => false, 'sms' => false];
+        $appAndEmail = ['push' => true, 'email' => true, 'sms' => false];
+
         $this->getJson('/api/v1/notifications/preferences')->assertOk()->assertExactJson(['data' => [
-            'daily_digest' => ['enabled' => true, 'time' => '09:00'],
-            'instalment_due' => ['enabled' => false],
-            'instalment_late' => ['enabled' => true, 'repeat' => 'weekly'],
+            'daily_digest' => ['enabled' => true, 'time' => '09:00', 'channels' => $app],
+            'instalment_due' => ['enabled' => false, 'channels' => $app],
+            'instalment_late' => ['enabled' => true, 'repeat' => 'weekly', 'channels' => $app],
+            'billing_renewal_due' => ['enabled' => true, 'channels' => $appAndEmail],
+            'billing_renewed' => ['enabled' => true, 'channels' => $appAndEmail],
+            'billing_payment_failed' => ['enabled' => true, 'channels' => $appAndEmail],
+            'billing_expired' => ['enabled' => true, 'channels' => $appAndEmail],
+            'support_reply' => ['enabled' => true, 'channels' => $appAndEmail],
             'quiet_hours' => ['enabled' => false, 'from' => '22:00', 'to' => '08:00'],
-        ]]);
+        ]] + ['meta' => $this->getJson('/api/v1/notifications/preferences')->json('meta')]);
     });
 
     it('keeps each person’s choices apart and checks them', function () {
         [$owner, $tenant] = apiOwner();
         $this->putJson('/api/v1/notifications/preferences', ['daily_digest' => ['time' => '07:15'], 'instalment_late' => ['repeat' => 'daily']])->assertOk()
-            ->assertJsonPath('data.daily_digest', ['enabled' => true, 'time' => '07:15'])
+            ->assertJsonPath('data.daily_digest', ['enabled' => true, 'time' => '07:15', 'channels' => ['push' => true, 'email' => false, 'sms' => false]])
             ->assertJsonPath('data.instalment_late.repeat', 'daily');
 
         $this->putJson('/api/v1/notifications/preferences', ['daily_digest' => ['time' => '25:00']])->assertStatus(422);

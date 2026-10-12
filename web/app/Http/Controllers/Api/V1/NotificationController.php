@@ -3,13 +3,15 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Models\AppNotification;
+use App\Notifications\Catalog;
+use App\Notifications\Channels;
 use App\Notifications\Preferences;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Each person's own alerts (Win Plan PP9): their inbox, newest first, and their choices of what to be told and when.
- * Nobody sees anyone else's.
+ * Each person's own alerts (Win Plan PP9): their inbox, newest first, and their choices of what to be told, when and how
+ * (in the app, by e-mail, by text message; Sprint 3 Task 1b). Nobody sees anyone else's.
  */
 final class NotificationController
 {
@@ -50,17 +52,37 @@ final class NotificationController
         return response()->json(['data' => ['unread' => $this->unread($userId)]]);
     }
 
-    public function preferences(Request $request): JsonResponse
+    public function preferences(Request $request, Channels $channels): JsonResponse
     {
-        return response()->json(['data' => Preferences::for((string) $request->user()?->id)]);
+        return response()->json(['data' => Preferences::for((string) $request->user()?->id), 'meta' => $this->meta($request, $channels)]);
     }
 
-    public function updatePreferences(Request $request): JsonResponse
+    public function updatePreferences(Request $request, Channels $channels): JsonResponse
     {
         // Only the kinds and fields the rules name come back from validation; anything else sent is ignored.
         $data = $request->validate(Preferences::rules());
 
-        return response()->json(['data' => Preferences::update((string) $request->user()?->id, $data)]);
+        return response()->json(['data' => Preferences::update((string) $request->user()?->id, $data), 'meta' => $this->meta($request, $channels)]);
+    }
+
+    /**
+     * What the person can choose among (Sprint 3 Task 1b): each kind with its name and group in their language, each
+     * channel with whether it is set up (e-mail also needs their verified address), and what the admin allows.
+     *
+     * @return array<string, mixed>
+     */
+    private function meta(Request $request, Channels $channels): array
+    {
+        $available = $channels->available();
+        $available['email'] = $available['email'] && (bool) $request->user()?->hasVerifiedEmail();
+
+        return [
+            'kinds' => array_map(fn (string $kind) => [
+                'key' => $kind, 'group' => Catalog::KINDS[$kind]['group'], 'label' => Catalog::label($kind), 'description' => Catalog::description($kind),
+            ], array_keys(Catalog::KINDS)),
+            'channels' => array_map(fn (string $channel) => ['available' => $available[$channel], 'label' => Catalog::channel($channel)], array_combine(Catalog::CHANNELS, Catalog::CHANNELS)),
+            'allowed' => $channels->allowed(),
+        ];
     }
 
     private function unread(string $userId): int

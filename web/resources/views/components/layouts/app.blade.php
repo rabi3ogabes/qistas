@@ -78,6 +78,7 @@
                         {{-- Always there: the page holds the phone-security rule as well as the instalment tools. --}}
                         <a class="menu-item" role="menuitem" href="{{ route('app.settings.tools') }}"><x-icon name="sliders" :size="18" /> {{ $hasTools ? __('Instalment tools') : __('Settings') }}</a>
                         <a class="menu-item" role="menuitem" href="{{ route('app.settings.business') }}"><x-icon name="fileText" :size="18" /> {{ __('Business profile') }}</a>
+                        <a class="menu-item" role="menuitem" href="{{ route('app.settings.notifications') }}"><x-icon name="bell" :size="18" /> {{ __('Notifications') }}</a>
                         @if ($role?->canExport())<a class="menu-item" role="menuitem" href="{{ route('app.settings.backups') }}"><x-icon name="cloud" :size="18" /> {{ __('Backups & data') }}</a>@endif
                         @if ($role?->canManageSettings())<a class="menu-item" role="menuitem" href="{{ route('app.activity') }}"><x-icon name="history" :size="18" /> {{ __('Activity log') }}</a>@endif
                         <a class="menu-item" role="menuitem" href="{{ route('security') }}"><x-icon name="shield" :size="18" /> {{ __('Security') }}</a>
@@ -153,6 +154,7 @@
                     @endfeature
                     <a class="menu-item" role="menuitem" href="{{ route('app.settings.tools') }}"><x-icon name="sliders" :size="18" /> {{ $hasTools ? __('Instalment tools') : __('Settings') }}</a>
                         <a class="menu-item" role="menuitem" href="{{ route('app.settings.business') }}"><x-icon name="fileText" :size="18" /> {{ __('Business profile') }}</a>
+                        <a class="menu-item" role="menuitem" href="{{ route('app.settings.notifications') }}"><x-icon name="bell" :size="18" /> {{ __('Notifications') }}</a>
                         @if ($role?->canExport())<a class="menu-item" role="menuitem" href="{{ route('app.settings.backups') }}"><x-icon name="cloud" :size="18" /> {{ __('Backups & data') }}</a>@endif
                         @if ($role?->canManageSettings())<a class="menu-item" role="menuitem" href="{{ route('app.activity') }}"><x-icon name="history" :size="18" /> {{ __('Activity log') }}</a>@endif
                     <a class="menu-item" role="menuitem" href="{{ route('security') }}"><x-icon name="shield" :size="18" /> {{ __('Security') }}</a>

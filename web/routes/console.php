@@ -23,3 +23,6 @@ Schedule::command('qistas:instalment-alerts')->everyFiveMinutes()->withoutOverla
 
 // Late fees (Win Plan K4): each workspace soon after its own midnight, once a day; a missed run is caught up next time.
 Schedule::command('qistas:charge-late-fees')->everyFiveMinutes()->withoutOverlapping(10);
+
+// Owners are told before a plan they pay for ends without renewing, and once it has ended (Sprint 3 Task 1b).
+Schedule::command('qistas:billing-notices')->hourly()->withoutOverlapping(10);

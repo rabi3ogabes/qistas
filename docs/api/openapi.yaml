@@ -2430,22 +2430,27 @@ paths:
   /notifications/preferences:
     get:
       tags: [Notifications]
-      summary: My alert choices in this workspace
+      summary: My notice choices in this workspace
+      description: |
+        Every kind of notice, on or off, with its channels (in the app, by e-mail, by text message). A notice goes out on a
+        channel only when the person chose it, the admin allows that kind on it (`meta.allowed`) and it is set up
+        (`meta.channels`; e-mail also needs a verified address). Billing kinds reach the workspace's owners.
       responses:
         "200":
-          description: Every kind, with its default where never changed.
-          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/NotificationPreferences"}}}}}
+          description: Every kind, with its default where never changed, and what can be chosen.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/NotificationPreferences"}, meta: {$ref: "#/components/schemas/NotificationChoices"}}}}}
         "401": {$ref: "#/components/responses/Unauthenticated"}
     put:
       tags: [Notifications]
-      summary: Change some of my alert choices
+      summary: Change some of my notice choices
+      description: Send only what changes; a kind's channels are merged one by one, so naming one never forgets the others.
       requestBody:
         required: true
         content: {application/json: {schema: {$ref: "#/components/schemas/NotificationPreferences"}}}
       responses:
         "200":
           description: Every kind after the change.
-          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/NotificationPreferences"}}}}}
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/NotificationPreferences"}, meta: {$ref: "#/components/schemas/NotificationChoices"}}}}}
         "401": {$ref: "#/components/responses/Unauthenticated"}
         "422": {$ref: "#/components/responses/ValidationFailed"}
   /contracts/{contract}/early-settlement:
@@ -2884,10 +2889,36 @@ components:
     NotificationPreferences:
       type: object
       properties:
-        daily_digest: {type: object, properties: {enabled: {type: boolean}, time: {type: string, pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$", default: "09:00"}}}
-        instalment_due: {type: object, properties: {enabled: {type: boolean, default: false}}}
-        instalment_late: {type: object, properties: {enabled: {type: boolean, default: true}, repeat: {type: string, enum: [daily, weekly, monthly], default: weekly}}}
+        daily_digest: {type: object, properties: {enabled: {type: boolean}, time: {type: string, pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$", default: "09:00"}, channels: {$ref: "#/components/schemas/NotificationChannels"}}}
+        instalment_due: {type: object, properties: {enabled: {type: boolean, default: false}, channels: {$ref: "#/components/schemas/NotificationChannels"}}}
+        instalment_late: {type: object, properties: {enabled: {type: boolean, default: true}, repeat: {type: string, enum: [daily, weekly, monthly], default: weekly}, channels: {$ref: "#/components/schemas/NotificationChannels"}}}
+        billing_renewal_due: {type: object, description: "Seven days and one day before a plan that does not renew by itself ends.", properties: {enabled: {type: boolean, default: true}, channels: {$ref: "#/components/schemas/NotificationChannels"}}}
+        billing_renewed: {type: object, description: "A store renewal, or a bank transfer the team confirmed.", properties: {enabled: {type: boolean, default: true}, channels: {$ref: "#/components/schemas/NotificationChannels"}}}
+        billing_payment_failed: {type: object, description: "The store could not take a payment, or a transfer was not confirmed.", properties: {enabled: {type: boolean, default: true}, channels: {$ref: "#/components/schemas/NotificationChannels"}}}
+        billing_expired: {type: object, description: "The plan has ended; the workspace is on Free, nothing deleted.", properties: {enabled: {type: boolean, default: true}, channels: {$ref: "#/components/schemas/NotificationChannels"}}}
+        support_reply: {type: object, properties: {enabled: {type: boolean, default: true}, channels: {$ref: "#/components/schemas/NotificationChannels"}}}
         quiet_hours: {type: object, properties: {enabled: {type: boolean, default: false}, from: {type: string, default: "22:00"}, to: {type: string, default: "08:00"}}}
+    NotificationChannels:
+      type: object
+      description: "Where a kind reaches the person. Defaults: alerts in the app only; billing and support in the app and by e-mail."
+      properties:
+        push: {type: boolean, description: "In the app: the inbox, and a push to each phone."}
+        email: {type: boolean}
+        sms: {type: boolean}
+    NotificationChoices:
+      type: object
+      properties:
+        kinds:
+          type: array
+          items: {type: object, properties: {key: {type: string}, group: {type: string, enum: [alerts, billing, support]}, label: {type: string}, description: {type: string}}}
+        channels:
+          type: object
+          description: "Each channel: whether it is set up for this person (e-mail needs a verified address; text messages a provider), and its name."
+          additionalProperties: {type: object, properties: {available: {type: boolean}, label: {type: string}}}
+        allowed:
+          type: object
+          description: "What the admin allows, kind by kind and channel by channel."
+          additionalProperties: {$ref: "#/components/schemas/NotificationChannels"}
     EarlySettlementQuote:
       type: object
       properties:

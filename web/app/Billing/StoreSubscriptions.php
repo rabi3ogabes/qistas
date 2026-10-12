@@ -30,7 +30,11 @@ final class StoreSubscriptions
 {
     public const PROVIDER = 'google_play';
 
-    public function __construct(private readonly StoreBilling $store, private readonly BillingSettings $settings) {}
+    public function __construct(
+        private readonly StoreBilling $store,
+        private readonly BillingSettings $settings,
+        private readonly BillingNotices $notices,
+    ) {}
 
     /** The workspace's account reference for store purchases: stable, not reversible, 64 characters as Google allows. */
     public static function accountRef(Tenant $tenant): string
@@ -152,6 +156,7 @@ final class StoreSubscriptions
             }
             $subscription->forceFill(['status' => 'canceled', 'store_status' => 'VOIDED', 'auto_renew' => false])->save();
             $this->record($subscription, 'refunded');
+            $this->notices->storeEvent($subscription, 'refunded');
 
             return 'refunded';
         }
@@ -193,6 +198,8 @@ final class StoreSubscriptions
             default => 'expired',
         };
         $this->record($applied, $outcome);
+        // The owner hears about a renewal, a payment the store could not take, and the end (Sprint 3 Task 1b).
+        $this->notices->storeEvent($applied, $outcome);
 
         return $outcome;
     }

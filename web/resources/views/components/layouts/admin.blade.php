@@ -12,6 +12,7 @@
         ['release-notes', __('What’s new'), route('admin.release-notes.index'), 'megaphone'],
         ['ai', __('AI reading'), route('admin.ai.index'), 'sparkles'],
         ['mail', __('E-mail'), route('admin.mail.index'), 'send'],
+        ['notifications', __('Notifications'), route('admin.notifications.index'), 'bell'],
         ['features', __('Feature control'), route('admin.features.index'), 'sliders'],
         \Illuminate\Support\Facades\Route::has('admin.appearance.index') ? ['appearance', __('Appearance'), route('admin.appearance.index'), 'palette'] : null,
     ]));

@@ -10,7 +10,9 @@ import '../../core/ui/errors.dart';
 import '../../data/notifications.dart';
 import 'alerts.dart';
 
-/// What this person is told, and when (Win Plan PP9). Every choice is saved the moment it is made.
+/// What this person is told, when, and how (Win Plan PP9, Sprint 3 Task 1b): the alerts and their timing, then every kind
+/// of notice with the channels it reaches them on, among what the admin allows and what is set up. Billing notices are
+/// for owners. Every choice is saved the moment it is made.
 class AlertSettingsScreen extends ConsumerStatefulWidget {
   const AlertSettingsScreen({super.key});
 
@@ -49,8 +51,10 @@ class _AlertSettingsScreenState extends ConsumerState<AlertSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final loaded = ref.watch(alertPreferencesProvider);
-    final digestOn = ref.watch(accountProvider)?.entitlements['daily_digest']?.isOn ?? false;
-    final alertsOn = remindsEveryone(ref.watch(accountProvider));
+    final account = ref.watch(accountProvider);
+    final digestOn = account?.entitlements['daily_digest']?.isOn ?? false;
+    final alertsOn = remindsEveryone(account);
+    final owner = account?.isOwner ?? false;
 
     return Scaffold(
       appBar: AppBar(title: Text(context.t('Alert settings'))),
@@ -153,10 +157,92 @@ class _AlertSettingsScreenState extends ConsumerState<AlertSettingsScreen> {
                   ],
                 ),
               ),
+              if (p.kinds.isNotEmpty) ...[
+                QSectionTitle(context.t('How notices reach you')),
+                for (final (group, title) in [('alerts', context.t('Instalments')), ('billing', context.t('Your plan and payments')), ('support', context.t('Support'))])
+                  if (_shownIn(p, group, owner: owner, digestOn: digestOn, alertsOn: alertsOn).isNotEmpty) ...[
+                    Padding(padding: const EdgeInsets.fromLTRB(4, 4, 4, 8), child: Text(title, style: text.titleSmall?.copyWith(color: c.inkMuted))),
+                    QCard(
+                      padding: EdgeInsets.zero,
+                      child: Column(
+                        children: [
+                          for (final (index, kind) in _shownIn(p, group, owner: owner, digestOn: digestOn, alertsOn: alertsOn).indexed) ...[
+                            if (index > 0) const Divider(height: 1),
+                            _NoticeRow(kind: kind, preferences: p, onChanged: _save),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
+                if (!p.channels.any((channel) => channel.key == 'sms' && channel.available))
+                  Text(context.t('By text message: not available yet.'), style: text.bodySmall?.copyWith(color: c.inkMuted)),
+              ],
             ],
           );
         },
       ),
+    );
+  }
+
+  /// The kinds of [group] this person can be told about: alerts only while their switch is on for the platform, billing
+  /// only for owners.
+  List<NoticeKind> _shownIn(AlertPreferences p, String group, {required bool owner, required bool digestOn, required bool alertsOn}) => [
+        for (final kind in p.kinds)
+          if (kind.group == group &&
+              (group != 'billing' || owner) &&
+              (kind.key != 'daily_digest' || digestOn) &&
+              (!{'instalment_due', 'instalment_late'}.contains(kind.key) || alertsOn))
+            kind,
+      ];
+}
+
+/// One kind of notice: its switch (the alerts have theirs above) and the channels it reaches the person on.
+class _NoticeRow extends StatelessWidget {
+  const _NoticeRow({required this.kind, required this.preferences, required this.onChanged});
+
+  final NoticeKind kind;
+  final AlertPreferences preferences;
+  final ValueChanged<AlertPreferences> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final on = preferences.isOn(kind.key);
+    final choice = preferences.choices[kind.key];
+    final offered = preferences.offered(kind.key);
+    final alert = AlertPreferences.alertKinds.contains(kind.key);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (alert)
+          ListTile(title: Text(kind.label), subtitle: on ? null : Text(context.t('Off')))
+        else
+          SwitchListTile(
+            key: ValueKey('notice-${kind.key}'),
+            value: on,
+            onChanged: (value) => onChanged(preferences.withNotice(kind.key, enabled: value)),
+            title: Text(kind.label),
+            subtitle: Text(kind.description),
+          ),
+        if (offered.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final channel in offered)
+                  FilterChip(
+                    key: ValueKey('notice-${kind.key}-${channel.key}'),
+                    label: Text(channel.label),
+                    selected: choice?.channels[channel.key] ?? false,
+                    onSelected: on ? (value) => onChanged(preferences.withNotice(kind.key, channel: channel.key, on: value)) : null,
+                  ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }

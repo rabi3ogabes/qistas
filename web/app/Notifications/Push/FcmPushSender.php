@@ -33,6 +33,8 @@ final class FcmPushSender implements PushSender
                         'notification' => ['title' => $message->title, 'body' => $message->body],
                         'data' => ['type' => $message->type] + $message->data,
                         'android' => ['priority' => 'high'],
+                        // An iPhone shows the banner silently unless the push names a sound.
+                        'apns' => ['payload' => ['aps' => ['sound' => 'default']]],
                     ],
                 ]);
         } catch (Throwable $e) {

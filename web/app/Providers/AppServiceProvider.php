@@ -25,8 +25,11 @@ use App\Notifications\Alerts\DailyDigest;
 use App\Notifications\Push\FcmPushSender;
 use App\Notifications\Push\LogPushSender;
 use App\Notifications\Push\PushSender;
+use App\Notifications\Push\PushSettings;
 use App\Settings\SettingDefinition;
 use App\Settings\SettingsRegistry;
+use App\Sms\NoSmsProvider;
+use App\Sms\SmsSender;
 use App\Support\AppFirstTranslationLoader;
 use App\Support\DatabaseFilesystem;
 use App\Support\Dates;
@@ -87,15 +90,16 @@ class AppServiceProvider extends ServiceProvider
         // How the workspace shows dates, read once per request or job (Win Plan CT26).
         $this->app->scoped(Dates::class);
 
-        // Firebase once the owner has given its key (Win Plan PP9); until then pushes are only written to the log.
-        $this->app->bind(PushSender::class, function (): PushSender {
-            $raw = trim((string) config('qistas.push.fcm_credentials'));
-            $account = $raw === '' ? null : (json_decode($raw, true) ?? json_decode((string) base64_decode($raw, true), true));
+        // Firebase once the owner has given its key (Win Plan PP9), in /admin/notifications or the environment; until then
+        // pushes are only written to the log.
+        $this->app->bind(PushSender::class, function ($app): PushSender {
+            $account = $app->make(PushSettings::class)->account();
 
-            return is_array($account) && isset($account['project_id'], $account['client_email'], $account['private_key'])
-                ? new FcmPushSender($account)
-                : new LogPushSender;
+            return $account !== null ? new FcmPushSender($account) : new LogPushSender;
         });
+
+        // Text messages wait for a provider (Sprint 3, D6): until one is chosen they are not offered anywhere.
+        $this->app->bind(SmsSender::class, NoSmsProvider::class);
 
         // The store that sells subscriptions in the app (Win Plan PP13): Google Play once the super admin has saved its
         // package and service account in /admin/billing, and until then a store that decides nothing.

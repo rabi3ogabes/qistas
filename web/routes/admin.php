@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\DemoAccountsController;
 use App\Http\Controllers\Admin\FeaturesController;
 use App\Http\Controllers\Admin\HomeController;
 use App\Http\Controllers\Admin\MailController;
+use App\Http\Controllers\Admin\NotificationsController;
 use App\Http\Controllers\Admin\ReleaseNoteController;
 use App\Http\Controllers\Admin\SupportController;
 use App\Http\Controllers\Admin\TestWorkspaceController;
@@ -52,6 +53,10 @@ Route::put('ai', [AiController::class, 'update'])->middleware('throttle:30,1')->
 Route::get('mail', [MailController::class, 'index'])->name('mail.index');
 Route::put('mail', [MailController::class, 'update'])->middleware('throttle:30,1')->name('mail.update');
 Route::post('mail/test', [MailController::class, 'test'])->middleware('throttle:10,1')->name('mail.test');
+// Notifications for everyone (Sprint 3 Task 1b): what may go where, and the Firebase key for pushes.
+Route::get('notifications', [NotificationsController::class, 'index'])->name('notifications.index');
+Route::put('notifications', [NotificationsController::class, 'update'])->middleware('throttle:30,1')->name('notifications.update');
+Route::put('notifications/push', [NotificationsController::class, 'push'])->middleware('throttle:30,1')->name('notifications.push');
 Route::post('release-notes', [ReleaseNoteController::class, 'store'])->middleware('throttle:60,1')->name('release-notes.store');
 
 // Billing (Win Plan PP13): bank transfers waiting for a decision, with their receipts, and the billing settings. Any

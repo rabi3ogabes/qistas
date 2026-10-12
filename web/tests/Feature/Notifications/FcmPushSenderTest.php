@@ -61,7 +61,9 @@ it('sends one message per phone with a token signed by the service account', fun
         && $request->hasHeader('Authorization', 'Bearer ya29.test')
         && $request['message']['token'] === 'phone-1'
         && $request['message']['notification'] === ['title' => 'Today’s collections', 'body' => 'Due today: 1']
-        && $request['message']['data'] === ['type' => 'daily_digest', 'route' => '/']);
+        && $request['message']['data'] === ['type' => 'daily_digest', 'route' => '/']
+        // iPhones (through Apple's push service) ring only when the push names a sound.
+        && $request['message']['apns']['payload']['aps']['sound'] === 'default');
 });
 
 it('forgets a phone Firebase says is gone', function () {

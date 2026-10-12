@@ -14,6 +14,7 @@ use App\Http\Controllers\Workspace\FileController;
 use App\Http\Controllers\Workspace\ImportController;
 use App\Http\Controllers\Workspace\InvestorController;
 use App\Http\Controllers\Workspace\ManualPaymentController;
+use App\Http\Controllers\Workspace\NotificationSettingsController;
 use App\Http\Controllers\Workspace\PaperworkController;
 use App\Http\Controllers\Workspace\PaymentController;
 use App\Http\Controllers\Workspace\PlanChangeController;
@@ -72,6 +73,9 @@ Route::get('files/{file}', [FileController::class, 'show'])->name('files.show');
 Route::get('settings/tools', [ToolsController::class, 'show'])->name('settings.tools');
 // Backups and data, and the activity log (Win Plan PP10).
 Route::get('settings/backups', [BackupController::class, 'show'])->name('settings.backups');
+// Each person's own notices: what, and how (Sprint 3 Task 1b).
+Route::get('settings/notifications', [NotificationSettingsController::class, 'show'])->name('settings.notifications');
+Route::put('settings/notifications', [NotificationSettingsController::class, 'update'])->name('settings.notifications.update');
 Route::post('exports', [BackupController::class, 'store'])->middleware('throttle:documents')->name('exports.store');
 Route::get('exports/{export}/download', [BackupController::class, 'download'])->whereUuid('export')->name('exports.download');
 Route::get('activity', ActivityController::class)->name('activity');

@@ -7,17 +7,24 @@ use Carbon\CarbonInterface;
 use Illuminate\Validation\Rule;
 
 /**
- * Each person's alert choices in a workspace (Win Plan PP9), with the defaults for anything they never changed: the
- * summary at nine, late alerts weekly, due-date alerts off (the summary already says who pays today), no quiet hours.
+ * Each person's notice choices in a workspace (Win Plan PP9, Sprint 3 Task 1b), with the defaults for anything they never
+ * changed: the summary at nine, late alerts weekly, due-date alerts off (the summary already says who pays today), no
+ * quiet hours, and every billing and support notice on. Each kind also says where it goes (`channels`: in the app, by
+ * e-mail, by text message; see Catalog and Channels).
  *
  * Reads and writes happen in the workspace in context (CurrentTenant), like every tenant-owned record.
  */
 final class Preferences
 {
     public const DEFAULTS = [
-        'daily_digest' => ['enabled' => true, 'time' => '09:00'],
-        'instalment_due' => ['enabled' => false],
-        'instalment_late' => ['enabled' => true, 'repeat' => 'weekly'],
+        'daily_digest' => ['enabled' => true, 'time' => '09:00', 'channels' => Catalog::KINDS['daily_digest']['channels']],
+        'instalment_due' => ['enabled' => false, 'channels' => Catalog::KINDS['instalment_due']['channels']],
+        'instalment_late' => ['enabled' => true, 'repeat' => 'weekly', 'channels' => Catalog::KINDS['instalment_late']['channels']],
+        'billing_renewal_due' => ['enabled' => true, 'channels' => Catalog::KINDS['billing_renewal_due']['channels']],
+        'billing_renewed' => ['enabled' => true, 'channels' => Catalog::KINDS['billing_renewed']['channels']],
+        'billing_payment_failed' => ['enabled' => true, 'channels' => Catalog::KINDS['billing_payment_failed']['channels']],
+        'billing_expired' => ['enabled' => true, 'channels' => Catalog::KINDS['billing_expired']['channels']],
+        'support_reply' => ['enabled' => true, 'channels' => Catalog::KINDS['support_reply']['channels']],
         'quiet_hours' => ['enabled' => false, 'from' => '22:00', 'to' => '08:00'],
     ];
 
@@ -29,20 +36,27 @@ final class Preferences
     /** @return array<string, list<mixed>> */
     public static function rules(): array
     {
-        return [
-            'daily_digest' => ['sometimes', 'array:enabled,time'],
-            'daily_digest.enabled' => ['sometimes', 'boolean'],
+        $rules = [
+            'daily_digest' => ['sometimes', 'array:enabled,time,channels'],
             'daily_digest.time' => ['sometimes', 'string', self::TIME],
-            'instalment_due' => ['sometimes', 'array:enabled'],
-            'instalment_due.enabled' => ['sometimes', 'boolean'],
-            'instalment_late' => ['sometimes', 'array:enabled,repeat'],
-            'instalment_late.enabled' => ['sometimes', 'boolean'],
+            'instalment_due' => ['sometimes', 'array:enabled,channels'],
+            'instalment_late' => ['sometimes', 'array:enabled,repeat,channels'],
             'instalment_late.repeat' => ['sometimes', Rule::in(array_keys(self::REPEAT_DAYS))],
             'quiet_hours' => ['sometimes', 'array:enabled,from,to'],
             'quiet_hours.enabled' => ['sometimes', 'boolean'],
             'quiet_hours.from' => ['sometimes', 'string', self::TIME],
             'quiet_hours.to' => ['sometimes', 'string', self::TIME],
         ];
+        foreach (array_keys(Catalog::KINDS) as $kind) {
+            $rules[$kind] ??= ['sometimes', 'array:enabled,channels'];
+            $rules[$kind.'.enabled'] = ['sometimes', 'boolean'];
+            $rules[$kind.'.channels'] = ['sometimes', 'array:'.implode(',', Catalog::CHANNELS)];
+            foreach (Catalog::CHANNELS as $channel) {
+                $rules[$kind.'.channels.'.$channel] = ['sometimes', 'boolean'];
+            }
+        }
+
+        return $rules;
     }
 
     /**
@@ -61,7 +75,7 @@ final class Preferences
         }
         foreach ($rows as $row) {
             if (isset(self::DEFAULTS[$row->type])) {
-                $all[$row->user_id][$row->type] = array_merge(self::DEFAULTS[$row->type], $row->settings ?? [], ['enabled' => $row->enabled]);
+                $all[$row->user_id][$row->type] = self::merge(self::DEFAULTS[$row->type], ($row->settings ?? []) + ['enabled' => $row->enabled]);
             }
         }
 
@@ -88,7 +102,7 @@ final class Preferences
             if (! isset(self::DEFAULTS[$type])) {
                 continue;
             }
-            $merged = array_merge($current[$type], $values);
+            $merged = self::merge($current[$type], $values);
             $settings = array_diff_key($merged, ['enabled' => true]);
 
             NotificationPreference::query()->updateOrCreate(
@@ -98,6 +112,26 @@ final class Preferences
         }
 
         return self::for($userId);
+    }
+
+    /**
+     * [$changes] over [$choice], with the channels merged one by one: changing one channel never forgets the others.
+     *
+     * @param  array<string, mixed>  $choice
+     * @param  array<string, mixed>  $changes
+     * @return array<string, mixed>
+     */
+    private static function merge(array $choice, array $changes): array
+    {
+        $merged = array_merge($choice, $changes);
+        if (isset($choice['channels'])) {
+            $merged['channels'] = array_map('boolval', array_intersect_key(
+                array_merge($choice['channels'], is_array($changes['channels'] ?? null) ? $changes['channels'] : []),
+                array_flip(Catalog::CHANNELS),
+            ));
+        }
+
+        return $merged;
     }
 
     /** Is [$local] (on the workspace's clock) inside this person's quiet hours? A span may cross midnight. */
