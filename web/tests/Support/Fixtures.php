@@ -4,7 +4,16 @@
 | Picture and document fixtures shared by the tests (file storage, brand pictures): real JPEG, PNG and PDF bytes made on the spot.
 */
 
+use App\Support\Files;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
+
+/** Keeps the private `files` disk in the database, as on a host with no lasting disk (Win Plan D5). */
+function useDatabaseFiles(): void
+{
+    config(['filesystems.disks.files' => ['driver' => 'database', 'table' => 'file_blobs', 'visibility' => 'private', 'throw' => false, 'report' => false]]);
+    Storage::forgetDisk(Files::DISK);
+}
 
 /** A real JPEG, [$width] x [$height], optionally with an EXIF segment (a GPS-style string and an orientation) injected after the start marker. */
 function jpegBytes(int $width = 20, int $height = 10, ?int $orientation = null, bool $withExif = false): string

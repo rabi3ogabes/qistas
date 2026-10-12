@@ -15,8 +15,8 @@ use LogicException;
 use RuntimeException;
 
 /**
- * The only way files get in and out of a workspace's private storage (the `files` disk: S3 or a Supabase bucket in
- * production, a private folder in development).
+ * The only way files get in and out of a workspace's private storage (the `files` disk: S3 or a Supabase bucket, a
+ * private folder in development, or the database on a host whose disk does not last; see config/filesystems.php).
  *
  *  - What a file IS is read from its bytes. The name the client gave is never used, not even for the extension.
  *  - Pictures are drawn again without their hidden data (see ImageSanitizer).
@@ -29,6 +29,9 @@ final class Files
 
     /** No link to a file lives longer than this, whatever a caller asks for. */
     public const LINK_SECONDS = 300;
+
+    /** A picture is drawn again at most this many pixels on its longest side (Win Plan D5): an ID stays readable in a few hundred KB. */
+    public const MAX_SIDE = 1600;
 
     private const EXTENSIONS = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'application/pdf' => 'pdf'];
 
@@ -61,7 +64,7 @@ final class Files
         }
 
         if ($mime !== 'application/pdf') {
-            $bytes = ImageSanitizer::clean($bytes, $mime) ?? throw $this->refuse(__('This file could not be read as a picture.'));
+            $bytes = ImageSanitizer::clean($bytes, $mime, self::MAX_SIDE, self::MAX_SIDE) ?? throw $this->refuse(__('This file could not be read as a picture.'));
         }
 
         $id = (string) Str::uuid();

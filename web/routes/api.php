@@ -8,12 +8,15 @@ use App\Http\Controllers\Api\V1\BackupController;
 use App\Http\Controllers\Api\V1\BillingController;
 use App\Http\Controllers\Api\V1\BusinessProfileController;
 use App\Http\Controllers\Api\V1\ContractController;
+use App\Http\Controllers\Api\V1\ContractPhotoController;
 use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\CustomerPaymentController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\DemoController;
 use App\Http\Controllers\Api\V1\DeviceController;
 use App\Http\Controllers\Api\V1\DocumentController;
+use App\Http\Controllers\Api\V1\FileController;
+use App\Http\Controllers\Api\V1\GuarantorController;
 use App\Http\Controllers\Api\V1\InvestorController;
 use App\Http\Controllers\Api\V1\LateFeeController;
 use App\Http\Controllers\Api\V1\MeController;
@@ -162,6 +165,13 @@ Route::name('api.')->group(function (): void {
         Route::get('reports/ageing', [ReportController::class, 'ageing'])->name('reports.ageing');
         Route::get('reports/profit', [ReportController::class, 'profit'])->name('reports.profit');
         Route::post('late-fees/{fee}/waive', [LateFeeController::class, 'waive'])->whereUuid('fee')->middleware('throttle:api-money')->name('late-fees.waive');
+        // Paperwork (Win Plan K5): guarantors and photos, listed with the contract; one stored file's five-minute link.
+        Route::post('contracts/{contract}/guarantors', [GuarantorController::class, 'store'])->whereUuid('contract')->name('contracts.guarantors.store');
+        Route::put('guarantors/{guarantor}', [GuarantorController::class, 'update'])->whereUuid('guarantor')->name('guarantors.update');
+        Route::delete('guarantors/{guarantor}', [GuarantorController::class, 'destroy'])->whereUuid('guarantor')->name('guarantors.destroy');
+        Route::post('contracts/{contract}/photos', [ContractPhotoController::class, 'store'])->whereUuid('contract')->middleware('throttle:documents')->name('contracts.photos.store');
+        Route::delete('contracts/{contract}/photos/{photo}', [ContractPhotoController::class, 'destroy'])->whereUuid(['contract', 'photo'])->name('contracts.photos.destroy');
+        Route::get('files/{file}', [FileController::class, 'show'])->whereUuid('file')->name('files.show');
 
         // Making and revoking API access tokens needs a signed-in device (an "app" token), not another API token.
         Route::middleware('abilities:app')->group(function (): void {

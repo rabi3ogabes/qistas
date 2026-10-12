@@ -127,6 +127,8 @@
                 @endif
                 @error('contract')<p class="field-error" role="alert">{{ $message }}</p>@enderror
             </section>
+
+            @include('app.contracts._paperwork')
         </div>
 
         <div class="stack">

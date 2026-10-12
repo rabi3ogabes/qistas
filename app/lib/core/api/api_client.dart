@@ -109,9 +109,9 @@ class ApiClient {
     await _fail(status, _decode(utf8.decode(bytes, allowMalformed: true)), token);
   }
 
-  /// Sends a file (a logo, a signature) as `multipart/form-data` under [field].
-  Future<Map<String, dynamic>> upload(String path, {required String field, required List<int> bytes, required String filename}) =>
-      _send('POST', path, form: FormData.fromMap({field: MultipartFile.fromBytes(bytes, filename: filename)}));
+  /// Sends a file (a logo, a signature, a photo) as `multipart/form-data` under [field], with any plain [fields] beside it.
+  Future<Map<String, dynamic>> upload(String path, {required String field, required List<int> bytes, required String filename, Map<String, String> fields = const {}}) =>
+      _send('POST', path, form: FormData.fromMap({...fields, field: MultipartFile.fromBytes(bytes, filename: filename)}));
 
   Future<Map<String, dynamic>> delete(String path) => _send('DELETE', path);
 

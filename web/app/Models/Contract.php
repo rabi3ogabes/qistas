@@ -3,12 +3,14 @@
 namespace App\Models;
 
 use App\Support\Digits;
+use App\Support\FileKind;
 use App\Tenancy\BelongsToTenant;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -164,6 +166,20 @@ class Contract extends Model
     public function lateFees(): HasMany
     {
         return $this->hasMany(LateFee::class)->orderBy('charged_on')->orderBy('created_at')->orderBy('period');
+    }
+
+    /** @return HasMany<Guarantor, $this> up to three, in the order they were added (Win Plan K5) */
+    public function guarantors(): HasMany
+    {
+        return $this->hasMany(Guarantor::class)->orderBy('position');
+    }
+
+    /** @return MorphMany<StoredFile, $this> photos of the ID, the signed contract and the invoice (Win Plan K5), oldest first */
+    public function photos(): MorphMany
+    {
+        return $this->morphMany(StoredFile::class, 'subject')
+            ->whereIn('kind', array_map(fn (FileKind $kind) => $kind->value, FileKind::CONTRACT_PHOTOS))
+            ->orderBy('created_at')->orderBy('id');
     }
 
     /** @return HasMany<Installment, $this> */

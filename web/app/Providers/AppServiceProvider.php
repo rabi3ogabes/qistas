@@ -27,12 +27,15 @@ use App\Notifications\Push\PushSender;
 use App\Settings\SettingDefinition;
 use App\Settings\SettingsRegistry;
 use App\Support\AppFirstTranslationLoader;
+use App\Support\DatabaseFilesystem;
 use App\Support\Dates;
 use App\Tenancy\CurrentTenant;
 use App\Tenancy\TenantScope;
 use App\Theme\Appearance;
+use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Validation\UncompromisedVerifier;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Pagination\Paginator;
@@ -40,11 +43,14 @@ use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\NotPwnedVerifier;
 use Illuminate\Validation\Rules\Password;
 use Laravel\Passkeys\Passkeys;
 use Laravel\Sanctum\Events\TokenAuthenticated;
+use League\Flysystem\Filesystem;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -114,6 +120,16 @@ class AppServiceProvider extends ServiceProvider
     {
         // Our own sentences live in lang/app/*.json, apart from the package-managed framework translations, and
         // win where both have one (see AppFirstTranslationLoader).
+
+        // The private `files` disk kept in the database (Win Plan D5), on a host whose own disk does not last. Its
+        // links are our own signed route, so they expire like a bucket's.
+        Storage::extend('database', function (Application $app, array $config): FilesystemAdapter {
+            $adapter = new DatabaseFilesystem($config['table'] ?? 'file_blobs', $config['connection'] ?? null);
+            $disk = new FilesystemAdapter(new Filesystem($adapter, $config), $adapter, $config);
+            $disk->buildTemporaryUrlsUsing(fn (string $path, \DateTimeInterface $expires): string => URL::temporarySignedRoute('files.blob', $expires, ['path' => $path]));
+
+            return $disk;
+        });
 
         Paginator::defaultView('pagination.qistas');
         Paginator::defaultSimpleView('pagination.qistas');

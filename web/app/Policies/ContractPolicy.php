@@ -63,6 +63,21 @@ final class ContractPolicy
         return $this->cancel($user, $contract);
     }
 
+    /**
+     * Add or change guarantors and photos (Win Plan K5): the people who see ID numbers (owners, managers, accountants),
+     * since a guarantor is entered with one and an ID photo is one.
+     */
+    public function addPaperwork(User $user, Contract $contract): bool
+    {
+        return ($this->role($user)?->seesIdentities() ?? false) && $this->inActiveWorkspace($contract);
+    }
+
+    /** Remove a guarantor or a photo: something is taken off the contract, so it is the owner's or a manager's. */
+    public function removePaperwork(User $user, Contract $contract): bool
+    {
+        return $this->cancel($user, $contract);
+    }
+
     private function role(User $user): ?TenantRole
     {
         $tenantId = app(CurrentTenant::class)->id();

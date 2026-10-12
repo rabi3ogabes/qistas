@@ -12,6 +12,7 @@ import 'investors.dart';
 import 'late_fees.dart';
 import 'models.dart';
 import 'notifications.dart';
+import 'paperwork.dart';
 import 'plan_changes.dart';
 import 'reports.dart';
 
@@ -394,6 +395,35 @@ class QistasApi {
       );
 
   Future<Contract> contract(String id) async => Contract.fromJson(_data(await _client.get('/contracts/$id')));
+
+  // Paperwork (Win Plan K5): guarantors and photos are listed with their contract.
+
+  Future<Guarantor> addGuarantor(String contractId, {required String name, required String phone, String? relation, String? nationalId}) async =>
+      Guarantor.fromJson(_data(await _client.post('/contracts/$contractId/guarantors', body: _guarantorBody(name, phone, relation, nationalId))));
+
+  /// A null [nationalId] keeps the one stored; [removeNationalId] clears it.
+  Future<Guarantor> updateGuarantor(String id, {required String name, required String phone, String? relation, String? nationalId, bool removeNationalId = false}) async =>
+      Guarantor.fromJson(_data(await _client.put('/guarantors/$id', body: {
+        ..._guarantorBody(name, phone, relation, nationalId),
+        if (removeNationalId) 'remove_national_id': true,
+      })));
+
+  Future<void> removeGuarantor(String id) async => _client.delete('/guarantors/$id');
+
+  Map<String, dynamic> _guarantorBody(String name, String phone, String? relation, String? nationalId) => {
+        'name': name.trim(),
+        'phone': phone.trim(),
+        'relation': (relation?.trim().isEmpty ?? true) ? null : relation!.trim(),
+        'national_id': (nationalId?.trim().isEmpty ?? true) ? null : nationalId!.trim(),
+      };
+
+  Future<ContractPhoto> addContractPhoto(String contractId, {required String kind, required List<int> bytes, required String filename}) async =>
+      ContractPhoto.fromJson(_data(await _client.upload('/contracts/$contractId/photos', field: 'file', bytes: bytes, filename: filename, fields: {'kind': kind})));
+
+  Future<void> removeContractPhoto(String contractId, String photoId) async => _client.delete('/contracts/$contractId/photos/$photoId');
+
+  /// A link to one stored file that works for five minutes (opening an ID photo is audited by the server).
+  Future<String> fileLink(String fileId) async => (_data(await _client.get('/files/$fileId'))['url'] ?? '').toString();
 
   /// Opens a contract. The server may add warnings that never stop the sale, such as a serial already on another
   /// running contract.

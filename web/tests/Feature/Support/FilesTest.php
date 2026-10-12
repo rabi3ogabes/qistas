@@ -115,10 +115,10 @@ describe('what is refused, and why it matters', function () {
         expect(validationErrors(fn () => store(hugePng(7000), FileKind::PaymentProof)))->toHaveKey('file');
     });
 
-    it('still takes a large picture that is within the limit', function () {
+    it('still takes a large picture that is within the limit, drawn to 1600 pixels at most (Win Plan D5)', function () {
         $file = store(hugePng(2000), FileKind::PaymentProof);
 
-        expect(getimagesizefromstring((string) Storage::disk(Files::DISK)->get($file->path))[0])->toBe(2000);
+        expect(getimagesizefromstring((string) Storage::disk(Files::DISK)->get($file->path))[0])->toBe(1600);
     });
 });
 

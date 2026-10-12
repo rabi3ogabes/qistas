@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\Digits;
+use App\Support\NationalId;
 use App\Tenancy\BelongsToTenant;
 use Database\Factories\CustomerFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -96,17 +97,7 @@ class Customer extends Model
     /** The national ID with all but the last three digits hidden, for screens; never the full number. */
     public function maskedNationalId(): ?string
     {
-        $id = (string) $this->national_id;
-        $length = mb_strlen($id);
-
-        if ($length === 0) {
-            return null;
-        }
-        if ($length <= 3) {
-            return '••';
-        }
-
-        return str_repeat('•', max(2, min(6, $length - 3))).mb_substr($id, -3);
+        return NationalId::mask($this->national_id);
     }
 
     /** A link that starts a phone call: only digits and a leading + are kept. */

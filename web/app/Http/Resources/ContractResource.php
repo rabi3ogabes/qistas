@@ -7,6 +7,8 @@ use App\Http\Resources\Concerns\Presents;
 use App\Models\Contract;
 use App\Models\Installment;
 use App\Models\Investor;
+use App\Models\StoredFile;
+use App\Tenancy\CurrentTenant;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -117,6 +119,13 @@ class ContractResource extends JsonResource
             // Late fees (Win Plan K4): the policy the contract was made with (null: it has none), and each fee charged.
             'late_fee_policy' => $this->late_fee_policy,
             'late_fees' => $this->whenLoaded('lateFees', fn () => LateFeeResource::collection($this->lateFees)),
+            // Paperwork (Win Plan K5): the guarantors (ID numbers only for those who see them) and the photos this person may open.
+            'guarantors' => $this->whenLoaded('guarantors', fn () => GuarantorResource::collection($this->guarantors)),
+            'photos' => $this->whenLoaded('photos', function () use ($request) {
+                $role = $request->user()?->roleIn(app(CurrentTenant::class)->id() ?? '');
+
+                return ContractPhotoResource::collection($this->photos->filter(fn (StoredFile $photo) => $role !== null && $photo->kind->openedBy($role))->values());
+            }),
             'installments' => $this->whenLoaded('installments', fn () => InstallmentResource::collection($this->installments)),
             'transactions' => $this->whenLoaded('transactions', fn () => TransactionResource::collection($this->transactions)),
         ];

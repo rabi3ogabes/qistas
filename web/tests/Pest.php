@@ -63,6 +63,12 @@ function switchOn(Feature $feature): void
     app(FeatureControl::class)->setState($feature, PlatformState::On, null, null);
 }
 
+/** Switch a feature off for everyone again, as the admin does (what exists stays; nothing new can be added). */
+function switchOff(Feature $feature): void
+{
+    app(FeatureControl::class)->setState($feature, PlatformState::Off, null, null);
+}
+
 /**
  * @param  array<string, mixed>  $attributes
  */

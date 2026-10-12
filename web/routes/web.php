@@ -4,6 +4,7 @@ use App\Http\Controllers\BrandAssetController;
 use App\Http\Controllers\DemoLoginController;
 use App\Http\Controllers\DocumentVerificationController;
 use App\Http\Controllers\ExportFileController;
+use App\Http\Controllers\FileBlobController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\ManifestController;
 use App\Http\Controllers\RobotsController;
@@ -22,6 +23,8 @@ Route::get('/installment-calculator', [SiteController::class, 'calculator'])->na
 Route::get('/terms', [SiteController::class, 'terms'])->name('terms');
 Route::get('/privacy', [SiteController::class, 'privacy'])->name('privacy');
 // An invitation link into a business: anyone may open it; joining needs a login, which can be made right there.
+// A file of the private disk kept in the database (Win Plan D5), through a link that expires within five minutes.
+Route::get('/files/blob/{path}', FileBlobController::class)->where('path', 'tenants/[A-Za-z0-9/_.\-]+')->middleware(['signed', 'throttle:120,1'])->name('files.blob');
 Route::get('/exports/{export}/file', [ExportFileController::class, 'show'])->whereUuid('export')->middleware(['signed', 'throttle:30,1'])->name('exports.file');
 Route::get('/verify/{code}', [DocumentVerificationController::class, 'show'])->where('code', '[A-Za-z0-9]{6,16}')->middleware('throttle:verify')->name('documents.verify');
 Route::get('/invite/{token}', [InvitationController::class, 'show'])->where('token', '[A-Za-z0-9]{20,100}')->name('invitation.show');

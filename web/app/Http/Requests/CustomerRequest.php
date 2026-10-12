@@ -3,9 +3,9 @@
 namespace App\Http\Requests;
 
 use App\Models\Customer;
+use App\Rules\PhoneNumber;
 use App\Support\Digits;
 use App\Tenancy\CurrentTenant;
-use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -26,8 +26,8 @@ class CustomerRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'phone' => ['required', 'string', $this->phoneNumber()],
-            'phone_secondary' => ['nullable', 'string', $this->phoneNumber()],
+            'phone' => ['required', 'string', new PhoneNumber],
+            'phone_secondary' => ['nullable', 'string', new PhoneNumber],
             'email' => ['nullable', 'string', 'email:rfc', 'max:255'],
             'national_id' => ['nullable', 'string', 'max:40'],
             'address' => ['nullable', 'string', 'max:1000'],
@@ -56,18 +56,5 @@ class CustomerRequest extends FormRequest
             'notes' => $text('notes'),
             'job' => $text('job'),
         ]);
-    }
-
-    /** 6 to 15 digits (the E.164 maximum), with the usual separators and an optional leading +. */
-    private function phoneNumber(): Closure
-    {
-        return function (string $attribute, mixed $value, Closure $fail): void {
-            $value = (string) $value;
-            $digits = preg_match_all('/\d/', $value);
-
-            if (! preg_match('/^\+?[\d\s().\-]+$/', $value) || $digits < 6 || $digits > 15 || strlen($value) > 32) {
-                $fail(__('Enter a valid phone number.'));
-            }
-        };
     }
 }

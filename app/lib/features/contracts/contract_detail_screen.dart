@@ -28,6 +28,7 @@ import 'early_settlement_sheet.dart';
 import 'late_fees_section.dart';
 import 'ledger_line_sheet.dart';
 import 'open_account_screen.dart';
+import 'paperwork_section.dart';
 import 'plan_access.dart';
 
 
@@ -408,6 +409,8 @@ class _Body extends ConsumerWidget {
             order: order++,
             child: LateFeesSection(contract: contract, currency: _currency, language: language, canWaive: account?.canDelete == true),
           ),
+        // Paperwork (Win Plan K5): guarantors and photos, while they can be added or once the contract has some.
+        if (PaperworkSection.shows(account, contract)) Reveal(order: order++, child: PaperworkSection(contract: contract)),
         Reveal(
           order: order++,
           child: Column(

@@ -47,6 +47,7 @@ tags:
   - name: Contracts
   - name: Payments
   - name: Late fees
+  - name: Paperwork
   - name: Reports
   - name: Dashboard
   - name: API access tokens
@@ -857,6 +858,134 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "422": {$ref: "#/components/responses/ValidationFailed"}
         "429": {$ref: "#/components/responses/RateLimited"}
+  /contracts/{contract}/guarantors:
+    post:
+      tags: [Paperwork]
+      summary: Add a guarantor to a contract (Win Plan K5)
+      description: |
+        At most three on a contract (a fourth answers 422 `guarantors`). Owners, managers and accountants; the
+        guarantors feature must be on (403 `feature_unavailable` otherwise). Arabic and Urdu digits are read as plain
+        ones. The ID number is kept encrypted and only ever returned masked. Guarantors are listed with their contract.
+      parameters:
+        - {name: contract, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/GuarantorInput"}
+      responses:
+        "201":
+          description: The guarantor.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/Guarantor"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+  /guarantors/{guarantor}:
+    put:
+      tags: [Paperwork]
+      summary: Change a guarantor
+      description: |
+        The whole guarantor each time. A null or empty `national_id` keeps the one stored; `remove_national_id: true`
+        clears it. Owners, managers and accountants, with the feature on.
+      parameters:
+        - {name: guarantor, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - {$ref: "#/components/schemas/GuarantorInput"}
+                - {type: object, properties: {remove_national_id: {type: boolean}}}
+      responses:
+        "200":
+          description: The guarantor.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/Guarantor"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+    delete:
+      tags: [Paperwork]
+      summary: Remove a guarantor
+      description: Owners and managers, whether the feature is on or off. Audited without who they were.
+      parameters:
+        - {name: guarantor, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "204": {description: Removed.}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /contracts/{contract}/photos:
+    post:
+      tags: [Paperwork]
+      summary: Keep a photo with a contract (Win Plan K5)
+      description: |
+        The customer's ID (front or back), the signed paper contract or the invoice, as a JPEG or PNG of at most 6 MB.
+        It is checked by what its bytes are, drawn again without location data, at most 1600 pixels on its longest
+        side, and kept private. At most twelve on a contract (422 `file`). Owners, managers and accountants, with the
+        guarantors feature on. Photos are listed with their contract.
+      parameters:
+        - {name: contract, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [kind, file]
+              properties:
+                kind: {type: string, enum: [id_front, id_back, contract_photo, invoice]}
+                file: {type: string, format: binary}
+      responses:
+        "201":
+          description: The photo.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/ContractPhoto"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+  /contracts/{contract}/photos/{photo}:
+    delete:
+      tags: [Paperwork]
+      summary: Remove a photo from a contract
+      description: Owners and managers. The bytes leave storage; the record stays, marked deleted. A photo of another contract is 404.
+      parameters:
+        - {name: contract, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: photo, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "204": {description: Removed.}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /files/{file}:
+    get:
+      tags: [Paperwork]
+      summary: A link to one stored file
+      description: |
+        A link that works for five minutes. ID photos are only for owners, managers and accountants (403 otherwise), and
+        every opening of one is written to the audit log. This is how the app opens a `private` contract photo.
+      parameters:
+        - {name: file, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: The link.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      url: {type: string, format: uri}
+                      expires_at: {type: string, format: date-time}
+                      mime: {type: string, example: image/jpeg}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
   /reports/forecast:
     get:
       tags: [Reports]
@@ -3022,6 +3151,8 @@ components:
             - {$ref: "#/components/schemas/LateFeePolicy"}
             - {type: "null"}
         late_fees: {type: array, description: Single contract only. Every late fee charged, oldest first., items: {$ref: "#/components/schemas/LateFee"}}
+        guarantors: {type: array, description: Single contract only. Up to three, in the order they were added (Win Plan K5)., items: {$ref: "#/components/schemas/Guarantor"}}
+        photos: {type: array, description: Single contract only. The photos this person may open, oldest first; ID photos are left out for collectors and viewers., items: {$ref: "#/components/schemas/ContractPhoto"}}
         installments: {type: array, items: {$ref: "#/components/schemas/Installment"}}
         transactions: {type: array, items: {$ref: "#/components/schemas/Transaction"}}
     CashForecast:
@@ -3085,6 +3216,36 @@ components:
         cap_installment: {type: [string, "null"], description: "The most an instalment's fees add up to (waived ones count); null for no cap."}
         cap_contract: {type: [string, "null"], description: The same for the whole contract.}
         charity: {type: boolean, description: The fees go to charity and are kept apart from the business's income.}
+    Guarantor:
+      type: object
+      description: Someone who stands behind a contract (Win Plan K5).
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        phone: {type: string}
+        relation: {type: [string, "null"], description: How they know the customer.}
+        national_id: {type: [string, "null"], example: "••••••432", description: Masked; null when there is none, and always null for collectors and viewers.}
+        created_at: {type: string, format: date-time}
+    GuarantorInput:
+      type: object
+      required: [name, phone]
+      properties:
+        name: {type: string, maxLength: 255}
+        phone: {type: string, example: "0501234567", description: 6 to 15 digits with the usual separators and an optional +.}
+        relation: {type: [string, "null"], maxLength: 60}
+        national_id: {type: [string, "null"], maxLength: 40}
+    ContractPhoto:
+      type: object
+      description: A photo kept with a contract (Win Plan K5).
+      properties:
+        id: {type: string, format: uuid}
+        kind: {type: string, enum: [id_front, id_back, contract_photo, invoice]}
+        label: {type: string, example: Invoice}
+        mime: {type: string, example: image/jpeg}
+        size: {type: integer}
+        private: {type: boolean, description: An ID photo. It has no url here; open it with GET /files/{file}, which is audited.}
+        url: {type: [string, "null"], format: uri, description: A link that works for five minutes; null when private.}
+        created_at: {type: string, format: date-time}
     LateFee:
       type: object
       description: One fee for one period an instalment was late, its own line (never added to the instalment).

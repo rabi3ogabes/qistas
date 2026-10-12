@@ -35,6 +35,12 @@ enum TenantRole: string
         return $this->seesInvestors() && $this->canWrite();
     }
 
+    /** Sees ID numbers and ID photos (Win Plan K5): the people who run the business and its accountant. */
+    public function seesIdentities(): bool
+    {
+        return in_array($this, [self::Owner, self::Manager, self::Accountant], true);
+    }
+
     /** May take the whole of the books out (Win Plan PP10): the people who run the business and its accountant. */
     public function canExport(): bool
     {

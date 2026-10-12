@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../core/money.dart';
 import 'late_fees.dart';
+import 'paperwork.dart';
 import 'plan_changes.dart';
 
 // Plain immutable models of what the API returns. No code generation: each reads its own JSON. Amounts are read
@@ -189,6 +190,12 @@ class Account {
 
   /// Reports show every investor's money (Win Plan K8): everyone but collectors.
   bool get seesReports => role != 'collector';
+
+  /// Sees ID numbers and ID photos, and adds guarantors and photos (Win Plan K5): owners, managers, accountants.
+  bool get seesIdentities => role == 'owner' || role == 'manager' || role == 'accountant';
+
+  /// Guarantors and photos can be added: only when the server says the switch is on (an older server never lists it).
+  bool get keepsPaperwork => entitlements['guarantors']?.isOn ?? false;
 
   Map<String, dynamic> toJson() => {
         'user': {'id': userId, 'name': name, 'email': email, 'email_verified': emailVerified, 'locale': locale, 'two_factor': twoFactor},
@@ -395,6 +402,8 @@ class Contract {
     this.amendments = const [],
     this.lateFeePolicy,
     this.lateFees = const [],
+    this.guarantors = const [],
+    this.photos = const [],
   });
 
   factory Contract.fromJson(Map<String, dynamic> json) {
@@ -437,6 +446,8 @@ class Contract {
       amendments: _list(json['amendments']).map(ContractAmendment.fromJson).toList(),
       lateFeePolicy: LateFeePolicy.fromJson(json['late_fee_policy']),
       lateFees: _list(json['late_fees']).map(LateFee.fromJson).toList(),
+      guarantors: _list(json['guarantors']).map(Guarantor.fromJson).toList(),
+      photos: _list(json['photos']).map(ContractPhoto.fromJson).toList(),
       notes: _text(json['notes']),
       customerId: _text(customer['id']),
       customerName: _text(customer['name']),
@@ -517,6 +528,12 @@ class Contract {
 
   /// Every late fee charged, oldest first.
   final List<LateFee> lateFees;
+
+  /// Up to three guarantors, in the order they were added (Win Plan K5).
+  final List<Guarantor> guarantors;
+
+  /// The photos this person may open, oldest first (Win Plan K5).
+  final List<ContractPhoto> photos;
 
   /// What its open late fees still owe (part of [owed]).
   Money get lateFeesOwed => lateFees.fold(Money.zero, (Money sum, fee) => fee.isOpen ? sum + fee.remaining : sum);

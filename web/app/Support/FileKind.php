@@ -20,10 +20,15 @@ enum FileKind: string
     case Signature = 'signature';
     case Logo = 'logo';
     case Statement = 'statement';
+    case ContractPhoto = 'contract_photo';
+    case Invoice = 'invoice';
 
     public const IMAGE_BYTES = 6 * 1024 * 1024;
 
     public const PDF_BYTES = 10 * 1024 * 1024;
+
+    /** What a contract keeps as photos (Win Plan K5): the customer's ID, the signed paper contract and the invoice. */
+    public const CONTRACT_PHOTOS = [self::IdFront, self::IdBack, self::ContractPhoto, self::Invoice];
 
     /**
      * The file types this kind takes, by what the bytes are (never by the name the client gave).
@@ -33,10 +38,22 @@ enum FileKind: string
     public function mimes(): array
     {
         return match ($this) {
-            self::IdFront, self::IdBack, self::ChequeFront, self::ChequeBack, self::Logo => ['image/jpeg', 'image/png'],
+            self::IdFront, self::IdBack, self::ChequeFront, self::ChequeBack, self::Logo, self::ContractPhoto, self::Invoice => ['image/jpeg', 'image/png'],
             self::PaymentProof => ['image/jpeg', 'image/png', 'application/pdf'],
             self::Signature => ['image/png'],
             self::ContractPdf, self::Statement => ['application/pdf'],
+        };
+    }
+
+    /** What a contract photo is, in words (Win Plan K5); null for the kinds that are not contract photos. */
+    public function photoLabel(): ?string
+    {
+        return match ($this) {
+            self::IdFront => __('ID, front'),
+            self::IdBack => __('ID, back'),
+            self::ContractPhoto => __('Signed contract'),
+            self::Invoice => __('Invoice'),
+            default => null,
         };
     }
 
@@ -56,7 +73,7 @@ enum FileKind: string
     public function openedBy(TenantRole $role): bool
     {
         if ($this->audited()) {
-            return in_array($role, [TenantRole::Owner, TenantRole::Manager, TenantRole::Accountant], true);
+            return $role->seesIdentities();
         }
 
         return true;

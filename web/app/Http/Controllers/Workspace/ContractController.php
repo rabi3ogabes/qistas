@@ -6,6 +6,7 @@ use App\Actions\ArchiveContract;
 use App\Actions\CancelContract;
 use App\Actions\ConvertToOpen;
 use App\Actions\CreateContract;
+use App\Actions\Paperwork\AddContractPhoto;
 use App\Actions\RecordCharge;
 use App\Domain\Contracts\SerialCheck;
 use App\Domain\Investors\MainInvestor;
@@ -21,12 +22,15 @@ use App\Http\Requests\ContractRequest;
 use App\Models\Contract;
 use App\Models\ContractConversion;
 use App\Models\Customer;
+use App\Models\Guarantor;
 use App\Models\Installment;
 use App\Models\Investor;
 use App\Models\LateFee;
 use App\Models\Product;
+use App\Models\StoredFile;
 use App\Models\Transaction;
 use App\Reports\ContractProgress;
+use App\Support\Files;
 use App\Support\Format;
 use App\Support\Money;
 use App\Tenancy\CurrentTenant;
@@ -163,7 +167,39 @@ final class ContractController
             'conversion' => $contract->status === 'active' && Gate::allows('convert', $contract)
                 && Entitlements::for($this->current->get())->check(Feature::OpenContracts)->enabled()
                 ? app(ConvertToOpen::class)->handle($contract, preview: true) : null,
+            ...$this->paperwork($contract),
         ]);
+    }
+
+    /**
+     * The guarantors and photos (Win Plan K5), with what this person may do with them. Photos a role may not open (an
+     * ID for a collector) are left out; ordinary ones come with a five-minute link, ID ones are opened one at a time.
+     *
+     * @return array<string, mixed>
+     */
+    private function paperwork(Contract $contract): array
+    {
+        $role = auth()->user()?->roleIn($contract->tenant_id);
+        $on = Entitlements::for($this->current->get())->check(Feature::Guarantors)->enabled();
+        $guarantors = $contract->guarantors()->get();
+        $all = $contract->photos()->get();
+        $photos = $all->filter(fn (StoredFile $photo) => $role !== null && $photo->kind->openedBy($role))->values();
+        $files = app(Files::class);
+
+        return [
+            'guarantors' => $guarantors,
+            'photos' => $photos,
+            'photoLinks' => $photos->reject(fn (StoredFile $photo) => $photo->kind->audited())
+                ->mapWithKeys(fn (StoredFile $photo) => [$photo->id => $files->temporaryUrl($photo)])->all(),
+            'paperwork' => [
+                'shown' => $on || $guarantors->isNotEmpty() || $photos->isNotEmpty(),
+                'canAdd' => $on && Gate::allows('addPaperwork', $contract),
+                'canRemove' => Gate::allows('removePaperwork', $contract),
+                'seesIds' => $role?->seesIdentities() ?? false,
+                'roomForGuarantors' => $guarantors->count() < Guarantor::MAX_PER_CONTRACT,
+                'roomForPhotos' => $all->count() < AddContractPhoto::MAX_PER_CONTRACT,
+            ],
+        ];
     }
 
     /**
@@ -204,6 +240,7 @@ final class ContractController
             'conversion' => ContractConversion::query()->where('contract_id', $contract->id)->first(),
             'canCharge' => Entitlements::for($this->current->get())->check(Feature::OpenContracts)->enabled(),
             'currency' => $this->current->get()?->currency,
+            ...$this->paperwork($contract),
         ]);
     }
 

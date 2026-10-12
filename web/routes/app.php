@@ -13,6 +13,7 @@ use App\Http\Controllers\Workspace\DocumentController;
 use App\Http\Controllers\Workspace\FileController;
 use App\Http\Controllers\Workspace\InvestorController;
 use App\Http\Controllers\Workspace\ManualPaymentController;
+use App\Http\Controllers\Workspace\PaperworkController;
 use App\Http\Controllers\Workspace\PaymentController;
 use App\Http\Controllers\Workspace\PlanChangeController;
 use App\Http\Controllers\Workspace\ProductController;
@@ -127,3 +128,9 @@ Route::post('customers/{customer}/payment', [PlanChangeController::class, 'custo
 Route::post('payments/{transaction}/void', [PaymentController::class, 'void'])->name('payments.void');
 // Late fees (Win Plan K4): an owner or manager waives one, with the reason.
 Route::post('late-fees/{fee}/waive', [PaymentController::class, 'waiveFee'])->whereUuid('fee')->name('late-fees.waive');
+// Paperwork (Win Plan K5): guarantors and photos on a contract's page.
+Route::post('contracts/{contract}/guarantors', [PaperworkController::class, 'storeGuarantor'])->whereUuid('contract')->name('contracts.guarantors.store');
+Route::put('guarantors/{guarantor}', [PaperworkController::class, 'updateGuarantor'])->whereUuid('guarantor')->name('guarantors.update');
+Route::delete('guarantors/{guarantor}', [PaperworkController::class, 'destroyGuarantor'])->whereUuid('guarantor')->name('guarantors.destroy');
+Route::post('contracts/{contract}/photos', [PaperworkController::class, 'storePhoto'])->whereUuid('contract')->middleware('throttle:documents')->name('contracts.photos.store');
+Route::delete('contracts/{contract}/photos/{photo}', [PaperworkController::class, 'destroyPhoto'])->whereUuid(['contract', 'photo'])->name('contracts.photos.destroy');

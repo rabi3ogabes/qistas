@@ -41,12 +41,12 @@ return [
         /*
         | Private storage for what a workspace keeps (ID photos, proofs of payment, PDFs): see App\Support\Files.
         | With FILESYSTEM_DISK=s3 it is an S3-compatible bucket (Amazon S3, or Supabase Storage through its S3
-        | endpoint: set AWS_ENDPOINT and AWS_USE_PATH_STYLE_ENDPOINT=true). Otherwise it is a private folder that is
-        | only ever served through links that expire within minutes. The folder does not survive on a host whose disk
-        | is thrown away (Vercel): use a bucket there.
+        | endpoint: set AWS_ENDPOINT and AWS_USE_PATH_STYLE_ENDPOINT=true). With FILESYSTEM_DISK=local it is a private
+        | folder on the server. Otherwise (a host whose disk is thrown away, such as Vercel) it is kept in the database
+        | (Win Plan D5: the file_blobs table). Every kind is only ever served through links that expire within minutes.
         */
-        'files' => env('FILESYSTEM_DISK') === 's3'
-            ? [
+        'files' => match (env('FILESYSTEM_DISK')) {
+            's3' => [
                 'driver' => 's3',
                 'key' => env('AWS_ACCESS_KEY_ID'),
                 'secret' => env('AWS_SECRET_ACCESS_KEY'),
@@ -57,8 +57,8 @@ return [
                 'visibility' => 'private',
                 'throw' => false,
                 'report' => false,
-            ]
-            : [
+            ],
+            'local' => [
                 'driver' => 'local',
                 'root' => storage_path('app/files'),
                 'serve' => true,
@@ -67,6 +67,14 @@ return [
                 'throw' => false,
                 'report' => false,
             ],
+            default => [
+                'driver' => 'database',
+                'table' => 'file_blobs',
+                'visibility' => 'private',
+                'throw' => false,
+                'report' => false,
+            ],
+        },
 
         'public' => [
             'driver' => 'local',
