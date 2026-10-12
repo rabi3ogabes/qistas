@@ -28,6 +28,7 @@ import '../features/payments/payments_screen.dart';
 import '../features/products/products_screen.dart';
 import '../features/reminders/remind_all_screen.dart';
 import '../features/reminders/reminder_wording_screen.dart';
+import '../features/reports/reports_screen.dart';
 import '../features/search/search_screen.dart';
 import '../features/security/app_lock_settings_screen.dart';
 import '../features/settings/activity_log_screen.dart';
@@ -86,6 +87,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/calculator', builder: (_, _) => const CalculatorScreen()),
       GoRoute(path: '/help', builder: (_, _) => const HelpScreen()),
       GoRoute(path: '/tools', builder: (_, _) => const ToolsScreen()),
+      GoRoute(path: '/reports', builder: (_, _) => const ReportsScreen()),
       GoRoute(path: '/app-lock', builder: (_, _) => const AppLockSettingsScreen()),
       GoRoute(path: '/delete-account', builder: (_, _) => const DeleteAccountScreen()),
       GoRoute(path: '/team', builder: (_, _) => const TeamScreen()),

@@ -156,6 +156,9 @@ class AppServiceProvider extends ServiceProvider
         // How dates are shown: Gregorian alone, or with the Hijri date beside it or first (Win Plan CT26).
         Dates::register(app(SettingsRegistry::class));
 
+        // Reports reveal every investor's money (Win Plan K8): everyone in the workspace but collectors.
+        Gate::define('view-reports', fn (User $user): bool => $user->roleIn(app(CurrentTenant::class)->id() ?? '')?->seesInvestors() ?? false);
+
         // Only a super admin changes what the platform has on, off or in beta; an admin may look.
         Gate::define('manage-platform-features', fn (User $user): bool => $user->platform_role === 'super_admin');
 

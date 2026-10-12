@@ -60,6 +60,8 @@ class SettingsScreen extends ConsumerWidget {
     final mode = ref.watch(themeModeProvider);
     // The owner's tools are listed only when the platform has some switched on for this workspace.
     final hasTools = ref.watch(toolsProvider).valueOrNull?.tools.isNotEmpty ?? false;
+    // Reports (Win Plan K8): shown on Free too, where the screen offers Pro; hidden while the platform has them off.
+    final reports = (account?.seesReports ?? false) && !(account?.entitlement('advanced_reports').isPlatformOff ?? false);
     final twoStep = account?.twoFactor == true;
     final appLock = ref.watch(appLockProvider);
     // The team page, once the platform has the team switched on (a plan without room still shows it, locked).
@@ -109,6 +111,8 @@ class SettingsScreen extends ConsumerWidget {
               title: context.t('Workspace'),
               child: Column(
                 children: _divided([
+                  if (reports)
+                    _Row(key: const ValueKey('settings-reports'), icon: Icons.insights_outlined, title: context.t('Reports'), onTap: () => context.push('/reports')),
                   // Who the statements and receipts come from (Win Plan PP8): everyone may look.
                   _Row(key: const ValueKey('settings-business'), icon: Icons.storefront_outlined, title: context.t('Business profile'), onTap: () => context.push('/settings/business')),
                   // Backups and data, and the activity log (Win Plan PP10).

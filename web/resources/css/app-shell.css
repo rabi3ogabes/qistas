@@ -485,4 +485,41 @@
     .choice-item small { color: var(--q-ink-muted); font-size: .8125rem; }
     .choice-item:has(input:checked) { border-color: var(--q-accent); background: color-mix(in srgb, var(--q-accent) 9%, var(--q-surface)); }
     .choice-item:has(input:focus-visible) { outline: 2px solid var(--q-info); outline-offset: 2px; }
+
+    /* Reports (Win Plan K8): the server's SVG charts take the theme's own colours, dark mode and the admin's look included. */
+    .report { margin-bottom: 1rem; overflow: hidden; }
+    .report .card-head .muted { font-size: .8125rem; text-align: end; }
+    .report-figures { border-bottom: 1px solid var(--q-line); }
+    .report-chart { padding-block: 1rem .5rem; }
+    .chart { display: block; width: 100%; max-width: 46rem; height: auto; margin-inline: auto; overflow: visible; }
+    .chart-bar { fill: var(--q-accent); }
+    .chart-positive { fill: var(--q-positive); }
+    .chart-warn { fill: var(--q-warning); }
+    .chart-danger { fill: var(--q-danger); }
+    .chart-quiet { fill: var(--q-ink-muted); opacity: .4; }
+    .chart-track { fill: var(--q-surface-alt); }
+    .chart-axis { stroke: var(--q-line); stroke-width: 1; }
+    .chart-label { fill: var(--q-ink-muted); font-size: 12px; }
+    .chart-label-row { fill: var(--q-ink); font-size: 13px; }
+    .chart-value { fill: var(--q-ink); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    /* A chart is drawn at 640 units wide and shrinks with the phone: its words grow to stay readable. */
+    @media (max-width: 560px) {
+        .chart-label, .chart-label-row, .chart-value { font-size: 24px; }
+    }
+    @media (hover: hover) and (pointer: fine) {
+        .chart-bar { transition: opacity var(--q-t-fast) var(--q-ease-out); }
+        .chart-bar:hover { opacity: .78; }
+    }
+    .report-note { margin: 0; padding-top: 0; color: var(--q-ink-muted); font-size: .875rem; }
+    .report-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .75rem 1rem; margin-bottom: 1rem; }
+    .report-filters .field { margin: 0; min-width: min(14rem, 100%); }
+    .report-dates { flex-basis: 100%; }
+    .report-dates-fields { display: flex; flex-wrap: wrap; gap: .75rem 1rem; margin-top: .5rem; }
+    .report-split { display: grid; gap: 1.25rem 2rem; padding: .25rem 1.25rem 1.25rem; }
+    @media (min-width: 720px) { .report-split { grid-template-columns: 1fr 1fr; } }
+    .report-subtitle { margin: 0 0 .25rem; font-size: .8125rem; font-weight: 600; color: var(--q-ink-muted); }
+    .report-line { display: flex; justify-content: space-between; gap: 1rem; margin: 0; padding: .5rem 0; border-bottom: 1px solid var(--q-line); }
+    .report-line:last-child { border-bottom: 0; }
+    .reports-locked { max-width: 38rem; margin-inline: auto; align-items: center; text-align: center; }
+    .reports-locked-icon { display: inline-grid; place-items: center; width: 3.25rem; height: 3.25rem; border-radius: 50%; background: var(--q-tint-sand); color: var(--q-accent-text); }
 }

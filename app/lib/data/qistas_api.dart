@@ -13,6 +13,7 @@ import 'late_fees.dart';
 import 'models.dart';
 import 'notifications.dart';
 import 'plan_changes.dart';
+import 'reports.dart';
 
 /// A fresh key for one attempt at one payment. Showing the same key again for the same attempt (a double tap, a
 /// retry after a dropped connection) makes the server record one payment, not two.
@@ -521,6 +522,18 @@ class QistasApi {
 
   Future<LedgerLine> voidPayment(String id, {String? reason}) async =>
       LedgerLine.fromJson(_data(await _client.post('/payments/$id/void', body: {if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim()})));
+
+  /// The forecast, ageing and profit for [filters] (Win Plan K8), fetched together. Pro; a Free workspace gets a 402.
+  Future<Reports> reports(ReportFilters filters) async {
+    final query = filters.toQuery();
+    final [forecast, ageing, profit] = await Future.wait([
+      _client.get('/reports/forecast', query: query),
+      _client.get('/reports/ageing', query: query),
+      _client.get('/reports/profit', query: query),
+    ]);
+
+    return Reports(forecast: CashForecast.fromJson(_data(forecast)), ageing: AgeingReport.fromJson(_data(ageing)), profit: ProfitReport.fromJson(_data(profit)));
+  }
 
   /// Forgives what a late fee still owes (Win Plan K4); owners and managers only, always with a reason.
   Future<LateFee> waiveLateFee(String id, {required String reason}) async =>

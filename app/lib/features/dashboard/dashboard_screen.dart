@@ -161,7 +161,7 @@ class _Body extends ConsumerWidget {
         Reveal(order: order++, child: _Hero(data: data)),
         if (!started) Reveal(order: order++, child: const Padding(padding: EdgeInsets.only(top: 18), child: _GettingStarted())),
         if (data.needsYou.isNotEmpty) Reveal(order: order++, child: _NeedsYou(data: data, language: language, account: account)),
-        Reveal(order: order++, child: _Month(data: data)),
+        Reveal(order: order++, child: _Month(data: data, showsReports: (account?.seesReports ?? false) && !(account?.entitlement('advanced_reports').isPlatformOff ?? false))),
         if (data.upcoming.isNotEmpty) Reveal(order: order++, child: _ComingUp(data: data)),
         if (account != null && account!.isFree) Reveal(order: order++, child: _PlanCard(account: account!)),
       ],
@@ -355,9 +355,12 @@ class _NeedRow extends StatelessWidget {
 
 /// How the month is going: the share of its instalments already paid, and how it stands against last month.
 class _Month extends StatelessWidget {
-  const _Month({required this.data});
+  const _Month({required this.data, this.showsReports = false});
 
   final Dashboard data;
+
+  /// Whether to offer the reports beneath the month (everyone but collectors, while the platform has them on).
+  final bool showsReports;
 
   @override
   Widget build(BuildContext context) {
@@ -407,6 +410,17 @@ class _Month extends StatelessWidget {
             ],
           ),
         ),
+        // The deeper view of the same money (Win Plan K8): forecast, ageing and profit.
+        if (showsReports)
+          Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: TextButton.icon(
+              key: const ValueKey('dashboard-reports'),
+              onPressed: () => context.push('/reports'),
+              icon: const Icon(Icons.insights_outlined, size: 18),
+              label: Text(context.t('See the reports')),
+            ),
+          ),
       ],
     );
   }

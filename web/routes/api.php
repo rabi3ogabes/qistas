@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\PushTokenController;
 use App\Http\Controllers\Api\V1\ReleaseNoteController;
 use App\Http\Controllers\Api\V1\ReminderController;
+use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\SchedulePreviewController;
 use App\Http\Controllers\Api\V1\SupportController;
 use App\Http\Controllers\Api\V1\TagController;
@@ -156,6 +157,10 @@ Route::name('api.')->group(function (): void {
         Route::post('contracts/{contract}/payments', [PaymentController::class, 'store'])->middleware('throttle:api-money')->name('contracts.payments.store');
         Route::post('payments/{transaction}/void', [PaymentController::class, 'void'])->middleware('throttle:api-money')->name('payments.void');
         // Late fees (Win Plan K4): listed with their contract; an owner or manager waives one with a reason.
+        // Reports (Win Plan K8, RP14, RP15, CT27): Pro, for everyone but collectors.
+        Route::get('reports/forecast', [ReportController::class, 'forecast'])->name('reports.forecast');
+        Route::get('reports/ageing', [ReportController::class, 'ageing'])->name('reports.ageing');
+        Route::get('reports/profit', [ReportController::class, 'profit'])->name('reports.profit');
         Route::post('late-fees/{fee}/waive', [LateFeeController::class, 'waive'])->whereUuid('fee')->middleware('throttle:api-money')->name('late-fees.waive');
 
         // Making and revoking API access tokens needs a signed-in device (an "app" token), not another API token.

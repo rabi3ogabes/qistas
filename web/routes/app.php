@@ -17,6 +17,7 @@ use App\Http\Controllers\Workspace\PaymentController;
 use App\Http\Controllers\Workspace\PlanChangeController;
 use App\Http\Controllers\Workspace\ProductController;
 use App\Http\Controllers\Workspace\ReminderController;
+use App\Http\Controllers\Workspace\ReportController;
 use App\Http\Controllers\Workspace\SecurityPolicyController;
 use App\Http\Controllers\Workspace\TagController;
 use App\Http\Controllers\Workspace\TeamController;
@@ -111,6 +112,9 @@ Route::post('contracts/{contract}/charges', [ContractController::class, 'charge'
 Route::post('contracts/{contract}/convert-to-open', [ContractController::class, 'convert'])->name('contracts.convert');
 
 Route::get('payments', [PaymentController::class, 'index'])->name('payments.index');
+// Reports (Win Plan K8): the forecast, ageing and profit, and the same figures as a spreadsheet.
+Route::get('reports', [ReportController::class, 'index'])->name('reports');
+Route::get('reports/export', [ReportController::class, 'export'])->middleware('throttle:documents')->name('reports.export');
 Route::post('contracts/{contract}/payments', [PaymentController::class, 'store'])->name('contracts.payments.store');
 
 // Settle early, change the plan, pay across contracts (Win Plan PP6).

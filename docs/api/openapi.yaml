@@ -47,6 +47,7 @@ tags:
   - name: Contracts
   - name: Payments
   - name: Late fees
+  - name: Reports
   - name: Dashboard
   - name: API access tokens
   - name: Instalment tools
@@ -856,6 +857,78 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "422": {$ref: "#/components/responses/ValidationFailed"}
         "429": {$ref: "#/components/responses/RateLimited"}
+  /reports/forecast:
+    get:
+      tags: [Reports]
+      summary: Cash-flow forecast (Win Plan K8)
+      description: |
+        What still falls due on running contracts in the next 30, 60 and 90 days (each from today, after what is already
+        paid), week by week for 13 weeks; apart from it what was due before today and is unpaid, and the open late fees.
+        "Expected", never promised. Pro (402 feature_locked otherwise); everyone in the workspace but collectors.
+      parameters:
+        - {name: period, in: query, schema: {type: string, enum: [this_month, last_3_months, last_12_months, this_year, custom], default: last_12_months}, description: "Whole months; custom needs from and to."}
+        - {name: from, in: query, schema: {type: string, format: date}}
+        - {name: to, in: query, schema: {type: string, format: date}, description: On or after from.}
+        - {name: investor_id, in: query, schema: {type: string, format: uuid}, description: Only the contracts this investor funds.}
+        - {name: product_id, in: query, schema: {type: string, format: uuid}, description: "Only the contracts that sold this product (and, for profit, only its share)."}
+      responses:
+        "200":
+          description: The forecast.
+          content:
+            application/json:
+              schema: {type: object, properties: {data: {$ref: "#/components/schemas/CashForecast"}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "402": {$ref: "#/components/responses/PlanLimit"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+  /reports/ageing:
+    get:
+      tags: [Reports]
+      summary: Ageing (Win Plan RP15)
+      description: |
+        Every unpaid instalment of a running contract in one bucket by the days since its last day of grace: current,
+        1–30, 31–60, 61–90, over 90. By bucket, and contract by contract, the latest first.
+      parameters:
+        - {name: period, in: query, schema: {type: string, enum: [this_month, last_3_months, last_12_months, this_year, custom], default: last_12_months}, description: "Whole months; custom needs from and to."}
+        - {name: from, in: query, schema: {type: string, format: date}}
+        - {name: to, in: query, schema: {type: string, format: date}, description: On or after from.}
+        - {name: investor_id, in: query, schema: {type: string, format: uuid}, description: Only the contracts this investor funds.}
+        - {name: product_id, in: query, schema: {type: string, format: uuid}, description: "Only the contracts that sold this product (and, for profit, only its share)."}
+      responses:
+        "200":
+          description: The buckets and the contracts.
+          content:
+            application/json:
+              schema: {type: object, properties: {data: {$ref: "#/components/schemas/Ageing"}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "402": {$ref: "#/components/responses/PlanLimit"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+  /reports/profit:
+    get:
+      tags: [Reports]
+      summary: Profit as money comes in (Win Plan K8, CT27)
+      description: |
+        Read from the investor ledger, so it follows its rule to the cent (a void takes back exactly what its payment
+        gave). By month (the business's profit), by investor (what each kept, after a partner's commission) and by
+        product (a contract's profit split by what each item sold for). With the collection rate of the period and the
+        late fees collected, the business's apart from charity's.
+      parameters:
+        - {name: period, in: query, schema: {type: string, enum: [this_month, last_3_months, last_12_months, this_year, custom], default: last_12_months}, description: "Whole months; custom needs from and to."}
+        - {name: from, in: query, schema: {type: string, format: date}}
+        - {name: to, in: query, schema: {type: string, format: date}, description: On or after from.}
+        - {name: investor_id, in: query, schema: {type: string, format: uuid}, description: Only the contracts this investor funds.}
+        - {name: product_id, in: query, schema: {type: string, format: uuid}, description: "Only the contracts that sold this product (and, for profit, only its share)."}
+      responses:
+        "200":
+          description: The profit.
+          content:
+            application/json:
+              schema: {type: object, properties: {data: {$ref: "#/components/schemas/ProfitReport"}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "402": {$ref: "#/components/responses/PlanLimit"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
   /settings/tools:
     get:
       tags: [Instalment tools]
@@ -2948,6 +3021,57 @@ components:
         late_fees: {type: array, description: Single contract only. Every late fee charged, oldest first., items: {$ref: "#/components/schemas/LateFee"}}
         installments: {type: array, items: {$ref: "#/components/schemas/Installment"}}
         transactions: {type: array, items: {$ref: "#/components/schemas/Transaction"}}
+    CashForecast:
+      type: object
+      properties:
+        as_of: {type: string, format: date}
+        already_due: {$ref: "#/components/schemas/Money"}
+        late_fees: {$ref: "#/components/schemas/Money"}
+        windows:
+          type: object
+          properties:
+            days_30: {$ref: "#/components/schemas/Money"}
+            days_60: {$ref: "#/components/schemas/Money"}
+            days_90: {$ref: "#/components/schemas/Money"}
+        weeks:
+          type: array
+          items: {type: object, properties: {from: {type: string, format: date}, to: {type: string, format: date}, amount: {$ref: "#/components/schemas/Money"}}}
+    AgeingBuckets:
+      type: object
+      properties:
+        current: {$ref: "#/components/schemas/Money"}
+        days_1_30: {$ref: "#/components/schemas/Money"}
+        days_31_60: {$ref: "#/components/schemas/Money"}
+        days_61_90: {$ref: "#/components/schemas/Money"}
+        days_90_plus: {$ref: "#/components/schemas/Money"}
+    Ageing:
+      type: object
+      properties:
+        as_of: {type: string, format: date}
+        buckets: {$ref: "#/components/schemas/AgeingBuckets"}
+        total: {$ref: "#/components/schemas/Money"}
+        contracts:
+          type: array
+          items:
+            allOf:
+              - {$ref: "#/components/schemas/AgeingBuckets"}
+              - type: object
+                properties:
+                  id: {type: string, format: uuid}
+                  reference: {type: string}
+                  customer: {type: object, properties: {id: {type: string}, name: {type: [string, "null"]}}}
+                  total: {$ref: "#/components/schemas/Money"}
+    ProfitReport:
+      type: object
+      properties:
+        from: {type: string, format: date}
+        to: {type: string, format: date}
+        total: {$ref: "#/components/schemas/Money"}
+        collection_rate: {type: [string, "null"], example: "75.0", description: "Of what fell due in the period, the percent paid so far; null when nothing fell due."}
+        months: {type: array, items: {type: object, properties: {month: {type: string, example: "2026-02"}, profit: {$ref: "#/components/schemas/Money"}}}}
+        investors: {type: array, items: {type: object, properties: {id: {type: string, format: uuid}, name: {type: string}, profit: {$ref: "#/components/schemas/Money"}}}}
+        products: {type: array, description: "id null: items not from the products list, or no items.", items: {type: object, properties: {id: {type: [string, "null"]}, name: {type: string}, profit: {$ref: "#/components/schemas/Money"}}}}
+        late_fees: {type: object, properties: {shop: {$ref: "#/components/schemas/Money"}, charity: {$ref: "#/components/schemas/Money"}}}
     LateFeePolicy:
       type: object
       description: The workspace's late-fee policy as it stood when the contract was made (Win Plan K4); a later change never alters it.

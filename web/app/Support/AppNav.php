@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Entitlements\Entitlements;
 use App\Entitlements\Feature;
+use App\Entitlements\FeatureStatus;
 use App\Models\Investor;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Support\Facades\Gate;
@@ -24,6 +25,10 @@ final class AppNav
             // Who funds the business: for the people who see it (never collectors), while the feature is on.
             ...($tenant !== null && Gate::allows('viewAny', Investor::class) && Entitlements::for($tenant)->check(Feature::Investors)->enabled()
                 ? [['key' => 'investors', 'route' => 'app.investors.index', 'icon' => 'trendUp', 'label' => __('Investors')]]
+                : []),
+            // Reports (Win Plan K8): shown on Free too, where the page says what Pro gives; hidden while the platform has them off.
+            ...($tenant !== null && Gate::allows('view-reports') && Entitlements::for($tenant)->check(Feature::AdvancedReports)->status() !== FeatureStatus::PlatformOff
+                ? [['key' => 'reports', 'route' => 'app.reports', 'icon' => 'chart', 'label' => __('Reports')]]
                 : []),
         ];
     }
