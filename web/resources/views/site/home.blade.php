@@ -30,7 +30,7 @@
                 </p>
                 <div class="hero-actions">
                     <a class="btn btn-gold btn-lg" href="{{ route('register') }}">{{ __('Start free') }}</a>
-                    <a class="btn btn-on-dark btn-lg" href="{{ route('pricing') }}">{{ __('See pricing') }}</a>
+                    <a class="btn btn-on-dark btn-lg" href="{{ \App\Site\SitePages::url('pricing') }}">{{ __('See pricing') }}</a>
                 </div>
             </div>
             @include('site.partials.calculator')
@@ -94,31 +94,13 @@
             <h2 class="display">{{ __('Start free. Upgrade when you need more.') }}</h2>
             <p class="section-lead">{{ __('Every plan shows exactly what it includes. Change your mind at any time; your records stay yours.') }}</p>
             @include('site.partials.plans', ['interactive' => false])
-            <p style="margin-top:1.5rem"><a class="link" href="{{ route('pricing') }}">{{ __('Compare plans in detail') }}</a></p>
+            <p style="margin-top:1.5rem"><a class="link" href="{{ \App\Site\SitePages::url('pricing') }}">{{ __('Compare plans in detail') }}</a></p>
         </div>
     </section>
 
     <section class="section">
         <div class="container">
-            <h2 class="display">{{ __('Built to be trusted with money.') }}</h2>
-            <dl class="principles">
-                <div>
-                    <dt>{{ __('Exact to the cent') }}</dt>
-                    <dd>{{ __('Amounts are stored and calculated as exact decimals, never as rounded floating-point numbers, so instalments always add up to the total.') }}</dd>
-                </div>
-                <div>
-                    <dt>{{ __('Your language, laid out properly') }}</dt>
-                    <dd>{{ __('Arabic is set right to left throughout, not mirrored as an afterthought. Switch language at any time; amounts always use the digits you typed.') }}</dd>
-                </div>
-                <div>
-                    <dt>{{ __('Safe by design') }}</dt>
-                    <dd>{{ __('Each business’s data is kept apart from every other’s. National IDs are encrypted, sign-in can require a second step, and sensitive actions are written to an audit log.') }}</dd>
-                </div>
-                <div>
-                    <dt>{{ __('Made for the phone in your hand') }}</dt>
-                    <dd>{{ __('The whole product works in a phone’s browser, with large tap targets and numbers that line up. The iPhone and Android app is on its way.') }}</dd>
-                </div>
-            </dl>
+            @include('site.partials.principles')
         </div>
     </section>
 

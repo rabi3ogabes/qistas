@@ -2,6 +2,7 @@
     The language button: a pill of its own (a globe and the language in its own script) that opens a short, calm list of
     the five languages. It is a control in its own right, never an item in an account menu. Every choice is a plain
     link, so it works without JavaScript; the small script only adds Escape, arrow keys and closing on an outside click.
+    On a public page each choice is that language's own address (/ar/pricing); elsewhere it is the same page with ?lang=.
 --}}
 @props(['placement' => 'down'])
 @php
@@ -21,7 +22,7 @@
         <ul class="lang-list">
             @foreach ($options as $code => $label)
                 <li>
-                    <a class="lang-option" lang="{{ $code }}" hreflang="{{ $code }}" href="{{ request()->fullUrlWithQuery(['lang' => $code]) }}" @if ($code === $current) aria-current="true" @endif>
+                    <a class="lang-option" lang="{{ $code }}" hreflang="{{ $code }}" href="{{ \App\Site\SitePages::here($code) ?? request()->fullUrlWithQuery(['lang' => $code]) }}" @if ($code === $current) aria-current="true" @endif>
                         <span class="lang-option-name">{{ $label }}</span>
                         <span class="lang-option-code" aria-hidden="true">{{ strtoupper($code) }}</span>
                         @if ($code === $current)<x-icon name="check" :size="16" class="lang-check" />@endif

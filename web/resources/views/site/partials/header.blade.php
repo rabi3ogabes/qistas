@@ -1,14 +1,17 @@
 @php
+    use App\Site\SitePages;
+
+    // The page's links stay in the language path it was opened in (Sprint 2, D10).
     $links = [
-        ['href' => route('home').'#how', 'label' => __('How it works'), 'current' => false],
-        ['href' => route('calculator'), 'label' => __('Calculator'), 'current' => request()->routeIs('calculator')],
-        ['href' => route('pricing'), 'label' => __('Pricing'), 'current' => request()->routeIs('pricing')],
-        ['href' => route('home').'#faq', 'label' => __('Questions'), 'current' => false],
+        ['href' => SitePages::url('home').'#how', 'label' => __('How it works'), 'current' => false],
+        ['href' => SitePages::url('calculator'), 'label' => __('Calculator'), 'current' => SitePages::current() === 'calculator'],
+        ['href' => SitePages::url('pricing'), 'label' => __('Pricing'), 'current' => SitePages::current() === 'pricing'],
+        ['href' => SitePages::url('home').'#faq', 'label' => __('Questions'), 'current' => false],
     ];
 @endphp
 <header class="site-header">
     <div class="container site-header-inner">
-        <a class="site-brand" href="{{ route('home') }}" aria-label="{{ config('qistas.app_name') }}"><x-logo :height="30" /></a>
+        <a class="site-brand" href="{{ \App\Site\SitePages::url('home') }}" aria-label="{{ config('qistas.app_name') }}"><x-logo :height="30" /></a>
 
         @unless ($focused ?? false)
         <nav class="site-nav" aria-label="{{ __('Main') }}">

@@ -14,7 +14,7 @@
         'currency' => $currency,
         'initial' => $initialSchedule,
         'plan' => $plan,
-        'share' => $share ? route('calculator') : null,
+        'share' => $share ? \App\Site\SitePages::url('calculator') : null,
         'messages' => [
             'unavailable' => __('The calculator is not available right now. Please try again in a moment.'),
             'copied' => __('Link copied'),

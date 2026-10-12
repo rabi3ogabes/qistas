@@ -42,7 +42,7 @@ describe('the home page', function () {
         $page = $this->get('/');
 
         foreach (config('qistas.locales') as $locale) {
-            $page->assertSee('<link rel="alternate" hreflang="'.$locale.'" href="'.url('/').'/?lang='.$locale.'">', false);
+            $page->assertSee('<link rel="alternate" hreflang="'.$locale.'" href="'.url('/'.$locale).'">', false);
         }
         $page->assertSee('hreflang="x-default"', false);
     });
@@ -52,7 +52,7 @@ describe('the home page', function () {
     });
 
     it('lets people pick a language and a colour mode', function () {
-        $this->get('/')->assertSee('?lang=ar', false)->assertSee('data-q-mode-toggle', false);
+        $this->get('/')->assertSee('hreflang="ar" href="'.url('/ar').'"', false)->assertSee('data-q-mode-toggle', false);
     });
 
     it('names the exact payment rule it advertises', function () {

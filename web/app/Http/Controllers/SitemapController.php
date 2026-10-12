@@ -2,17 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Site\SitePages;
 use Illuminate\Http\Response;
 
-/** The public pages, each with its language alternates, for search engines. */
+/** The public pages for search engines: each at its plain address and in every language path, with its alternates. */
 final class SitemapController
 {
-    private const PAGES = ['/', '/installment-calculator', '/pricing', '/terms', '/privacy'];
-
     public function __invoke(): Response
     {
         return response()
-            ->view('site.sitemap', ['pages' => self::PAGES, 'locales' => config('qistas.locales')])
+            ->view('site.sitemap', ['pages' => SitePages::LISTED, 'locales' => config('qistas.locales')])
             ->header('Content-Type', 'application/xml; charset=UTF-8');
     }
 }

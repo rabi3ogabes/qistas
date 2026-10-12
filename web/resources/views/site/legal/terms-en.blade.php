@@ -15,11 +15,11 @@
 
 <h2>Your data</h2>
 <p>The customer, contract and payment records you enter belong to you. We process them only to provide the service to you. You are responsible for having the right to record that information, including your customers’ personal details, and for following the laws that apply to your lending or selling activity where you operate.</p>
-<p>You can ask us to delete your account and the data in it at any time. How we handle personal data is described in our <a href="{{ route('privacy') }}">Privacy Policy</a>.</p>
+<p>You can ask us to delete your account and the data in it at any time. How we handle personal data is described in our <a href="{{ \App\Site\SitePages::url('privacy') }}">Privacy Policy</a>.</p>
 
 <h2>Plans, limits and payment</h2>
 <ul>
-    <li>The Free plan has no time limit. Each plan has limits and features, which are shown on our <a href="{{ route('pricing') }}">pricing page</a> and in your account.</li>
+    <li>The Free plan has no time limit. Each plan has limits and features, which are shown on our <a href="{{ \App\Site\SitePages::url('pricing') }}">pricing page</a> and in your account.</li>
     <li>Paid plans are billed in advance, monthly or yearly, by card. A paid plan continues until you cancel it.</li>
     <li>You can cancel at any time. You keep the paid plan until the end of the period you have paid for, and we do not refund part-periods unless the law requires it.</li>
     <li>If you move to a plan with lower limits, we never delete your records. You keep everything you already have and cannot add more until you are within the new limits.</li>

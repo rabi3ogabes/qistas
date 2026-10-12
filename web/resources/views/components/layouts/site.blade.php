@@ -1,10 +1,13 @@
 {{-- `focused`: a page for someone who is not choosing Qistas (a shop's customer signing): no offers, no sign-up. --}}
 @props(['title', 'description' => null, 'path' => '/', 'index' => true, 'focused' => false])
 @php
+    use App\Site\SitePages;
+
     $description ??= __('Qistas keeps your customers, contracts and payments in order. Free to start, in Arabic and English.');
-    $canonical = url($path);
-    // Language alternates point at the same page with ?lang= (the root needs its trailing slash before the query).
-    $alternateBase = $path === '/' ? url('/').'/' : url($path);
+    // A public page names its own address (in the language path it was opened in) and each language's (Sprint 2, D10),
+    // with the plain address, which reads in the reader's own language, as the x-default. Other pages name only themselves.
+    $page = SitePages::current();
+    $canonical = $page !== null ? SitePages::url($page) : url($path);
     $locale = app()->getLocale();
     $ogLocale = str_replace('-', '_', $locale);
 @endphp
@@ -17,10 +20,12 @@
     <meta name="description" content="{{ $description }}">
     @unless ($index)<meta name="robots" content="noindex">@endunless
     <link rel="canonical" href="{{ $canonical }}">
-    @foreach (config('qistas.locales') as $code)
-        <link rel="alternate" hreflang="{{ $code }}" href="{{ $alternateBase }}?lang={{ $code }}">
-    @endforeach
-    <link rel="alternate" hreflang="x-default" href="{{ $canonical }}">
+    @if ($page !== null)
+        @foreach (config('qistas.locales') as $code)
+            <link rel="alternate" hreflang="{{ $code }}" href="{{ SitePages::url($page, [], $code) }}">
+        @endforeach
+        <link rel="alternate" hreflang="x-default" href="{{ SitePages::plain($page) }}">
+    @endif
 
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="{{ config('qistas.app_name') }}">

@@ -7,11 +7,16 @@ use App\Models\User;
 | list of the five languages, on every page a person sees. It is not part of any account menu.
 */
 
+/** The languages the links lead to: by ?lang= on most pages, by the language path on the public site. */
 function languageLinks(string $html): array
 {
-    preg_match_all('/<a[^>]*\bhreflang="([a-z]{2})"[^>]*href="[^"]*[?&;]lang=([a-z]{2})"/', $html, $found);
+    preg_match_all('/<a[^>]*\bhreflang="([a-z]{2})"[^>]*href="([^"]*)"/', $html, $found, PREG_SET_ORDER);
 
-    return $found[2];
+    return array_map(function (array $link) {
+        preg_match('#[?&;]lang=([a-z]{2})|^https?://[^/]+/([a-z]{2})(?:[/?]|$)#', $link[2], $target);
+
+        return ($target[1] ?? '') !== '' ? $target[1] : ($target[2] ?? '');
+    }, $found);
 }
 
 function switcherBlock(string $html): string
@@ -77,8 +82,7 @@ describe('where it is', function () {
     });
 
     it('keeps the page and its other settings when the language is changed', function () {
-        $block = switcherBlock($this->get('/pricing?plan=pro')->getContent());
-
-        expect($block)->toContain('plan=pro&amp;lang=ar');
+        expect(switcherBlock($this->get('/register?plan=pro')->getContent()))->toContain('plan=pro&amp;lang=ar')
+            ->and(switcherBlock($this->get('/pricing?plan=pro')->getContent()))->toContain(url('/ar/pricing').'?plan=pro');
     });
 });

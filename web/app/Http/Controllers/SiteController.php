@@ -7,6 +7,7 @@ use App\Domain\Schedule\ScheduleGenerator;
 use App\Domain\Schedule\ScheduleRequest;
 use App\Entitlements\Feature;
 use App\Site\PricingCatalog;
+use App\Site\SwitchGuide;
 use App\Support\Format;
 use App\Support\Locale;
 use App\Support\Money;
@@ -118,6 +119,29 @@ final class SiteController
     public function privacy(): View
     {
         return $this->legal('privacy', __('Privacy Policy'), '/privacy');
+    }
+
+    /** For a shop moving to Qistas from a paper notebook (Sprint 2, D10). */
+    public function fromNotebook(): View
+    {
+        return $this->switching('notebook');
+    }
+
+    /** For a shop moving to Qistas from a spreadsheet. */
+    public function fromExcel(): View
+    {
+        return $this->switching('excel');
+    }
+
+    /** For a shop moving to Qistas from another instalment app. */
+    public function fromAnotherApp(): View
+    {
+        return $this->switching('app');
+    }
+
+    private function switching(string $from): View
+    {
+        return view('site.switch', ['from' => $from, 'guide' => SwitchGuide::for($from)]);
     }
 
     /** How to delete a Qistas account, and what happens to the data: for anyone, signed in or not (store requirement). */

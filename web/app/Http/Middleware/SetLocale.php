@@ -2,9 +2,12 @@
 
 namespace App\Http\Middleware;
 
+use App\Site\SitePages;
 use App\Support\Locale;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Route;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cookie;
 use Symfony\Component\HttpFoundation\Response;
@@ -12,9 +15,12 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * Chooses the language for this request. A language stays chosen: it changes only when the person changes it.
  *
- * In order: an explicit ?lang= (remembered for next time, in this browser and on the person's profile), then what
- * this browser already remembers (the cookie, then the session), then the signed-in person's saved language (a
- * browser with no choice yet takes it up and remembers it), then the browser's Accept-Language, then the default.
+ * A public page opened at a language's path (/ar/pricing) reads in that language, which is remembered like a choice;
+ * a ?lang= there goes to that language's own path, so each address keeps one language (Sprint 2, D10).
+ *
+ * Elsewhere, in order: an explicit ?lang= (remembered for next time, in this browser and on the person's profile),
+ * then what this browser already remembers (the cookie, then the session), then the signed-in person's saved language
+ * (a browser with no choice yet takes it up and remembers it), then the browser's Accept-Language, then the default.
  * The browser's own memory comes before the profile because the profile is one value shared by every device: it
  * must not flip a page back to the language a person left behind when they signed up or last used another device.
  * Only languages the product ships are ever accepted, whatever a client sends.
@@ -26,8 +32,19 @@ final class SetLocale
     public function handle(Request $request, Closure $next): Response
     {
         $explicit = $request->query('lang');
+        $route = $request->route();
+        $path = $route instanceof Route ? $route->parameter('locale') : null;
 
-        if (Locale::isSupported($explicit)) {
+        if (is_string($path) && Locale::isSupported($path)) {
+            // The controllers never see the language: it is the request's, not the page's.
+            $route->forgetParameter('locale');
+            if (Locale::isSupported($explicit) && $explicit !== $path && ($page = SitePages::current()) !== null) {
+                return redirect()->to(SitePages::url($page, Arr::except($request->query(), ['lang']), $explicit));
+            }
+            $request->attributes->set(SitePages::ATTRIBUTE, $path);
+            $this->remember($request, $path);
+            $locale = $path;
+        } elseif (Locale::isSupported($explicit)) {
             $this->remember($request, $explicit);
             $locale = $explicit;
         } else {

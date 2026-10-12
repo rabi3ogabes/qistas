@@ -184,7 +184,8 @@
     /* The logo is drawn through <use>, which inherits custom properties but not selectors: recolour it by variable. */
     .site-footer { --q-logo-ink: var(--q-on-primary); }
     .footer-grid { display: grid; gap: 2.5rem; }
-    @media (min-width: 760px) { .footer-grid { grid-template-columns: 1.4fr repeat(3, 1fr); } }
+    @media (min-width: 760px) { .footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (min-width: 1024px) { .footer-grid { grid-template-columns: 1.4fr repeat(4, minmax(0, 1fr)); } }
     .footer-tagline { max-width: 20rem; margin: 1rem 0 0; font-family: var(--q-font-display); font-size: 1.5rem; line-height: 1.2; color: color-mix(in srgb, var(--q-on-primary) 85%, transparent); }
     :lang(ar) .footer-tagline, :lang(ur) .footer-tagline { font-family: var(--q-font-arabic); font-size: 1.125rem; }
     .footer-title { margin: 0 0 .75rem; font-size: .9375rem; font-weight: 600; }
@@ -192,6 +193,37 @@
     .footer-links a { color: color-mix(in srgb, var(--q-on-primary) 78%, transparent); text-decoration: none; font-size: .9375rem; }
     @media (hover: hover) and (pointer: fine) { .footer-links a:hover { color: var(--q-on-primary); text-decoration: underline; } }
     .footer-base { margin-top: 2.5rem; padding-top: 1.5rem; border-top: 1px solid color-mix(in srgb, var(--q-on-primary) 16%, transparent); font-size: .875rem; color: color-mix(in srgb, var(--q-on-primary) 65%, transparent); }
+
+    /* ---------- Moving to Qistas (Sprint 2, D10) ---------- */
+    /* The steps are a real sequence, so they carry their numbers: large display figures on a hairline. */
+    .switch-hero h1 { max-width: 18ch; }
+    .switch-steps { display: grid; gap: 0; margin: 2.5rem 0 0; padding: 0; list-style: none; counter-reset: step; }
+    @media (min-width: 900px) { .switch-steps { grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 2.5rem; } }
+    .switch-steps li { counter-increment: step; padding-block: 1.5rem; border-top: 1px solid var(--q-line); }
+    .switch-steps li::before {
+        content: counter(step); display: block; margin-bottom: .75rem;
+        font-family: var(--q-font-display); font-size: 2.75rem; font-weight: 600; line-height: 1; color: var(--q-accent-text);
+        font-variant-numeric: lining-nums;
+    }
+    .switch-steps h3 { margin: 0 0 .5rem; font-size: 1.1875rem; line-height: 1.3; }
+    .switch-steps p { margin: 0; max-width: 30rem; color: var(--q-ink-muted); }
+
+    /* ---------- Service status (Sprint 2, D10) ---------- */
+    .status-title { margin: 0; font-size: clamp(2.25rem, 5vw, 3.25rem); }
+    .status-banner {
+        display: flex; align-items: center; gap: .625rem; max-width: 42rem; margin: 1.5rem 0 0; padding: 1rem 1.25rem;
+        border-radius: var(--q-r-md); font-weight: 600; background: var(--q-tint-mint); color: var(--q-positive);
+    }
+    .status-banner[data-ok="false"] { background: var(--q-tint-sand); color: var(--q-warning, var(--q-ink)); }
+    .status-banner .i { flex: none; }
+    .status-list { display: grid; max-width: 42rem; margin: 1.75rem 0 0; padding: 0; list-style: none; }
+    .status-list li { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding-block: 1.125rem; border-top: 1px solid var(--q-line); }
+    .status-list li:last-child { border-bottom: 1px solid var(--q-line); }
+    .status-list h2 { margin: 0; font-size: 1.0625rem; line-height: 1.35; }
+    .status-list p { margin: .25rem 0 0; color: var(--q-ink-muted); font-size: .9375rem; }
+    .status-list .badge { flex: none; }
+    .status-list .status-when { color: var(--q-ink); }
+    .status-note, .status-checked { max-width: 42rem; margin: 1.25rem 0 0; color: var(--q-ink-muted); font-size: .9375rem; }
 
     /* ---------- Legal pages ---------- */
     .prose-page { padding-block: clamp(2.5rem, 6vw, 5rem); }
