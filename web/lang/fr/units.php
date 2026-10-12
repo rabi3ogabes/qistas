@@ -7,4 +7,5 @@ return [
     'api_tokens' => 'jeton API|jetons API',
     'members' => 'personne|personnes',
     'investors' => 'investisseur|investisseurs',
+    'import' => 'ligne par import|lignes par import',
 ];

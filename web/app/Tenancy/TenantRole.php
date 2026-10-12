@@ -41,6 +41,12 @@ enum TenantRole: string
         return in_array($this, [self::Owner, self::Manager, self::Accountant], true);
     }
 
+    /** May bring a whole file of customers in (Win Plan K9): it adds many records at once, so the owner's or a manager's. */
+    public function canImport(): bool
+    {
+        return $this === self::Owner || $this === self::Manager;
+    }
+
     /** May take the whole of the books out (Win Plan PP10): the people who run the business and its accountant. */
     public function canExport(): bool
     {

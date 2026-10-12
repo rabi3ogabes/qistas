@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\V1\DeviceController;
 use App\Http\Controllers\Api\V1\DocumentController;
 use App\Http\Controllers\Api\V1\FileController;
 use App\Http\Controllers\Api\V1\GuarantorController;
+use App\Http\Controllers\Api\V1\ImportController;
 use App\Http\Controllers\Api\V1\InvestorController;
 use App\Http\Controllers\Api\V1\LateFeeController;
 use App\Http\Controllers\Api\V1\MeController;
@@ -175,6 +176,12 @@ Route::name('api.')->group(function (): void {
         Route::post('contracts/{contract}/photos', [ContractPhotoController::class, 'store'])->whereUuid('contract')->middleware('throttle:documents')->name('contracts.photos.store');
         Route::delete('contracts/{contract}/photos/{photo}', [ContractPhotoController::class, 'destroy'])->whereUuid(['contract', 'photo'])->name('contracts.photos.destroy');
         Route::get('files/{file}', [FileController::class, 'show'])->whereUuid('file')->name('files.show');
+        // Bringing a shop's books in (Win Plan K9): a trial run, the columns chosen again, one confirm.
+        Route::get('imports/template.xlsx', [ImportController::class, 'template'])->name('imports.template');
+        Route::post('imports', [ImportController::class, 'store'])->middleware('throttle:documents')->name('imports.store');
+        Route::get('imports/{import}', [ImportController::class, 'show'])->whereUuid('import')->name('imports.show');
+        Route::put('imports/{import}', [ImportController::class, 'update'])->whereUuid('import')->name('imports.update');
+        Route::post('imports/{import}/confirm', [ImportController::class, 'confirm'])->whereUuid('import')->middleware('throttle:api-money')->name('imports.confirm');
         // The customer's signature (Win Plan K5): drawn on this phone, or a link with a code for theirs.
         Route::post('contracts/{contract}/signature', [SignatureController::class, 'store'])->whereUuid('contract')->middleware('throttle:documents')->name('contracts.signature.store');
         Route::post('contracts/{contract}/signature-links', [SignatureController::class, 'link'])->whereUuid('contract')->middleware('throttle:documents')->name('contracts.signature-links.store');

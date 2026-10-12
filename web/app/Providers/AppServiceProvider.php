@@ -173,6 +173,8 @@ class AppServiceProvider extends ServiceProvider
         Dates::register(app(SettingsRegistry::class));
 
         // Reports reveal every investor's money (Win Plan K8): everyone in the workspace but collectors.
+        // Bringing a file of customers in (Win Plan K9): owners and managers.
+        Gate::define('import', fn (User $user): bool => $user->roleIn(app(CurrentTenant::class)->id() ?? '')?->canImport() ?? false);
         Gate::define('view-reports', fn (User $user): bool => $user->roleIn(app(CurrentTenant::class)->id() ?? '')?->seesInvestors() ?? false);
 
         // Only a super admin changes what the platform has on, off or in beta; an admin may look.
@@ -219,6 +221,8 @@ class AppServiceProvider extends ServiceProvider
         $meters->register(Feature::Members, fn (Tenant $tenant): int => DB::table('tenant_users')->where('tenant_id', $tenant->id)->count()
             + TenantInvitation::withoutGlobalScope(TenantScope::class)->where('tenant_id', $tenant->id)->open()->count());
         // Investors who can still fund contracts, the business's own capital included (Free keeps that one only).
+        // The import's limit is the rows one file may have: nothing accumulates, so nothing is ever used up.
+        $meters->register(Feature::Import, fn (Tenant $tenant): int => 0);
         $meters->register(Feature::Investors, fn (Tenant $tenant): int => Investor::withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $tenant->id)->whereNull('archived_at')->count());
     }

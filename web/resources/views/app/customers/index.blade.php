@@ -9,6 +9,11 @@
 <x-layouts.app :title="__('Customers')" section="customers">
     <x-page-head :title="__('Customers')">
         <x-slot:subtitle>{{ $total }} {{ Feature::Customers->unit($total) }}</x-slot:subtitle>
+        @can('import')
+            @if (\App\Entitlements\Entitlements::for(app(\App\Tenancy\CurrentTenant::class)->get())->check(\App\Entitlements\Feature::Import)->enabled())
+                <a class="btn btn-quiet" href="{{ route('app.import') }}"><x-icon name="upload" :size="18" /> {{ __('Bring your customers in') }}</a>
+            @endif
+        @endcan
         @can('create', \App\Models\Customer::class)
             <a class="btn" href="{{ route('app.customers.create') }}"><x-icon name="plus" :size="18" /> {{ __('Add customer') }}</a>
         @endcan

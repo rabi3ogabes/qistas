@@ -113,6 +113,9 @@ class SettingsScreen extends ConsumerWidget {
                 children: _divided([
                   if (reports)
                     _Row(key: const ValueKey('settings-reports'), icon: Icons.insights_outlined, title: context.t('Reports'), onTap: () => context.push('/reports')),
+                  // Bringing a shop's books in from Excel (Win Plan K9): owners and managers.
+                  if (account?.canImport ?? false)
+                    _Row(key: const ValueKey('settings-import'), icon: Icons.upload_file_outlined, title: context.t('Bring your customers in'), onTap: () => context.push('/import')),
                   // Who the statements and receipts come from (Win Plan PP8): everyone may look.
                   _Row(key: const ValueKey('settings-business'), icon: Icons.storefront_outlined, title: context.t('Business profile'), onTap: () => context.push('/settings/business')),
                   // Backups and data, and the activity log (Win Plan PP10).

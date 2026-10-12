@@ -7,4 +7,5 @@ return [
     'api_tokens' => 'token de API|tokens de API',
     'members' => 'persona|personas',
     'investors' => 'inversor|inversores',
+    'import' => 'fila por importación|filas por importación',
 ];

@@ -200,6 +200,9 @@ class Account {
   /// Promissory notes are offered: only once the server says that switch is on (it waits for a lawyer).
   bool get printsPromissoryNotes => entitlements['promissory_note']?.isOn ?? false;
 
+  /// Brings a file of customers in (Win Plan K9): owners and managers, once the server says import is on.
+  bool get canImport => (role == 'owner' || role == 'manager') && (entitlements['import']?.isOn ?? false);
+
   Map<String, dynamic> toJson() => {
         'user': {'id': userId, 'name': name, 'email': email, 'email_verified': emailVerified, 'locale': locale, 'two_factor': twoFactor},
         'tenant': {'id': tenantId, 'name': businessName, 'country': country, 'currency': currency, 'role': role, 'is_test': isTest, 'is_demo': isDemo, 'require_app_lock': requireAppLock, 'deletion_scheduled_for': deletionScheduledFor},

@@ -11,6 +11,7 @@ use App\Http\Controllers\Workspace\CustomerController;
 use App\Http\Controllers\Workspace\DashboardController;
 use App\Http\Controllers\Workspace\DocumentController;
 use App\Http\Controllers\Workspace\FileController;
+use App\Http\Controllers\Workspace\ImportController;
 use App\Http\Controllers\Workspace\InvestorController;
 use App\Http\Controllers\Workspace\ManualPaymentController;
 use App\Http\Controllers\Workspace\PaperworkController;
@@ -130,6 +131,13 @@ Route::post('customers/{customer}/payment', [PlanChangeController::class, 'custo
 Route::post('payments/{transaction}/void', [PaymentController::class, 'void'])->name('payments.void');
 // Late fees (Win Plan K4): an owner or manager waives one, with the reason.
 Route::post('late-fees/{fee}/waive', [PaymentController::class, 'waiveFee'])->whereUuid('fee')->name('late-fees.waive');
+// Bringing a shop's books in (Win Plan K9).
+Route::get('import', [ImportController::class, 'index'])->name('import');
+Route::get('import/template', [ImportController::class, 'template'])->name('import.template');
+Route::post('import', [ImportController::class, 'store'])->middleware('throttle:documents')->name('import.store');
+Route::get('import/{import}', [ImportController::class, 'show'])->whereUuid('import')->name('import.show');
+Route::put('import/{import}', [ImportController::class, 'update'])->whereUuid('import')->name('import.update');
+Route::post('import/{import}/confirm', [ImportController::class, 'confirm'])->whereUuid('import')->name('import.confirm');
 // Paperwork (Win Plan K5): guarantors and photos on a contract's page.
 Route::post('contracts/{contract}/guarantors', [PaperworkController::class, 'storeGuarantor'])->whereUuid('contract')->name('contracts.guarantors.store');
 Route::put('guarantors/{guarantor}', [PaperworkController::class, 'updateGuarantor'])->whereUuid('guarantor')->name('guarantors.update');

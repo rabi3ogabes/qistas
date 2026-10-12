@@ -8,4 +8,5 @@ return [
     'api_tokens' => 'API token|API tokens',
     'members' => 'person|people',
     'investors' => 'investor|investors',
+    'import' => 'row per import|rows per import',
 ];

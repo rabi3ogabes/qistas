@@ -551,4 +551,14 @@
     .signing-code { font-size: 1.75rem; font-weight: 600; letter-spacing: .18em; font-variant-numeric: tabular-nums; }
     .signing-url { font-size: .8125rem; color: var(--q-ink-muted); overflow-wrap: anywhere; }
     .row-actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+
+    /* Bringing a shop's books in (Win Plan K9): what a file can have, its columns, and the rows of the trial run. */
+    .import-fields { display: grid; gap: 0; margin: 0; border-top: 1px solid var(--q-line); }
+    .import-fields > div { display: grid; grid-template-columns: minmax(8rem, 40%) 1fr; gap: 1rem; padding: .625rem 0; border-bottom: 1px solid var(--q-line); }
+    .import-fields dt { font-weight: 600; }
+    .import-fields dd { margin: 0; color: var(--q-ink-muted); overflow-wrap: anywhere; }
+    .import-columns { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); gap: .75rem 1rem; }
+    .import-rows tr[data-state="problem"] td:first-child { box-shadow: inset 3px 0 0 var(--q-danger); }
+    [dir="rtl"] .import-rows tr[data-state="problem"] td:first-child { box-shadow: inset -3px 0 0 var(--q-danger); }
+    .import-problems { margin: .375rem 0 0; padding: 0; list-style: none; display: grid; gap: .25rem; font-size: .8125rem; color: var(--q-danger); }
 }

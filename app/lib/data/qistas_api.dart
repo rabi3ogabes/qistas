@@ -8,6 +8,7 @@ import 'backups.dart';
 import 'billing.dart';
 import 'documents.dart';
 import 'help.dart';
+import 'imports.dart';
 import 'investors.dart';
 import 'late_fees.dart';
 import 'models.dart';
@@ -395,6 +396,17 @@ class QistasApi {
       );
 
   Future<Contract> contract(String id) async => Contract.fromJson(_data(await _client.get('/contracts/$id')));
+
+  // Bringing a shop's books in (Win Plan K9): a trial run, the columns chosen again, one confirm.
+
+  Future<ImportJob> startImport(List<int> bytes, String filename) async =>
+      ImportJob.fromJson(_data(await _client.upload('/imports', field: 'file', bytes: bytes, filename: filename)));
+
+  /// [mapping] names a column by its index and the field it is (null leaves it out).
+  Future<ImportJob> remapImport(String id, Map<int, String?> mapping) async =>
+      ImportJob.fromJson(_data(await _client.put('/imports/$id', body: {'mapping': {for (final e in mapping.entries) '${e.key}': e.value}})));
+
+  Future<ImportJob> confirmImport(String id) async => ImportJob.fromJson(_data(await _client.post('/imports/$id/confirm')));
 
   // Paperwork (Win Plan K5): guarantors and photos are listed with their contract.
 

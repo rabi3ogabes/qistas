@@ -32,6 +32,7 @@ enum Feature: string
     case HijriDates = 'hijri_dates';
     case Guarantors = 'guarantors';
     case PromissoryNote = 'promissory_note';
+    case Import = 'import';
 
     /** How many customers the free plan keeps (tests and copy read this rather than repeating the number). */
     public const FREE_CUSTOMERS = 20;
@@ -39,7 +40,7 @@ enum Feature: string
     public function type(): FeatureType
     {
         return match ($this) {
-            self::Customers, self::ActiveContracts, self::ApiTokens, self::Members, self::Investors => FeatureType::Limit,
+            self::Customers, self::ActiveContracts, self::ApiTokens, self::Members, self::Investors, self::Import => FeatureType::Limit,
             self::PdfStatements => FeatureType::Quota,
             self::ExportCsv, self::AdvancedReports, self::CustomBranding, self::FlexibleSchedules, self::OpenContracts, self::ContractItems, self::CustomerTags,
             self::InstalmentAlerts, self::DailyDigest, self::EarlySettlement, self::Reschedule, self::PaymentTargeting,
@@ -74,6 +75,7 @@ enum Feature: string
             self::HijriDates => __('Hijri dates'),
             self::Guarantors => __('Guarantors, photos and signatures'),
             self::PromissoryNote => __('Promissory note'),
+            self::Import => __('Import from Excel'),
         };
     }
 
@@ -83,7 +85,7 @@ enum Feature: string
         return match ($this) {
             self::Customers, self::ActiveContracts, self::PdfStatements, self::ExportCsv,
             self::AdvancedReports, self::CustomBranding, self::ApiTokens => FeatureGroup::Core,
-            self::Members, self::Investors => FeatureGroup::Team,
+            self::Members, self::Investors, self::Import => FeatureGroup::Team,
             self::FlexibleSchedules, self::OpenContracts, self::ContractItems, self::EarlySettlement, self::Reschedule, self::PaymentTargeting => FeatureGroup::ContractTerms,
             self::CustomerTags, self::InstalmentAlerts, self::DailyDigest => FeatureGroup::Collecting,
             self::StoreBilling, self::ManualBilling => FeatureGroup::Membership,
@@ -118,6 +120,7 @@ enum Feature: string
             self::ManualBilling => __('Owners pay by bank transfer and upload the receipt on the website; the Qistas team approves it, or it turns on by itself when automatic approval is on.'),
             self::HijriDates => __('Umm al-Qura dates beside the Gregorian ones, or first, on every page and document, and dates typed or picked in Hijri. What is stored stays Gregorian.'),
             self::Guarantors => __('Up to three guarantors on a contract with their ID number encrypted and shown masked; photos of the ID, the signed contract and the invoice, opened only through links that expire; and the customer’s signature, on the owner’s screen or through a one-time-code link on their own phone.'),
+            self::Import => __('Customers and their balances brought in from an Excel or CSV file: the columns recognised in five languages, a trial run that names every problem by row and column, then one confirm. The plan sets how many rows one file may have.'),
             self::PromissoryNote => __('A promissory note for what the customer owes, the amount in figures and in words, ready to sign and checked through its QR code. Its wording is a draft until a lawyer approves it.'),
             self::LateFees => __('A fee for each period an instalment is late, after the grace days: an amount or a percent, once, daily, weekly or monthly, with caps, and optionally for charity. Each fee is its own line, paid or waived with a reason.'),
         };
@@ -148,6 +151,7 @@ enum Feature: string
             self::ManualBilling => __('The website stops taking bank transfer requests. Requests already sent can still be approved or rejected, and plans already given keep their end date.'),
             self::HijriDates => __('Dates are shown in the Gregorian calendar alone again. Each workspace’s choice is kept for when it is switched back on.'),
             self::Guarantors => __('No new guarantors, photos or signatures can be added. What is already on contracts stays, and can still be opened and removed.'),
+            self::Import => __('Files can no longer be imported. Everything already imported stays, and trial runs not yet confirmed are kept.'),
             self::PromissoryNote => __('The promissory note is no longer offered. Notes already printed stay valid on their verification page.'),
             self::LateFees => __('No new fees are charged. Fees already charged stay on their contracts and can still be paid or waived; each contract keeps the policy it was made with.'),
         };
@@ -164,7 +168,7 @@ enum Feature: string
             self::Customers, self::ActiveContracts, self::PdfStatements, self::ExportCsv,
             self::AdvancedReports, self::CustomBranding, self::ApiTokens, self::Members, self::FlexibleSchedules, self::Investors, self::OpenContracts, self::ContractItems, self::CustomerTags,
             self::InstalmentAlerts, self::DailyDigest, self::EarlySettlement, self::Reschedule, self::PaymentTargeting,
-            self::StoreBilling, self::ManualBilling, self::LateFees, self::HijriDates, self::Guarantors, self::PromissoryNote => [],
+            self::StoreBilling, self::ManualBilling, self::LateFees, self::HijriDates, self::Guarantors, self::PromissoryNote, self::Import => [],
         };
     }
 
@@ -266,6 +270,8 @@ enum Feature: string
                 self::PdfStatements => ['enabled' => true, 'limit' => 5],
                 // Investors: the business's own capital only; partners come with Pro (Win Plan PP3).
                 self::ApiTokens, self::Members, self::Investors => ['enabled' => true, 'limit' => 1],
+                // Win Plan 6.4: Free imports up to 100 rows at a time; Pro has no limit.
+                self::Import => ['enabled' => true, 'limit' => 100],
                 self::ExportCsv, self::AdvancedReports, self::CustomBranding => ['enabled' => false, 'limit' => null],
                 self::FlexibleSchedules, self::OpenContracts, self::ContractItems, self::CustomerTags,
                 self::InstalmentAlerts, self::DailyDigest, self::EarlySettlement, self::Reschedule, self::PaymentTargeting, self::LateFees, self::HijriDates, self::Guarantors, self::PromissoryNote => ['enabled' => true, 'limit' => null],

@@ -48,6 +48,7 @@ tags:
   - name: Payments
   - name: Late fees
   - name: Paperwork
+  - name: Import
   - name: Reports
   - name: Dashboard
   - name: API access tokens
@@ -1092,6 +1093,100 @@ paths:
         "401": {$ref: "#/components/responses/Unauthenticated"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
+  /imports:
+    post:
+      tags: [Import]
+      summary: Read a file and make its trial run (Win Plan K9)
+      description: |
+        An Excel (.xlsx) or CSV file (comma, semicolon or tab), at most 10 MB, one customer per row under a header row.
+        Columns are recognised in Arabic, English, French, Spanish and Urdu. Nothing is saved but the import itself:
+        every row is planned and every problem is named by its row and column. A file may have at most the rows the
+        plan allows at once (Free 100; 422 `file` otherwise). Owners and managers, with the import feature on.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: {type: object, required: [file], properties: {file: {type: string, format: binary}}}
+      responses:
+        "201":
+          description: The trial run.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/Import"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+  /imports/template.xlsx:
+    get:
+      tags: [Import]
+      summary: An empty sheet to fill in
+      description: The column names an import recognises, in the language asked for (right to left for Arabic and Urdu). No example row.
+      parameters:
+        - {name: language, in: query, schema: {type: string, enum: [en, ar, fr, es, ur]}}
+      responses:
+        "200":
+          description: The sheet.
+          content: {application/vnd.openxmlformats-officedocument.spreadsheetml.sheet: {schema: {type: string, format: binary}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /imports/{import}:
+    get:
+      tags: [Import]
+      summary: An import, as a trial run or as done
+      parameters:
+        - {name: import, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: The import.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/Import"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+    put:
+      tags: [Import]
+      summary: Choose the columns again
+      description: |
+        `mapping` names a column by its index and the field it is (or null to leave it out); columns not named keep what
+        they were. A field goes to one column only. The trial run is made again. Not for an import already done (422).
+      parameters:
+        - {name: import, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mapping]
+              properties:
+                mapping:
+                  type: object
+                  additionalProperties: {type: [string, "null"], enum: [name, phone, national_id, address, item, total, paid, balance, installments, installment_amount, first_due, start_date, notes, null]}
+      responses:
+        "200":
+          description: The trial run made again.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/Import"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+  /imports/{import}/confirm:
+    post:
+      tags: [Import]
+      summary: Bring the rows without a problem in
+      description: |
+        The trial run is made again against the books as they are now, and every row without a problem is brought in at
+        once: new customers, or a contract added to a customer already on the books (same phone). A contract with a plan
+        gets what was already paid as one payment dated today; a balance with no plan becomes an open contract's opening
+        line. Confirming again changes nothing and answers with what was done.
+      parameters:
+        - {name: import, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: The import, done.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/Import"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "429": {$ref: "#/components/responses/RateLimited"}
   /reports/forecast:
     get:
       tags: [Reports]
@@ -3365,6 +3460,66 @@ components:
         private: {type: boolean, description: An ID photo. It has no url here; open it with GET /files/{file}, which is audited.}
         url: {type: [string, "null"], format: uri, description: A link that works for five minutes; null when private.}
         created_at: {type: string, format: date-time}
+    Import:
+      type: object
+      description: A file of customers being brought in (Win Plan K9).
+      properties:
+        id: {type: string, format: uuid}
+        status: {type: string, enum: [trial, done]}
+        source: {type: string, enum: [xlsx, csv, ai]}
+        filename: {type: string}
+        columns:
+          type: array
+          items:
+            type: object
+            properties:
+              index: {type: integer}
+              header: {type: string}
+              field: {type: [string, "null"]}
+        fields:
+          type: array
+          description: The fields a column can be taken as, with their names in the asker's language.
+          items: {type: object, properties: {key: {type: string}, label: {type: string}}}
+        rows:
+          type: array
+          items:
+            type: object
+            properties:
+              row: {type: integer, description: The row's number in the sheet (the header is row 1).}
+              name: {type: [string, "null"]}
+              phone: {type: [string, "null"]}
+              national_id: {type: [string, "null"], description: Masked.}
+              customer_id: {type: [string, "null"], format: uuid, description: The customer it adds to (existing), or that it made (once done).}
+              action: {type: string, enum: [new, existing, skip]}
+              contract:
+                oneOf:
+                  - {type: "null"}
+                  - type: object
+                    properties:
+                      type: {type: string, enum: [scheduled, open]}
+                      total: {type: [string, "null"]}
+                      paid: {type: [string, "null"]}
+                      balance: {type: string}
+                      installments: {type: [integer, "null"]}
+                      first_due: {type: [string, "null"], format: date}
+                      start: {type: string, format: date}
+                      item: {type: [string, "null"]}
+              problems:
+                type: array
+                items: {type: object, properties: {column: {type: string}, field: {type: string}, message: {type: string}}}
+              note: {type: [string, "null"]}
+        summary:
+          type: object
+          properties:
+            rows: {type: integer}
+            ready: {type: integer}
+            problems: {type: integer}
+            skipped: {type: integer}
+            customers: {type: integer}
+            contracts: {type: integer}
+            balance: {type: string}
+        created_at: {type: string, format: date-time}
+        confirmed_at: {type: [string, "null"], format: date-time}
     LateFee:
       type: object
       description: One fee for one period an instalment was late, its own line (never added to the instalment).

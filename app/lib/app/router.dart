@@ -17,6 +17,7 @@ import '../features/customers/customers_screen.dart';
 import '../features/customers/tags.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import '../features/help/help_screen.dart';
+import '../features/import/import_screen.dart';
 import '../features/intro/onboarding_screen.dart';
 import '../features/intro/splash_screen.dart';
 import '../features/investors/investor_detail_screen.dart';
@@ -88,6 +89,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/help', builder: (_, _) => const HelpScreen()),
       GoRoute(path: '/tools', builder: (_, _) => const ToolsScreen()),
       GoRoute(path: '/reports', builder: (_, _) => const ReportsScreen()),
+      GoRoute(path: '/import', builder: (_, _) => const ImportScreen()),
       GoRoute(path: '/app-lock', builder: (_, _) => const AppLockSettingsScreen()),
       GoRoute(path: '/delete-account', builder: (_, _) => const DeleteAccountScreen()),
       GoRoute(path: '/team', builder: (_, _) => const TeamScreen()),
