@@ -66,11 +66,7 @@ void main() {
 
     final sent = jsonDecode(server.requestsTo('POST /contracts/k1/payments').single.data as String) as Map<String, dynamic>;
     final day = '${first.year.toString().padLeft(4, '0')}-${first.month.toString().padLeft(2, '0')}-${first.day.toString().padLeft(2, '0')}';
-    if (now.day == 1) {
-      expect(sent.containsKey('paid_at'), isFalse, reason: 'the 1st is today: no date is sent');
-    } else {
-      expect(sent['paid_at'], day);
-    }
+    expect(sent['paid_at'], day);
   });
 
   testWidgets('with Hijri dates off, the phone’s own date picker opens as before', (tester) async {
