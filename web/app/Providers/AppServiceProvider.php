@@ -27,6 +27,7 @@ use App\Notifications\Push\PushSender;
 use App\Settings\SettingDefinition;
 use App\Settings\SettingsRegistry;
 use App\Support\AppFirstTranslationLoader;
+use App\Support\Dates;
 use App\Tenancy\CurrentTenant;
 use App\Tenancy\TenantScope;
 use App\Theme\Appearance;
@@ -59,6 +60,9 @@ class AppServiceProvider extends ServiceProvider
 
         // The settings features declare for the workspace owner (see App\Settings). One per application instance.
         $this->app->singleton(SettingsRegistry::class);
+
+        // How the workspace shows dates, read once per request or job (Win Plan CT26).
+        $this->app->scoped(Dates::class);
 
         // Firebase once the owner has given its key (Win Plan PP9); until then pushes are only written to the log.
         $this->app->bind(PushSender::class, function (): PushSender {
@@ -149,6 +153,8 @@ class AppServiceProvider extends ServiceProvider
 
         // The late-fee policy (Win Plan K4), copied into each contract when it is made.
         LateFeePolicy::register(app(SettingsRegistry::class));
+        // How dates are shown: Gregorian alone, or with the Hijri date beside it or first (Win Plan CT26).
+        Dates::register(app(SettingsRegistry::class));
 
         // Only a super admin changes what the platform has on, off or in beta; an admin may look.
         Gate::define('manage-platform-features', fn (User $user): bool => $user->platform_role === 'super_admin');

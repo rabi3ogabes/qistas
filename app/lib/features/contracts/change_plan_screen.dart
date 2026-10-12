@@ -9,6 +9,7 @@ import '../../core/design/widgets.dart';
 import '../../core/l10n/formats.dart';
 import '../../core/l10n/translations.dart';
 import '../../core/money.dart';
+import '../../core/ui/day_picker.dart';
 import '../../core/ui/errors.dart';
 import '../../data/models.dart';
 import '../../data/plan_changes.dart';
@@ -79,13 +80,7 @@ class _ChangePlanScreenState extends ConsumerState<ChangePlanScreen> {
 
   Future<void> _pickDate(String current, ValueChanged<String> chosen) async {
     final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.tryParse(current) ?? now,
-      firstDate: DateTime(now.year, now.month, now.day),
-      lastDate: DateTime(now.year + 50),
-      locale: Locale(ref.read(localeProvider)),
-    );
+    final picked = await pickDay(context, initial: DateTime.tryParse(current) ?? now, first: DateTime(now.year, now.month, now.day), last: DateTime(now.year + 50), language: ref.read(localeProvider));
     if (picked != null) {
       chosen(isoDay(picked));
       _edited();

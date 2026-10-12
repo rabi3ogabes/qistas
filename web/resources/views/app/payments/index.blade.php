@@ -1,6 +1,7 @@
 @php
     use App\Support\Format;
     use App\Support\PaymentMethods;
+    use App\Support\Dates;
 @endphp
 <x-layouts.app :title="__('Payments')" section="payments">
     <x-page-head :title="__('Payments')">
@@ -41,7 +42,7 @@
                                 };
                             @endphp
                             <tr data-line="{{ $kind }}">
-                                <td data-label="{{ __('Date') }}" class="money">{{ $line->paid_at->translatedFormat('j M Y') }}</td>
+                                <td data-label="{{ __('Date') }}" class="money"><x-day :date="$line->paid_at" /></td>
                                 <td data-label="{{ __('Customer') }}">{{ $line->customer?->name }}</td>
                                 <td data-label="{{ __('Contract') }}"><a class="cell-link" href="{{ route('app.contracts.show', $line->contract_id) }}">{{ $line->contract->reference() }}</a></td>
                                 <td data-label="{{ __('Details') }}">

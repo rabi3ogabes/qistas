@@ -3,6 +3,7 @@
     use App\Support\Format;
     use App\Support\Money;
     use App\Support\PaymentMethods;
+    use App\Support\Dates;
 
     $money = fn (string $amount): string => Format::money($amount, $currency);
     $roll = $options->isRoll();
@@ -26,8 +27,8 @@
     <table class="facts">
         <tr><td class="label">{{ $options->word('customer') }}</td><td><strong>{{ $customer->name }}</strong></td></tr>
         <tr><td class="label">{{ $options->word('contract') }}</td><td>{{ $contract->reference() }}@if ($contract->title)<br><span class="muted small">{{ $contract->title }}</span>@endif</td></tr>
-        <tr><td class="label">{{ __('Paid on') }}</td><td>{{ $paidOn->translatedFormat('j M Y') }}</td></tr>
-        <tr><td class="label">{{ __('Recorded') }}</td><td>{{ $recordedAt->translatedFormat('j M Y') }}, {{ $recordedAt->format('H:i') }}</td></tr>
+        <tr><td class="label">{{ __('Paid on') }}</td><td>{{ Dates::day($paidOn) }}</td></tr>
+        <tr><td class="label">{{ __('Recorded') }}</td><td>{{ Dates::day($recordedAt) }}, {{ $recordedAt->format('H:i') }}</td></tr>
         <tr><td class="label">{{ __('Method') }}</td><td>{{ $payment->type === 'down_payment' ? __('Down payment') : PaymentMethods::label($payment->method) }}</td></tr>
         @if ($payment->createdBy)<tr><td class="label">{{ __('Received by') }}</td><td>{{ $payment->createdBy->name }}</td></tr>@endif
         @if ($payment->note)<tr><td class="label">{{ __('Note') }}</td><td>{{ $payment->note }}</td></tr>@endif
@@ -41,7 +42,7 @@
                 @foreach ($covered as $row)
                     <tr>
                         <td>{{ $row['number'] === null ? '' : '#'.$row['number'] }}</td>
-                        <td>{{ $row['due_date']?->translatedFormat('j M Y') }}</td>
+                        <td>{{ Dates::day($row['due_date']) }}</td>
                         <td class="num">{{ Format::amount($row['amount']) }}</td>
                     </tr>
                 @endforeach

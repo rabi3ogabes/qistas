@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Domain\Schedule\ScheduleGenerator;
 use App\Http\Requests\Concerns\MoneyRules;
+use App\Http\Requests\Concerns\ReadsHijriDates;
 use App\Http\Requests\Concerns\ScheduleRules;
 use App\Models\Contract;
 use App\Models\Investor;
@@ -20,7 +21,7 @@ use Illuminate\Validation\Rule;
  */
 class ContractRequest extends FormRequest
 {
-    use MoneyRules, ScheduleRules;
+    use MoneyRules, ReadsHijriDates, ScheduleRules;
 
     public function authorize(): bool
     {
@@ -56,6 +57,7 @@ class ContractRequest extends FormRequest
             'grace_days' => ['nullable', 'integer', 'between:0,90'],
             ...$this->customScheduleRules($custom),
             'start_date' => ['nullable', 'date_format:Y-m-d'],
+            ...$this->hijriRules(['start_date', 'first_due_date']),
             'first_due_date' => [$planned, 'nullable', 'date_format:Y-m-d', $this->notBeforeStart()],
             'notes' => ['nullable', 'string', 'max:5000'],
             // Contract details (Win Plan PP7) and a discount at sale (PP6).
@@ -134,6 +136,8 @@ class ContractRequest extends FormRequest
             'discount_value' => $value('discount_value'),
             'items' => $this->cleanItems($this->input('items')),
         ]);
+        // Dates typed in Hijri on the web form (Win Plan CT26); a cash sale or an open contract has no first instalment.
+        $this->merge($this->gregorianFromHijri(in_array($value('type'), ['cash', 'open'], true) ? ['start_date'] : ['start_date', 'first_due_date']));
     }
 
     /**

@@ -3,6 +3,7 @@
 @php
     use App\Support\Format;
     use App\Support\PaymentMethods;
+    use App\Support\Dates;
 
     $describe = fn (array $line): string => match ($line['kind']) {
         'sale' => $line['contract']->title !== null ? __('Sold: :what', ['what' => $line['contract']->title]) : __('Sale on the contract'),
@@ -30,7 +31,7 @@
     <tbody>
         @if ($options->from !== null)
             <tr class="opening">
-                <td>{{ $options->from->translatedFormat('j M Y') }}</td>
+                <td>{{ Dates::day($options->from) }}</td>
                 @if ($showContract)<td></td>@endif
                 <td>{{ __('Balance brought forward') }}</td>
                 <td class="num"></td><td class="num"></td>
@@ -39,7 +40,7 @@
         @endif
         @forelse ($statement->lines as $line)
             <tr>
-                <td>{{ $line['date']->translatedFormat('j M Y') }}</td>
+                <td>{{ Dates::day($line['date']) }}</td>
                 @if ($showContract)<td>{{ $line['contract']->reference() }}</td>@endif
                 <td>{{ $describe($line) }}@if ($line['transaction']?->note)<br><span class="muted small">{{ $line['transaction']->note }}</span>@endif</td>
                 <td class="num">{{ $line['debit'] === null ? '' : Format::amount($line['debit']) }}</td>

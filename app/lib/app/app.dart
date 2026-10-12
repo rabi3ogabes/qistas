@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/config.dart';
 import '../core/design/qistas_theme.dart';
+import '../core/l10n/hijri.dart';
 import '../core/l10n/translations.dart';
 import '../data/appearance.dart';
 import '../features/billing/purchases.dart';
@@ -28,6 +29,8 @@ class QistasApp extends ConsumerWidget {
     final brandFonts = ref.watch(brandFontsProvider);
     // While a new language loads, the previous words stay on screen: no flash of English.
     final translations = ref.watch(translationsProvider).valueOrNull ?? const Translations.english();
+    // Dates as the workspace shows them (Win Plan CT26): every formatter reads this, so it is set before anything is drawn.
+    HijriDisplay.mode = ref.watch(accountProvider)?.hijriDates ?? 'off';
     // The look chosen in the admin (today's event included), or the Qistas colours until there is one.
     final look = ref.watch(lookProvider)?.wearAt(DateTime.now());
 

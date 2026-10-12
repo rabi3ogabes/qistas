@@ -11,6 +11,7 @@ import '../../core/design/widgets.dart';
 import '../../core/l10n/formats.dart';
 import '../../core/l10n/translations.dart';
 import '../../core/money.dart';
+import '../../core/ui/day_picker.dart';
 import '../../domain/schedule_generator.dart';
 import '../common/add_flows.dart';
 import '../contracts/contract_draft.dart';
@@ -94,13 +95,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
 
   Future<void> _pickFirstDue() async {
     final today = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _firstDue,
-      firstDate: DateTime(today.year, today.month, today.day),
-      lastDate: DateTime(today.year + 5, today.month, today.day),
-      locale: Locale(ref.read(localeProvider)),
-    );
+    final picked = await pickDay(context, initial: _firstDue, first: DateTime(today.year, today.month, today.day), last: DateTime(today.year + 5, today.month, today.day), language: ref.read(localeProvider));
     if (picked != null) setState(() => _firstDue = picked);
   }
 

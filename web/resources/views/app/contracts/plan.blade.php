@@ -2,6 +2,7 @@
 @php
     use App\Support\Format;
     use Illuminate\Support\Str;
+    use App\Support\Dates;
 
     $type = $change['type'] ?? 'reschedule';
     $types = [
@@ -47,7 +48,7 @@
                             <label for="plan-installment">{{ __('Which instalment') }}</label>
                             <select id="plan-installment" name="installment_id">
                                 @foreach ($untouched as $installment)
-                                    <option value="{{ $installment->id }}" @selected(($change['installment_id'] ?? '') === $installment->id)>{{ $installment->due_date->translatedFormat('j M Y') }}, {{ $money($installment->amount) }}</option>
+                                    <option value="{{ $installment->id }}" @selected(($change['installment_id'] ?? '') === $installment->id)>{{ Dates::day($installment->due_date) }}, {{ $money($installment->amount) }}</option>
                                 @endforeach
                             </select>
                         </div>
@@ -71,7 +72,7 @@
                         <h3 class="plan-compare-title">{{ __('Now') }}</h3>
                         <ol class="plan-rows">
                             @foreach ($preview['old_schedule'] as $row)
-                                <li><span class="money">{{ \Illuminate\Support\Carbon::parse($row['due_date'])->translatedFormat('j M Y') }}</span><span class="money">{{ $money($row['amount']) }}</span></li>
+                                <li><span class="money">{{ Dates::day(\Illuminate\Support\Carbon::parse($row['due_date'])) }}</span><span class="money">{{ $money($row['amount']) }}</span></li>
                             @endforeach
                         </ol>
                     </div>
@@ -79,7 +80,7 @@
                         <h3 class="plan-compare-title">{{ __('After the change') }}</h3>
                         <ol class="plan-rows plan-rows-new">
                             @foreach ($preview['new_schedule'] as $row)
-                                <li><span class="money">{{ \Illuminate\Support\Carbon::parse($row['due_date'])->translatedFormat('j M Y') }}</span><span class="money">{{ $money($row['amount']) }}</span></li>
+                                <li><span class="money">{{ Dates::day(\Illuminate\Support\Carbon::parse($row['due_date'])) }}</span><span class="money">{{ $money($row['amount']) }}</span></li>
                             @endforeach
                         </ol>
                     </div>

@@ -95,6 +95,7 @@ class Account {
     required this.isTest,
     required this.isDemo,
     this.requireAppLock = false,
+    this.hijriDates = 'off',
     this.deletionScheduledFor,
     required this.planKey,
     required this.planName,
@@ -121,6 +122,7 @@ class Account {
       isTest: tenant['is_test'] == true,
       isDemo: tenant['is_demo'] == true,
       requireAppLock: tenant['require_app_lock'] == true,
+      hijriDates: (tenant['hijri_dates'] ?? 'off').toString(),
       deletionScheduledFor: tenant['deletion_scheduled_for']?.toString(),
       planKey: (plan['key'] ?? 'free').toString(),
       planName: (plan['name'] ?? '').toString(),
@@ -152,6 +154,9 @@ class Account {
 
   /// The business requires every phone to unlock Qistas (fingerprint, face or the phone's PIN) before showing its books.
   final bool requireAppLock;
+
+  /// How the workspace shows dates (Win Plan CT26): off, beside (the Hijri day after the Gregorian one) or first.
+  final String hijriDates;
 
   /// The owner asked to delete the business: it is read-only and erased after this day (YYYY-MM-DD) unless restored.
   final String? deletionScheduledFor;

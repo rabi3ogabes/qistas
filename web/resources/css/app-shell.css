@@ -152,6 +152,9 @@
     .contents { display: contents; }
     .muted { color: var(--q-ink-muted); }
     .cell-sub { display: block; font-size: .8125rem; color: var(--q-ink-muted); }
+    /* A day's other calendar (Win Plan CT26): beneath the leading one, quieter, never wrapping mid-date. */
+    .day-other { display: block; font-size: .8125rem; font-weight: 400; color: var(--q-ink-muted); white-space: nowrap; }
+    .hijri-field input { max-width: 14rem; }
     .line-title { display: inline-flex; align-items: center; gap: .5rem; flex-wrap: wrap; font-weight: 600; }
     .voided { color: var(--q-ink-muted); text-decoration: line-through; text-decoration-thickness: 1px; }
     .confirm-inline { padding-top: .5rem; border-top: 0; }

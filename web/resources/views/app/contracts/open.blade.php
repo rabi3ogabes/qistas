@@ -6,6 +6,7 @@
     use App\Support\Money;
     use App\Support\PaymentMethods;
     use Illuminate\Support\Str;
+    use App\Support\Dates;
 
     $customer = $contract->customer;
     $running = $contract->status === 'active';
@@ -99,16 +100,16 @@
                 <h2 id="terms-title" class="card-title">{{ __('Terms') }}</h2>
                 <dl class="facts">
                     <div><dt>{{ __('Customer') }}</dt><dd>{{ $customer->name }}</dd></div>
-                    <div><dt>{{ __('Opened') }}</dt><dd class="money">{{ $contract->start_date->translatedFormat('j M Y') }}</dd></div>
+                    <div><dt>{{ __('Opened') }}</dt><dd class="money"><x-day :date="$contract->start_date" /></dd></div>
                     <div><dt>{{ __('Credit limit') }}</dt><dd class="money">{{ $contract->credit_limit === null ? __('None') : Format::money($contract->credit_limit, $currency) }}</dd></div>
                     @if ($conversion)
-                        <div><dt>{{ __('Became open') }}</dt><dd class="money">{{ $conversion->created_at->translatedFormat('j M Y') }}</dd></div>
+                        <div><dt>{{ __('Became open') }}</dt><dd class="money"><x-day :date="$conversion->created_at" /></dd></div>
                     @endif
                     @if ($contract->investor !== null && auth()->user()->can('viewAny', Investor::class))
                         <div><dt>{{ __('Funded by') }}</dt><dd><a class="link" href="{{ route('app.investors.show', $contract->investor) }}">{{ MainInvestor::displayName($contract->investor) }}</a></dd></div>
                     @endif
                     @if ($contract->notes)<div><dt>{{ __('Notes') }}</dt><dd class="prewrap">{{ $contract->notes }}</dd></div>@endif
-                    @if ($contract->cancelled_at)<div><dt>{{ __('Cancelled on') }}</dt><dd class="money">{{ $contract->cancelled_at->translatedFormat('j M Y') }}</dd></div>@endif
+                    @if ($contract->cancelled_at)<div><dt>{{ __('Cancelled on') }}</dt><dd class="money"><x-day :date="$contract->cancelled_at" /></dd></div>@endif
                 </dl>
 
                 @if ($running)
@@ -164,7 +165,7 @@
                                         };
                                     @endphp
                                     <tr data-line="{{ $isCharge ? 'took' : 'paid' }}" @if ($after === null) class="voided-row" @endif>
-                                        <td data-label="{{ __('Date') }}" class="money">{{ $line->paid_at->translatedFormat('j M Y') }}</td>
+                                        <td data-label="{{ __('Date') }}" class="money"><x-day :date="$line->paid_at" /></td>
                                         <td data-label="{{ __('Details') }}">
                                             <span class="line-title">
                                                 {{ $title }}
@@ -207,7 +208,7 @@
                     <ul class="rows">
                         @foreach ($installments as $installment)
                             <li>
-                                <span class="row-main"><span class="row-title money">{{ $installment->due_date->translatedFormat('j M Y') }}</span><span class="row-sub">{{ $installment->status === 'paid' ? __('Paid') : __('Superseded') }}</span></span>
+                                <span class="row-main"><span class="row-title money">{{ Dates::day($installment->due_date) }}</span><span class="row-sub">{{ $installment->status === 'paid' ? __('Paid') : __('Superseded') }}</span></span>
                                 <span class="row-amount money">{{ Format::money($installment->amount, $currency) }}</span>
                             </li>
                         @endforeach

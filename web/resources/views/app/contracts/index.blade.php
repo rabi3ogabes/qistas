@@ -1,6 +1,7 @@
 @php
     use App\Entitlements\Feature;
     use App\Support\Format;
+    use App\Support\Dates;
 
     $statusTone = ['active' => 'badge-info', 'late' => 'badge-bad', 'settled' => 'badge-ok', 'cancelled' => ''];
     $statusLabel = ['active' => __('Active'), 'late' => __('Late'), 'settled' => __('Settled'), 'cancelled' => __('Cancelled')];
@@ -80,7 +81,7 @@
                                 <td data-label="{{ __('Next instalment') }}">
                                     @if ($next)
                                         <span>
-                                            <span class="money">{{ $next->due_date->translatedFormat('j M Y') }}</span>
+                                            <span class="money"><x-day :date="$next->due_date" /></span>
                                             <span class="cell-sub money">{{ Format::money($next->remaining(), $currency) }}</span>
                                         </span>
                                     @else

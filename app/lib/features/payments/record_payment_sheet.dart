@@ -8,6 +8,7 @@ import '../../core/design/widgets.dart';
 import '../../core/l10n/formats.dart';
 import '../../core/l10n/translations.dart';
 import '../../core/money.dart';
+import '../../core/ui/day_picker.dart';
 import '../../core/ui/errors.dart';
 import '../../data/models.dart';
 import '../../data/qistas_api.dart';
@@ -89,13 +90,7 @@ class _RecordPaymentSheetState extends ConsumerState<RecordPaymentSheet> {
 
   Future<void> _pickDay() async {
     final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _day,
-      firstDate: DateTime(now.year - 2),
-      lastDate: now,
-      locale: Locale(ref.read(localeProvider)),
-    );
+    final picked = await pickDay(context, initial: _day, first: DateTime(now.year - 2), last: now, language: ref.read(localeProvider));
     if (picked != null) setState(() => _day = picked);
   }
 

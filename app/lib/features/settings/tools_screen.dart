@@ -95,6 +95,7 @@ class _ToolCardState extends ConsumerState<_ToolCard> {
         _saved = true;
       });
       unawaited(HapticFeedback.selectionClick());
+      if (widget.tool.key == 'dates.hijri') unawaited(ref.read(authProvider.notifier).refresh());
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {

@@ -4,6 +4,7 @@
 @php
     use App\Support\Format;
     use App\Support\Money;
+    use App\Support\Dates;
 
     $money = fn (string $amount): string => Format::money($amount, $currency);
     $late = $options->shows('overdue');
@@ -11,16 +12,16 @@
 @endphp
 
 @section('meta')
-    {{ __('Statement') }}<br>{{ $issuedAt->translatedFormat('j M Y') }}
+    {{ __('Statement') }}<br>{{ Dates::day($issuedAt) }}
 @endsection
 
 @section('content')
     <h1>{{ __('Statement of account') }}</h1>
     <p class="muted">
         @if ($options->from !== null)
-            {{ __('From :from to :to', ['from' => $options->from->translatedFormat('j M Y'), 'to' => ($options->to ?? $issuedAt)->translatedFormat('j M Y')]) }}
+            {{ __('From :from to :to', ['from' => Dates::day($options->from), 'to' => Dates::day(($options->to ?? $issuedAt))]) }}
         @else
-            {{ __('Up to :date', ['date' => ($options->to ?? $issuedAt)->translatedFormat('j M Y')]) }}
+            {{ __('Up to :date', ['date' => Dates::day(($options->to ?? $issuedAt))]) }}
         @endif
     </p>
 

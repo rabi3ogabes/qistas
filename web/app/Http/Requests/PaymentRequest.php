@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Http\Requests\Concerns\MoneyRules;
+use App\Http\Requests\Concerns\ReadsHijriDates;
 use App\Models\Transaction;
 use App\Support\Digits;
 use Carbon\CarbonInterface;
@@ -16,7 +17,7 @@ use Illuminate\Validation\Rule;
  */
 class PaymentRequest extends FormRequest
 {
-    use MoneyRules;
+    use MoneyRules, ReadsHijriDates;
 
     public function authorize(): bool
     {
@@ -36,6 +37,8 @@ class PaymentRequest extends FormRequest
             'idempotency_key' => ['nullable', 'string', 'regex:/^[A-Za-z0-9_.:\-]{1,100}$/'],
             // The instalment to fill first (Win Plan PP6); RecordPayment checks it belongs to the contract.
             'apply_to' => ['nullable', 'uuid'],
+            // The day typed in Hijri on the web form (Win Plan CT26).
+            ...$this->hijriRules(['paid_at']),
         ];
     }
 
@@ -76,5 +79,6 @@ class PaymentRequest extends FormRequest
             // The API takes it as the Idempotency-Key header; the web form sends it as a field.
             'idempotency_key' => $text('idempotency_key') ?? (trim((string) $this->header('Idempotency-Key')) ?: null),
         ]);
+        $this->merge($this->gregorianFromHijri(['paid_at']));
     }
 }

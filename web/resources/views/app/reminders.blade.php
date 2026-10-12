@@ -4,6 +4,7 @@
     use App\Support\Format;
     use App\Support\Locale;
     use Illuminate\Support\Carbon;
+    use App\Support\Dates;
 
     $tabs = ['due' => __('Due today'), 'late' => __('Late')];
     $keys = ['reminder_due' => __('Before it is late'), 'reminder_late' => __('Once it is late')];
@@ -34,7 +35,7 @@
                     <li class="remind-row">
                         <div class="remind-who">
                             <a class="cell-link" href="{{ url('/app/contracts/'.$row['contract_id']) }}">{{ $row['customer_name'] }}</a>
-                            <span class="cell-sub"><span dir="ltr">{{ $row['contract_reference'] }}</span>, {{ Carbon::parse($row['due_date'])->translatedFormat('j F Y') }}</span>
+                            <span class="cell-sub"><span dir="ltr">{{ $row['contract_reference'] }}</span>, {{ Dates::day(Carbon::parse($row['due_date']), 'j F Y') }}</span>
                             @isset($row['days_late'])<span class="badge badge-bad">{{ __('Days late: :count', ['count' => $row['days_late']]) }}</span>@endisset
                         </div>
                         <span class="money remind-amount">{{ Format::money($row['amount_due'], $currency) }}</span>

@@ -5,13 +5,14 @@
     use App\Domain\Schedule\Frequencies;
     use App\Support\Format;
     use App\Support\Money;
+    use App\Support\Dates;
 
     $money = fn (string $amount): string => Format::money($amount, $currency);
     $late = $options->shows('overdue');
 @endphp
 
 @section('meta')
-    {{ __('Statement') }}<br>{{ $issuedAt->translatedFormat('j M Y') }}
+    {{ __('Statement') }}<br>{{ Dates::day($issuedAt) }}
 @endsection
 
 @section('content')
@@ -20,7 +21,7 @@
 
     <table class="facts">
         <tr><td class="label">{{ $options->word('customer') }}</td><td><strong>{{ $customer->name }}</strong>@if ($customer->phone)<br><span class="muted">{{ $customer->phone }}</span>@endif</td></tr>
-        <tr><td class="label">{{ __('Contract date') }}</td><td>{{ $contract->start_date->translatedFormat('j M Y') }}</td></tr>
+        <tr><td class="label">{{ __('Contract date') }}</td><td>{{ Dates::day($contract->start_date) }}</td></tr>
         @unless ($contract->isOpen())
             <tr><td class="label">{{ __('Price') }}</td><td>{{ $money($contract->principal) }}</td></tr>
             @if (Money::isPositive($contract->discount_amount))
@@ -68,7 +69,7 @@
                     @foreach ($schedule as $row)
                         <tr>
                             <td>{{ $row['number'] }}</td>
-                            <td>{{ $row['due_date']->translatedFormat('j M Y') }}</td>
+                            <td>{{ Dates::day($row['due_date']) }}</td>
                             <td class="num">{{ Format::amount($row['amount']) }}</td>
                             <td class="num">{{ Format::amount($row['paid']) }}</td>
                             @if ($late)<td class="num late">{{ $row['overdue'] === null ? '' : Format::amount($row['overdue']) }}</td>@endif

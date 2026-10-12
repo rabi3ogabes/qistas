@@ -9,6 +9,7 @@ use App\Models\Tenant;
 use App\Models\TenantSetting;
 use App\Models\User;
 use App\Support\Audit;
+use App\Support\Dates;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
@@ -78,6 +79,8 @@ final class TenantSettings
 
             Audit::record('settings.changed', $row, ['key' => $key, 'before' => $before, 'after' => $after], $this->tenant->id, $by?->id);
         });
+        // What this request already read about how dates are shown is stale now.
+        app(Dates::class)->forget();
     }
 
     private function definition(string $key): SettingDefinition

@@ -7,6 +7,7 @@
     use App\Support\Money;
     use App\Support\PaymentMethods;
     use Illuminate\Support\Str;
+    use App\Support\Dates;
 
     $customer = $contract->customer;
     $late = $contract->status === 'active' && $next?->isOverdue();
@@ -43,7 +44,7 @@
             <p class="figure-label">{{ __('Still owed') }}</p>
             <p class="figure-value money">{{ Format::money($owed, $currency) }}</p>
             @if ($paidAheadUntil !== null)
-                <p class="figure-note">{{ __('Paid ahead until :date', ['date' => $paidAheadUntil->translatedFormat('j M Y')]) }}</p>
+                <p class="figure-note">{{ __('Paid ahead until :date', ['date' => Dates::day($paidAheadUntil)]) }}</p>
             @endif
             @if (Money::isPositive($feesOwed))
                 <p class="figure-note">{{ __('Includes :amount in late fees', ['amount' => Format::money($feesOwed, $currency)]) }}</p>
@@ -73,7 +74,7 @@
 
                             @if ($next !== null)
                                 <x-field name="amount" :label="__('Amount received')" :value="Money::add($next->remaining(), '0', 2)" inputmode="decimal" autocomplete="off" dir="ltr" required
-                                         :hint="__('Next instalment: :amount, due :date.', ['amount' => Format::money($next->remaining(), $currency), 'date' => $next->due_date->translatedFormat('j M Y')])" />
+                                         :hint="__('Next instalment: :amount, due :date.', ['amount' => Format::money($next->remaining(), $currency), 'date' => Dates::day($next->due_date)])" />
                             @else
                                 <x-field name="amount" :label="__('Amount received')" :value="Money::add($feesOwed, '0', 2)" inputmode="decimal" autocomplete="off" dir="ltr" required
                                          :hint="__('Every instalment is paid; :amount in late fees is still owed.', ['amount' => Format::money($feesOwed, $currency)])" />
@@ -90,6 +91,7 @@
                             </div>
 
                             <x-field name="paid_at" type="date" :label="__('Date received (optional)')" :hint="__('Leave empty if it was received today.')" />
+                            <x-hijri-input for="paid_at" />
                             @if ($canTarget)
                                 {{-- Win Plan PP6: the instalment it covers first; whatever is over goes to the oldest. --}}
                                 <div class="field">
@@ -97,7 +99,7 @@
                                     <select id="f-apply" name="apply_to" @error('apply_to') aria-invalid="true" @enderror>
                                         <option value="">{{ __('The oldest instalment first') }}</option>
                                         @foreach ($installments->reject(fn ($i) => in_array($i->status, \App\Models\Installment::CLOSED, true)) as $open)
-                                            <option value="{{ $open->id }}" @selected(old('apply_to') === $open->id)>{{ $open->due_date->translatedFormat('j M Y') }}, {{ Format::money($open->remaining(), $currency) }}</option>
+                                            <option value="{{ $open->id }}" @selected(old('apply_to') === $open->id)>{{ Dates::day($open->due_date) }}, {{ Format::money($open->remaining(), $currency) }}</option>
                                         @endforeach
                                     </select>
                                     @error('apply_to')<p class="field-error" role="alert">{{ $message }}</p>@enderror
@@ -116,7 +118,7 @@
                 <dl class="facts">
                     <div><dt>{{ __('Customer') }}</dt><dd>{{ $customer->name }}</dd></div>
                     @if ($contract->title)<div><dt>{{ __('What was sold') }}</dt><dd>{{ $contract->title }}</dd></div>@endif
-                    <div><dt>{{ __('Contract date') }}</dt><dd class="money">{{ $contract->start_date->translatedFormat('j M Y') }}</dd></div>
+                    <div><dt>{{ __('Contract date') }}</dt><dd class="money"><x-day :date="$contract->start_date" /></dd></div>
                     <div><dt>{{ __('Price') }}</dt><dd class="money">{{ Format::money($contract->principal, $currency) }}</dd></div>
                     @if (Money::isPositive($contract->discount_amount))
                         <div><dt>{{ __('Discount') }}</dt><dd class="money">−{{ Format::money($contract->discount_amount, $currency) }}@if ($contract->discount_type === 'percent') <span class="muted">({{ rtrim(rtrim($contract->discount_value, '0'), '.') }}%)</span>@endif</dd></div>
@@ -146,7 +148,7 @@
                         <div><dt>{{ __('Funded by') }}</dt><dd><a class="link" href="{{ route('app.investors.show', $contract->investor) }}">{{ MainInvestor::displayName($contract->investor) }}</a></dd></div>
                     @endif
                     @if ($contract->notes)<div><dt>{{ __('Notes') }}</dt><dd class="prewrap">{{ $contract->notes }}</dd></div>@endif
-                    @if ($contract->cancelled_at)<div><dt>{{ __('Cancelled on') }}</dt><dd class="money">{{ $contract->cancelled_at->translatedFormat('j M Y') }}</dd></div>@endif
+                    @if ($contract->cancelled_at)<div><dt>{{ __('Cancelled on') }}</dt><dd class="money"><x-day :date="$contract->cancelled_at" /></dd></div>@endif
                     @if (Money::isPositive($rebate))<div><dt>{{ __('Early settlement discount') }}</dt><dd class="money">−{{ Format::money($rebate, $currency) }}</dd></div>@endif
                 </dl>
 
@@ -247,7 +249,7 @@
                                 @php $installmentState = $installment->displayState(); @endphp
                                 <tr data-state="{{ $installmentState }}">
                                     <td data-label="#" class="money">{{ $loop->iteration }}</td>
-                                    <td data-label="{{ __('Due date') }}" class="money">{{ $installment->due_date->translatedFormat('j M Y') }}</td>
+                                    <td data-label="{{ __('Due date') }}" class="money"><x-day :date="$installment->due_date" /></td>
                                     <td data-label="{{ __('Amount') }}" class="num money">{{ Format::money($installment->amount, $currency) }}</td>
                                     <td data-label="{{ __('Paid') }}" class="num money">{{ Money::isZero($installment->paid_amount) ? '—' : Format::money($installment->paid_amount, $currency) }}</td>
                                     <td data-label="{{ __('Status') }}"><span class="badge {{ $installmentTone[$installmentState] }}">{{ $installmentLabel[$installmentState] }}</span></td>
@@ -290,7 +292,7 @@
                                 <tbody>
                                     @foreach ($lateFees as $fee)
                                         <tr data-fee="{{ $fee->status }}">
-                                            <td data-label="{{ __('Charged on') }}" class="money">{{ $fee->charged_on->translatedFormat('j M Y') }}</td>
+                                            <td data-label="{{ __('Charged on') }}" class="money"><x-day :date="$fee->charged_on" /></td>
                                             <td data-label="{{ __('Instalment') }}" class="money">{{ $fee->installment?->number }}</td>
                                             <td data-label="{{ __('Amount') }}" class="num money">{{ Format::money($fee->amount, $currency) }}</td>
                                             <td data-label="{{ __('Paid') }}" class="num money">{{ Money::isZero($fee->paid_amount) ? '—' : Format::money($fee->paid_amount, $currency) }}</td>
@@ -299,7 +301,7 @@
                                                 @if ($fee->charity)<span class="badge">{{ __('For charity') }}</span>@endif
                                                 @if ($fee->status === 'waived')
                                                     <span class="cell-sub">{{ $fee->waived_reason }}</span>
-                                                    @if ($fee->waived_at)<span class="cell-sub">{{ $fee->waivedBy ? __('Waived by :name on :date', ['name' => $fee->waivedBy->name, 'date' => $fee->waived_at->translatedFormat('j M Y')]) : __('Waived on :date', ['date' => $fee->waived_at->translatedFormat('j M Y')]) }}</span>@endif
+                                                    @if ($fee->waived_at)<span class="cell-sub">{{ $fee->waivedBy ? __('Waived by :name on :date', ['name' => $fee->waivedBy->name, 'date' => Dates::day($fee->waived_at)]) : __('Waived on :date', ['date' => Dates::day($fee->waived_at)]) }}</span>@endif
                                                 @elseif ($fee->status === 'open' && $contract->status !== 'cancelled')
                                                     @can('waiveFees', $contract)
                                                         <details class="confirm confirm-inline">
@@ -330,13 +332,13 @@
                     <ol class="plan-history">
                         @foreach ($contract->amendments->reverse() as $amendment)
                             <li>
-                                <p class="plan-history-head"><strong>{{ $amendmentLabel[$amendment->type] ?? $amendment->type }}</strong> <span class="muted">{{ $amendment->created_at->translatedFormat('j M Y') }}@if ($amendment->approvedBy), {{ $amendment->approvedBy->name }}@endif</span></p>
+                                <p class="plan-history-head"><strong>{{ $amendmentLabel[$amendment->type] ?? $amendment->type }}</strong> <span class="muted">{{ Dates::day($amendment->created_at) }}@if ($amendment->approvedBy), {{ $amendment->approvedBy->name }}@endif</span></p>
                                 <p class="prewrap">{{ $amendment->reason }}</p>
                                 <details>
                                     <summary class="link">{{ __('Instalments before: :before. After: :after.', ['before' => count($amendment->old_schedule), 'after' => count($amendment->new_schedule)]) }}</summary>
                                     <div class="plan-compare">
-                                        <ol class="plan-rows">@foreach ($amendment->old_schedule as $row)<li><span class="money">{{ \Illuminate\Support\Carbon::parse($row['due_date'])->translatedFormat('j M Y') }}</span><span class="money">{{ Format::money($row['amount'], $currency) }}</span></li>@endforeach</ol>
-                                        <ol class="plan-rows plan-rows-new">@foreach ($amendment->new_schedule as $row)<li><span class="money">{{ \Illuminate\Support\Carbon::parse($row['due_date'])->translatedFormat('j M Y') }}</span><span class="money">{{ Format::money($row['amount'], $currency) }}</span></li>@endforeach</ol>
+                                        <ol class="plan-rows">@foreach ($amendment->old_schedule as $row)<li><span class="money">{{ Dates::day(\Illuminate\Support\Carbon::parse($row['due_date'])) }}</span><span class="money">{{ Format::money($row['amount'], $currency) }}</span></li>@endforeach</ol>
+                                        <ol class="plan-rows plan-rows-new">@foreach ($amendment->new_schedule as $row)<li><span class="money">{{ Dates::day(\Illuminate\Support\Carbon::parse($row['due_date'])) }}</span><span class="money">{{ Format::money($row['amount'], $currency) }}</span></li>@endforeach</ol>
                                     </div>
                                 </details>
                             </li>
@@ -374,7 +376,7 @@
                                         };
                                     @endphp
                                     <tr data-line="{{ $kind }}">
-                                        <td data-label="{{ __('Date') }}" class="money">{{ $line->paid_at->translatedFormat('j M Y') }}</td>
+                                        <td data-label="{{ __('Date') }}" class="money"><x-day :date="$line->paid_at" /></td>
                                         <td data-label="{{ __('Details') }}">
                                             <span class="line-title">
                                                 @if ($kind === 'reversal') {{ __('Payment voided') }}

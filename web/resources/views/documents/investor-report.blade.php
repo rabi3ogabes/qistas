@@ -5,6 +5,7 @@
     use App\Models\InvestorEntry;
     use App\Support\Format;
     use App\Support\Money;
+    use App\Support\Dates;
 
     $money = fn (string $amount): string => Format::money($amount, $currency);
     $late = $options->shows('overdue');
@@ -21,7 +22,7 @@
 @endphp
 
 @section('meta')
-    {{ __('Report') }}<br>{{ $issuedAt->translatedFormat('j M Y') }}
+    {{ __('Report') }}<br>{{ Dates::day($issuedAt) }}
 @endsection
 
 @section('content')
@@ -70,11 +71,11 @@
             </tr></thead>
             <tbody>
                 @if ($options->from !== null)
-                    <tr class="opening"><td>{{ $options->from->translatedFormat('j M Y') }}</td><td>{{ __('Balance brought forward') }}</td><td class="num"></td><td class="num">{{ Format::amount($opening) }}</td></tr>
+                    <tr class="opening"><td>{{ Dates::day($options->from) }}</td><td>{{ __('Balance brought forward') }}</td><td class="num"></td><td class="num">{{ Format::amount($opening) }}</td></tr>
                 @endif
                 @forelse ($entries as $row)
                     <tr>
-                        <td>{{ $row['entry']->occurred_on->translatedFormat('j M Y') }}</td>
+                        <td>{{ Dates::day($row['entry']->occurred_on) }}</td>
                         <td>{{ $label($row['entry']) }}@if ($row['entry']->contract)<br><span class="muted small">{{ $row['entry']->contract->reference() }}</span>@endif</td>
                         <td class="num">{{ Format::amount($row['amount']) }}</td>
                         <td class="num">{{ Format::amount($row['balance']) }}</td>

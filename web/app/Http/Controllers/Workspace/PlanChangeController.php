@@ -18,6 +18,7 @@ use App\Models\Installment;
 use App\Models\Transaction;
 use App\Reports\ContractProgress;
 use App\Support\Format;
+use App\Support\Hijri;
 use App\Support\Money;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\RedirectResponse;
@@ -171,7 +172,14 @@ final class PlanChangeController
         Gate::authorize('view', $customer);
         Gate::authorize('create', Transaction::class);
         $this->assertOn(Feature::PaymentTargeting);
+        // A day typed in Hijri (Win Plan CT26) is read as its Gregorian day.
+        $typed = Hijri::parse((string) $request->input('paid_at_hijri', ''));
+        if ($typed !== null) {
+            $request->merge(['paid_at' => $typed->format('Y-m-d')]);
+        }
         $data = $request->validate([
+            'paid_at_hijri' => ['nullable', fn (string $attribute, mixed $value, \Closure $fail) => is_scalar($value) && trim((string) $value) !== '' && Hijri::parse((string) $value) === null
+                ? $fail(__('Write the Hijri date as day/month/year, for example 13/08/1447.')) : null],
             'amount' => ['required', 'string', 'regex:/^\d{1,14}(\.\d{1,2})?$/', 'not_regex:/^0+(\.0+)?$/'],
             'method' => ['required', Rule::in(config('qistas.payment_methods'))],
             'paid_at' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today'],

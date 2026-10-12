@@ -4,6 +4,7 @@
     use App\Support\Money;
     use App\Support\PaymentMethods;
     use Illuminate\Support\Str;
+    use App\Support\Dates;
 
     $owed = collect($progress)->reduce(fn (string $sum, array $row) => Money::add($sum, (string) $row['owed'], 2), '0.00');
 @endphp
@@ -29,6 +30,7 @@
                     </select>
                 </div>
                 <x-field name="paid_at" type="date" :label="__('Date received (optional)')" :hint="__('Leave empty if it was received today.')" />
+                <x-hijri-input for="paid_at" />
                 <x-field name="note" :label="__('Note (optional)')" autocomplete="off" />
                 <button class="btn">{{ __('Record payment') }}</button>
             </form>
@@ -42,7 +44,7 @@
                         <a class="row-main" href="{{ route('app.contracts.show', $contract) }}">
                             <span class="row-title" dir="ltr">{{ $contract->reference() }}</span>
                             @if (($progress[$contract->id]['next'] ?? null) !== null)
-                                <span class="row-sub">{{ __('Next due :date', ['date' => $progress[$contract->id]['next']->due_date->translatedFormat('j M Y')]) }}</span>
+                                <span class="row-sub">{{ __('Next due :date', ['date' => Dates::day($progress[$contract->id]['next']->due_date)]) }}</span>
                             @endif
                         </a>
                         <span class="money row-amount">{{ Format::money((string) $progress[$contract->id]['owed'], $currency) }}</span>

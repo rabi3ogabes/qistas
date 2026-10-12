@@ -220,9 +220,11 @@
                     </div>
 
                     <x-field name="start_date" type="date" :label="__('Contract date')" :value="$today" required />
+                    <x-hijri-input for="start_date" />
 
                     <div class="contents" x-show="isScheduled && !isCustom">
                         <x-field name="first_due_date" type="date" :label="__('First instalment due')" :value="$initial['firstDue']" required x-model="firstDue" x-bind:disabled="isCustom" @input="changed" />
+                        <x-hijri-input for="first_due_date" />
                     </div>
 
                     @if ($flexible)

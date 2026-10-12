@@ -4,15 +4,16 @@
 @php
     use App\Support\Format;
     use App\Support\PaymentMethods;
+    use App\Support\Dates;
 @endphp
 
 @section('meta')
-    {{ __('Report') }}<br>{{ $issuedAt->translatedFormat('j M Y') }}
+    {{ __('Report') }}<br>{{ Dates::day($issuedAt) }}
 @endsection
 
 @section('content')
     <h1>{{ __('Payments report') }}</h1>
-    <p class="muted">{{ __('From :from to :to', ['from' => $from->translatedFormat('j M Y'), 'to' => $to->translatedFormat('j M Y')]) }}</p>
+    <p class="muted">{{ __('From :from to :to', ['from' => Dates::day($from), 'to' => Dates::day($to)]) }}</p>
 
     <table class="owed"><tr>
         <td><strong>{{ __('Received') }}</strong><br><span class="muted small">{{ __('Payments: :count', ['count' => $lines->count()]) }}</span></td>
@@ -28,7 +29,7 @@
             <tbody>
                 @forelse ($lines as $line)
                     <tr>
-                        <td>{{ $line->paid_at->translatedFormat('j M Y') }}</td>
+                        <td>{{ Dates::day($line->paid_at) }}</td>
                         <td>{{ $line->contract?->customer?->name }}</td>
                         <td>{{ $line->contract?->reference() }}</td>
                         <td>{{ $line->type === 'reversal' ? __('Payment voided') : PaymentMethods::label($line->method) }}</td>

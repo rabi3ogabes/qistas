@@ -1,5 +1,6 @@
 @php
     use App\Support\Format;
+    use App\Support\Dates;
 
     $money = fn (string $amount) => Format::money($amount, $currency);
     $overdue = $metrics['overdue'] !== '0.00';
@@ -11,7 +12,7 @@
 @endphp
 <x-layouts.app :title="__('Dashboard')" section="dashboard">
     <x-page-head :title="__('Dashboard')">
-        <x-slot:subtitle>{{ now()->translatedFormat('l, j F Y') }}</x-slot:subtitle>
+        <x-slot:subtitle>{{ Dates::day(now(), 'l, j F Y') }}</x-slot:subtitle>
     </x-page-head>
 
     <x-welcome-banner surface="webapp" />

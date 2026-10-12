@@ -2377,6 +2377,10 @@ components:
         is_demo:
           type: boolean
           description: True for a throw-away workspace made by "Try the demo". Say so, and offer a real account.
+        hijri_dates:
+          type: string
+          enum: [off, beside, first]
+          description: "How the workspace shows dates (Win Plan CT26): Gregorian only, the Umm al-Qura day beside it, or first. Always off while the hijri_dates feature is off. Dates sent and received stay Gregorian (YYYY-MM-DD)."
         require_app_lock:
           type: boolean
           description: The business requires every phone to unlock Qistas (fingerprint, face or the phone's PIN) before showing its books. The app turns its lock on and does not let it be turned off.

@@ -6,6 +6,7 @@
     use App\Support\Format;
     use App\Support\Money;
     use Illuminate\Support\Carbon;
+    use App\Support\Dates;
 
     $name = MainInvestor::displayName($investor);
     $canEdit = auth()->user()->can('update', $investor) && Entitlements::for($investor->tenant)->check(Feature::Investors)->enabled();
@@ -171,7 +172,7 @@
                             @forelse ($entries as $entry)
                                 @php($isReversed = $reversed->has($entry->id))
                                 <tr @if ($isReversed) class="voided-row" @endif>
-                                    <td data-label="{{ __('Date') }}" class="money">{{ $entry->occurred_on->translatedFormat('j M Y') }}</td>
+                                    <td data-label="{{ __('Date') }}" class="money"><x-day :date="$entry->occurred_on" /></td>
                                     <td data-label="{{ __('What') }}">
                                         <span class="line-title">
                                             {{ $label($entry) }}

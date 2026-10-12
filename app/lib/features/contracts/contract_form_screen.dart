@@ -10,6 +10,7 @@ import '../../core/design/widgets.dart';
 import '../../core/l10n/formats.dart';
 import '../../core/l10n/translations.dart';
 import '../../core/money.dart';
+import '../../core/ui/day_picker.dart';
 import '../../core/ui/errors.dart';
 import '../../data/investors.dart';
 import '../../data/models.dart';
@@ -249,13 +250,8 @@ class _ContractFormScreenState extends ConsumerState<ContractFormScreen> {
 
   // -------------------------------------------------------------------------- inputs
 
-  Future<DateTime?> _pick(DateTime initial, {required DateTime first, required DateTime last}) => showDatePicker(
-        context: context,
-        initialDate: initial.isBefore(first) ? first : (initial.isAfter(last) ? last : initial),
-        firstDate: first,
-        lastDate: last,
-        locale: Locale(ref.read(localeProvider)),
-      );
+  Future<DateTime?> _pick(DateTime initial, {required DateTime first, required DateTime last}) =>
+      pickDay(context, initial: initial, first: first, last: last, language: ref.read(localeProvider));
 
   Future<void> _pickStart() async {
     final now = _today();

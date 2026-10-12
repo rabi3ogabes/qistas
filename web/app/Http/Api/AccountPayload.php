@@ -5,6 +5,7 @@ namespace App\Http\Api;
 use App\Entitlements\Entitlements;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\Dates;
 
 /**
  * Who is signed in, where, and what their plan allows: everything an app needs to draw itself, in one object.
@@ -38,6 +39,8 @@ final class AccountPayload
                 'is_demo' => $tenant->is_demo,
                 // The business wants every phone to unlock Qistas (fingerprint, face or PIN) before showing its books.
                 'require_app_lock' => $tenant->require_app_lock,
+                // Hijri dates (Win Plan CT26): off, beside the Gregorian date, or first.
+                'hijri_dates' => app(Dates::class)->mode($tenant),
                 // The owner asked to delete the business: read-only, and erased after this day unless restored.
                 'deletion_scheduled_for' => $tenant->restoreUntil(),
             ],

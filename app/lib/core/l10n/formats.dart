@@ -1,6 +1,7 @@
 import 'package:intl/intl.dart';
 
 import '../money.dart';
+import 'hijri.dart';
 
 const String _arabicIndic = '٠١٢٣٤٥٦٧٨٩';
 const String _persian = '۰۱۲۳۴۵۶۷۸۹';
@@ -15,19 +16,20 @@ String westernDigits(String text) => text.split('').map((c) {
       return p >= 0 ? '$p' : c;
     }).join();
 
-/// "7 Oct 2026" in the reader's language, from a YYYY-MM-DD date.
+/// "7 Oct 2026" in the reader's language, from a YYYY-MM-DD date; with its Hijri day beside it or first when the
+/// workspace asks (Win Plan CT26).
 String formatDay(String iso, String language) {
   final date = DateTime.tryParse(iso);
   if (date == null) return iso;
 
-  return westernDigits(DateFormat.yMMMd(language).format(date));
+  return withHijri(westernDigits(DateFormat.yMMMd(language).format(date)), date, language);
 }
 
-/// "Thursday, 8 October" in the reader's language: the greeting's date.
-String formatLongDay(DateTime day, String language) => westernDigits(DateFormat.MMMMEEEEd(language).format(day.toLocal()));
+/// "Thursday, 8 October" in the reader's language: the greeting's date (and its Hijri day, as the workspace asks).
+String formatLongDay(DateTime day, String language) => withHijri(westernDigits(DateFormat.MMMMEEEEd(language).format(day.toLocal())), day.toLocal(), language);
 
-/// A moment in the reader's own time zone: "7 Oct 2026".
-String formatMoment(DateTime moment, String language) => westernDigits(DateFormat.yMMMd(language).format(moment.toLocal()));
+/// A moment in the reader's own time zone: "7 Oct 2026" (and its Hijri day, as the workspace asks).
+String formatMoment(DateTime moment, String language) => withHijri(westernDigits(DateFormat.yMMMd(language).format(moment.toLocal())), moment.toLocal(), language);
 
 /// "7 Oct, 14:05".
 String formatMomentLong(DateTime moment, String language) {

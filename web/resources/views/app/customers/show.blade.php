@@ -1,5 +1,6 @@
 @php
     use App\Support\Format;
+    use App\Support\Dates;
 
     $statusTone = ['active' => 'badge-info', 'settled' => 'badge-ok', 'cancelled' => 'badge-bad'];
     $statusLabel = ['active' => __('Active'), 'settled' => __('Settled'), 'cancelled' => __('Cancelled')];
@@ -46,7 +47,7 @@
                 @if ($customer->address)<div><dt>{{ __('Address') }}</dt><dd>{{ $customer->address }}</dd></div>@endif
                 @if ($customer->maskedNationalId())<div><dt>{{ __('National ID') }}</dt><dd class="money" dir="ltr">{{ $customer->maskedNationalId() }}</dd></div>@endif
                 @if ($customer->notes)<div><dt>{{ __('Notes') }}</dt><dd class="prewrap">{{ $customer->notes }}</dd></div>@endif
-                <div><dt>{{ __('Customer since') }}</dt><dd>{{ $customer->created_at->translatedFormat('j F Y') }}</dd></div>
+                <div><dt>{{ __('Customer since') }}</dt><dd><x-day :date="$customer->created_at, 'j F Y'" /></dd></div>
             </dl>
 
             @can('delete', $customer)

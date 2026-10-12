@@ -8,6 +8,7 @@ import '../../core/design/widgets.dart';
 import '../../core/l10n/formats.dart';
 import '../../core/l10n/translations.dart';
 import '../../core/money.dart';
+import '../../core/ui/day_picker.dart';
 import '../../core/ui/errors.dart';
 import '../../data/investors.dart';
 
@@ -49,13 +50,7 @@ class _InvestorEntrySheetState extends ConsumerState<InvestorEntrySheet> {
 
   Future<void> _pickDate() async {
     final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _on ?? now,
-      firstDate: DateTime(now.year - 10),
-      lastDate: now,
-      locale: Locale(ref.read(localeProvider)),
-    );
+    final picked = await pickDay(context, initial: _on ?? now, first: DateTime(now.year - 10), last: now, language: ref.read(localeProvider));
     if (picked != null) setState(() => _on = picked);
   }
 

@@ -2,6 +2,7 @@
 import Alpine from '@alpinejs/csp';
 import { planCalculator } from './calculator';
 import { contractPlanner } from './contract-planner';
+import { hijriField } from './hijri';
 import { initTheme } from './theme';
 import { initSheets } from './sheet';
 import { initLanguageSwitchers } from './language';
@@ -12,6 +13,7 @@ import { registerServiceWorker } from './install';
 window.Alpine = Alpine;
 Alpine.data('planCalculator', planCalculator);
 Alpine.data('contractPlanner', contractPlanner);
+Alpine.data('hijriField', hijriField);
 Alpine.data('billingInterval', () => ({
     interval: 'monthly',
     setMonthly() { this.interval = 'monthly'; },

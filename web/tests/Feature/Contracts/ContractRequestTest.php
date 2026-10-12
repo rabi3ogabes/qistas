@@ -92,6 +92,8 @@ it('only offers fields a client may set', function () {
     expect(array_keys((new ContractRequest)->rules()))->toEqualCanonicalizing([
         'customer_id', 'type', 'principal', 'down_payment', 'markup_type', 'markup_value',
         'installment_count', 'frequency', 'start_date', 'first_due_date', 'notes',
+        // The same two dates typed in Hijri on the web form (Win Plan CT26).
+        'start_date_hijri', 'first_due_date_hijri',
         'grace_days', 'custom_schedule', 'custom_schedule.*.due_date', 'custom_schedule.*.amount', 'investor_id',
         'opening_balance', 'credit_limit',
         'title', 'own_reference', 'cost_price', 'tax_percent', 'discount_type', 'discount_value',
