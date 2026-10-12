@@ -14,6 +14,7 @@ use App\Entitlements\Feature;
 use App\Entitlements\FeatureCatalogue;
 use App\Entitlements\UsageMeters;
 use App\Listeners\AuditAuthEvents;
+use App\Mail\MailSettings;
 use App\Models\Contract;
 use App\Models\Customer;
 use App\Models\Investor;
@@ -51,6 +52,7 @@ use Illuminate\Validation\Rules\Password;
 use Laravel\Passkeys\Passkeys;
 use Laravel\Sanctum\Events\TokenAuthenticated;
 use League\Flysystem\Filesystem;
+use Throwable;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -60,6 +62,21 @@ class AppServiceProvider extends ServiceProvider
 
         // Scoped: a fresh, empty tenant context for every request and every queued job.
         $this->app->scoped(CurrentTenant::class);
+
+        // E-mail goes through the SMTP server saved in /admin/mail (Sprint 3, D1), read only when a mail is about to go.
+        // Before the tables exist (installing, migrating) there is nothing to read, and the defaults stay.
+        // Laravel calls this on every lookup of the mailer, so it acts only before the first one builds it.
+        $this->app->beforeResolving('mail.manager', function (): void {
+            if ($this->app->resolved('mail.manager')) {
+                return;
+            }
+
+            try {
+                app(MailSettings::class)->apply();
+            } catch (Throwable) {
+                // No database yet: the configured mailer stays as it is.
+            }
+        });
 
         // A registry of closures set up once at boot (each module registers its own meter); safe to share.
         $this->app->singleton(UsageMeters::class);

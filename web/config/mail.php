@@ -16,6 +16,10 @@ return [
 
     'default' => env('MAIL_MAILER', 'log'),
 
+    // What the server's environment itself names (null when nothing): a real mailer here wins over the SMTP server saved
+    // in /admin/mail (App\Mail\MailSettings); "log" and "array" do not.
+    'server_mailer' => env('MAIL_MAILER'),
+
     /*
     |--------------------------------------------------------------------------
     | Mailer Configurations

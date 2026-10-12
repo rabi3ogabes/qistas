@@ -2,6 +2,7 @@
 
 namespace App\Reports;
 
+use App\Mail\MailSettings;
 use App\Models\CronRun;
 use App\Models\Subscription;
 use App\Sandbox\DemoAccess;
@@ -84,15 +85,18 @@ final class PlatformOverview
             'detail' => __('Connected (:driver).', ['driver' => DB::connection()->getDriverName()]),
         ];
 
-        $mailer = (string) config('mail.default');
-        $sends = ! in_array($mailer, ['log', 'array'], true);
+        // The server saved in /admin/mail, unless the environment names a real mailer of its own (Sprint 3, D1).
+        $saved = app(MailSettings::class);
+        $smtp = $saved->serverDecides() ? null : $saved->get();
+        $mailer = $smtp['host'] ?? (string) config('mail.default');
+        $sends = $smtp !== null || ! in_array($mailer, ['log', 'array'], true);
         $checks[] = [
             'key' => 'mail',
             'status' => $sends ? 'ok' : 'warn',
             'title' => __('E-mail'),
             'detail' => $sends
                 ? __('Sending through :mailer.', ['mailer' => $mailer])
-                : __('Not sending: verification and password-reset e-mails only go to the log. Set the SMTP details to switch it on.'),
+                : __('Not sending: verification and password-reset e-mails only go to the log. Set the SMTP details in E-mail to switch it on.'),
         ];
 
         $production = app()->isProduction();
