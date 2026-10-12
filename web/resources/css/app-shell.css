@@ -544,4 +544,11 @@
     .photo-caption { display: flex; align-items: center; justify-content: space-between; gap: .25rem; font-size: .8125rem; color: var(--q-ink-muted); }
     .photo-form { display: grid; gap: .75rem; padding-top: 1rem; border-top: 1px solid var(--q-line); }
     @media (hover: hover) and (pointer: fine) { .photo-frame:hover { border-color: color-mix(in srgb, var(--q-ink) 25%, var(--q-line)); } }
+    .signature-shown { display: grid; gap: .375rem; margin: 0; }
+    .signature-shown img { max-width: min(100%, 18rem); max-height: 6rem; padding: .5rem; background: #fff; border: 1px solid var(--q-line); border-radius: var(--q-r-md); }
+    .signing-link { display: grid; gap: .5rem; padding: 1rem; border-radius: var(--q-r-md); background: var(--q-tint-sand); }
+    .signing-link p { margin: 0; }
+    .signing-code { font-size: 1.75rem; font-weight: 600; letter-spacing: .18em; font-variant-numeric: tabular-nums; }
+    .signing-url { font-size: .8125rem; color: var(--q-ink-muted); overflow-wrap: anywhere; }
+    .row-actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
 }

@@ -192,6 +192,6 @@ describe('on the web', function () {
         [$owner, $tenant] = owner();
         $contract = openContract($tenant);
 
-        $this->actingAs($owner)->get(route('app.contracts.show', $contract))->assertOk()->assertDontSee('Guarantors and photos');
+        $this->actingAs($owner)->get(route('app.contracts.show', $contract))->assertOk()->assertDontSee('paperwork-title', false);
     });
 });

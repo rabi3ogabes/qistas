@@ -10,6 +10,7 @@ use App\Http\Controllers\ManifestController;
 use App\Http\Controllers\RobotsController;
 use App\Http\Controllers\SchedulePreviewController;
 use App\Http\Controllers\SecurityController;
+use App\Http\Controllers\SignController;
 use App\Http\Controllers\SiteController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\ThemeCssController;
@@ -23,6 +24,10 @@ Route::get('/installment-calculator', [SiteController::class, 'calculator'])->na
 Route::get('/terms', [SiteController::class, 'terms'])->name('terms');
 Route::get('/privacy', [SiteController::class, 'privacy'])->name('privacy');
 // An invitation link into a business: anyone may open it; joining needs a login, which can be made right there.
+// A customer signs a contract on their own phone (Win Plan K5): the code first, then the signature, once.
+Route::get('/sign/{token}', [SignController::class, 'show'])->where('token', '[A-Za-z0-9]{20,100}')->middleware('throttle:60,1')->name('sign.show');
+Route::post('/sign/{token}/code', [SignController::class, 'code'])->where('token', '[A-Za-z0-9]{20,100}')->middleware('throttle:10,1')->name('sign.code');
+Route::post('/sign/{token}', [SignController::class, 'sign'])->where('token', '[A-Za-z0-9]{20,100}')->middleware('throttle:10,1')->name('sign.store');
 // A file of the private disk kept in the database (Win Plan D5), through a link that expires within five minutes.
 Route::get('/files/blob/{path}', FileBlobController::class)->where('path', 'tenants/[A-Za-z0-9/_.\-]+')->middleware(['signed', 'throttle:120,1'])->name('files.blob');
 Route::get('/exports/{export}/file', [ExportFileController::class, 'show'])->whereUuid('export')->middleware(['signed', 'throttle:30,1'])->name('exports.file');

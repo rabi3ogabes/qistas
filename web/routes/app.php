@@ -88,6 +88,8 @@ Route::put('settings/security', [SecurityPolicyController::class, 'update'])->na
 Route::middleware('throttle:documents')->group(function (): void {
     Route::get('customers/{customer}/statement', [DocumentController::class, 'customerStatement'])->name('customers.statement');
     Route::get('contracts/{contract}/statement', [DocumentController::class, 'contractStatement'])->name('contracts.statement');
+    Route::get('contracts/{contract}/agreement', [DocumentController::class, 'contractAgreement'])->whereUuid('contract')->name('contracts.agreement');
+    Route::get('contracts/{contract}/promissory-note', [DocumentController::class, 'promissoryNote'])->whereUuid('contract')->name('contracts.promissory-note');
     Route::get('payments/{transaction}/receipt', [DocumentController::class, 'receipt'])->name('payments.receipt');
     Route::get('reports/transactions', [DocumentController::class, 'transactions'])->name('reports.transactions');
     Route::get('investors/{investor}/report', [DocumentController::class, 'investorReport'])->whereUuid('investor')->name('investors.report');
@@ -134,3 +136,5 @@ Route::put('guarantors/{guarantor}', [PaperworkController::class, 'updateGuarant
 Route::delete('guarantors/{guarantor}', [PaperworkController::class, 'destroyGuarantor'])->whereUuid('guarantor')->name('guarantors.destroy');
 Route::post('contracts/{contract}/photos', [PaperworkController::class, 'storePhoto'])->whereUuid('contract')->middleware('throttle:documents')->name('contracts.photos.store');
 Route::delete('contracts/{contract}/photos/{photo}', [PaperworkController::class, 'destroyPhoto'])->whereUuid(['contract', 'photo'])->name('contracts.photos.destroy');
+Route::post('contracts/{contract}/signature', [PaperworkController::class, 'sign'])->whereUuid('contract')->middleware('throttle:documents')->name('contracts.signature.store');
+Route::post('contracts/{contract}/signature-link', [PaperworkController::class, 'signatureLink'])->whereUuid('contract')->middleware('throttle:documents')->name('contracts.signature-link.store');

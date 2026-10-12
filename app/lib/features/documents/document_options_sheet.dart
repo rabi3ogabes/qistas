@@ -92,6 +92,14 @@ class DocumentRequest {
   const DocumentRequest.contract(String id, String reference)
       : this(path: '/contracts/$id/statement.pdf', title: 'Statement', filename: 'statement-$reference.pdf', sections: const ['overdue', 'schedule', 'signature', 'cost']);
 
+  /// The contract as it was agreed (Win Plan K5): the parties, the guarantors, the plan, the schedule and the signature.
+  const DocumentRequest.agreement(String id, String reference)
+      : this(path: '/contracts/$id/agreement.pdf', title: 'Contract', filename: 'contract-$reference.pdf', sections: const ['signature'], summary: false);
+
+  /// A promissory note for what is still owed (Win Plan K5): offered only once its switch is on.
+  const DocumentRequest.promissoryNote(String id, String reference)
+      : this(path: '/contracts/$id/promissory-note.pdf', title: 'Promissory note', filename: 'promissory-note-$reference.pdf', sections: const ['signature'], summary: false);
+
   /// A customer's statement: all their contracts and their account.
   DocumentRequest.customer(String id, String name)
       : this(path: '/customers/$id/statement.pdf', title: 'Statement', filename: 'statement-${_safe(name)}.pdf', period: DocumentPeriod.whole, filters: true);
@@ -184,6 +192,8 @@ class _DocumentOptionsSheetState extends ConsumerState<DocumentOptionsSheet> {
         'Receipt' => context.t('Receipt'),
         'Report' => context.t('Report'),
         'Payments report' => context.t('Payments report'),
+        'Contract' => context.t('Contract'),
+        'Promissory note' => context.t('Promissory note'),
         _ => context.t('Statement'),
       };
 

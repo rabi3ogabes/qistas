@@ -188,11 +188,13 @@ final class ContractController
 
         return [
             'guarantors' => $guarantors,
+            'customerSignature' => $contract->signature()->first(),
             'photos' => $photos,
             'photoLinks' => $photos->reject(fn (StoredFile $photo) => $photo->kind->audited())
                 ->mapWithKeys(fn (StoredFile $photo) => [$photo->id => $files->temporaryUrl($photo)])->all(),
             'paperwork' => [
-                'shown' => $on || $guarantors->isNotEmpty() || $photos->isNotEmpty(),
+                'shown' => $on || $guarantors->isNotEmpty() || $photos->isNotEmpty() || $contract->signature()->exists(),
+                'promissoryNote' => Entitlements::for($this->current->get())->check(Feature::PromissoryNote)->enabled() && Gate::allows('addPaperwork', $contract),
                 'canAdd' => $on && Gate::allows('addPaperwork', $contract),
                 'canRemove' => Gate::allows('removePaperwork', $contract),
                 'seesIds' => $role?->seesIdentities() ?? false,

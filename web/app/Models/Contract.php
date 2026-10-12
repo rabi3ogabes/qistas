@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -180,6 +181,14 @@ class Contract extends Model
         return $this->morphMany(StoredFile::class, 'subject')
             ->whereIn('kind', array_map(fn (FileKind $kind) => $kind->value, FileKind::CONTRACT_PHOTOS))
             ->orderBy('created_at')->orderBy('id');
+    }
+
+    /** @return HasOne<ContractSignature, $this> the customer's latest signature (Win Plan K5); earlier ones stay as history */
+    public function signature(): HasOne
+    {
+        // Newest first: eager loading keeps the first row for each contract. (latestOfMany would take MAX() of the uuid
+        // key to break ties, which PostgreSQL does not have.)
+        return $this->hasOne(ContractSignature::class)->orderByDesc('signed_at')->orderByDesc('created_at');
     }
 
     /** @return HasMany<Installment, $this> */

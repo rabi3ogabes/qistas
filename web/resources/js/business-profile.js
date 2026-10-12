@@ -1,5 +1,6 @@
-// The business profile page: a signature drawn with a finger, a pen or the mouse, sent as a transparent PNG, and a logo
-// that uploads as soon as it is chosen. Plain DOM code, no Alpine expressions (the site runs Alpine's CSP build).
+// A signature drawn with a finger, a pen or the mouse, sent as a transparent PNG (the business profile, a contract's
+// customer signature, the customer's own signing page), and a logo that uploads as soon as it is chosen. Plain DOM code,
+// no Alpine expressions (the site runs Alpine's CSP build).
 
 const INK = '#0B1F44';
 
@@ -32,6 +33,9 @@ function initPad(form) {
     };
 
     fit();
+    // A pad inside a closed <details> (a contract's "Sign on this screen") has no size until it is opened.
+    const details = form.closest('details');
+    details?.addEventListener('toggle', () => { if (details.open) fit(); });
     canvas.addEventListener('pointerdown', (event) => {
         drawing = true;
         canvas.setPointerCapture(event.pointerId);

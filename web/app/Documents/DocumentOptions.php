@@ -37,6 +37,7 @@ final class DocumentOptions
         public readonly ?string $product,
         public readonly array $wording,
         private readonly bool $seesMoney,
+        private readonly bool $seesIds,
         public readonly string $timezone,
     ) {}
 
@@ -69,6 +70,7 @@ final class DocumentOptions
             product: isset($input['product']) ? (string) $input['product'] : null,
             wording: $preferences->wording,
             seesMoney: $by?->roleIn($tenant->id)?->seesInvestors() ?? false,
+            seesIds: $by?->roleIn($tenant->id)?->seesIdentities() ?? false,
             timezone: $tenant->localTimezone(),
         );
     }
@@ -81,6 +83,12 @@ final class DocumentOptions
         }
 
         return $this->sections[$section] ?? false;
+    }
+
+    /** Whether ID numbers may be printed, masked (Win Plan K5): never for a collector or a viewer. */
+    public function seesIdentities(): bool
+    {
+        return $this->seesIds;
     }
 
     /** The workspace's own word for a term, else the usual one, in the language being written (call it while rendering). */
@@ -131,6 +139,7 @@ final class DocumentOptions
             'summary' => $this->summary, 'compact' => $this->compact, 'language' => $this->language,
             'from' => $this->from?->format('Y-m-d'), 'to' => $this->to?->format('Y-m-d'),
             'contract' => $this->contract, 'investor' => $this->investor, 'product' => $this->product, 'wording' => $this->wording,
+            'ids' => $this->seesIds,
         ];
     }
 }

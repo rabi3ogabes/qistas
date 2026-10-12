@@ -5,11 +5,15 @@ namespace App\Http\Controllers\Concerns;
 use App\Documents\DocumentOptions;
 use App\Documents\DocumentService;
 use App\Documents\Template;
+use App\Documents\Templates\ContractAgreement;
 use App\Documents\Templates\ContractStatement;
 use App\Documents\Templates\CustomerStatement;
 use App\Documents\Templates\InvestorReport;
+use App\Documents\Templates\PromissoryNote;
 use App\Documents\Templates\Receipt;
 use App\Documents\Templates\TransactionsReport;
+use App\Entitlements\Entitlements;
+use App\Entitlements\Feature;
 use App\Http\Requests\DocumentRequest;
 use App\Models\Contract;
 use App\Models\Customer;
@@ -37,6 +41,27 @@ trait SendsDocuments
         Gate::authorize('view', $contract);
 
         return $this->sendDocument(new ContractStatement($contract), $request);
+    }
+
+    /** The contract as it was agreed (Win Plan K5): anyone who sees the contract; ID numbers only for those who see them. */
+    public function contractAgreement(DocumentRequest $request, Contract $contract): Response
+    {
+        Gate::authorize('view', $contract);
+
+        return $this->sendDocument(new ContractAgreement($contract), $request);
+    }
+
+    /**
+     * A promissory note for what the customer owes (Win Plan K5): behind its own switch, which stays off until a lawyer
+     * approves the wording, and only for those who add paperwork.
+     */
+    public function promissoryNote(DocumentRequest $request, Contract $contract): Response
+    {
+        Gate::authorize('view', $contract);
+        Entitlements::for(app(CurrentTenant::class)->get() ?? abort(404))->assertEnabled(Feature::PromissoryNote);
+        Gate::authorize('addPaperwork', $contract);
+
+        return $this->sendDocument(new PromissoryNote($contract), $request);
     }
 
     /** Only money that came in has a receipt; a void is not one. */

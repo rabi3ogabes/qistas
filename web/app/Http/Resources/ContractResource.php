@@ -121,6 +121,7 @@ class ContractResource extends JsonResource
             'late_fees' => $this->whenLoaded('lateFees', fn () => LateFeeResource::collection($this->lateFees)),
             // Paperwork (Win Plan K5): the guarantors (ID numbers only for those who see them) and the photos this person may open.
             'guarantors' => $this->whenLoaded('guarantors', fn () => GuarantorResource::collection($this->guarantors)),
+            'signature' => $this->whenLoaded('signature', fn () => $this->signature === null ? null : new SignatureResource($this->signature)),
             'photos' => $this->whenLoaded('photos', function () use ($request) {
                 $role = $request->user()?->roleIn(app(CurrentTenant::class)->id() ?? '');
 

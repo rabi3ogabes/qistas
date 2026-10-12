@@ -219,6 +219,24 @@
     .verify-facts dt { color: var(--q-ink-muted); }
     .verify-facts dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; text-align: end; }
 
+    /* ---------- Signing a contract on one's own phone (Win Plan K5) ---------- */
+    /* Who is asking, the deal set like a receipt, then the pad: calm, one column, readable at arm's length. */
+    .sign-page {
+        max-width: 34rem; margin-inline: auto; padding: clamp(1.5rem, 4vw, 2.25rem); background: var(--q-surface);
+        border: 1px solid var(--q-line); border-radius: var(--q-r-lg, 1rem); box-shadow: 0 24px 48px -32px color-mix(in srgb, var(--q-ink) 35%, transparent);
+    }
+    .sign-page h1 { font-size: clamp(1.75rem, 4.5vw, 2.25rem); margin-bottom: .5rem; }
+    .sign-page h2 { margin-top: 1.75rem; }
+    .sign-shop { margin: 0 0 .75rem; font-weight: 600; color: var(--q-accent-text); }
+    .sign-facts, .sign-schedule { width: 100%; border-collapse: collapse; margin: 1.25rem 0 0; font-variant-numeric: tabular-nums; }
+    .sign-facts th, .sign-facts td, .sign-schedule th, .sign-schedule td { padding: .75rem 0; border-bottom: 1px solid var(--q-line); text-align: start; }
+    .sign-facts th { width: 42%; font-weight: 400; color: var(--q-ink-muted); }
+    .sign-facts td { text-align: end; overflow-wrap: anywhere; }
+    .sign-schedule th { font-size: .8125rem; font-weight: 600; color: var(--q-ink-muted); }
+    .sign-schedule .num { text-align: end; }
+    .sign-page .signature-pad canvas { height: 12rem; }
+    .sign-page form { margin-top: 1.25rem; }
+
     /* ---------- Error pages ---------- */
     .error-page { display: grid; place-items: center; min-height: 70svh; padding-block: 4rem; text-align: center; }
     .error-page .code { margin: 0; font-family: var(--q-font-display); font-size: clamp(5rem, 18vw, 9rem); font-weight: 600; line-height: 1; color: var(--q-accent-text); }

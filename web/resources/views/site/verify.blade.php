@@ -9,6 +9,8 @@
         'transactions_report' => __('Payments report'),
         'investor_report' => __('Investor report'),
         'receipt' => __('Receipt'),
+        'contract_agreement' => __('Instalment contract'),
+        'promissory_note' => __('Promissory note'),
     ];
 @endphp
 <x-layouts.site :title="__('Check a document')" :path="'/verify'" :index="false">

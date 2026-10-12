@@ -10,11 +10,13 @@
     <div class="container site-header-inner">
         <a class="site-brand" href="{{ route('home') }}" aria-label="{{ config('qistas.app_name') }}"><x-logo :height="30" /></a>
 
+        @unless ($focused ?? false)
         <nav class="site-nav" aria-label="{{ __('Main') }}">
             @foreach ($links as $link)
                 <a href="{{ $link['href'] }}" @if ($link['current']) aria-current="page" @endif>{{ $link['label'] }}</a>
             @endforeach
         </nav>
+        @endunless
 
         <div class="site-actions">
             <x-language-switcher />
@@ -23,6 +25,7 @@
                 <x-icon name="moon" class="i-moon" /><x-icon name="sun" class="i-sun" />
             </button>
 
+            @unless ($focused ?? false)
             @auth
                 <a class="btn btn-sm hide-xs" href="{{ url(config('fortify.home')) }}">{{ __('Open app') }}</a>
             @else
@@ -51,6 +54,7 @@
                     </button>
                 </div>
             </details>
+            @endunless
         </div>
     </div>
 </header>

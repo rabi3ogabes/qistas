@@ -9,7 +9,7 @@
 @endphp
 @if ($paperwork['shown'])
     <section class="card" aria-labelledby="paperwork-title">
-        <div class="card-head"><h2 id="paperwork-title">{{ __('Guarantors and photos') }}</h2></div>
+        <div class="card-head"><h2 id="paperwork-title">{{ __('Paperwork') }}</h2></div>
         <div class="card-pad stack paperwork">
             <div class="stack-sm">
                 <h3 class="paperwork-heading">{{ __('Guarantors') }}</h3>
@@ -128,6 +128,73 @@
                         <button class="btn btn-quiet btn-sm" type="submit"><x-icon name="upload" :size="16" /> {{ __('Keep the photo') }}</button>
                     </form>
                 @endif
+            </div>
+
+            <div class="stack-sm">
+                <h3 class="paperwork-heading">{{ __('The customer’s signature') }}</h3>
+                @if ($customerSignature)
+                    <figure class="signature-shown">
+                        <img src="{{ $customerSignature->dataUri() }}" alt="{{ __('The customer’s signature') }}">
+                        <figcaption class="field-hint">
+                            {{ $customerSignature->method === 'link'
+                                ? __('Signed on their own phone on :date', ['date' => \App\Support\Dates::day($customerSignature->signed_at)])
+                                : __('Signed in person on :date', ['date' => \App\Support\Dates::day($customerSignature->signed_at)]) }}
+                        </figcaption>
+                    </figure>
+                @else
+                    <p class="muted">{{ __('Not signed yet.') }}</p>
+                @endif
+
+                @if ($link = session('signatureLink'))
+                    @php
+                        $wa = \App\Reminders\WhatsApp::number((string) $contract->customer?->phone, (string) app(\App\Tenancy\CurrentTenant::class)->get()?->country);
+                        $message = __('Please read and sign your contract :reference here: :url', ['reference' => $contract->reference(), 'url' => $link['url']]);
+                        $codeMessage = __('Your code to sign contract :reference: :code', ['reference' => $contract->reference(), 'code' => $link['code']]);
+                    @endphp
+                    <div class="signing-link" role="status" data-code="{{ $link['code'] }}">
+                        <p><strong>{{ __('Send the link and the code apart') }}</strong></p>
+                        <p class="field-hint">{{ __('The link works once, for a day. Without the code it opens nothing, so a forwarded link signs nothing.') }}</p>
+                        <p class="signing-code money" dir="ltr">{{ $link['code'] }}</p>
+                        <p class="signing-url money" dir="ltr">{{ $link['url'] }}</p>
+                        <div class="row-actions">
+                            @if ($wa)
+                                <a class="btn btn-quiet btn-sm" href="https://wa.me/{{ $wa }}?text={{ rawurlencode($message) }}" target="_blank" rel="noopener"><x-icon name="message" :size="16" /> {{ __('Send the link on WhatsApp') }}</a>
+                            @endif
+                            <a class="btn btn-quiet btn-sm" href="sms:{{ $contract->customer?->phone }}?body={{ rawurlencode($codeMessage) }}"><x-icon name="send" :size="16" /> {{ __('Send the code by text message') }}</a>
+                        </div>
+                    </div>
+                @endif
+
+                @if ($paperwork['canAdd'])
+                    <details class="confirm" @if ($errors->getBag('signature')->any()) open @endif>
+                        <summary class="btn btn-quiet btn-sm"><x-icon name="pencil" :size="16" /> {{ $customerSignature ? __('Sign again') : __('Sign on this screen') }}</summary>
+                        <form method="POST" action="{{ route('app.contracts.signature.store', $contract) }}" class="signature-pad" data-signature-pad>
+                            @csrf
+                            <input type="hidden" name="drawing" value="">
+                            <canvas aria-label="{{ __('Sign here with your finger, a pen or the mouse') }}" role="img"></canvas>
+                            <p class="field-hint">{{ __('Hand the screen to the customer to sign here.') }}</p>
+                            @if ($errors->getBag('signature')->any())<p class="field-error" role="alert">{{ $errors->getBag('signature')->first() }}</p>@endif
+                            <div class="form-actions">
+                                <button class="btn btn-sm" type="submit" data-signature-save disabled>{{ __('Keep the signature') }}</button>
+                                <button class="btn btn-ghost btn-sm" type="button" data-signature-clear>{{ __('Start again') }}</button>
+                            </div>
+                        </form>
+                    </details>
+                    <form method="POST" action="{{ route('app.contracts.signature-link.store', $contract) }}">
+                        @csrf
+                        <button class="btn btn-quiet btn-sm" type="submit"><x-icon name="smartphone" :size="16" /> {{ __('Send a link to sign on their phone') }}</button>
+                    </form>
+                @endif
+            </div>
+
+            <div class="stack-sm">
+                <h3 class="paperwork-heading">{{ __('Documents') }}</h3>
+                <div class="row-actions">
+                    <x-document-menu id="contract-agreement" :action="route('app.contracts.agreement', $contract)" :label="__('Contract')" :sections="['signature']" :summary="false" />
+                    @if ($paperwork['promissoryNote'])
+                        <x-document-menu id="promissory-note" :action="route('app.contracts.promissory-note', $contract)" :label="__('Promissory note')" :sections="['signature']" :summary="false" />
+                    @endif
+                </div>
             </div>
         </div>
     </section>

@@ -422,6 +422,13 @@ class QistasApi {
 
   Future<void> removeContractPhoto(String contractId, String photoId) async => _client.delete('/contracts/$contractId/photos/$photoId');
 
+  /// The customer's signature drawn on this phone, as a PNG.
+  Future<void> signContract(String contractId, List<int> png) async =>
+      _client.upload('/contracts/$contractId/signature', field: 'file', bytes: png, filename: 'signature.png');
+
+  /// A link for the customer to sign on their own phone, and its code: shown once, to be sent apart.
+  Future<SigningLink> createSigningLink(String contractId) async => SigningLink.fromJson(_data(await _client.post('/contracts/$contractId/signature-links')));
+
   /// A link to one stored file that works for five minutes (opening an ID photo is audited by the server).
   Future<String> fileLink(String fileId) async => (_data(await _client.get('/files/$fileId'))['url'] ?? '').toString();
 

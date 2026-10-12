@@ -8,10 +8,15 @@ import '../../app/providers.dart';
 import '../../core/api/api_exception.dart';
 import '../../core/design/tokens.dart';
 import '../../core/design/widgets.dart';
+import '../../core/l10n/formats.dart';
 import '../../core/l10n/translations.dart';
 import '../../core/ui/errors.dart';
+import '../../data/appearance.dart' show openExternalProvider;
 import '../../data/models.dart';
 import '../../data/paperwork.dart';
+import '../documents/document_options_sheet.dart';
+import '../reminders/reminders.dart' show whatsappNumber;
+import '../settings/signature_pad.dart';
 import 'contracts_screen.dart';
 
 /// Takes a photo with the camera or picks one from the phone, drawn at most 1600 pixels on its longest side (the server
@@ -26,9 +31,11 @@ final photoPickerProvider = Provider<Future<({Uint8List bytes, String name})?> F
 /// How a photo's short-lived link becomes a picture. A provider, so tests show pictures without a network.
 final photoImageProvider = Provider<ImageProvider Function(String url)>((ref) => NetworkImage.new);
 
-/// The paperwork kept with a contract (Win Plan K5): up to three guarantors and photos of the ID, the signed contract and
-/// the invoice. Owners, managers and accountants add them while the switch is on; owners and managers remove them. An ID
-/// photo is never shown in the grid: it is opened one at a time, through its own link.
+/// The paperwork kept with a contract (Win Plan K5): up to three guarantors, photos of the ID, the signed contract and
+/// the invoice, the customer's signature and the contract and promissory-note PDFs. Owners, managers and accountants add
+/// them while the switch is on; owners and managers remove them. An ID photo is never shown in the grid: it is opened
+/// one at a time, through its own link. The customer signs on this phone, or on theirs through a link and a code that
+/// are sent apart.
 class PaperworkSection extends ConsumerWidget {
   const PaperworkSection({super.key, required this.contract});
 
@@ -36,7 +43,7 @@ class PaperworkSection extends ConsumerWidget {
 
   /// Shown while this person may add paperwork, and on any contract that has some.
   static bool shows(Account? account, Contract contract) =>
-      _canAdd(account) || contract.guarantors.isNotEmpty || contract.photos.isNotEmpty;
+      _canAdd(account) || contract.guarantors.isNotEmpty || contract.photos.isNotEmpty || contract.signature != null;
 
   static bool _canAdd(Account? account) => account != null && account.keepsPaperwork && account.seesIdentities;
 
@@ -51,7 +58,7 @@ class PaperworkSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        QSectionTitle(context.t('Guarantors and photos')),
+        QSectionTitle(context.t('Paperwork')),
         QCard(
           padding: EdgeInsets.zero,
           child: Column(
@@ -121,10 +128,97 @@ class PaperworkSection extends ConsumerWidget {
                     ),
                   ),
                 ),
+              const Divider(height: 1),
+              _Heading(context.t('The customer’s signature')),
+              _SignatureShown(signature: contract.signature),
+              if (canAdd)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      QButton(
+                        label: context.t('Sign on this phone'),
+                        icon: Icons.draw_outlined,
+                        kind: QButtonKind.quiet,
+                        expand: false,
+                        onPressed: () => _signHere(context, ref),
+                      ),
+                      QButton(
+                        label: context.t('Send a link to sign on their phone'),
+                        icon: Icons.send_to_mobile_outlined,
+                        kind: QButtonKind.quiet,
+                        expand: false,
+                        onPressed: () => _sendSigningLink(context, ref, account!),
+                      ),
+                    ],
+                  ),
+                ),
+              const Divider(height: 1),
+              _Heading(context.t('Documents')),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    QButton(
+                      label: context.t('Contract'),
+                      icon: Icons.description_outlined,
+                      kind: QButtonKind.quiet,
+                      expand: false,
+                      onPressed: () => showDocumentSheet(context, DocumentRequest.agreement(contract.id, contract.reference)),
+                    ),
+                    if (account != null && account.printsPromissoryNotes && account.seesIdentities)
+                      QButton(
+                        label: context.t('Promissory note'),
+                        icon: Icons.request_quote_outlined,
+                        kind: QButtonKind.quiet,
+                        expand: false,
+                        onPressed: () => showDocumentSheet(context, DocumentRequest.promissoryNote(contract.id, contract.reference)),
+                      ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
       ],
+    );
+  }
+
+  Future<void> _signHere(BuildContext context, WidgetRef ref) async {
+    final signed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      enableDrag: false,
+      builder: (_) => _SignSheet(contractId: contract.id),
+    );
+    if (signed != true || !context.mounted) return;
+
+    ref.invalidate(contractProvider(contract.id));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.t('Signature kept with the contract.'))));
+  }
+
+  Future<void> _sendSigningLink(BuildContext context, WidgetRef ref, Account account) async {
+    SigningLink link;
+    try {
+      link = await ref.read(apiProvider).createSigningLink(contract.id);
+    } on ApiException catch (e) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMessage(context, e))));
+      return;
+    }
+    if (!context.mounted) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (_) => _SigningLinkSheet(link: link, reference: contract.reference, country: account.country),
     );
   }
 
@@ -573,6 +667,192 @@ class _PhotoViewerState extends ConsumerState<_PhotoViewer> {
             errorBuilder: (_, _, _) => Text(context.t('This photo could not be opened. Try again.'), style: const TextStyle(color: Colors.white70)),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The customer's signature, with when and how it was given; or that there is none yet.
+class _SignatureShown extends ConsumerWidget {
+  const _SignatureShown({required this.signature});
+
+  final ContractSignature? signature;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = context.qc;
+    final text = Theme.of(context).textTheme;
+    final shown = signature;
+    if (shown == null) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        child: Text(context.t('Not signed yet.'), style: text.bodyMedium?.copyWith(color: c.inkMuted)),
+      );
+    }
+
+    final language = ref.watch(localeProvider);
+    final day = formatDay(isoDay(shown.signedAt), language);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (shown.png.isNotEmpty)
+            Container(
+              constraints: const BoxConstraints(maxWidth: 280, maxHeight: 96),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(QistasMetrics.radiusMd), border: Border.all(color: c.line)),
+              child: Image.memory(shown.png, fit: BoxFit.contain, semanticLabel: context.t('The customer’s signature')),
+            ),
+          const SizedBox(height: 6),
+          Text(
+            shown.throughLink ? context.t('Signed on their own phone on :date', {'date': day}) : context.t('Signed in person on :date', {'date': day}),
+            style: text.bodySmall?.copyWith(color: c.inkMuted),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The customer signs on this phone, handed to them. Answers true once the signature is kept.
+class _SignSheet extends ConsumerStatefulWidget {
+  const _SignSheet({required this.contractId});
+
+  final String contractId;
+
+  @override
+  ConsumerState<_SignSheet> createState() => _SignSheetState();
+}
+
+class _SignSheetState extends ConsumerState<_SignSheet> {
+  final _pad = SignaturePadController();
+  bool _saving = false;
+  String? _problem;
+
+  @override
+  void initState() {
+    super.initState();
+    _pad.addListener(_redraw);
+  }
+
+  void _redraw() => setState(() {});
+
+  @override
+  void dispose() {
+    _pad
+      ..removeListener(_redraw)
+      ..dispose();
+    super.dispose();
+  }
+
+  Future<void> _keep() async {
+    setState(() {
+      _saving = true;
+      _problem = null;
+    });
+    final png = await _pad.toPng();
+    if (png == null) {
+      if (mounted) setState(() => _saving = false);
+      return;
+    }
+    try {
+      await ref.read(apiProvider).signContract(widget.contractId, png);
+      if (mounted) Navigator.of(context).pop(true);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _problem = e.fields['file']?.firstOrNull ?? errorMessage(context, e);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.qc;
+    final text = Theme.of(context).textTheme;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(context.t('The customer’s signature'), style: text.titleLarge),
+          const SizedBox(height: 4),
+          Text(context.t('Hand the screen to the customer to sign here.'), style: text.bodyMedium?.copyWith(color: c.inkMuted)),
+          const SizedBox(height: 16),
+          if (_problem != null) ...[QNotice(_problem!, icon: Icons.error_outline), const SizedBox(height: 12)],
+          SignaturePad(controller: _pad, height: 200),
+          const SizedBox(height: 16),
+          QButton(label: context.t('Keep the signature'), icon: Icons.check, loading: _saving, onPressed: _pad.isEmpty ? null : _keep),
+          const SizedBox(height: 8),
+          QButton(label: context.t('Start again'), kind: QButtonKind.text, onPressed: _saving || _pad.isEmpty ? null : _pad.clear),
+        ],
+      ),
+    );
+  }
+}
+
+/// The link and its code, once: the link goes by WhatsApp and the code by text message, so a forwarded link alone signs
+/// nothing.
+class _SigningLinkSheet extends ConsumerWidget {
+  const _SigningLinkSheet({required this.link, required this.reference, required this.country});
+
+  final SigningLink link;
+  final String reference;
+  final String country;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = context.qc;
+    final text = Theme.of(context).textTheme;
+    final open = ref.read(openExternalProvider);
+    final phone = link.phone ?? '';
+    final whatsapp = whatsappNumber(phone, country);
+    final message = context.t('Please read and sign your contract :reference here: :url', {'reference': reference, 'url': link.url});
+    final codeMessage = context.t('Your code to sign contract :reference: :code', {'reference': reference, 'code': link.code});
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(context.t('Send the link and the code apart'), style: text.titleLarge),
+          const SizedBox(height: 4),
+          Text(context.t('The link works once, for a day. Without the code it opens nothing, so a forwarded link signs nothing.'), style: text.bodyMedium?.copyWith(color: c.inkMuted)),
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+            decoration: BoxDecoration(color: c.accent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(QistasMetrics.radiusMd)),
+            child: Column(
+              children: [
+                Text(context.t('Code'), style: text.labelMedium?.copyWith(color: c.inkMuted)),
+                const SizedBox(height: 4),
+                Directionality(
+                  textDirection: TextDirection.ltr,
+                  child: Text(link.code, style: text.headlineMedium?.copyWith(fontWeight: FontWeight.w700, letterSpacing: 6)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          if (whatsapp != null) ...[
+            QButton(
+              label: context.t('Send the link on WhatsApp'),
+              icon: Icons.chat_outlined,
+              onPressed: () => open(Uri.https('wa.me', '/$whatsapp', {'text': message})),
+            ),
+            const SizedBox(height: 10),
+          ],
+          QButton(
+            label: context.t('Send the code by text message'),
+            icon: Icons.sms_outlined,
+            kind: QButtonKind.quiet,
+            onPressed: () => open(Uri(scheme: 'sms', path: phone, queryParameters: {'body': codeMessage})),
+          ),
+        ],
       ),
     );
   }

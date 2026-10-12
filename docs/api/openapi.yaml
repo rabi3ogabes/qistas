@@ -960,6 +960,112 @@ paths:
         "401": {$ref: "#/components/responses/Unauthenticated"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
+  /contracts/{contract}/signature:
+    post:
+      tags: [Paperwork]
+      summary: The customer signs on this phone (Win Plan K5)
+      description: |
+        A PNG of the signature drawn on the screen (multipart `file`, at most 1 MB). It is drawn again by the server and
+        kept with the contract; a new signature takes the place of the one before, which stays as history. Owners,
+        managers and accountants, with the guarantors feature on. The latest signature is `signature` on the contract.
+      parameters:
+        - {name: contract, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: {type: object, required: [file], properties: {file: {type: string, format: binary}}}
+      responses:
+        "201":
+          description: The signature.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/ContractSignature"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+  /contracts/{contract}/signature-links:
+    post:
+      tags: [Paperwork]
+      summary: A link for the customer to sign on their own phone
+      description: |
+        The link works once, for 24 hours, and only with the six-digit `code`, which is to be sent apart (the link by
+        WhatsApp, the code by text message), so a forwarded link alone signs nothing. Five wrong codes close it. The link
+        and the code are in this answer only: just their hashes are kept. A new link closes the one before. Owners,
+        managers and accountants, with the guarantors feature on.
+      parameters:
+        - {name: contract, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "201":
+          description: The link and its code.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      url: {type: string, format: uri}
+                      code: {type: string, example: "482913"}
+                      expires_at: {type: string, format: date-time}
+                      phone: {type: [string, "null"], description: The customer's phone, to send them both.}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+  /contracts/{contract}/agreement.pdf:
+    get:
+      tags: [Documents]
+      summary: The contract as agreed (Win Plan K5)
+      description: |
+        The parties and the guarantors (ID numbers masked, and left out for collectors and viewers), what was sold, the
+        price and the plan, the schedule and the customer's signature. Counts against the plan's documents like any other.
+      parameters:
+        - {name: contract, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: "#/components/parameters/DocumentPaper"}
+        - {$ref: "#/components/parameters/DocumentText"}
+        - {$ref: "#/components/parameters/DocumentSections"}
+        - {$ref: "#/components/parameters/DocumentCompact"}
+        - {$ref: "#/components/parameters/DocumentLanguage"}
+      responses:
+        "200":
+          description: The PDF. `X-Document-Code` carries the code its QR code opens at `/verify/{code}`.
+          headers:
+            X-Document-Code: {schema: {type: string}, description: The verification code printed on the document.}
+          content: {application/pdf: {schema: {type: string, format: binary}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "402": {$ref: "#/components/responses/PlanLimit"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+  /contracts/{contract}/promissory-note.pdf:
+    get:
+      tags: [Documents]
+      summary: A promissory note for what is still owed (Win Plan K5)
+      description: |
+        What is still owed on the instalments, in figures and in words, payable on the last instalment's due date, to the
+        order of the shop, with the guarantors and the customer's signature. Behind the promissory_note feature (403
+        `feature_unavailable`), which stays off until a lawyer approves the wording. Owners, managers and accountants.
+      parameters:
+        - {name: contract, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: "#/components/parameters/DocumentPaper"}
+        - {$ref: "#/components/parameters/DocumentText"}
+        - {$ref: "#/components/parameters/DocumentSections"}
+        - {$ref: "#/components/parameters/DocumentCompact"}
+        - {$ref: "#/components/parameters/DocumentLanguage"}
+      responses:
+        "200":
+          description: The PDF. `X-Document-Code` carries the code its QR code opens at `/verify/{code}`.
+          headers:
+            X-Document-Code: {schema: {type: string}, description: The verification code printed on the document.}
+          content: {application/pdf: {schema: {type: string, format: binary}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "402": {$ref: "#/components/responses/PlanLimit"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+        "429": {$ref: "#/components/responses/RateLimited"}
   /files/{file}:
     get:
       tags: [Paperwork]
@@ -3153,6 +3259,11 @@ components:
         late_fees: {type: array, description: Single contract only. Every late fee charged, oldest first., items: {$ref: "#/components/schemas/LateFee"}}
         guarantors: {type: array, description: Single contract only. Up to three, in the order they were added (Win Plan K5)., items: {$ref: "#/components/schemas/Guarantor"}}
         photos: {type: array, description: Single contract only. The photos this person may open, oldest first; ID photos are left out for collectors and viewers., items: {$ref: "#/components/schemas/ContractPhoto"}}
+        signature:
+          description: Single contract only. The customer's latest signature, or null.
+          oneOf:
+            - {$ref: "#/components/schemas/ContractSignature"}
+            - {type: "null"}
         installments: {type: array, items: {$ref: "#/components/schemas/Installment"}}
         transactions: {type: array, items: {$ref: "#/components/schemas/Transaction"}}
     CashForecast:
@@ -3234,6 +3345,14 @@ components:
         phone: {type: string, example: "0501234567", description: 6 to 15 digits with the usual separators and an optional +.}
         relation: {type: [string, "null"], maxLength: 60}
         national_id: {type: [string, "null"], maxLength: 40}
+    ContractSignature:
+      type: object
+      description: The customer's signature on a contract (Win Plan K5).
+      properties:
+        name: {type: string, description: The customer's name when they signed.}
+        method: {type: string, enum: [screen, link], description: On the owner's screen, or through a link on their own phone.}
+        signed_at: {type: string, format: date-time}
+        image: {type: string, example: "data:image/png;base64,iVBORw0KGgo...", description: The signature as a PNG data URI.}
     ContractPhoto:
       type: object
       description: A photo kept with a contract (Win Plan K5).

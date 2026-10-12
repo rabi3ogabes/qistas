@@ -197,6 +197,9 @@ class Account {
   /// Guarantors and photos can be added: only when the server says the switch is on (an older server never lists it).
   bool get keepsPaperwork => entitlements['guarantors']?.isOn ?? false;
 
+  /// Promissory notes are offered: only once the server says that switch is on (it waits for a lawyer).
+  bool get printsPromissoryNotes => entitlements['promissory_note']?.isOn ?? false;
+
   Map<String, dynamic> toJson() => {
         'user': {'id': userId, 'name': name, 'email': email, 'email_verified': emailVerified, 'locale': locale, 'two_factor': twoFactor},
         'tenant': {'id': tenantId, 'name': businessName, 'country': country, 'currency': currency, 'role': role, 'is_test': isTest, 'is_demo': isDemo, 'require_app_lock': requireAppLock, 'deletion_scheduled_for': deletionScheduledFor},
@@ -404,6 +407,7 @@ class Contract {
     this.lateFees = const [],
     this.guarantors = const [],
     this.photos = const [],
+    this.signature,
   });
 
   factory Contract.fromJson(Map<String, dynamic> json) {
@@ -448,6 +452,7 @@ class Contract {
       lateFees: _list(json['late_fees']).map(LateFee.fromJson).toList(),
       guarantors: _list(json['guarantors']).map(Guarantor.fromJson).toList(),
       photos: _list(json['photos']).map(ContractPhoto.fromJson).toList(),
+      signature: ContractSignature.fromJson(json['signature']),
       notes: _text(json['notes']),
       customerId: _text(customer['id']),
       customerName: _text(customer['name']),
@@ -534,6 +539,9 @@ class Contract {
 
   /// The photos this person may open, oldest first (Win Plan K5).
   final List<ContractPhoto> photos;
+
+  /// The customer's latest signature, if they signed (Win Plan K5).
+  final ContractSignature? signature;
 
   /// What its open late fees still owe (part of [owed]).
   Money get lateFeesOwed => lateFees.fold(Money.zero, (Money sum, fee) => fee.isOpen ? sum + fee.remaining : sum);

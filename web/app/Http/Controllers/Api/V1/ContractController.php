@@ -251,7 +251,7 @@ final class ContractController
         $after = $contract->isOpen() ? OpenAccount::runningBalances($contract) : [];
         LedgerLines::withReversals($lines)->each(fn (Transaction $line) => $line->setAttribute('balance_after', $after[$line->id] ?? null));
 
-        $contract->load(['customer', 'investor', 'items', 'adjustments', 'amendments.approvedBy', 'lateFees.installment', 'lateFees.waivedBy', 'guarantors', 'photos']);
+        $contract->load(['customer', 'investor', 'items', 'adjustments', 'amendments.approvedBy', 'lateFees.installment', 'lateFees.waivedBy', 'guarantors', 'photos', 'signature']);
         $this->attachProgress(collect([$contract]));
         $contract->setAttribute('paid', $installments->reduce(fn (string $carry, Installment $i) => Money::add($carry, $i->paid_amount), '0'));
         $contract->setRelation('installments', $installments);

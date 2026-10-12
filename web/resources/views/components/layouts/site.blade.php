@@ -1,4 +1,5 @@
-@props(['title', 'description' => null, 'path' => '/', 'index' => true])
+{{-- `focused`: a page for someone who is not choosing Qistas (a shop's customer signing): no offers, no sign-up. --}}
+@props(['title', 'description' => null, 'path' => '/', 'index' => true, 'focused' => false])
 @php
     $description ??= __('Qistas keeps your customers, contracts and payments in order. Free to start, in Arabic and English.');
     $canonical = url($path);
@@ -41,8 +42,8 @@
     <x-demo-banner />
     <x-logo-defs />
     <a class="sr-only" href="#main">{{ __('Skip to content') }}</a>
-    @include('site.partials.header')
-    <x-welcome-banner surface="website" />
+    @include('site.partials.header', ['focused' => $focused])
+    @unless ($focused)<x-welcome-banner surface="website" />@endunless
     <main id="main">{{ $slot }}</main>
     @include('site.partials.footer')
 </body>

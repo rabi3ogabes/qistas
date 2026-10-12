@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\V1\ReleaseNoteController;
 use App\Http\Controllers\Api\V1\ReminderController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\SchedulePreviewController;
+use App\Http\Controllers\Api\V1\SignatureController;
 use App\Http\Controllers\Api\V1\SupportController;
 use App\Http\Controllers\Api\V1\TagController;
 use App\Http\Controllers\Api\V1\TeamController;
@@ -107,6 +108,8 @@ Route::name('api.')->group(function (): void {
         Route::middleware('throttle:documents')->group(function (): void {
             Route::get('customers/{customer}/statement.pdf', [DocumentController::class, 'customerStatement'])->whereUuid('customer')->name('customers.statement');
             Route::get('contracts/{contract}/statement.pdf', [DocumentController::class, 'contractStatement'])->whereUuid('contract')->name('contracts.statement');
+            Route::get('contracts/{contract}/agreement.pdf', [DocumentController::class, 'contractAgreement'])->whereUuid('contract')->name('contracts.agreement');
+            Route::get('contracts/{contract}/promissory-note.pdf', [DocumentController::class, 'promissoryNote'])->whereUuid('contract')->name('contracts.promissory-note');
             Route::get('payments/{transaction}/receipt.pdf', [DocumentController::class, 'receipt'])->whereUuid('transaction')->name('payments.receipt');
             Route::get('reports/transactions.pdf', [DocumentController::class, 'transactions'])->name('reports.transactions');
             Route::get('investors/{investor}/report.pdf', [DocumentController::class, 'investorReport'])->whereUuid('investor')->name('investors.report');
@@ -172,6 +175,9 @@ Route::name('api.')->group(function (): void {
         Route::post('contracts/{contract}/photos', [ContractPhotoController::class, 'store'])->whereUuid('contract')->middleware('throttle:documents')->name('contracts.photos.store');
         Route::delete('contracts/{contract}/photos/{photo}', [ContractPhotoController::class, 'destroy'])->whereUuid(['contract', 'photo'])->name('contracts.photos.destroy');
         Route::get('files/{file}', [FileController::class, 'show'])->whereUuid('file')->name('files.show');
+        // The customer's signature (Win Plan K5): drawn on this phone, or a link with a code for theirs.
+        Route::post('contracts/{contract}/signature', [SignatureController::class, 'store'])->whereUuid('contract')->middleware('throttle:documents')->name('contracts.signature.store');
+        Route::post('contracts/{contract}/signature-links', [SignatureController::class, 'link'])->whereUuid('contract')->middleware('throttle:documents')->name('contracts.signature-links.store');
 
         // Making and revoking API access tokens needs a signed-in device (an "app" token), not another API token.
         Route::middleware('abilities:app')->group(function (): void {

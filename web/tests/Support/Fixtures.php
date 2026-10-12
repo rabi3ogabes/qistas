@@ -73,3 +73,16 @@ function upload(string $bytes, string $name): UploadedFile
 
     return new UploadedFile($path, $name, null, null, true);
 }
+
+/** A drawn signature as the pad sends it: a transparent PNG with a stroke. */
+function drawnSignature(): string
+{
+    $image = imagecreatetruecolor(300, 100);
+    imagesavealpha($image, true);
+    imagefill($image, 0, 0, imagecolorallocatealpha($image, 0, 0, 0, 127));
+    imageline($image, 10, 80, 290, 20, imagecolorallocate($image, 11, 31, 68));
+    ob_start();
+    imagepng($image);
+
+    return (string) ob_get_clean();
+}
