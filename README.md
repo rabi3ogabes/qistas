@@ -61,7 +61,7 @@ brand/        index.html (brand system) · intro/ · theme-studio/ · landing/ �
 supabase/     migrations/ · seed/ (generated from the theme seed)
 docs/         THEME_ENGINE.md (algorithm, API contract, guard-rails) · DEPLOYMENT.md (Vercel runbook)
 scripts/      serve-vercel.cjs · smoke.cjs · check-links.cjs · verify-local.cjs · validate-assets.py
-.github/      workflows: ci.yml (every push/PR) · post-deploy.yml (smoke test of production)
+.github/      workflows: ci.yml (every push/PR) · deploy.yml (deploys production when web/ changes) · post-deploy.yml (smoke test of production)
 ```
 
 ## Develop

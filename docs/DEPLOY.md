@@ -35,7 +35,11 @@ This setup uses a throw-away database password and a published demo login. **Nev
 ## Option B: online, with Vercel and Supabase
 
 Vercel runs the container; Supabase keeps the data. The repository's `vercel.json` already tells Vercel to build the
-app in `web/` as a container, so **every push to `main` redeploys the live site** (https://qistas-puce.vercel.app/).
+app in `web/` as a container. Vercel's own deploy on every push is switched off (`"git": {"deploymentEnabled": false}`):
+the **Deploy** workflow (`.github/workflows/deploy.yml`) redeploys the live site (https://qistas-puce.vercel.app/)
+whenever a push to `main` changes `web/`, `vercel.json` or `.vercelignore`, by calling a Vercel Deploy Hook. It needs
+the repository secret `VERCEL_DEPLOY_HOOK` (Vercel project → Settings → Git → Deploy Hooks, branch `main`). To redeploy
+without a change, run the workflow by hand (Actions → Deploy → Run workflow).
 
 ### Step 0: it works at once, as a demo
 

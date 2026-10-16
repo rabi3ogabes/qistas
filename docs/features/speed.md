@@ -52,31 +52,23 @@ Each live query costs 5 to 8 ms (a trip from Vercel to Supabase's pooler), so th
 60 fewer queries is roughly 0.3 to 0.5 s less per page. Nobody signs in to the live site for measurements, so that
 figure is worked out, not measured.
 
-Every push to main builds and stores a new image, phone-app and documentation commits too, so the registry fills up
-again over time. **Vercel does not skip builds for this project**, from either place it offers:
+## Deploying only when the server changes (17 October 2026)
 
-- An `ignoreCommand` in vercel.json (bb7fee9) made Vercel refuse the commit outright with this project's container
-  services, so it was taken out again.
-- The owner saved the rule in the dashboard (project → Settings → Git → Ignored Build Step, 16 October 2026). The
-  documentation-only pushes 8a7ba5d and 21cec23 both still built a full image, and their build logs go straight from
-  the clone to the build: the step never runs.
+Every push used to build and store a new server image, phone-app, documentation and Dependabot commits too (each
+weekly Dependabot pull request built a preview image of its own), so Vercel's image registry filled up and real
+deploys failed. Vercel's way of skipping builds does not work for this project's container service:
 
-The registry is therefore cleared by hand when a deploy fails on it (see below). The setting can stay; it does nothing
-here. If Vercel starts running it for container services, it already holds the right command.
+- an `ignoreCommand` in vercel.json (bb7fee9) made Vercel refuse the commit outright;
+- the dashboard's Ignored Build Step never runs: with it saved, the documentation-only pushes 8a7ba5d and 21cec23 still
+  built full images, and their logs go straight from the clone to the build.
 
-The command compares with the last deployed commit, not the one before: a single push can carry several commits, and
-Vercel builds only the last. With `HEAD^`, a web change followed by a documentation commit in the same push would be
-skipped and never go live:
+So Vercel no longer deploys by itself (`"git": {"deploymentEnabled": false}` in vercel.json, every branch), and the
+**Deploy** workflow (`.github/workflows/deploy.yml`) calls a Vercel Deploy Hook for `main` when a push changes `web/`,
+`vercel.json` or `.vercelignore`. GitHub checks those paths across every commit of a push, so a web change followed by a
+documentation commit in the same push still deploys. The hook's URL is the repository secret `VERCEL_DEPLOY_HOOK`;
+without it the workflow fails red instead of skipping quietly. Pull requests get no preview deployment any more.
 
-```sh
-git diff --quiet "${VERCEL_GIT_PREVIOUS_SHA:-HEAD^}" HEAD -- web/ vercel.json || exit 1
-```
-
-`VERCEL_GIT_PREVIOUS_SHA` is the last successfully deployed commit (Vercel sets it only for this step; a skipped push
-is not a successful deployment, so by that definition it does not move it). Vercel documents two answers: 0 skips, 1 builds. If the last deployed commit is missing from
-Vercel's shallow clone, `git diff` fails with 128, and `|| exit 1` turns that into "build", so a mistake is always a
-build too many, never one too few. Checked on this repository: nothing changed since the last deploy → 0; a web change
-since → 1; an unknown commit → 1.
+The Ignored Build Step setting in the dashboard does nothing now and can be cleared.
 
 ## Moved to Mumbai (16 October 2026, c885bfc)
 
