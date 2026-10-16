@@ -8,17 +8,24 @@ use Illuminate\Support\Facades\Cache;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * One press, one save. resources/js/forms.js gives every web form a one-time "_once" token when it is sent; a second
- * request with the same token from the same person (a double click, a second tap while a slow page loads, a browser
- * retrying) is not run again: it waits for the first to finish and gets the first answer, so nothing is saved twice.
+ * One press, one save. A second request with the same one-time token from the same person (a double click, a second tap
+ * while a slow page loads, a retry after a time-out) is not run again: it waits for the first to finish and gets the
+ * first answer, so nothing is saved twice.
  *
- * Only signed-in people's changes are guarded (a sign-in or sign-up changes the session itself, so a repeat could not
- * be answered with the first's result; the form's own lock covers those). A first press that came back with mistakes
- * to fix is let go, so the same form can be sent again once they are fixed.
+ * - On the web, resources/js/forms.js gives every form a "_once" token when it is sent (web group, every change). A
+ *   first press that came back with mistakes to fix is let go, so the same form can be sent again once they are fixed.
+ * - In the app, an "add" (customers, contracts, products, tags...: routes given the `once` middleware) may carry an
+ *   Idempotency-Key header; a repeat gets the first successful answer again, marked Idempotent-Replayed. An answer
+ *   that was not a success lets the key go.
+ *
+ * Only signed-in people's requests are guarded (a sign-in or sign-up changes the session itself, so a repeat could not
+ * be answered with the first's result; the form's own lock covers those).
  */
 final class PreventDuplicateSubmissions
 {
     public const FIELD = '_once';
+
+    public const HEADER = 'Idempotency-Key';
 
     /** How long a press is remembered, and how long a repeat waits for the first to finish. */
     private const REMEMBER_SECONDS = 600;
@@ -27,21 +34,22 @@ final class PreventDuplicateSubmissions
 
     public function handle(Request $request, Closure $next): Response
     {
-        $token = $request->input(self::FIELD);
+        $api = $request->is('api/*');
+        $token = $api ? $request->header(self::HEADER) : $request->input(self::FIELD);
         $user = $request->user();
 
-        if ($request->isMethodSafe() || $user === null || ! is_string($token) || preg_match('/^[A-Za-z0-9-]{16,64}$/', $token) !== 1) {
+        if ($request->isMethodSafe() || $user === null || ! is_string($token) || preg_match('/^[A-Za-z0-9._:-]{16,100}$/', $token) !== 1) {
             return $next($request);
         }
 
-        $key = 'once:'.hash('sha256', $user->getAuthIdentifier().'|'.$token);
+        $key = 'once:'.($api ? 'api' : 'web').':'.hash('sha256', $user->getAuthIdentifier().'|'.$token);
 
         if (! Cache::add($key, ['to' => null], self::REMEMBER_SECONDS)) {
-            $answer = $this->firstAnswer($key, $request);
+            $answer = $this->firstAnswer($key, $request, $api);
             if ($answer !== null) {
                 return $answer;
             }
-            // The first press came back with mistakes and was let go: this one runs as a new press.
+            // The first came back with mistakes and was let go: this one runs as a new press.
             Cache::add($key, ['to' => null], self::REMEMBER_SECONDS);
         }
 
@@ -54,10 +62,12 @@ final class PreventDuplicateSubmissions
         }
 
         $location = $response->headers->get('Location');
-        if ($response->isRedirection() && is_string($location) && ! $request->session()->has('errors')) {
+        if ($api && $response->isSuccessful()) {
+            Cache::put($key, ['status' => $response->getStatusCode(), 'body' => (string) $response->getContent()], self::REMEMBER_SECONDS);
+        } elseif (! $api && $response->isRedirection() && is_string($location) && ! $request->session()->has('errors')) {
             Cache::put($key, ['to' => $location], self::REMEMBER_SECONDS);
         } else {
-            // Mistakes to fix, a download, a page: nothing was saved that a repeat could duplicate.
+            // Mistakes to fix, a refusal, a download, a page: nothing was saved that a repeat could duplicate.
             Cache::forget($key);
         }
 
@@ -65,7 +75,7 @@ final class PreventDuplicateSubmissions
     }
 
     /** Waits for the first press to finish, then answers as it did; null when it was let go. */
-    private function firstAnswer(string $key, Request $request): ?Response
+    private function firstAnswer(string $key, Request $request, bool $api): ?Response
     {
         $until = microtime(true) + self::WAIT_SECONDS;
 
@@ -74,7 +84,10 @@ final class PreventDuplicateSubmissions
             if ($first === null) {
                 return null;
             }
-            if (is_array($first) && is_string($first['to'] ?? null)) {
+            if ($api && is_array($first) && isset($first['status'])) {
+                return response((string) $first['body'], (int) $first['status'], ['Content-Type' => 'application/json', 'Idempotent-Replayed' => 'true']);
+            }
+            if (! $api && is_array($first) && is_string($first['to'] ?? null)) {
                 // The first press may have left a message for the next page (its "saved" note): read the session again
                 // so this answer keeps it instead of writing the older copy back over it.
                 $request->session()->start();
@@ -82,6 +95,8 @@ final class PreventDuplicateSubmissions
                 return redirect()->to($first['to']);
             }
             if (microtime(true) >= $until) {
+                abort_if($api, 409, __('This is still being saved. Please wait a moment.'));
+
                 return redirect()->back();
             }
             usleep(200_000);

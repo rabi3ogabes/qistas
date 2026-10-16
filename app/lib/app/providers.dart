@@ -192,6 +192,14 @@ class AuthController extends AsyncNotifier<AuthState> {
     }
   }
 
+  /// The account as a change to it came back (the profile saved, a photo added): kept and shown at once.
+  Future<void> accountChanged(Account account) async {
+    final current = state.valueOrNull;
+    if (current == null || !current.isSignedIn) return;
+    await _remember(account);
+    state = AsyncData(AuthState.signedIn(account));
+  }
+
   Future<void> signOut() async {
     await _stopPushes();
     try {

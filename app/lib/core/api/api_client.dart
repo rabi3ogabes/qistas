@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -77,8 +78,38 @@ class ApiClient {
     throw ApiException(status: status, code: (error['code'] ?? 'http_$status').toString(), message: (error['message'] ?? 'Something went wrong').toString());
   }
 
-  Future<Map<String, dynamic>> post(String path, {Object? body, Map<String, String>? headers, Map<String, dynamic>? query}) =>
-      _send('POST', path, body: body, headers: headers, query: query);
+  /// Sends [body] to [path]. Every add carries an Idempotency-Key: the same add sent again before it was answered (a
+  /// second tap, a retry after a dropped connection or a time-out) carries the same key, so the server saves it once.
+  /// Once it is answered, success or a refusal, the next add is a new one. A caller that keeps its own key (a payment)
+  /// passes it in [headers].
+  Future<Map<String, dynamic>> post(String path, {Object? body, Map<String, String>? headers, Map<String, dynamic>? query}) async {
+    if (body == null || (headers?.containsKey('Idempotency-Key') ?? false)) {
+      return _send('POST', path, body: body, headers: headers, query: query);
+    }
+
+    final now = DateTime.now();
+    _unanswered.removeWhere((_, sent) => now.difference(sent.at) > const Duration(minutes: 10));
+    final signature = '$path?${jsonEncode(query)} ${jsonEncode(body)}';
+    final key = (_unanswered[signature] ??= (key: _newKey(), at: now)).key;
+
+    try {
+      final answer = await _send('POST', path, body: body, headers: {...?headers, 'Idempotency-Key': key}, query: query);
+      _unanswered.remove(signature);
+
+      return answer;
+    } on ApiException catch (e) {
+      // No answer, or one that says the first is still being saved: the same add may come again with the same key.
+      if (!e.isNetwork && e.status < 500 && e.status != 409) _unanswered.remove(signature);
+      rethrow;
+    }
+  }
+
+  /// The adds sent and not yet answered, by what they send, with the key each went with.
+  final Map<String, ({String key, DateTime at})> _unanswered = {};
+
+  final _random = Random.secure();
+
+  String _newKey() => 'app-${List<int>.generate(12, (_) => _random.nextInt(256)).map((b) => b.toRadixString(16).padLeft(2, '0')).join()}';
 
   Future<Map<String, dynamic>> put(String path, {Object? body}) => _send('PUT', path, body: body);
 

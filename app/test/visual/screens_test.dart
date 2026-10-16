@@ -111,6 +111,23 @@ void main() {
     await snapshot(tester, 'open-account-ar');
   });
 
+  Map<String, dynamic> withProfile(String language) {
+    final account = accountJson();
+    account['user'] = {...Map<String, dynamic>.from(account['user'] as Map), 'phone': '+966501234567', 'member_since': '2026-10-08', 'locale': language};
+
+    return account;
+  }
+
+  for (final language in ['en', 'ar']) {
+    picture('your profile, $language', (tester) async {
+      await pumpApp(tester, workspaceServer(account: withProfile(language)), realFonts: true, size: const Size(390, 1900), language: language);
+      await openSettings(tester);
+      await tester.tap(find.byKey(const ValueKey('settings-profile')));
+      await settle(tester);
+      await snapshot(tester, 'profile-$language');
+    });
+  }
+
   picture('sign-in', (tester) async {
     await pumpApp(tester, workspaceServer(routes: {'GET /demo': always(json(200, {'data': demoOfferJson()}))}), signedIn: false, realFonts: true);
     await snapshot(tester, 'login');

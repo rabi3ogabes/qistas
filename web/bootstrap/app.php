@@ -68,6 +68,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'abilities' => CheckAbilities::class,
             // A business being deleted is read-only for everyone in it until it is erased or restored.
             'deleting' => ReadOnlyWhileDeleting::class,
+            // An add from the app carrying an Idempotency-Key is saved once however often it arrives.
+            'once' => PreventDuplicateSubmissions::class,
         ]);
 
         // Everything under /admin: signed-in, not suspended, platform admin (else 404), second factor confirmed.

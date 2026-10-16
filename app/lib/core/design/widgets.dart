@@ -450,15 +450,24 @@ class QSectionTitle extends StatelessWidget {
   final Widget? trailing;
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(top: 28, bottom: 12),
-        child: Row(
-          children: [
-            Expanded(child: Text(title, style: Theme.of(context).textTheme.titleLarge, semanticsLabel: title, maxLines: 2, overflow: TextOverflow.ellipsis)),
-            ?trailing,
-          ],
-        ),
-      );
+  Widget build(BuildContext context) {
+    final heading = Text(title, style: Theme.of(context).textTheme.titleLarge, semanticsLabel: title, maxLines: 2, overflow: TextOverflow.ellipsis);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 28, bottom: 12),
+      // The action sits at the end of the title's line while both fit; on a narrow phone or with large text it moves
+      // under the title instead of running off the screen.
+      child: trailing == null
+          ? heading
+          : OverflowBar(
+              alignment: MainAxisAlignment.spaceBetween,
+              overflowAlignment: OverflowBarAlignment.start,
+              overflowSpacing: 4,
+              spacing: 12,
+              children: [heading, trailing!],
+            ),
+    );
+  }
 }
 
 /// A label and its value, for the facts of a record.

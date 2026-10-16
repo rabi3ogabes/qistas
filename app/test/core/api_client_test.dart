@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qistas/core/api/api_client.dart';
 import 'package:qistas/core/api/api_exception.dart';
@@ -44,6 +45,50 @@ void main() {
       expect(adapter.lastBody, {'amount': '10.00', 'method': 'cash'});
       expect(adapter.last.headers['Idempotency-Key'], 'k-1');
       expect(adapter.last.headers['Content-Type'], 'application/json');
+    });
+
+    test('sends an add again after a dropped connection with the same Idempotency-Key, so the server saves it once', () async {
+      var calls = 0;
+      final adapter = FakeAdapter((options) {
+        calls++;
+        if (calls == 1) throw DioException.connectionError(requestOptions: options, reason: 'timed out');
+
+        return json(201, {'data': <String, dynamic>{}});
+      });
+      final client = clientFor(adapter);
+      final customer = {'name': 'Huda', 'phone': '+966551112201'};
+
+      await expectLater(client.post('/customers', body: customer), throwsA(isA<ApiException>()));
+      final firstKey = adapter.last.headers['Idempotency-Key'];
+      await client.post('/customers', body: customer);
+
+      expect(firstKey, isA<String>());
+      expect(adapter.last.headers['Idempotency-Key'], firstKey);
+    });
+
+    test('gives a new add its own key once the last one was answered, and a different add its own', () async {
+      final adapter = FakeAdapter((_) => json(201, {'data': <String, dynamic>{}}));
+      final client = clientFor(adapter);
+
+      await client.post('/customers', body: {'name': 'Huda'});
+      final first = adapter.last.headers['Idempotency-Key'];
+      await client.post('/customers', body: {'name': 'Huda'});
+      final second = adapter.last.headers['Idempotency-Key'];
+      await client.post('/customers', body: {'name': 'Rana'});
+
+      expect({first, second, adapter.last.headers['Idempotency-Key']}, hasLength(3));
+    });
+
+    test('lets an add that came back with mistakes go: fixed and sent again it is a new add', () async {
+      var calls = 0;
+      final adapter = FakeAdapter((_) => ++calls == 1 ? apiError(422, 'validation_failed', 'Not valid.') : json(201, {'data': <String, dynamic>{}}));
+      final client = clientFor(adapter);
+
+      await expectLater(client.post('/customers', body: {'name': ''}), throwsA(isA<ApiException>()));
+      final first = adapter.last.headers['Idempotency-Key'];
+      await client.post('/customers', body: {'name': ''});
+
+      expect(adapter.last.headers['Idempotency-Key'], isNot(first));
     });
 
     test('puts query parameters in the address', () async {

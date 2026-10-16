@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 
 import '../core/money.dart';
@@ -88,6 +90,9 @@ class Account {
     required this.emailVerified,
     required this.locale,
     required this.twoFactor,
+    this.phone,
+    this.photo,
+    this.memberSince,
     required this.tenantId,
     required this.businessName,
     required this.country,
@@ -115,6 +120,9 @@ class Account {
       emailVerified: user['email_verified'] == true,
       locale: (user['locale'] ?? 'en').toString(),
       twoFactor: user['two_factor'] == true,
+      phone: _text(user['phone']),
+      photo: _text(user['photo']),
+      memberSince: _text(user['member_since']),
       tenantId: tenant['id'].toString(),
       businessName: (tenant['name'] ?? '').toString(),
       country: (tenant['country'] ?? '').toString(),
@@ -139,6 +147,28 @@ class Account {
   final bool emailVerified;
   final String locale;
   final bool twoFactor;
+
+  /// The person's own phone, set on their profile; null when not given.
+  final String? phone;
+
+  /// The profile photo as a data URI (data:image/jpeg;base64,...); null without one.
+  final String? photo;
+
+  /// When the person joined, YYYY-MM-DD.
+  final String? memberSince;
+
+  /// The photo's picture, ready to draw; null without one or when it cannot be read.
+  Uint8List? get photoBytes {
+    final uri = photo;
+    final comma = uri?.indexOf(',') ?? -1;
+    if (uri == null || !uri.startsWith('data:image/') || comma < 0) return null;
+    try {
+      return base64Decode(uri.substring(comma + 1));
+    } on FormatException {
+      return null;
+    }
+  }
+
   final String tenantId;
   final String businessName;
   final String country;
@@ -204,8 +234,14 @@ class Account {
   bool get canImport => (role == 'owner' || role == 'manager') && (entitlements['import']?.isOn ?? false);
 
   Map<String, dynamic> toJson() => {
-        'user': {'id': userId, 'name': name, 'email': email, 'email_verified': emailVerified, 'locale': locale, 'two_factor': twoFactor},
-        'tenant': {'id': tenantId, 'name': businessName, 'country': country, 'currency': currency, 'role': role, 'is_test': isTest, 'is_demo': isDemo, 'require_app_lock': requireAppLock, 'deletion_scheduled_for': deletionScheduledFor},
+        'user': {
+          'id': userId, 'name': name, 'email': email, 'email_verified': emailVerified, 'locale': locale, 'two_factor': twoFactor,
+          'phone': phone, 'photo': photo, 'member_since': memberSince,
+        },
+        'tenant': {
+          'id': tenantId, 'name': businessName, 'country': country, 'currency': currency, 'role': role, 'is_test': isTest, 'is_demo': isDemo,
+          'require_app_lock': requireAppLock, 'hijri_dates': hijriDates, 'deletion_scheduled_for': deletionScheduledFor,
+        },
         'plan': {'key': planKey, 'name': planName},
         'entitlements': {for (final e in entitlements.entries) e.key: e.value.toJson()},
       };

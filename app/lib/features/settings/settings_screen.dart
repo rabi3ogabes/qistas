@@ -21,6 +21,7 @@ import '../investors/investors_screen.dart';
 import '../notifications/alerts.dart';
 import '../products/products_screen.dart';
 import '../security/app_lock.dart';
+import 'profile_screen.dart';
 import 'tools_screen.dart';
 
 /// Settings, in the order a person looks for things: who they are, their plan, how the app looks and speaks, their
@@ -240,25 +241,12 @@ class _ProfileHeader extends StatelessWidget {
     final c = context.qc;
     final text = Theme.of(context).textTheme;
 
-    return HeroPanel(
+    // The whole card opens your profile, where all of it can be changed.
+    final header = HeroPanel(
       padding: const EdgeInsets.all(20),
       child: Row(
         children: [
-          Container(
-            width: 64,
-            height: 64,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [c.heroTo, c.heroFrom]),
-              border: Border.all(color: c.accent, width: 2),
-            ),
-            child: Text(
-              InitialsAvatar.initials(account.name),
-              textScaler: TextScaler.noScaling,
-              style: text.titleLarge?.copyWith(color: c.onPrimary, fontWeight: FontWeight.w700, height: 1),
-            ),
-          ),
+          ProfileAvatar(account: account),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
@@ -281,6 +269,7 @@ class _ProfileHeader extends StatelessWidget {
                     SoftChip(_role(context), background: c.onPrimary.withValues(alpha: 0.12), foreground: c.onPrimary),
                     SoftChip(account.currency, background: c.onPrimary.withValues(alpha: 0.12), foreground: c.onPrimary),
                     if (account.isTest) QBadge(context.t('Test workspace'), tone: QTone.info),
+                    SoftChip(context.t('Edit profile'), icon: Icons.edit_outlined, background: c.accent, foreground: c.onAccent),
                   ],
                 ),
               ],
@@ -288,6 +277,12 @@ class _ProfileHeader extends StatelessWidget {
           ),
         ],
       ),
+    );
+
+    return Semantics(
+      button: true,
+      label: context.t('Your profile'),
+      child: GestureDetector(key: const ValueKey('settings-profile'), behavior: HitTestBehavior.opaque, onTap: () => context.push('/profile'), child: header),
     );
   }
 }

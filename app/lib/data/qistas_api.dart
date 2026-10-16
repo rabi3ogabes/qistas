@@ -93,6 +93,20 @@ class QistasApi {
 
   Future<Account> me() async => Account.fromJson(_data(await _client.get('/me')));
 
+  /// Your own details. An empty [phone] clears it; a new [email] is verified again. Answers with the account.
+  Future<Account> updateProfile({required String name, required String email, required String phone, required String locale}) async =>
+      Account.fromJson(_data(await _client.put('/me', body: {'name': name.trim(), 'email': email.trim(), 'phone': phone.trim(), 'locale': locale})));
+
+  /// Your password, with the current one.
+  Future<void> changePassword({required String current, required String password, required String confirmation}) async =>
+      _client.put('/me/password', body: {'current_password': current, 'password': password, 'password_confirmation': confirmation});
+
+  /// Your profile photo; the server draws it again and keeps it small. Answers with the account.
+  Future<Account> uploadProfilePhoto(List<int> bytes, String filename) async =>
+      Account.fromJson(_data(await _client.upload('/me/photo', field: 'photo', bytes: bytes, filename: filename)));
+
+  Future<Account> removeProfilePhoto() async => Account.fromJson(_data(await _client.delete('/me/photo')));
+
   Future<void> logout() async => _client.post('/auth/logout');
 
   Future<void> logoutEverywhere() async => _client.post('/auth/logout-all');

@@ -74,7 +74,7 @@ Route::name('api.')->group(function (): void {
         // Help inside the app (Win Plan PP17): how to reach the team, the person's questions with the replies, and what's new.
         Route::get('support', [SupportController::class, 'info'])->name('support.info');
         Route::get('support/tickets', [SupportController::class, 'index'])->name('support.tickets.index');
-        Route::post('support/tickets', [SupportController::class, 'store'])->middleware('throttle:10,60')->name('support.tickets.store');
+        Route::post('support/tickets', [SupportController::class, 'store'])->middleware(['throttle:10,60', 'once'])->name('support.tickets.store');
         Route::get('release-notes', ReleaseNoteController::class)->name('release-notes');
         Route::get('dashboard', DashboardController::class)->name('dashboard');
 
@@ -89,7 +89,7 @@ Route::name('api.')->group(function (): void {
         // The team (Win Plan PP11): who is in the business, invitations by link, roles, removing people.
         Route::middleware('feature:members')->group(function (): void {
             Route::get('team', [TeamController::class, 'index'])->name('team.index');
-            Route::post('team/invitations', [TeamController::class, 'invite'])->middleware('throttle:api-money')->name('team.invitations.store');
+            Route::post('team/invitations', [TeamController::class, 'invite'])->middleware(['throttle:api-money', 'once'])->name('team.invitations.store');
             Route::delete('team/invitations/{invitation}', [TeamController::class, 'revoke'])->whereUuid('invitation')->name('team.invitations.destroy');
             Route::put('team/members/{member}', [TeamController::class, 'update'])->whereUuid('member')->name('team.members.update');
             Route::delete('team/members/{member}', [TeamController::class, 'remove'])->whereUuid('member')->name('team.members.destroy');
@@ -100,15 +100,15 @@ Route::name('api.')->group(function (): void {
         Route::get('investors', [InvestorController::class, 'index'])->name('investors.index');
         Route::get('investors/{investor}', [InvestorController::class, 'show'])->whereUuid('investor')->name('investors.show');
         Route::middleware('throttle:api-money')->group(function (): void {
-            Route::post('investors', [InvestorController::class, 'store'])->name('investors.store');
+            Route::post('investors', [InvestorController::class, 'store'])->middleware('once')->name('investors.store');
             Route::put('investors/{investor}', [InvestorController::class, 'update'])->whereUuid('investor')->name('investors.update');
-            Route::post('investors/{investor}/entries', [InvestorController::class, 'storeEntry'])->whereUuid('investor')->name('investors.entries.store');
+            Route::post('investors/{investor}/entries', [InvestorController::class, 'storeEntry'])->whereUuid('investor')->middleware('once')->name('investors.entries.store');
             Route::post('investor-entries/{entry}/reverse', [InvestorController::class, 'reverse'])->whereUuid('entry')->name('investor-entries.reverse');
         });
 
         // The products list to pick from when opening a contract (Win Plan PP7).
         Route::get('products', [ProductController::class, 'index'])->name('products.index');
-        Route::post('products', [ProductController::class, 'store'])->name('products.store');
+        Route::post('products', [ProductController::class, 'store'])->middleware('once')->name('products.store');
         Route::put('products/{product}', [ProductController::class, 'update'])->whereUuid('product')->name('products.update');
 
         // Statements, reports and receipts as PDF files, and who they come from (Win Plan PP8).
@@ -134,12 +134,12 @@ Route::name('api.')->group(function (): void {
         Route::get('settings/documents', [BusinessProfileController::class, 'preferences'])->name('settings.documents.show');
         Route::put('settings/documents', [BusinessProfileController::class, 'updatePreferences'])->name('settings.documents.update');
 
-        Route::apiResource('customers', CustomerController::class);
+        Route::apiResource('customers', CustomerController::class)->middleware('once');
         // Lists that stay short (Win Plan PP12): pins, tags, archived contracts.
         Route::post('customers/{customer}/pin', [CustomerController::class, 'pin'])->whereUuid('customer')->name('customers.pin');
         Route::delete('customers/{customer}/pin', [CustomerController::class, 'unpin'])->whereUuid('customer')->name('customers.unpin');
         Route::get('tags', [TagController::class, 'index'])->name('tags.index');
-        Route::post('tags', [TagController::class, 'store'])->name('tags.store');
+        Route::post('tags', [TagController::class, 'store'])->middleware('once')->name('tags.store');
         Route::put('tags/{tag}', [TagController::class, 'update'])->whereUuid('tag')->name('tags.update');
         Route::delete('tags/{tag}', [TagController::class, 'destroy'])->whereUuid('tag')->name('tags.destroy');
         Route::post('contracts/{contract}/archive', [ContractController::class, 'archive'])->whereUuid('contract')->name('contracts.archive');
@@ -154,11 +154,11 @@ Route::name('api.')->group(function (): void {
         Route::get('contracts/{contract}/early-settlement', [ContractController::class, 'earlySettlement'])->whereUuid('contract')->name('contracts.early-settlement.show');
         Route::post('contracts/{contract}/early-settlement', [ContractController::class, 'settleEarly'])->whereUuid('contract')->middleware('throttle:api-money')->name('contracts.early-settlement.store');
         Route::post('contracts/{contract}/amendments/preview', [ContractController::class, 'previewAmendment'])->whereUuid('contract')->name('contracts.amendments.preview');
-        Route::post('contracts/{contract}/amendments', [ContractController::class, 'amend'])->whereUuid('contract')->name('contracts.amendments.store');
+        Route::post('contracts/{contract}/amendments', [ContractController::class, 'amend'])->whereUuid('contract')->middleware('once')->name('contracts.amendments.store');
         Route::post('customers/{customer}/payments', CustomerPaymentController::class)->whereUuid('customer')->middleware('throttle:api-money')->name('customers.payments.store');
 
         Route::post('contracts/preview', SchedulePreviewController::class)->name('contracts.preview');
-        Route::apiResource('contracts', ContractController::class)->only(['index', 'store', 'show']);
+        Route::apiResource('contracts', ContractController::class)->only(['index', 'store', 'show'])->middleware('once');
         Route::post('contracts/{contract}/cancel', [ContractController::class, 'cancel'])->name('contracts.cancel');
         // Open contracts (Win Plan PP4): "they took" lines, and turning a scheduled or cash contract into an open one.
         Route::post('contracts/{contract}/charges', [ContractController::class, 'charge'])->middleware('throttle:api-money')->name('contracts.charges.store');
@@ -176,7 +176,7 @@ Route::name('api.')->group(function (): void {
         Route::get('reports/profit', [ReportController::class, 'profit'])->name('reports.profit');
         Route::post('late-fees/{fee}/waive', [LateFeeController::class, 'waive'])->whereUuid('fee')->middleware('throttle:api-money')->name('late-fees.waive');
         // Paperwork (Win Plan K5): guarantors and photos, listed with the contract; one stored file's five-minute link.
-        Route::post('contracts/{contract}/guarantors', [GuarantorController::class, 'store'])->whereUuid('contract')->name('contracts.guarantors.store');
+        Route::post('contracts/{contract}/guarantors', [GuarantorController::class, 'store'])->whereUuid('contract')->middleware('once')->name('contracts.guarantors.store');
         Route::put('guarantors/{guarantor}', [GuarantorController::class, 'update'])->whereUuid('guarantor')->name('guarantors.update');
         Route::delete('guarantors/{guarantor}', [GuarantorController::class, 'destroy'])->whereUuid('guarantor')->name('guarantors.destroy');
         Route::post('contracts/{contract}/photos', [ContractPhotoController::class, 'store'])->whereUuid('contract')->middleware('throttle:documents')->name('contracts.photos.store');

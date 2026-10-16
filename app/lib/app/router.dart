@@ -37,6 +37,7 @@ import '../features/settings/backups_screen.dart';
 import '../features/settings/business_profile_screen.dart';
 import '../features/settings/delete_account_screen.dart';
 import '../features/settings/devices_screen.dart';
+import '../features/settings/profile_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/settings/tools_screen.dart';
 import '../features/team/team_screen.dart';
@@ -94,6 +95,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/delete-account', builder: (_, _) => const DeleteAccountScreen()),
       GoRoute(path: '/team', builder: (_, _) => const TeamScreen()),
       GoRoute(path: '/devices', builder: (_, _) => const DevicesScreen()),
+      GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),
       GoRoute(path: '/products', builder: (_, _) => const ProductsScreen()),
       GoRoute(path: '/settings/business', builder: (_, _) => const BusinessProfileScreen()),
       GoRoute(path: '/settings/backups', builder: (_, _) => const BackupsScreen()),

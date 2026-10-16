@@ -31,6 +31,13 @@ info:
     * **Retrying a payment.** `POST /contracts/{id}/payments` accepts an `Idempotency-Key` header (1 to 100 characters
       from `A-Z a-z 0-9 _ . : -`). Repeating a request with the same key and the same content records one payment and
       answers with it (200 instead of 201). The same key with different content is a `validation_failed`.
+    * **Adding once.** Every other add (`POST /customers`, `/contracts`, `/products`, `/tags`, `/investors`,
+      `/investors/{id}/entries`, `/contracts/{id}/guarantors`, `/contracts/{id}/amendments`, `/support/tickets`,
+      `/team/invitations`, and changes to customers) also takes an `Idempotency-Key` (16 to 100 of the same characters).
+      A request repeated with the same key by the same person while the first is in flight, or within ten minutes of
+      a success, is not run again: it answers with the first answer and the header `Idempotent-Replayed: true`. An
+      answer that was not a success (a 422, a 402) lets the key go, so the corrected request can use it. A repeat that
+      arrives while the first is still running after 15 seconds answers 409 (`http_409`): try again in a moment.
     * **Another workspace's records are never found**: they answer 404, not 403.
     * Lists are paginated: `?page=` and `?per_page=` (1 to 100, default 20); the reply has `data`, `links` and `meta`.
 servers:

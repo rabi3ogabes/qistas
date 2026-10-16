@@ -30,6 +30,22 @@ application and web version".
   runs twice. A first press that came back with mistakes, a download or a page is let go, so the same form can be sent
   again. Sign-in and sign-up are guarded by the browser lock only (they change the session itself).
 
+## In the app
+
+- **Adds sent once.** The forms already ignored a second tap while saving. Now every add the app posts carries an
+  `Idempotency-Key` (`ApiClient.post`): the same add sent again before it was answered (a second tap, a retry after
+  a dropped connection or a time-out) carries the same key, so the server saves it once; once answered (success or a
+  refusal) the next add is new. The server side is the `once` middleware on the API's add routes (see
+  `docs/api/openapi.yaml`, "Adding once"); a repeat is answered with the first answer and `Idempotent-Replayed: true`.
+- **Layout sweep** (`test/visual/layout_sweep_test.dart`): 25 screens on a small phone (320 × 640), a phone with
+  large text (360 × 780 at 1.3) and a tablet (800 × 1280), in English, Arabic, French and Urdu; any overflow fails
+  with the screen and the line of code. It found one: a section heading's action ran off a phone with large text
+  (customer page); `QSectionTitle` now moves the action under the heading when both do not fit.
+- **Your profile** (`/profile`, opened from the card at the top of Settings, which now shows the photo and "Edit
+  profile"): photo (camera or photos, or remove), name, e-mail (hint: verified again), phone, language (switches the
+  app at once once saved), password (current, new, confirm; shown or hidden together). Server mistakes show under
+  their field. App 1.26.0+29.
+
 ## Your profile
 
 - **Web:** `/app/profile`, first in the account menu (and in "More" on a phone). Photo (JPEG, PNG or WebP up to 8 MB,
@@ -48,7 +64,9 @@ application and web version".
 
 - Tests: `tests/Feature/App/{DuplicateSubmissionTest,ValidationMessagesTest,FieldComponentTest}.php`,
   `tests/Feature/Account/ProfileTest.php`, `tests/Feature/Entitlements/QuietRefusalsTest.php`, additions to
-  `CustomerListsTest` and `TenantSettingsTest`. 30 of 30 deliberate breaks caught.
+  `CustomerListsTest` and `TenantSettingsTest`. 30 of 30 deliberate breaks caught on the web, then 5 of 5 for the
+  app's `Idempotency-Key` guard; in the app `test/core/api_client_test.dart`, `test/features/profile_test.dart` and
+  the layout sweep, 16 of 16.
 - The migration runs on PostgreSQL (PGlite) as well as SQLite.
 - A browser run on the local site: adding a customer works, a double click makes one customer, the contract form's
   mistakes read "The customer field is required." and "The price field is required."
