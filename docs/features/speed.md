@@ -60,7 +60,8 @@ image.
 
 Compare with the last deployed commit, not the one before: a single push can carry several commits, and Vercel builds
 only the last. With `HEAD^`, a web change followed by a documentation commit in the same push would be skipped and never
-go live. The safe command:
+go live. The owner saved this safer command in place of the first one (16 October 2026; a first try was not saved, and
+the docs-only push 8a7ba5d still built an image):
 
 ```sh
 git diff --quiet "${VERCEL_GIT_PREVIOUS_SHA:-HEAD^}" HEAD -- web/ vercel.json || exit 1
