@@ -9,6 +9,7 @@ use App\Http\Middleware\ForceJsonResponse;
 use App\Http\Middleware\PreventDuplicateSubmissions;
 use App\Http\Middleware\ReadOnlyWhileDeleting;
 use App\Http\Middleware\RequireTwoFactorForAdmins;
+use App\Http\Middleware\ServerTiming;
 use App\Http\Middleware\SetApiLocale;
 use App\Http\Middleware\SetCurrentTenant;
 use App\Http\Middleware\SetLocale;
@@ -52,6 +53,9 @@ return Application::configure(basePath: dirname(__DIR__))
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // How long the server and the database took, on every answer (measured where the site runs).
+        $middleware->prepend(ServerTiming::class);
+
         // After the session starts, so a remembered or saved language can be read.
         $middleware->web(append: [SetLocale::class, PreventDuplicateSubmissions::class]);
 
