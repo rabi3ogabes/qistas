@@ -15,8 +15,12 @@ use App\Http\Controllers\SiteController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\StatusController;
 use App\Http\Controllers\ThemeCssController;
+use App\Http\Middleware\PreventDuplicateSubmissions;
 use App\Site\SitePages;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 // The public website (Sprint 2, D10): every page at its plain address, where the reader's own choice sets the language,
 // and again under each language's path (/ar/pricing), which always reads in that language. See App\Site\SitePages.
@@ -52,16 +56,19 @@ Route::get('/invite/{token}', [InvitationController::class, 'show'])->where('tok
 Route::post('/invite/{token}/accept', [InvitationController::class, 'accept'])->where('token', '[A-Za-z0-9]{20,100}')->middleware(['auth', 'account.active', 'throttle:10,1'])->name('invitation.accept');
 Route::post('/invite/{token}/register', [InvitationController::class, 'register'])->where('token', '[A-Za-z0-9]{20,100}')->middleware(['guest', 'throttle:10,1'])->name('invitation.register');
 
-Route::get('/sitemap.xml', SitemapController::class)->name('sitemap');
-Route::get('/robots.txt', RobotsController::class)->name('robots');
+// Files that are the same for every visitor: no session, so no cookie, and the CDN near the visitor keeps them.
+Route::withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, PreventRequestForgery::class, PreventDuplicateSubmissions::class])
+    ->group(function (): void {
+        Route::get('/sitemap.xml', SitemapController::class)->name('sitemap');
+        Route::get('/robots.txt', RobotsController::class)->name('robots');
+        // The colours chosen in the admin, as CSS variables (linked by every page of the website and the web app).
+        Route::get('/theme.css', ThemeCssController::class)->name('theme.css');
+        // A brand picture chosen in the admin: its address never changes, so it can be cached for good.
+        Route::get('/brand-assets/{asset}', BrandAssetController::class)->whereUuid('asset')->name('brand.asset');
+    });
 // The web app, installable from the browser (Win Plan PL04).
 Route::get('/manifest.webmanifest', ManifestController::class)->name('manifest');
 
-// The colours chosen in the admin, as CSS variables (linked by every page of the website and the web app).
-Route::get('/theme.css', ThemeCssController::class)->name('theme.css');
-
-// A brand picture chosen in the admin: its address never changes, so it can be cached for good.
-Route::get('/brand-assets/{asset}', BrandAssetController::class)->whereUuid('asset')->name('brand.asset');
 Route::post('/schedule-preview', SchedulePreviewController::class)->middleware('throttle:schedule-preview')->name('schedule.preview');
 
 // "Try the demo" (off unless config qistas.demo_login.enabled): a throw-away account per press, rate limited.

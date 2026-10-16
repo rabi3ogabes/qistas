@@ -12,6 +12,8 @@ final class SitemapController
     {
         return response()
             ->view('site.sitemap', ['pages' => SitePages::LISTED, 'locales' => config('qistas.locales')])
-            ->header('Content-Type', 'application/xml; charset=UTF-8');
+            ->header('Content-Type', 'application/xml; charset=UTF-8')
+            // The same for everyone and changed only by a release: kept for an hour by browsers and the CDN.
+            ->header('Cache-Control', 'public, max-age=3600');
     }
 }

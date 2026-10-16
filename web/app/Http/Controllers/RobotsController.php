@@ -13,6 +13,7 @@ final class RobotsController
     {
         $lines = ['User-agent: *', ...array_map(fn (string $path) => "Disallow: {$path}", self::PRIVATE_PATHS), '', 'Sitemap: '.url('/sitemap.xml'), ''];
 
-        return response(implode("\n", $lines), 200, ['Content-Type' => 'text/plain; charset=UTF-8']);
+        // The same for everyone and changed only by a release: kept for an hour by browsers and the CDN.
+        return response(implode("\n", $lines), 200, ['Content-Type' => 'text/plain; charset=UTF-8', 'Cache-Control' => 'public, max-age=3600']);
     }
 }

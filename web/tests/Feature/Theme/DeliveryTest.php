@@ -79,6 +79,13 @@ describe('the stylesheet', function () {
             ->and($this->get('/theme.css?v=7')->headers->get('Cache-Control'))->not->toContain('immutable');
     });
 
+    it('carries no sign-in cookie, so the network’s edge near the visitor keeps a copy and every page loads it from there', function () {
+        $response = $this->get('/theme.css?v=1')->assertOk();
+
+        expect($response->headers->getCookies())->toBe([])
+            ->and($response->headers->get('Cache-Control'))->toContain('public');
+    });
+
     it('is linked, after the site’s own styles, by the website, the sign-in pages and the web app, and not by the admin console', function () {
         publishLook($this->admin, ['colours' => ['primary' => '#0F5132']]);
         [$owner] = owner();

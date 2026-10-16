@@ -69,7 +69,9 @@ final class SetLocale
 
     private function remember(Request $request, string $locale): void
     {
-        $request->session()->put('locale', $locale);
+        if ($request->hasSession()) {
+            $request->session()->put('locale', $locale);
+        }
         Cookie::queue(self::COOKIE, $locale, 60 * 24 * 365);
 
         $user = $request->user();
@@ -87,7 +89,8 @@ final class SetLocale
 
     private function fromSession(Request $request): ?string
     {
-        $locale = $request->session()->get('locale');
+        // A file that is the same for everyone (a stylesheet, robots.txt) is answered without a session.
+        $locale = $request->hasSession() ? $request->session()->get('locale') : null;
 
         return Locale::isSupported($locale) ? $locale : null;
     }

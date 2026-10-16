@@ -16,6 +16,9 @@ use Illuminate\Support\Facades\DB;
  */
 final class SecureDatabaseCommand extends Command
 {
+    /** Raise it whenever these rules change, so every deployed copy applies them again (see SetupCommand). */
+    public const VERSION = '1';
+
     /** Roles Supabase's data API connects as. */
     private const API_ROLES = ['anon', 'authenticated'];
 

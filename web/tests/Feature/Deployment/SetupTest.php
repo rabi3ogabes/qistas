@@ -1,5 +1,9 @@
 <?php
 
+use App\Console\Commands\SetupCommand;
+use App\Entitlements\Feature;
+use App\Models\PlatformFeature;
+use App\Models\PlatformSetting;
 use App\Models\User;
 use Database\Seeders\DemoSeeder;
 use Illuminate\Http\Middleware\TrustProxies;
@@ -37,6 +41,26 @@ describe('the database set-up command', function () {
         $this->artisan('qistas:setup', ['--demo' => true])->assertSuccessful();
 
         expect(User::where('email', DemoSeeder::EMAIL)->count())->toBe(1);
+    });
+
+    it('starts fast: a release that already set the database up does nothing again, a new release does it all', function () {
+        $switch = fn () => PlatformFeature::query()->whereKey(Feature::AiReading->value)->exists();
+
+        $this->artisan('qistas:setup')->assertSuccessful();
+        PlatformFeature::query()->whereKey(Feature::AiReading->value)->delete();
+
+        // The same release starting another copy: one look at the fingerprint, nothing more.
+        $this->artisan('qistas:setup')->expectsOutputToContain('already set up')->assertSuccessful();
+        expect($switch())->toBeFalse();
+
+        // Asked to, or for a release with other migrations or features, everything runs.
+        $this->artisan('qistas:setup', ['--force' => true])->assertSuccessful();
+        expect($switch())->toBeTrue();
+
+        PlatformFeature::query()->whereKey(Feature::AiReading->value)->delete();
+        PlatformSetting::query()->whereKey(SetupCommand::FINGERPRINT)->update(['value' => 'an older release']);
+        $this->artisan('qistas:setup')->assertSuccessful();
+        expect($switch())->toBeTrue();
     });
 
     it('creates no demo data unless asked', function () {

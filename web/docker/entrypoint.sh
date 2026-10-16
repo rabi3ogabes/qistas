@@ -58,7 +58,11 @@ if [ "${DB_CONNECTION:-pgsql}" = "pgsql" ] && [ -z "${DB_URL:-}" ] && [ -z "${DB
     exit 1
 fi
 
-# --- Schema. Safe when several copies start at once: the command takes a database lock and retries.
+# --- Speed: the settings are read once here, now that the environment is known, instead of on every request.
+php artisan config:cache --no-interaction > /dev/null || echo "Qistas: the settings could not be cached; continuing without." >&2
+
+# --- Schema. Safe when several copies start at once: the command takes a database lock and retries. A copy of a
+# --- release that already set the database up only reads a fingerprint (see SetupCommand), so it starts fast.
 if [ "${AUTO_MIGRATE:-false}" = "true" ]; then
     # DEMO_DATA=true (docker compose) also creates a demo workspace to look around in. Never set it on a real site.
     DEMO_FLAG=""

@@ -24,6 +24,10 @@
 	@hashed path /build/assets/*
 	header @hashed Cache-Control "public, max-age=31536000, immutable"
 
+	# The brand's icons and pictures change only with a release: kept a day by browsers and the CDN near the visitor.
+	@brand path /brand/* /favicon.ico
+	header @brand Cache-Control "public, max-age=86400"
+
 	# Never serve dot-files or anything outside public/.
 	@hidden {
 		path */.*

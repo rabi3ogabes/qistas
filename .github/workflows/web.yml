@@ -130,6 +130,25 @@ jobs:
           # The schema was created by the container on start.
           docker exec db psql -U qistas -d qistas -tAc "select count(*) from migrations" | grep -E '^[1-9]'
 
+      - name: Speed checks
+        run: |
+          set -e
+          # Another start of the same release (a cold start) reads the set-up fingerprint and does no set-up work.
+          docker restart app >/dev/null
+          start=$(date +%s%N)
+          for i in $(seq 1 90); do curl -fsS http://localhost:8080/up >/dev/null 2>&1 && break; sleep 0.5; done
+          echo "restart to first answer: $(( ($(date +%s%N) - start) / 1000000 )) ms"
+          docker logs app 2>&1 | grep -q 'already set up for this release' || { echo "::error::a restart did the whole set-up again"; exit 1; }
+          # How long the server and the database take once warm (Server-Timing).
+          for path in /up / /login /pricing /robots.txt; do
+            curl -s -o /dev/null "http://localhost:8080$path"
+            echo "$path: $(curl -s -D - -o /dev/null "http://localhost:8080$path" | tr -d '\r' | grep -i '^server-timing' || echo 'no timing')"
+          done
+          # Files that are the same for everyone carry no cookie, so the CDN near the visitor keeps them.
+          for path in /robots.txt /sitemap.xml; do
+            if curl -s -D - -o /dev/null "http://localhost:8080$path" | grep -qi '^set-cookie'; then echo "::error::$path sets a cookie"; exit 1; fi
+          done
+
       - name: App logs
         if: always()
         run: docker logs app 2>&1 | tail -60
