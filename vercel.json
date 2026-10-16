@@ -1,6 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "regions": ["bom1"],
+  "git": { "deploymentEnabled": false },
   "services": {
     "app": {
       "root": "web",

@@ -1,0 +1,44 @@
+name: Deploy
+
+# Vercel's own deploy-on-every-push is switched off (vercel.json: "git": {"deploymentEnabled": false}). Each of those
+# builds made and stored a full server image, for documentation, phone-app and Dependabot commits too, until Vercel's
+# image registry was full and real deploys failed. This workflow deploys production only when something that goes into
+# the image changes. GitHub checks the paths across every commit of a push, so a web change followed by a documentation
+# commit in the same push still deploys. Run it by hand (Actions > Deploy > Run workflow) to redeploy without a change.
+#
+# Needs the repository secret VERCEL_DEPLOY_HOOK: the Deploy Hook URL for main (Vercel project > Settings > Git >
+# Deploy Hooks). Anyone with that URL can start a deploy, so it lives only in the secret.
+
+on:
+  push:
+    branches: [main]
+    paths: ["web/**", "vercel.json", ".vercelignore", ".github/workflows/deploy.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy production
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ask Vercel to build and deploy main
+        env:
+          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::error::The VERCEL_DEPLOY_HOOK secret is missing, so this change is not deployed. Add the Deploy Hook URL for main as that repository secret, then run this workflow again."
+            exit 1
+          fi
+          answer=$(curl -sS --fail-with-body --retry 3 --retry-all-errors --max-time 30 -X POST "$HOOK")
+          echo "Vercel answered: $answer"
+          case "$answer" in
+            *'"job"'*) echo "Vercel accepted the request and builds the latest commit of main." ;;
+            *) echo "::error::Vercel did not accept the deploy request."; exit 1 ;;
+          esac
