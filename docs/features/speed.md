@@ -57,17 +57,40 @@ again over time. An `ignoreCommand` in vercel.json (bb7fee9) made Vercel refuse 
 container services, so it was taken out again. The same rule can be set in the dashboard instead (project → Settings →
 Git → Ignored Build Step: `git diff HEAD^ HEAD --quiet -- web/ vercel.json`); that is the owner's setting to change.
 
-## The biggest remaining cost: distance
+## Moved to Mumbai (16 October 2026, c885bfc)
 
-Visitors in the Gulf reach Vercel in Mumbai, and every page is then made in Washington, next to the database in AWS
-us-east-1: about 0.2 s of every page is that trip. Moving both the server and the database next to the visitors would
-remove most of it:
+Visitors in the Gulf reach Vercel in Mumbai, and every page used to be made in Washington, next to the database in AWS
+us-east-1: about 0.2 s of every page was that trip. Asked by the owner ("move the database and server to Mumbai"), both
+now sit in Mumbai:
 
-- a Supabase project in **Mumbai (ap-south-1)** and the Vercel functions in **bom1**;
-- the data copied across once (a short read-only window), `DB_URL` changed, the old project kept until checked.
+- **Database:** Supabase project `qistas-mumbai` (ref `jcdjxgcbrjlsbqjujmwm`, ap-south-1, free). The app logs in as
+  `qistas_app` through the transaction pooler `aws-0-ap-south-1.pooler.supabase.com:6543`. The role was created from a
+  SCRAM-SHA-256 verifier, so its password never travelled in a statement. `qistas:setup --force` built the schema and
+  the security rules (row security on every table, nothing granted to Supabase's public roles).
+- **Server:** `"regions": ["bom1"]` in vercel.json; Vercel's `DB_URL` points at the new database.
+- **Data:** copied once in a single transaction (173 rows in 17 tables; the schema's own bookkeeping, sessions, cache
+  and job tables stay behind), then every one of the 59 tables compared row for row by count and fingerprint. The same
+  comparison, run again after the switch, found no difference, so nothing was written to the old database in between.
+- **The old project** (`qistas`, ref `xjqtwmvdgulatlbbsltj`, us-east-1) is left running untouched as a fallback: setting
+  `DB_URL` back and removing `regions` returns to it. The read-only login made for the copy has been removed from it.
+  Pausing or deleting it is the owner's decision.
 
-This moves the live database, so it is the owner's decision and needs the owner's Supabase account; it is described,
-not done.
+Every table has row security and the copy's login was not the tables' owner, so the first try read every table as empty
+and the comparison passed (empty against emptied). The copy now reads as the tables' owner through a login that is
+read-only whatever role it takes, stops if the source shows no users, and the result was checked with a direct count.
+
+| Measure, from the owner's computer | Washington (iad1, us-east-1) | Mumbai (bom1, ap-south-1) |
+|---|---|---|
+| A public page, warm connection | 0.43 to 0.48 s | 0.23 to 0.28 s |
+| A public page, new connection (TLS included) | not measured | 0.67 to 0.76 s, steady over ten tries |
+| Server time, pricing page | 65 to 80 ms | 36 to 58 ms |
+| One database query | 5 to 8 ms | 3 to 5 ms |
+
+Right after the switch a few requests took about 5 s: each was a new copy of the server starting in bom1 (the
+container starts, then the set-up check says "already set up for this release" about 4 s after the request arrived).
+Once those copies were running, ten requests in a row all answered in under 0.8 s. A copy that starts after a quiet
+spell still costs those seconds. The five-minute scheduler reaches the Mumbai site (its runs are recorded in the new
+database's `cron_runs`), which helps keep a copy running between visitors.
 
 ## Deploys blocked on 16 October 2026
 
