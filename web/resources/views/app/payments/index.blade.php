@@ -45,7 +45,7 @@
                                 <td data-label="{{ __('Date') }}" class="money"><x-day :date="$line->paid_at" /></td>
                                 <td data-label="{{ __('Customer') }}">{{ $line->customer?->name }}</td>
                                 <td data-label="{{ __('Contract') }}"><a class="cell-link" href="{{ route('app.contracts.show', $line->contract_id) }}">{{ $line->contract->reference() }}</a></td>
-                                <td data-label="{{ __('Details') }}">
+                                <td data-label="{{ __('Details') }}" class="cell-wide">
                                     <span class="line-title">
                                         @if ($kind === 'reversal') {{ __('Payment voided') }}
                                         @elseif ($kind === 'down_payment') {{ __('Down payment') }}

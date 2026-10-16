@@ -10,10 +10,12 @@ use App\Entitlements\PlatformState;
 use App\Models\AuditLog;
 use App\Models\Contract;
 use App\Models\Customer;
+use App\Models\Tag;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Reports\ContractProgress;
 use App\Tenancy\CurrentTenant;
+use Laravel\Sanctum\Sanctum;
 
 /*
 | Win Plan PP12: lists that stay short with hundreds of customers. Sorted by name, by what they owe, by their next due
@@ -128,6 +130,29 @@ describe('tags', function () {
             ->assertJsonPath('data.tags.0.name', 'Shop 2');
         $this->putJson("/api/v1/customers/{$c['badr']->id}", ['name' => 'Badr Saleh', 'phone' => $c['badr']->phone, 'tags' => []])->assertOk()
             ->assertJsonPath('data.tags', []);
+    });
+
+    it('adds a customer from the web form whether tags are ticked or not', function () {
+        [$owner, $tenant] = owner();
+        $tag = asTenant($tenant, fn () => Tag::create(['name' => 'Shop 2', 'colour' => 'blue']))->id;
+
+        // The form always sends an empty "tags" so that unticking every box clears them; a box ticked sends the list.
+        $this->actingAs($owner)->post('/app/customers', ['name' => 'Huda', 'phone' => '+966551112201', 'tags' => ''])
+            ->assertSessionHasNoErrors()->assertRedirect();
+        $this->actingAs($owner)->post('/app/customers', ['name' => 'Rana', 'phone' => '+966551112202', 'tags' => [$tag]])
+            ->assertSessionHasNoErrors()->assertRedirect();
+
+        Sanctum::actingAs($owner, ['app']);
+        expect(customerNames())->toBe(['Huda', 'Rana'])->and(customerNames(['tag' => $tag]))->toBe(['Rana']);
+    });
+
+    it('adds a customer through the API with its tags', function () {
+        threeCustomers();
+        $tag = $this->postJson('/api/v1/tags', ['name' => 'Shop 2'])->json('data.id');
+
+        $this->postJson('/api/v1/customers', ['name' => 'Huda', 'phone' => '+966551112201', 'tags' => [$tag]])->assertCreated()
+            ->assertJsonPath('data.tags.0.name', 'Shop 2');
+        $this->postJson('/api/v1/customers', ['name' => 'Rana', 'phone' => '+966551112202', 'tags' => []])->assertCreated();
     });
 
     it('keeps tag names unique in a business, whatever their case', function () {

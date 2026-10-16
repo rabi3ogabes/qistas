@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -22,6 +23,7 @@ use Laravel\Sanctum\HasApiTokens;
 
 /**
  * @property Carbon|null $demo_expires_at when a demo account is deleted; null for every real account
+ * @property string|null $phone the person's own phone, set on their profile
  */
 // platform_role and status are deliberately not fillable: no request payload can ever set them.
 #[Fillable(['name', 'email', 'password', 'locale'])]
@@ -67,6 +69,12 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /** This person's role in one workspace, or null if they are not a member. */
+    /** @return HasOne<UserPhoto, $this> */
+    public function photo(): HasOne
+    {
+        return $this->hasOne(UserPhoto::class);
+    }
+
     public function roleIn(string $tenantId): ?TenantRole
     {
         $role = DB::table('tenant_users')->where(['user_id' => $this->id, 'tenant_id' => $tenantId])->value('role');

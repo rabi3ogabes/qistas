@@ -24,6 +24,10 @@ final class AccountPayload
                 'name' => $user->name,
                 'email' => $user->email,
                 'email_verified' => $user->hasVerifiedEmail(),
+                'phone' => $user->phone,
+                // The profile photo as a picture the app can show without another request; null without one.
+                'photo' => $user->photo?->dataUri(),
+                'member_since' => $user->created_at?->toDateString(),
                 'locale' => $user->locale,
                 'two_factor' => $user->hasConfirmedTwoFactor(),
             ],

@@ -258,6 +258,79 @@ paths:
                   data: {$ref: "#/components/schemas/Account"}
         "401": {$ref: "#/components/responses/Unauthenticated"}
         "403": {$ref: "#/components/responses/Forbidden"}
+    put:
+      tags: [Account]
+      summary: Change your own details (name, e-mail, phone, language)
+      description: |
+        A field that is not sent stays as it is; `phone` sent empty clears it. A new e-mail must be verified again (a link
+        is sent to it and `email_verified` becomes false). Answers with the account, as GET /me does.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email]
+              properties:
+                name: {type: string, maxLength: 255}
+                email: {type: string, format: email}
+                phone: {type: string, nullable: true, maxLength: 32, example: "+966501234567"}
+                locale: {type: string, enum: [en, ar, fr, es, ur]}
+      responses:
+        "200":
+          description: The account, changed.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/Account"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+  /me/password:
+    put:
+      tags: [Account]
+      summary: Change your password, with the current one
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, password, password_confirmation]
+              properties:
+                current_password: {type: string, format: password}
+                password: {type: string, format: password, description: "At least 10 characters, with capital and small letters, a number and a symbol."}
+                password_confirmation: {type: string, format: password}
+      responses:
+        "204": {description: Changed.}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+  /me/photo:
+    post:
+      tags: [Account]
+      summary: Set your profile photo
+      description: A JPEG, PNG or WebP picture up to 8 MB. It is drawn again without its hidden data and scaled to fit 400 × 400.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [photo]
+              properties:
+                photo: {type: string, format: binary}
+      responses:
+        "200":
+          description: The account, with `user.photo` set.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/Account"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+    delete:
+      tags: [Account]
+      summary: Remove your profile photo
+      responses:
+        "200":
+          description: The account, with `user.photo` null.
+          content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/Account"}}}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
   /billing:
     get:
       tags: [Account]
@@ -2809,6 +2882,9 @@ components:
         name: {type: string}
         email: {type: string}
         email_verified: {type: boolean}
+        phone: {type: string, nullable: true, description: The person's own phone, set on their profile.}
+        photo: {type: string, nullable: true, description: "The profile photo as a data URI (data:image/jpeg;base64,...), or null."}
+        member_since: {type: string, format: date, nullable: true}
         locale: {type: string}
         two_factor: {type: boolean}
     Tenant:
@@ -3525,7 +3601,7 @@ components:
         label: {type: string, example: Invoice}
         mime: {type: string, example: image/jpeg}
         size: {type: integer}
-        private: {type: boolean, description: An ID photo. It has no url here; open it with GET /files/{file}, which is audited.}
+        private: {type: boolean, description: "An ID photo. It has no url here; open it with GET /files/{file}, which is audited."}
         url: {type: [string, "null"], format: uri, description: A link that works for five minutes; null when private.}
         created_at: {type: string, format: date-time}
     Import:

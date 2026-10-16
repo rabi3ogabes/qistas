@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\PlanController;
 use App\Http\Controllers\Api\V1\ProductController;
+use App\Http\Controllers\Api\V1\ProfileController;
 use App\Http\Controllers\Api\V1\PushTokenController;
 use App\Http\Controllers\Api\V1\ReleaseNoteController;
 use App\Http\Controllers\Api\V1\ReminderController;
@@ -60,6 +61,11 @@ Route::name('api.')->group(function (): void {
         Route::post('auth/logout-all', [AuthController::class, 'logoutAll'])->name('auth.logout-all');
 
         Route::get('me', MeController::class)->name('me');
+        // Your profile: details, password and photo.
+        Route::put('me', [ProfileController::class, 'update'])->middleware('throttle:20,1')->name('me.update');
+        Route::put('me/password', [ProfileController::class, 'password'])->middleware('throttle:6,1')->name('me.password');
+        Route::post('me/photo', [ProfileController::class, 'storePhoto'])->middleware('throttle:20,1')->name('me.photo.store');
+        Route::delete('me/photo', [ProfileController::class, 'destroyPhoto'])->name('me.photo.destroy');
 
         // Buy Pro your way (Win Plan PP13): what the workspace is on, and a Google Play purchase checked with Google.
         Route::get('billing', [BillingController::class, 'show'])->name('billing.show');

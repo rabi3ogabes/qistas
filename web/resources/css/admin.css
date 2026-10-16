@@ -1210,7 +1210,7 @@ html.admin-nav-open {
 .fc-history q { color: var(--q-ink-muted); }
 
 .fc-presets { position: relative; }
-.fc-presets .menu-panel { display: grid; gap: .75rem; min-inline-size: min(22rem, 90vw); padding: .75rem; }
+.fc-presets .menu-panel { display: grid; gap: .75rem; min-inline-size: min(22rem, calc(100vw - 2rem)); padding: .75rem; inset-inline-end: auto; inset-inline-start: 0; }
 .fc-presets .menu-panel form { display: grid; gap: .375rem; padding-block-end: .75rem; border-block-end: 1px solid var(--q-line); }
 .fc-presets .menu-panel form:last-child { padding-block-end: 0; border-block-end: 0; }
 
@@ -1312,7 +1312,6 @@ html.admin-nav-open {
 /* A cell with two lines (a name and an email, a plan and its end): stacked, and to the end on a phone's stacked rows. */
 .biz-cell { display: grid; gap: .125rem; justify-items: start; }
 .biz-cell .badge { justify-self: start; }
-@media (max-width: 639px) { .table-stack td .biz-cell, .table-stack td .biz-cell .badge { justify-items: end; justify-self: end; text-align: end; } }
 .biz-plan { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem; font-size: 1.0625rem; }
 .biz-plan .badge { font-size: .9375rem; padding: .25rem .75rem; }
 .biz-change { padding-top: 1rem; border-top: 1px solid var(--q-line); }

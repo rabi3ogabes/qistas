@@ -32,13 +32,17 @@ final class CreateCustomer
 
             Entitlements::for($tenant)->assertCanCreate(Feature::Customers);
 
+            // Tags are a relation, not a column: they are attached once the customer exists.
+            $tags = (array) ($data['tags'] ?? []);
+            unset($data['tags']);
+
             $customer = new Customer($data);
             $customer->created_by_user_id = $by?->id;
             $customer->save();
 
-            if (! empty($data['tags'])) {
+            if ($tags !== []) {
                 Entitlements::for($tenant)->assertEnabled(Feature::CustomerTags);
-                $customer->syncTags($data['tags']);
+                $customer->syncTags($tags);
             }
 
             return $customer;

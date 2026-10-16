@@ -43,6 +43,24 @@ final class ToolsController
         return redirect()->route('app.settings.tools')->with('status', __('Saved.'));
     }
 
+    /** The page's one form: every setting shown is saved together, or none when one is not allowed. */
+    public function updateAll(Request $request, CurrentTenant $current, SettingsRegistry $registry): RedirectResponse
+    {
+        $tenant = $this->tenant($current);
+        abort_unless($this->canEdit($request, $tenant), 403);
+
+        $sent = (array) $request->input('values', []);
+        $values = [];
+        foreach ($registry->definitionsFor($tenant) as $definition) {
+            // An unticked switch sends nothing: off.
+            $values[$definition->key] = $sent[$definition->key] ?? ($definition->type === 'switch' ? '0' : null);
+        }
+
+        TenantSettings::for($tenant)->setMany(array_filter($values, fn ($value) => $value !== null), $request->user());
+
+        return redirect()->route('app.settings.tools')->with('status', __('Saved.'));
+    }
+
     private function tenant(CurrentTenant $current): Tenant
     {
         return $current->get() ?? abort(403);

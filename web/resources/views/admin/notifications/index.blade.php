@@ -44,7 +44,7 @@
             @csrf
             @method('PUT')
             <div class="table-wrap">
-                <table class="table table-stack">
+                <table class="table table-stack table-matrix">
                     <thead>
                         <tr>
                             <th scope="col">{{ __('Notice') }}</th>

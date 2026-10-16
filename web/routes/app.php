@@ -19,6 +19,7 @@ use App\Http\Controllers\Workspace\PaperworkController;
 use App\Http\Controllers\Workspace\PaymentController;
 use App\Http\Controllers\Workspace\PlanChangeController;
 use App\Http\Controllers\Workspace\ProductController;
+use App\Http\Controllers\Workspace\ProfileController;
 use App\Http\Controllers\Workspace\ReminderController;
 use App\Http\Controllers\Workspace\ReportController;
 use App\Http\Controllers\Workspace\SecurityPolicyController;
@@ -33,6 +34,14 @@ Route::get('/', DashboardController::class)->name('dashboard');
 Route::get('billing', BillingController::class)->name('billing');
 // Paying by bank transfer, with the receipt (Win Plan PP13). The website only; the app never offers it.
 Route::post('billing/manual-requests', [ManualPaymentController::class, 'store'])->middleware('throttle:10,1')->name('billing.manual.store');
+
+// Your profile: your own details, photo and password.
+Route::get('profile', [ProfileController::class, 'show'])->name('profile');
+Route::put('profile', [ProfileController::class, 'update'])->middleware('throttle:20,1')->name('profile.update');
+Route::put('profile/password', [ProfileController::class, 'password'])->middleware('throttle:6,1')->name('profile.password');
+Route::get('profile/photo', [ProfileController::class, 'photo'])->name('profile.photo');
+Route::post('profile/photo', [ProfileController::class, 'storePhoto'])->middleware('throttle:20,1')->name('profile.photo.store');
+Route::delete('profile/photo', [ProfileController::class, 'destroyPhoto'])->name('profile.photo.destroy');
 
 // Delete my account: the owner deletes the business after 30 days (and can restore it until then); anyone else their login.
 Route::get('account/delete', [AccountDeletionController::class, 'show'])->name('account.delete.show');
@@ -86,6 +95,7 @@ Route::put('settings/business', [BusinessProfileController::class, 'update'])->n
 Route::post('settings/business/{slot}', [BusinessProfileController::class, 'storeAsset'])->whereIn('slot', ['logo', 'signature'])->name('settings.business.assets.store');
 Route::delete('settings/business/{slot}', [BusinessProfileController::class, 'destroyAsset'])->whereIn('slot', ['logo', 'signature'])->name('settings.business.assets.destroy');
 Route::put('settings/documents', [BusinessProfileController::class, 'updatePreferences'])->name('settings.documents.update');
+Route::put('settings/tools', [ToolsController::class, 'updateAll'])->name('settings.tools.update.all');
 Route::put('settings/tools/{key}', [ToolsController::class, 'update'])->name('settings.tools.update');
 Route::put('settings/security', [SecurityPolicyController::class, 'update'])->name('settings.security');
 

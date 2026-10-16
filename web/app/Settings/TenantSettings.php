@@ -10,7 +10,9 @@ use App\Models\TenantSetting;
 use App\Models\User;
 use App\Support\Audit;
 use App\Support\Dates;
+use App\Support\FieldNames;
 use App\Tenancy\CurrentTenant;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
@@ -66,8 +68,7 @@ final class TenantSettings
 
         Entitlements::for($this->tenant)->assertEnabled($definition->feature);
 
-        $validated = Validator::make(['value' => $definition->normalize($value)], ['value' => $definition->validationRules()])->validate();
-        $after = $definition->cast($validated['value']);
+        $after = $this->validated($definition, $value);
         $before = $this->get($key);
 
         if ($before === $after) {
@@ -81,6 +82,51 @@ final class TenantSettings
         });
         // What this request already read about how dates are shown is stale now.
         app(Dates::class)->forget();
+    }
+
+    /**
+     * Several settings at once, as one form saves them: every value is checked first, and if any is not allowed nothing
+     * is saved and every mistake is reported under "values.<key>".
+     *
+     * @param  array<string, mixed>  $values  by key
+     *
+     * @throws FeatureUnavailable|FeatureLocked|ValidationException
+     */
+    public function setMany(array $values, ?User $by = null): void
+    {
+        $errors = [];
+        foreach ($values as $key => $value) {
+            $definition = $this->definition($key);
+            Entitlements::for($this->tenant)->assertEnabled($definition->feature);
+            try {
+                $this->validated($definition, $value);
+            } catch (ValidationException $e) {
+                $errors["values.{$key}"] = $e->validator->errors()->get('value');
+            }
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
+
+        DB::transaction(function () use ($values, $by): void {
+            foreach ($values as $key => $value) {
+                $this->set($key, $value, $by);
+            }
+        });
+    }
+
+    /** The value as the setting keeps it, once its rules allow it; a mistake names the setting by its label. */
+    private function validated(SettingDefinition $definition, mixed $value): mixed
+    {
+        $validated = Validator::make(
+            ['value' => $definition->normalize($value)],
+            ['value' => $definition->validationRules()],
+            [],
+            ['value' => FieldNames::inSentence($definition->label())],
+        )->validate();
+
+        return $definition->cast($validated['value']);
     }
 
     private function definition(string $key): SettingDefinition

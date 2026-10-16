@@ -229,9 +229,54 @@ describe('on the web', function () {
         expect(TenantSettings::for($tenant)->get('reports.window_days'))->toBe(30);
     });
 
+    it('saves every setting on the page with one press', function () {
+        [$user, $tenant] = proWorkspace();
+
+        $this->actingAs($user)->put('/app/settings/tools', ['values' => [
+            'reports.window_days' => '60', 'reports.weekly_email' => '1', 'reports.first_day' => 'mon',
+        ]])->assertRedirect('/app/settings/tools')->assertSessionHas('status');
+
+        $settings = TenantSettings::for($tenant);
+        expect($settings->get('reports.window_days'))->toBe(60)
+            ->and($settings->get('reports.weekly_email'))->toBeTrue()
+            ->and($settings->get('reports.first_day'))->toBe('mon');
+    });
+
+    it('saves nothing when one value is not allowed, and says which one and why, keeping what was typed', function () {
+        [$user, $tenant] = proWorkspace();
+
+        $this->actingAs($user)->from('/app/settings/tools')->put('/app/settings/tools', ['values' => [
+            'reports.window_days' => '500', 'reports.first_day' => 'mon',
+        ]])->assertRedirect('/app/settings/tools')->assertSessionHasErrors('values.reports.window_days');
+
+        expect(TenantSettings::for($tenant)->get('reports.first_day'))->toBe('sat')
+            ->and(session('errors')->first('values.reports.window_days'))->toContain('days a report looks back');
+
+        $this->actingAs($user)->get('/app/settings/tools')->assertSee('value="500"', false)->assertSee('selected', false);
+    });
+
+    it('turns a switch off when it is left unticked', function () {
+        [$user, $tenant] = proWorkspace();
+        TenantSettings::for($tenant)->set('reports.weekly_email', true);
+
+        // An unticked box sends nothing at all.
+        $this->actingAs($user)->put('/app/settings/tools', ['values' => ['reports.window_days' => '30']])->assertSessionHasNoErrors();
+
+        expect(TenantSettings::for($tenant)->get('reports.weekly_email'))->toBeFalse();
+    });
+
+    it('shows one save button for all the settings', function () {
+        [$user] = proWorkspace();
+
+        $html = $this->actingAs($user)->get('/app/settings/tools')->assertOk()->getContent();
+
+        expect(substr_count($html, 'action="'.route('app.settings.tools.update.all').'"'))->toBe(1);
+    });
+
     it('does not let a viewer change anything', function () {
         [, $tenant] = proWorkspace();
         $viewer = memberAs('viewer', $tenant);
+        $this->actingAs($viewer)->put('/app/settings/tools', ['values' => ['reports.window_days' => '60']])->assertForbidden();
 
         $this->actingAs($viewer)->put('/app/settings/tools/reports.window_days', ['value' => 60])->assertForbidden();
         $this->actingAs($viewer)->get('/app/settings/tools')->assertOk()->assertSee('Days a report looks back');

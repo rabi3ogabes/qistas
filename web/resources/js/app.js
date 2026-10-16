@@ -9,6 +9,7 @@ import { initLanguageSwitchers } from './language';
 import { initAdminNav } from './admin-nav';
 import { initWelcomeBanners } from './banner';
 import { registerServiceWorker } from './install';
+import { initForms } from './forms';
 
 window.Alpine = Alpine;
 Alpine.data('planCalculator', planCalculator);
@@ -27,6 +28,7 @@ initSheets();
 initLanguageSwitchers();
 initAdminNav();
 initWelcomeBanners();
+initForms();
 Alpine.start();
 
 // A list's "Sort by" applies as soon as it is chosen.

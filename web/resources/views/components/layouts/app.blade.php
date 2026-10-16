@@ -38,7 +38,7 @@
             <a class="app-brand" href="{{ route('app.dashboard') }}" aria-label="{{ config('qistas.app_name') }}"><x-logo :height="30" /></a>
 
             <div class="workspace">
-                <p class="workspace-name">{{ $tenant->name }}</p>
+                <p class="workspace-name" dir="auto">{{ $tenant->name }}</p>
                 <span @class(['badge', 'badge-pro' => ! $isFree])>{{ $plan->name }}</span>
             </div>
 
@@ -64,11 +64,13 @@
 
                 <details class="menu menu-up">
                     <summary class="user-chip">
-                        <span class="avatar" aria-hidden="true">{{ mb_strtoupper(mb_substr($user->name, 0, 1)) }}</span>
-                        <span class="user-lines"><span class="user-name">{{ $user->name }}</span><span class="user-mail">{{ $user->demo_expires_at !== null ? __('Demo account') : $user->email }}</span></span>
+                        <x-avatar :user="$user" />
+                        <span class="user-lines"><span class="user-name" dir="auto">{{ $user->name }}</span><span class="user-mail">{{ $user->demo_expires_at !== null ? __('Demo account') : $user->email }}</span></span>
                         <x-icon name="chevronDown" :size="16" />
                     </summary>
                     <div class="menu-panel" role="menu">
+                        <a class="menu-item" role="menuitem" href="{{ route('app.profile') }}" @if ($section === 'profile') aria-current="true" @endif><x-icon name="accounts" :size="18" /> {{ __('Your profile') }}</a>
+                        <hr class="menu-rule">
                         @feature('members')
                             <a class="menu-item" role="menuitem" href="{{ route('app.team.index') }}"><x-icon name="users" :size="18" /> {{ __('Team') }}</a>
                         @endfeature
@@ -99,7 +101,7 @@
         <header class="app-top">
             <a class="app-brand" href="{{ route('app.dashboard') }}" aria-label="{{ config('qistas.app_name') }}"><x-logo variant="symbol" :height="30" /></a>
             <div class="workspace workspace-compact">
-                <p class="workspace-name">{{ $tenant->name }}</p>
+                <p class="workspace-name" dir="auto">{{ $tenant->name }}</p>
                 <span @class(['badge', 'badge-pro' => ! $isFree])>{{ $plan->name }}</span>
             </div>
             <x-language-switcher />
@@ -143,6 +145,8 @@
             <details class="tab tab-more menu menu-up">
                 <summary><x-icon name="menu" :size="22" /><span>{{ __('More') }}</span></summary>
                 <div class="menu-panel" role="menu">
+                    <a class="menu-item" role="menuitem" href="{{ route('app.profile') }}"><x-avatar :user="$user" size="sm" /> {{ __('Your profile') }}</a>
+                    <hr class="menu-rule">
                     @foreach (array_slice($nav, 4) as $item)
                         <a class="menu-item" role="menuitem" href="{{ route($item['route']) }}"><x-icon :name="$item['icon']" :size="18" /> {{ $item['label'] }}</a>
                     @endforeach

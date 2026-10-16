@@ -33,6 +33,7 @@ use App\Sms\SmsSender;
 use App\Support\AppFirstTranslationLoader;
 use App\Support\DatabaseFilesystem;
 use App\Support\Dates;
+use App\Support\FieldNames;
 use App\Tenancy\CurrentTenant;
 use App\Tenancy\TenantScope;
 use App\Theme\Appearance;
@@ -49,9 +50,11 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\Validator as ValidatorFacade;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\NotPwnedVerifier;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\Validator;
 use Laravel\Passkeys\Passkeys;
 use Laravel\Sanctum\Events\TokenAuthenticated;
 use League\Flysystem\Filesystem;
@@ -154,6 +157,12 @@ class AppServiceProvider extends ServiceProvider
 
         Paginator::defaultView('pagination.qistas');
         Paginator::defaultSimpleView('pagination.qistas');
+
+        // A mistake names the field the way its form labels it, in the person's language ("the price", never
+        // "principal"). A validator that names its own fields keeps its names.
+        ValidatorFacade::resolver(fn ($translator, array $data, array $rules, array $messages, array $attributes) => new Validator(
+            $translator, $data, $rules, $messages, $attributes + FieldNames::all(),
+        ));
 
         // A mistyped or malicious attribute fails loudly in development and tests instead of vanishing.
         // In production unfillable attributes are still never written; they are just not reported as errors.

@@ -173,7 +173,7 @@
                                 @php($isReversed = $reversed->has($entry->id))
                                 <tr @if ($isReversed) class="voided-row" @endif>
                                     <td data-label="{{ __('Date') }}" class="money"><x-day :date="$entry->occurred_on" /></td>
-                                    <td data-label="{{ __('What') }}">
+                                    <td data-label="{{ __('What') }}" class="cell-wide">
                                         <span class="line-title">
                                             {{ $label($entry) }}
                                             @if ($entry->reverses_entry_id !== null)<span class="badge badge-warn">{{ __('Reversal') }}</span>@endif

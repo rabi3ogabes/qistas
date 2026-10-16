@@ -27,12 +27,12 @@
             <h2 id="everything-title" class="card-title">{{ __('Download everything') }}</h2>
             <p class="field-hint">{{ __('Customers, contracts, instalments, payments, what was sold and investors, each on its own sheet. Arabic opens correctly in Excel.') }}</p>
             <div class="backup-actions">
-                <form method="POST" action="{{ route('app.exports.store') }}">
+                <form method="POST" action="{{ route('app.exports.store') }}" data-download>
                     @csrf
                     <input type="hidden" name="format" value="xlsx">
                     <button class="btn btn-gold" type="submit"><x-icon name="download" :size="18" /> {{ __('Excel file') }}</button>
                 </form>
-                <form method="POST" action="{{ route('app.exports.store') }}">
+                <form method="POST" action="{{ route('app.exports.store') }}" data-download>
                     @csrf
                     <input type="hidden" name="format" value="csv">
                     <button class="btn btn-quiet" type="submit"><x-icon name="sheet" :size="18" /> {{ __('CSV files (zip)') }}</button>

@@ -1,10 +1,12 @@
 <?php
 
+use App\Entitlements\EntitlementException;
 use App\Http\ApiErrors;
 use App\Http\Middleware\EnsureAccountActive;
 use App\Http\Middleware\EnsureFeature;
 use App\Http\Middleware\EnsurePlatformAdmin;
 use App\Http\Middleware\ForceJsonResponse;
+use App\Http\Middleware\PreventDuplicateSubmissions;
 use App\Http\Middleware\ReadOnlyWhileDeleting;
 use App\Http\Middleware\RequireTwoFactorForAdmins;
 use App\Http\Middleware\SetApiLocale;
@@ -51,7 +53,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         // After the session starts, so a remembered or saved language can be read.
-        $middleware->web(append: [SetLocale::class]);
+        $middleware->web(append: [SetLocale::class, PreventDuplicateSubmissions::class]);
 
         // The API is stateless JSON: always JSON, and a language taken from the request itself.
         $middleware->api(prepend: [ForceJsonResponse::class, SetApiLocale::class]);
@@ -81,6 +83,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prependToPriorityList(before: SetCurrentTenant::class, prepend: EnsureAccountActive::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // "Not on your plan" and "switched off" are answers shown to the person, not failures for the error log.
+        $exceptions->dontReport(EntitlementException::class);
+
         // /api/ answers every failure in one shape (see ApiErrors); everything else keeps the framework's pages.
         $exceptions->render(fn (Throwable $e, Request $request) => ApiErrors::render($e, $request));
 

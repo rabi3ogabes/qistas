@@ -80,7 +80,7 @@
                                 <strong>{{ $row['name'] ?? '—' }}</strong>
                                 @if ($row['phone'])<br><span class="cell-sub money" dir="ltr">{{ $row['phone'] }}</span>@endif
                             </td>
-                            <td data-label="{{ __('What happens') }}">
+                            <td data-label="{{ __('What happens') }}" class="cell-wide">
                                 @if ($row['problems'] !== [])
                                     <span class="badge badge-bad">{{ __('Not brought in') }}</span>
                                     <ul class="import-problems" role="list">
@@ -93,7 +93,7 @@
                                     @if ($row['note'])<p class="cell-sub">{{ $row['note'] }}</p>@endif
                                 @endif
                             </td>
-                            <td data-label="{{ __('Contract') }}">
+                            <td data-label="{{ __('Contract') }}" class="cell-wide">
                                 @if ($row['contract'] === null)
                                     <span class="muted">—</span>
                                 @elseif ($row['contract']['type'] === 'open')

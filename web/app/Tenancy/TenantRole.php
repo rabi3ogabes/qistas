@@ -11,6 +11,18 @@ enum TenantRole: string
     case Collector = 'collector';
     case Viewer = 'viewer';
 
+    /** The role's name as people read it. */
+    public function label(): string
+    {
+        return match ($this) {
+            self::Owner => __('Owner'),
+            self::Manager => __('Manager'),
+            self::Accountant => __('Accountant'),
+            self::Collector => __('Collector'),
+            self::Viewer => __('Viewer'),
+        };
+    }
+
     /** May add and change records. */
     public function canWrite(): bool
     {
