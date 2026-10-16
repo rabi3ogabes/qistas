@@ -52,8 +52,10 @@ Each live query costs 5 to 8 ms (a trip from Vercel to Supabase's pooler), so th
 60 fewer queries is roughly 0.3 to 0.5 s less per page. Nobody signs in to the live site for measurements, so that
 figure is worked out, not measured.
 
-Deploys build an image only when `web/` or `vercel.json` change (`ignoreCommand` in vercel.json), so app and
-documentation commits do not fill the container registry.
+Every push to main builds and stores a new image, phone-app and documentation commits too, so the registry fills up
+again over time. An `ignoreCommand` in vercel.json (bb7fee9) made Vercel refuse the commit outright with this project's
+container services, so it was taken out again. The same rule can be set in the dashboard instead (project → Settings →
+Git → Ignored Build Step: `git diff HEAD^ HEAD --quiet -- web/ vercel.json`); that is the owner's setting to change.
 
 ## The biggest remaining cost: distance
 
