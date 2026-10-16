@@ -16,6 +16,6 @@ jobs:
     env:
       PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://qistas-puce.vercel.app' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Public pages answer, guests are kept out of /app, assets load
         run: sh scripts/smoke-app.sh "$PRODUCTION_URL" 120
