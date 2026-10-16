@@ -52,10 +52,25 @@ Each live query costs 5 to 8 ms (a trip from Vercel to Supabase's pooler), so th
 60 fewer queries is roughly 0.3 to 0.5 s less per page. Nobody signs in to the live site for measurements, so that
 figure is worked out, not measured.
 
-Every push to main builds and stores a new image, phone-app and documentation commits too, so the registry fills up
-again over time. An `ignoreCommand` in vercel.json (bb7fee9) made Vercel refuse the commit outright with this project's
-container services, so it was taken out again. The same rule can be set in the dashboard instead (project → Settings →
-Git → Ignored Build Step: `git diff HEAD^ HEAD --quiet -- web/ vercel.json`); that is the owner's setting to change.
+Every push to main used to build and store a new image, phone-app and documentation commits too, so the registry
+filled up again over time. An `ignoreCommand` in vercel.json (bb7fee9) made Vercel refuse the commit outright with this
+project's container services, so it was taken out again. The owner set the same rule in the dashboard on 16 October 2026
+(project → Settings → Git → Ignored Build Step): a push that changes nothing under `web/` and not vercel.json builds no
+image.
+
+Compare with the last deployed commit, not the one before: a single push can carry several commits, and Vercel builds
+only the last. With `HEAD^`, a web change followed by a documentation commit in the same push would be skipped and never
+go live. The safe command:
+
+```sh
+git diff --quiet "${VERCEL_GIT_PREVIOUS_SHA:-HEAD^}" HEAD -- web/ vercel.json || exit 1
+```
+
+`VERCEL_GIT_PREVIOUS_SHA` is the last successfully deployed commit (Vercel sets it only for this step; a skipped push
+is not a successful deployment, so by that definition it does not move it). Vercel documents two answers: 0 skips, 1 builds. If the last deployed commit is missing from
+Vercel's shallow clone, `git diff` fails with 128, and `|| exit 1` turns that into "build", so a mistake is always a
+build too many, never one too few. Checked on this repository: nothing changed since the last deploy → 0; a web change
+since → 1; an unknown commit → 1.
 
 ## Moved to Mumbai (16 October 2026, c885bfc)
 
