@@ -37,6 +37,24 @@ server go quiet and the next visitor waits for a new one.
   and how many queries), visible in the browser's network panel. CI's "Speed checks" step prints it for a few pages,
   checks that a restart of the same release skips the set-up, and that the shared files set no cookie.
 
+## Live after the change (16 October 2026, deployment of cee110c)
+
+| Measure | Before | After |
+|---|---|---|
+| A new copy of the server starting | full set-up (migrations, switches, grants on every table) | "The database is already set up for this release.": one query |
+| Server time, health check | not measured | 6 to 8 ms |
+| Server time, home, sign-in, pricing, calculator (warm) | not measured | 65 to 80 ms, 40 to 60 ms of it the database (5 to 11 queries) |
+| Database queries, signed-in pages | about 90 to 100 | about 25 to 42 (measured locally; live each query costs 5 to 8 ms) |
+| Colours stylesheet, robots.txt, sitemap, favicon | from Washington every time, 0.47 s | from the edge (HIT, no cookie), 0.21 s |
+| A public page from the owner's computer, warm connection | 0.46 to 0.52 s | 0.43 to 0.48 s: almost all of it is now the distance below |
+
+Each live query costs 5 to 8 ms (a trip from Vercel to Supabase's pooler), so the signed-in pages gain the most: about
+60 fewer queries is roughly 0.3 to 0.5 s less per page. Nobody signs in to the live site for measurements, so that
+figure is worked out, not measured.
+
+Deploys build an image only when `web/` or `vercel.json` change (`ignoreCommand` in vercel.json), so app and
+documentation commits do not fill the container registry.
+
 ## The biggest remaining cost: distance
 
 Visitors in the Gulf reach Vercel in Mumbai, and every page is then made in Washington, next to the database in AWS
@@ -53,4 +71,5 @@ not done.
 
 Vercel refused the deploy of 4980de7: "repository has reached the maximum allowed number of images" (the project's
 container registry). Old images are deleted by the owner in the Vercel dashboard, project → Sandboxes → Container
-Registry; then the latest commit is deployed again.
+Registry, repository "app"; then the latest commit is deployed again. Done on 16 October 2026 (the first deletion did
+not take; the second did), and cee110c went live.
