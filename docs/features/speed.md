@@ -52,16 +52,21 @@ Each live query costs 5 to 8 ms (a trip from Vercel to Supabase's pooler), so th
 60 fewer queries is roughly 0.3 to 0.5 s less per page. Nobody signs in to the live site for measurements, so that
 figure is worked out, not measured.
 
-Every push to main used to build and store a new image, phone-app and documentation commits too, so the registry
-filled up again over time. An `ignoreCommand` in vercel.json (bb7fee9) made Vercel refuse the commit outright with this
-project's container services, so it was taken out again. The owner set the same rule in the dashboard on 16 October 2026
-(project → Settings → Git → Ignored Build Step): a push that changes nothing under `web/` and not vercel.json builds no
-image.
+Every push to main builds and stores a new image, phone-app and documentation commits too, so the registry fills up
+again over time. **Vercel does not skip builds for this project**, from either place it offers:
 
-Compare with the last deployed commit, not the one before: a single push can carry several commits, and Vercel builds
-only the last. With `HEAD^`, a web change followed by a documentation commit in the same push would be skipped and never
-go live. The owner saved this safer command in place of the first one (16 October 2026; a first try was not saved, and
-the docs-only push 8a7ba5d still built an image):
+- An `ignoreCommand` in vercel.json (bb7fee9) made Vercel refuse the commit outright with this project's container
+  services, so it was taken out again.
+- The owner saved the rule in the dashboard (project → Settings → Git → Ignored Build Step, 16 October 2026). The
+  documentation-only pushes 8a7ba5d and 21cec23 both still built a full image, and their build logs go straight from
+  the clone to the build: the step never runs.
+
+The registry is therefore cleared by hand when a deploy fails on it (see below). The setting can stay; it does nothing
+here. If Vercel starts running it for container services, it already holds the right command.
+
+The command compares with the last deployed commit, not the one before: a single push can carry several commits, and
+Vercel builds only the last. With `HEAD^`, a web change followed by a documentation commit in the same push would be
+skipped and never go live:
 
 ```sh
 git diff --quiet "${VERCEL_GIT_PREVIOUS_SHA:-HEAD^}" HEAD -- web/ vercel.json || exit 1
