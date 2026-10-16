@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Notifications\ResetPasswordQueued;
 use App\Notifications\VerifyEmailQueued;
+use App\Support\RequestMemo;
 use App\Tenancy\TenantRole;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -77,7 +78,9 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function roleIn(string $tenantId): ?TenantRole
     {
-        $role = DB::table('tenant_users')->where(['user_id' => $this->id, 'tenant_id' => $tenantId])->value('role');
+        // Asked many times on a page: read once per request, forgotten on any change (App\Support\RequestMemo).
+        $role = app(RequestMemo::class)->remember('roles', $this->id.'|'.$tenantId,
+            fn () => DB::table('tenant_users')->where(['user_id' => $this->id, 'tenant_id' => $tenantId])->value('role'));
 
         return is_string($role) ? TenantRole::tryFrom($role) : null;
     }

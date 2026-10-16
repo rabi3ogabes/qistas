@@ -4,6 +4,7 @@ namespace App\Entitlements;
 
 use App\Models\Plan;
 use App\Models\Tenant;
+use App\Support\RequestMemo;
 use Closure;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -137,6 +138,15 @@ final class Entitlements
      * @return array{plan: Plan, platform: array<string, PlatformState>, rows: array<string, array{enabled: bool, limit: ?int}>, overrides: array<string, array{enabled: bool, limit: ?int}>}
      */
     private function load(): array
+    {
+        // A page asks many times: read once per request, forgotten on any change (App\Support\RequestMemo).
+        return app(RequestMemo::class)->remember('entitlements', (string) $this->tenant->getKey(), fn (): array => $this->read());
+    }
+
+    /**
+     * @return array{plan: Plan, platform: array<string, PlatformState>, rows: array<string, array{enabled: bool, limit: ?int}>, overrides: array<string, array{enabled: bool, limit: ?int}>}
+     */
+    private function read(): array
     {
         $plan = $this->tenant->currentPlan();
 

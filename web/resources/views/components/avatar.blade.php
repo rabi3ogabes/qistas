@@ -2,7 +2,7 @@
 @props(['user', 'size' => 'md'])
 @php
     // Only the photo's fingerprint is read here (not the picture): it makes the address change when the photo does.
-    $version = \App\Models\UserPhoto::query()->whereKey($user->id)->value('sha256');
+    $version = app(\App\Support\RequestMemo::class)->remember('photos', (string) $user->id, fn () => \App\Models\UserPhoto::query()->whereKey($user->id)->value('sha256'));
     $own = auth()->id() === $user->id;
 @endphp
 <span {{ $attributes->class(['avatar', 'avatar-'.$size, 'avatar-photo' => $version !== null && $own]) }} aria-hidden="true">

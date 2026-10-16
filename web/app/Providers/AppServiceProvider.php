@@ -34,16 +34,19 @@ use App\Support\AppFirstTranslationLoader;
 use App\Support\DatabaseFilesystem;
 use App\Support\Dates;
 use App\Support\FieldNames;
+use App\Support\RequestMemo;
 use App\Tenancy\CurrentTenant;
 use App\Tenancy\TenantScope;
 use App\Theme\Appearance;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Validation\UncompromisedVerifier;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Routing\Events\Routing;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -68,6 +71,10 @@ class AppServiceProvider extends ServiceProvider
 
         // Scoped: a fresh, empty tenant context for every request and every queued job.
         $this->app->scoped(CurrentTenant::class);
+
+        // Answers a request asks for many times (the plan, a role), read once per request; every write is shown to it
+        // so a change is seen at once (see boot).
+        $this->app->scoped(RequestMemo::class);
 
         // E-mail goes through the SMTP server saved in /admin/mail (Sprint 3, D1), read only when a mail is about to go.
         // Before the tables exist (installing, migrating) there is nothing to read, and the defaults stay.
@@ -153,6 +160,19 @@ class AppServiceProvider extends ServiceProvider
             $disk->buildTemporaryUrlsUsing(fn (string $path, \DateTimeInterface $expires): string => URL::temporarySignedRoute('files.blob', $expires, ['path' => $path]));
 
             return $disk;
+        });
+
+        // Any write forgets what a request remembered about that table (a plan, a switch, a role), and every request
+        // starts with nothing remembered, even where one process serves several.
+        Event::listen(QueryExecuted::class, function (QueryExecuted $query): void {
+            if ($this->app->resolved(RequestMemo::class)) {
+                $this->app->make(RequestMemo::class)->written($query);
+            }
+        });
+        Event::listen(Routing::class, function (): void {
+            if ($this->app->resolved(RequestMemo::class)) {
+                $this->app->make(RequestMemo::class)->forgetAll();
+            }
         });
 
         Paginator::defaultView('pagination.qistas');

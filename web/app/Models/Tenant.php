@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\RequestMemo;
 use Carbon\CarbonInterface;
 use Database\Factories\TenantFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -112,9 +113,12 @@ class Tenant extends Model
      */
     public function currentPlan(): Plan
     {
-        $subscription = $this->subscription()->with('plan')->first();
+        // Asked by the menu, the checks and the page: read once per request, forgotten on any change (RequestMemo).
+        return app(RequestMemo::class)->remember('entitlements', 'plan:'.$this->getKey(), function (): Plan {
+            $subscription = $this->subscription()->with('plan')->first();
 
-        return $subscription?->isCurrent() ? $subscription->plan : Plan::default();
+            return $subscription?->isCurrent() ? $subscription->plan : Plan::default();
+        });
     }
 
     /**

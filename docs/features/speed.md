@@ -24,6 +24,12 @@ server go quiet and the next visitor waits for a new one.
 - **Every request:** routes and event listeners are cached when the image is built, the settings when the container
   starts (`docker/entrypoint.sh`), and PHP keeps compiled code in memory without re-checking files
   (`zz-qistas-speed.ini`).
+- **Database round trips:** a signed-in page asked the database what the plan allows 13 or 14 times (five queries
+  each) and the person's role up to nine times: about 100 queries a page, each a trip to the database. These answers
+  are now read once per request (`App\Support\RequestMemo`, used by `Entitlements`, `Tenant::currentPlan()`,
+  `User::roleIn()` and the avatar) and forgotten the moment any query writes to a table they come from, when a new
+  request starts, and once the clock moves a minute (a plan running out). The dashboard went from 101 queries to 42,
+  the customers, contracts and payments lists from 88 to 98 to about 25.
 - **The edge:** the colours stylesheet, robots.txt, the sitemap and brand pictures are answered without a session, so
   with no cookie, and say how long they may be kept; Vercel's edge near the visitor keeps them. `/brand/*` files are
   kept a day.
