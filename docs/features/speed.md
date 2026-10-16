@@ -68,7 +68,7 @@ So Vercel no longer deploys by itself (`"git": {"deploymentEnabled": false}` in 
 documentation commit in the same push still deploys. The hook's URL is the repository secret `VERCEL_DEPLOY_HOOK`;
 without it the workflow fails red instead of skipping quietly. Pull requests get no preview deployment any more.
 
-The Ignored Build Step setting in the dashboard does nothing now and can be cleared.
+The owner cleared the dashboard's Ignored Build Step setting on 17 October 2026, as it did nothing.
 
 ## Moved to Mumbai (16 October 2026, c885bfc)
 
