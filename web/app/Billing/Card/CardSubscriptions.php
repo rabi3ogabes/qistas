@@ -98,6 +98,8 @@ final class CardSubscriptions
      * @return string complete, open or expired
      *
      * @throws ModelNotFoundException when the session belongs to another workspace's customer
+     * @throws CardRefused when Stripe does not know the session
+     * @throws CardUnavailable when Stripe could not be asked
      */
     public function syncSession(string $sessionId, Tenant $tenant): string
     {
