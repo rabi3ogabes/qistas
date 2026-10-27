@@ -7,6 +7,7 @@ use App\Billing\Card\CardRefused;
 use App\Entitlements\Entitlements;
 use App\Entitlements\Feature;
 use App\Models\Plan;
+use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
 
@@ -62,9 +63,22 @@ final class BillingState
     {
         $subscription = $tenant->subscription()->first();
 
-        return $subscription !== null && $subscription->isCurrent() && in_array($subscription->source, self::PAID_SOURCES, true)
-            ? $subscription->source
-            : null;
+        return $subscription !== null && self::stillPaid($subscription) ? $subscription->source : null;
+    }
+
+    /**
+     * A plan paid one way and still running on that payment. A plan that does not renew by itself (a bank transfer, a
+     * renewal turned off) stops counting once its period is over, even during the grace days that keep it on: that is
+     * when its owner is told to renew, so paying another way must be open then.
+     */
+    public static function stillPaid(Subscription $subscription): bool
+    {
+        if (! $subscription->isCurrent() || ! in_array($subscription->source, self::PAID_SOURCES, true)) {
+            return false;
+        }
+        $end = $subscription->current_period_end;
+
+        return $subscription->auto_renew === true || $end === null || $end->isFuture();
     }
 
     /** The store is switched on for this workspace and set up with something to sell, and no card subscription runs. */

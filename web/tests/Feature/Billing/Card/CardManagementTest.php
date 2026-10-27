@@ -12,6 +12,8 @@ use App\Models\AuditLog;
 use App\Models\Plan;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 /*
 | Managing a card subscription inside Qistas (spec 2026-10-27 §4.3, §5): the card on file and a new one, switching
@@ -113,6 +115,25 @@ describe('the overview', function () {
     it('has none for a workspace that does not pay by card', function () {
         expect(app(CardManagement::class)->overview($this->tenant))->toBeNull();
     });
+
+    it('reads the same again from a cache that keeps no PHP objects, as production’s does, and never keeps the card there', function () {
+        config(['cache.serializable_classes' => false]);
+        Cache::setDefaultDriver('database');
+        payingByCard($this, 'year', ['status' => 'trialing', 'trialEnd' => CarbonImmutable::parse('2026-11-10 09:00:00')]);
+        $manage = app(CardManagement::class);
+
+        $first = $manage->overview($this->tenant);
+        $again = $manage->overview($this->tenant);
+
+        expect($again)->toEqual($first)
+            ->and($again['until']?->toDateString())->toBe('2027-10-27')
+            ->and($again['trial_end']?->toDateString())->toBe('2026-11-10')
+            ->and($again['card']?->last4)->toBe('4242')
+            ->and($this->stripe->calls('upcoming'))->toHaveCount(1)
+            ->and((string) DB::table('cache')->value('value'))->not->toContain('4242');
+        $this->actingAs($this->owner)->get(route('app.billing'))->assertOk();
+        $this->actingAs($this->owner)->get(route('app.billing'))->assertOk()->assertSee('4242');
+    });
 });
 
 describe('switching period', function () {
@@ -177,6 +198,22 @@ describe('switching period', function () {
 });
 
 describe('cancelling and resuming', function () {
+    it('stops renewal while a switch is scheduled, dropping the switch first (Stripe refuses otherwise)', function (string $who) {
+        payingByCard($this, 'year', ['scheduleId' => 'sub_sched_1', 'scheduledPriceId' => 'price_test_pro_month', 'scheduledInterval' => 'month']);
+        $manage = app(CardManagement::class);
+
+        $who === 'owner'
+            ? $manage->cancel($this->tenant, null, null, $this->owner)
+            : $manage->cancelForPlatform($this->tenant, 'period_end', User::factory()->create(['platform_role' => 'super_admin']));
+
+        $overview = $manage->overview($this->tenant);
+        expect($this->stripe->calls('releaseSchedule'))->toBe([['sub_test_1']])
+            ->and($this->stripe->calls('setCancelAtPeriodEnd'))->toBe([['sub_test_1', true]])
+            ->and($overview['cancel_at_period_end'])->toBeTrue()
+            ->and($overview['scheduled_period'])->toBeNull()
+            ->and($this->tenant->fresh()->subscription()->first()->auto_renew)->toBeFalse();
+    })->with(['owner', 'platform']);
+
     it('turns renewal off, keeps Pro to the end and records the reason', function () {
         payingByCard($this);
 

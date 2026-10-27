@@ -214,11 +214,27 @@ final class LiveStripeGateway implements StripeGateway
             $phase = $schedule->phases[0];
             $item = $current->items->data[0];
 
+            // Updating a schedule replaces its phases whole: what the running phase carries (the card it charges, a
+            // promotion's discount, a trial) is copied over, or Stripe would drop it.
+            $discounts = [];
+            foreach ($phase->discounts ?? [] as $discount) {
+                $kind = match (true) {
+                    self::id($discount->discount ?? null) !== null => 'discount',
+                    self::id($discount->promotion_code ?? null) !== null => 'promotion_code',
+                    default => 'coupon',
+                };
+                if (($id = self::id($discount->{$kind} ?? null)) !== null) {
+                    $discounts[] = [$kind => $id];
+                }
+            }
+            $kept = array_filter(['default_payment_method' => self::id($phase->default_payment_method ?? null), 'discounts' => $discounts]);
+            $trial = isset($phase->trial_end) ? ['trial_end' => (int) $phase->trial_end] : [];
+
             $this->stripe->subscriptionSchedules->update((string) $schedule->id, [
                 'end_behavior' => 'release',
                 'phases' => [
-                    ['items' => [['price' => (string) $item->price->id, 'quantity' => 1]], 'start_date' => (int) $phase->start_date, 'end_date' => (int) $phase->end_date, 'proration_behavior' => 'none'],
-                    ['items' => [['price' => $priceId, 'quantity' => 1]], 'duration' => ['interval' => $this->intervalOf($priceId), 'interval_count' => 1], 'proration_behavior' => 'none'],
+                    ['items' => [['price' => (string) $item->price->id, 'quantity' => 1]], 'start_date' => (int) $phase->start_date, 'end_date' => (int) $phase->end_date, 'proration_behavior' => 'none'] + $trial + $kept,
+                    ['items' => [['price' => $priceId, 'quantity' => 1]], 'duration' => ['interval' => $this->intervalOf($priceId), 'interval_count' => 1], 'proration_behavior' => 'none'] + $kept,
                 ],
             ]);
 

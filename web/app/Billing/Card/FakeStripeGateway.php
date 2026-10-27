@@ -320,8 +320,13 @@ final class FakeStripeGateway implements StripeGateway
     public function setCancelAtPeriodEnd(string $subscriptionId, bool $cancel): CardSubscription
     {
         $this->call(__FUNCTION__, [$subscriptionId, $cancel]);
+        $held = $this->held($subscriptionId);
+        if ($held->scheduleId !== null) {
+            // As Stripe answers for a subscription a schedule manages.
+            throw new CardRefused("The subscription is managed by the subscription schedule `{$held->scheduleId}`, and updating any cancelation behavior directly is not allowed. Please update the schedule instead.");
+        }
 
-        return $this->subscriptions[$subscriptionId] = $this->with($this->held($subscriptionId), ['cancelAtPeriodEnd' => $cancel]);
+        return $this->subscriptions[$subscriptionId] = $this->with($held, ['cancelAtPeriodEnd' => $cancel]);
     }
 
     public function changePriceNow(string $subscriptionId, string $priceId): CardSubscription

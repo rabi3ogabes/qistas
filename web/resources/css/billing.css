@@ -76,6 +76,7 @@
     .checkout-or { display: flex; align-items: center; gap: .75rem; margin: 0; font-size: .8125rem; color: var(--q-ink-muted); }
     .checkout-or::before, .checkout-or::after { content: ""; flex: 1; height: 1px; background: var(--q-line); }
     .checkout-element { min-height: 9rem; }
+    .checkout-extra:not([hidden]) { min-height: 3rem; }
     .checkout-skeleton { height: 3rem; border-radius: var(--q-r-md); }
     .checkout-skeleton + .checkout-skeleton { margin-top: .75rem; }
     .checkout-skeleton.is-short { width: 60%; }

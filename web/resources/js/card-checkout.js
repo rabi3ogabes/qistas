@@ -53,6 +53,16 @@ export async function initCardCheckout(root) {
     payment.mount(field);
     payment.on('ready', () => root.classList.add('is-ready'));
 
+    // With a tax option on, the session needs the business's billing address (and its tax number): Stripe's own fields.
+    const extra = (selector, create) => {
+        const box = root.querySelector(selector);
+        if (!box || typeof create !== 'function') return;
+        box.hidden = false;
+        create().mount(box);
+    };
+    if (root.dataset.billingAddress) extra('#card-address', () => checkout.createBillingAddressElement());
+    if (root.dataset.taxId) extra('#card-tax-id', checkout.createTaxIdElement && (() => checkout.createTaxIdElement()));
+
     const express = root.querySelector('[data-card-express]');
     if (express && typeof checkout.createExpressCheckoutElement === 'function') {
         const wallets = checkout.createExpressCheckoutElement();

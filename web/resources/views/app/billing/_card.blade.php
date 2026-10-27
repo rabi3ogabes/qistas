@@ -113,12 +113,19 @@
                 </div>
             </form>
         </dialog>
+    @endunless
 
+    @unless ($card['cancel_at_period_end'])
         <dialog class="sheet" id="card-cancel-sheet" aria-labelledby="card-cancel-title">
             <form method="POST" action="{{ route('app.billing.card.cancel') }}" class="sheet-body">
                 @csrf
                 <h2 id="card-cancel-title" class="sheet-title display">{{ __('Cancel renewal') }}</h2>
-                <p>{{ __('Pro stays until :date. You won\'t be charged again, and nothing is deleted.', ['date' => $until]) }}</p>
+                <p>
+                    {{ __('Pro stays until :date. You won\'t be charged again, and nothing is deleted.', ['date' => $until]) }}
+                    @if ($card['scheduled_period'])
+                        {{ $card['scheduled_period'] === 'month' ? __('The switch to monthly is dropped too.') : __('The switch to yearly is dropped too.') }}
+                    @endif
+                </p>
                 <fieldset class="field choice">
                     <legend class="field-label">{{ __('What made you decide? (optional)') }}</legend>
                     @foreach (['too_expensive' => __('It costs too much'), 'missing_feature' => __('Something I need is missing'), 'not_using' => __('I am not using it enough'), 'switching' => __('I am moving to another tool'), 'other' => __('Something else')] as $value => $label)

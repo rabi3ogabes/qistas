@@ -1936,6 +1936,8 @@
     "The share of their profit that goes to the business, as a percent.": "La parte de su ganancia que va al negocio, en porcentaje.",
     "The shop's own logo and colour on its documents.": "El logotipo y el color propios de la tienda en sus documentos.",
     "The store could not take a payment, or a transfer was not confirmed.": "La tienda no pudo cobrar un pago, o no se confirmó una transferencia.",
+    "The switch to monthly is dropped too.": "El cambio a mensual también se cancela.",
+    "The switch to yearly is dropped too.": "El cambio a anual también se cancela.",
     "The test e-mail could not be sent: :reason": "No se pudo enviar el correo de prueba: :reason",
     "The test workspace is now on the :plan plan.": "El espacio de prueba está ahora en el plan :plan.",
     "The test workspace was reset to its sample data.": "El espacio de prueba se restableció con sus datos de ejemplo.",

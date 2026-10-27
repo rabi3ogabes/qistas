@@ -174,17 +174,19 @@ describe('who a message is about', function () {
         Log::shouldHaveReceived('warning')->withArgs(fn (string $message) => str_contains($message, 'another workspace'))->once();
     });
 
-    it('leaves the plan alone for an older subscription than the one the workspace follows', function () {
+    it('cancels and refunds a second live subscription even when it is the older one, keeping the one the workspace follows', function (string $status) {
+        // Two tabs paid at once and the newer one was synced first: the older one still charges, so it is a second
+        // payment, not an old event (spec §9).
         stripeHolds($this->stripe, $this->tenant, ['id' => 'sub_new', 'status' => 'active', 'created' => CarbonImmutable::now()]);
         app(CardSubscriptions::class)->handle(subscriptionChangedEvent('sub_new'));
-        stripeHolds($this->stripe, $this->tenant, ['id' => 'sub_old', 'status' => 'past_due', 'created' => CarbonImmutable::now()->subMonth()]);
+        stripeHolds($this->stripe, $this->tenant, ['id' => 'sub_old', 'status' => $status, 'created' => CarbonImmutable::now()->subMinute()]);
 
         $outcome = app(CardSubscriptions::class)->handle(subscriptionChangedEvent('sub_old'));
 
-        expect($outcome)->toBe('ignored')
+        expect($outcome)->toBe('refunded_duplicate')
             ->and($this->tenant->fresh()->subscription()->first()->stripe_subscription_id)->toBe('sub_new')
-            ->and($this->stripe->calls('cancelNow'))->toBe([]);
-    });
+            ->and($this->stripe->calls('cancelNow'))->toBe([['sub_old', true, false]]);
+    })->with(['active', 'past_due', 'trialing']);
 
     it('ignores the end of a subscription the workspace no longer follows', function () {
         $this->tenant->subscribeTo(Plan::where('key', 'pro')->sole(), 'active', now()->addMonth(), ['source' => 'admin']);
@@ -236,6 +238,17 @@ describe('each message once', function () {
 });
 
 describe('a second paid subscription', function () {
+    it('is not one when the plan paid another way has run out and only its grace days are left: the card takes over', function () {
+        $this->tenant->subscribeTo(Plan::where('key', 'pro')->sole(), 'active', now()->subDays(2), ['source' => 'manual', 'period' => 'year']);
+        stripeHolds($this->stripe, $this->tenant, ['status' => 'active']);
+
+        $outcome = app(CardSubscriptions::class)->handle(subscriptionChangedEvent());
+
+        expect($outcome)->toBe('active')
+            ->and($this->stripe->calls('cancelNow'))->toBe([])
+            ->and($this->tenant->fresh()->subscription()->first()->source)->toBe('stripe');
+    });
+
     it('is cancelled and refunded when the workspace already pays through Google Play', function () {
         $this->tenant->subscribeTo(Plan::where('key', 'pro')->sole(), 'active', now()->addMonth(), ['source' => 'play', 'auto_renew' => true]);
         stripeHolds($this->stripe, $this->tenant, ['status' => 'active']);
@@ -284,6 +297,15 @@ describe('telling the owner', function () {
         expect($notice->user_id)->toBe($this->owner->id)
             ->and($notice->body)->toContain('10 November 2026')
             ->and($notice->body)->toContain('120.00');
+    });
+
+    it('says nothing about a charge when the owner has cancelled the trial', function () {
+        stripeHolds($this->stripe, $this->tenant, ['status' => 'trialing', 'cancelAtPeriodEnd' => true, 'trialEnd' => CarbonImmutable::parse('2026-11-10 09:00:00'), 'periodEnd' => CarbonImmutable::parse('2026-11-10 09:00:00')]);
+
+        app(CardSubscriptions::class)->handle(subscriptionChangedEvent(type: 'customer.subscription.trial_will_end'));
+
+        expect(noticesOf($this->owner, 'billing.trial_ending'))->toBe(0)
+            ->and($this->tenant->fresh()->subscription()->first()->auto_renew)->toBeFalse();
     });
 
     it('says a renewal went through, but not for the first payment', function () {

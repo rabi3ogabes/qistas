@@ -49,23 +49,30 @@ final class CardManagement
         }
         $id = (string) $local->stripe_subscription_id;
 
-        return Cache::remember(self::cacheKey($id), self::OVERVIEW_SECONDS, function () use ($id): array {
+        // Plain values only: the production cache refuses PHP objects (cache.serializable_classes), and the card on
+        // file is never kept here (spec §5.1), so it is asked for on every view.
+        $cached = Cache::remember(self::cacheKey($id), self::OVERVIEW_SECONDS, function () use ($id): array {
             $remote = $this->stripe->subscription($id);
             $next = $this->stripe->upcoming($id);
 
             return [
                 'status' => $remote->status,
-                'until' => $remote->periodEnd,
-                'trial_end' => $remote->status === 'trialing' ? $remote->trialEnd : null,
+                'until' => $remote->periodEnd?->toIso8601String(),
+                'trial_end' => $remote->status === 'trialing' ? $remote->trialEnd?->toIso8601String() : null,
                 'cancel_at_period_end' => $remote->cancelAtPeriodEnd,
                 'period' => $remote->interval,
                 'next_amount' => $next?->amountDue,
                 'currency' => $next->currency ?? $remote->currency,
                 'scheduled_period' => $remote->scheduledInterval,
-                'card' => $this->stripe->paymentMethod($id),
                 'needs_action' => $this->held($remote->latestInvoiceId) !== null,
             ];
         });
+
+        return [
+            'until' => is_string($cached['until']) ? CarbonImmutable::parse($cached['until']) : null,
+            'trial_end' => is_string($cached['trial_end']) ? CarbonImmutable::parse($cached['trial_end']) : null,
+            'card' => $this->stripe->paymentMethod($id),
+        ] + $cached;
     }
 
     /**
@@ -168,7 +175,7 @@ final class CardManagement
     public function cancel(Tenant $tenant, ?string $reason, ?string $details, User $by): Subscription
     {
         $local = $this->current($tenant);
-        $this->stripe->setCancelAtPeriodEnd((string) $local->stripe_subscription_id, true);
+        $this->stopRenewal((string) $local->stripe_subscription_id);
         $synced = $this->changed($local);
         Audit::record('billing.card_cancelled', $local, ['reason' => $reason, 'details' => $details], $tenant->id, $by->id);
 
@@ -190,7 +197,7 @@ final class CardManagement
         if ($when === 'now') {
             $this->stripe->cancelNow($id, true, true);
         } else {
-            $this->stripe->setCancelAtPeriodEnd($id, true);
+            $this->stopRenewal($id);
         }
         $synced = $this->changed($local);
         Audit::record('admin.card_subscription_cancelled', $local, ['when' => $when], $tenant->id, $by->id);
@@ -280,6 +287,18 @@ final class CardManagement
         return $subscription !== null && $subscription->source === 'stripe' && $subscription->stripe_subscription_id !== null && $subscription->isCurrent()
             ? $subscription
             : null;
+    }
+
+    /**
+     * Renewal off at the end of the period. Stripe refuses that on a subscription a schedule manages (a switch to monthly
+     * waiting for the year's end), so the schedule is released first: a plan that will not renew has nothing to switch.
+     */
+    private function stopRenewal(string $id): void
+    {
+        if ($this->stripe->subscription($id)->scheduleId !== null) {
+            $this->stripe->releaseSchedule($id);
+        }
+        $this->stripe->setCancelAtPeriodEnd($id, true);
     }
 
     /** After a change: forget what the page showed and bring the workspace's plan in line with Stripe now. */

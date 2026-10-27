@@ -260,6 +260,22 @@ describe('a workspace that already pays', function () {
         $this->actingAs($owner)->get(route('app.billing.checkout'))->assertRedirect(route('app.billing'));
     })->with(['play', 'manual', 'stripe']);
 
+    it('can move to card once a plan that does not renew by itself has run out, during its grace days', function () {
+        [$owner, $tenant] = checkoutOwner();
+        $tenant->subscribeTo(Plan::where('key', 'pro')->sole(), 'active', now()->subDays(2), ['source' => 'manual', 'period' => 'year']);
+        expect($tenant->fresh()->currentPlan()->key)->toBe('pro');
+
+        startCheckout($owner)->assertOk();
+        $this->actingAs($owner)->get(route('app.billing.checkout'))->assertOk();
+    });
+
+    it('still cannot while a plan that renews by itself is in its grace days (the store is retrying)', function () {
+        [$owner, $tenant] = checkoutOwner();
+        $tenant->subscribeTo(Plan::where('key', 'pro')->sole(), 'active', now()->subDays(2), ['source' => 'play', 'auto_renew' => true]);
+
+        startCheckout($owner)->assertUnprocessable()->assertJsonPath('message', 'Pro is already on for this workspace.');
+    });
+
     it('can start one while on a plan the team gave', function () {
         [$owner, $tenant] = checkoutOwner();
         $tenant->subscribeTo(Plan::where('key', 'pro')->sole(), 'active', now()->addMonth(), ['source' => 'admin']);

@@ -1936,6 +1936,8 @@
     "The share of their profit that goes to the business, as a percent.": "حصة ربحه التي تذهب إلى النشاط، كنسبة مئوية.",
     "The shop's own logo and colour on its documents.": "شعار المتجر ولونه على مستنداته.",
     "The store could not take a payment, or a transfer was not confirmed.": "تعذّر على المتجر تحصيل دفعة، أو لم يُؤكَّد تحويل.",
+    "The switch to monthly is dropped too.": "ويُلغى التحويل إلى الدفع الشهري أيضًا.",
+    "The switch to yearly is dropped too.": "ويُلغى التحويل إلى الدفع السنوي أيضًا.",
     "The test e-mail could not be sent: :reason": "تعذّر إرسال الرسالة التجريبية: :reason",
     "The test workspace is now on the :plan plan.": "أصبحت مساحة الاختبار على خطة :plan.",
     "The test workspace was reset to its sample data.": "أُعيدت مساحة الاختبار إلى بياناتها التجريبية.",

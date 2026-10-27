@@ -65,6 +65,10 @@ final class CardCheckoutController
             'trialEnd' => $trialDays > 0 ? now()->addDays($trialDays) : null,
             'renewsOn' => $period === 'year' ? now()->addYearNoOverflow() : now()->addMonthNoOverflow(),
             'promotionCodes' => $settings->promotionCodes(),
+            // The session asks Stripe for a billing address when either tax option is on (LiveStripeGateway), so the
+            // page mounts the fields that collect it.
+            'billingAddress' => $settings->collectTaxId() || $settings->automaticTax(),
+            'taxId' => $settings->collectTaxId(),
             'unlocked' => $this->unlocked($tenant, $plan, $catalog),
             'email' => (string) $request->user()?->email,
         ]);

@@ -179,7 +179,10 @@ updated.
 | `incomplete` | nothing changes (the checkout is still being paid) |
 | `incomplete_expired`, `canceled`, `unpaid`, `paused` | back to the default (Free) plan, status `expired`; nothing is deleted |
 
-A sync for a subscription that is not the workspace's current one and not newer than it does nothing (an old event).
+A sync for a subscription that is not the workspace's current one and has ended does nothing (an old event). One that
+is not the workspace's current one but is still in force, older or newer, is a second payment while another paid plan is
+current, and is cancelled and refunded (§9). (Corrected 2026-10-27 after the final review: the earlier wording left an
+older live subscription charging.)
 `trial_used_at` is set the first time a workspace gets a paid plan through any purchase or trial: a card trial, a card
 payment, a Google Play purchase (`StoreSubscriptions`), an approved bank transfer (`ManualPayments`). Admin-given plans
 do not count. The checkout offers the trial only while it is empty.

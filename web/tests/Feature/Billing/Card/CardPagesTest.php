@@ -80,6 +80,23 @@ describe('the checkout page', function () {
         $this->actingAs($this->owner)->get(route('app.billing.checkout'))->assertOk()->assertSee('data-card-promo', false);
     });
 
+    it('asks for the billing address, and the tax number, only when the admin turns tax on', function (bool $taxId, bool $automatic, bool $address) {
+        $page = fn () => $this->actingAs($this->owner)->get(route('app.billing.checkout'))->assertOk();
+        $page()->assertDontSee('data-billing-address', false)->assertDontSee('data-tax-id', false);
+
+        app(CardSettings::class)->saveOptions(['trial_days' => 14, 'promotion_codes' => false, 'collect_tax_id' => $taxId, 'automatic_tax' => $automatic], User::factory()->create(['platform_role' => 'super_admin']));
+
+        $html = $page()->getContent();
+        expect(str_contains($html, 'data-billing-address="1"'))->toBe($address)
+            ->and(str_contains($html, 'data-tax-id="1"'))->toBe($taxId)
+            ->and(str_contains($html, 'id="card-address"'))->toBeTrue()
+            ->and(str_contains($html, 'id="card-tax-id"'))->toBeTrue();
+    })->with([
+        'tax number' => [true, false, true],
+        'automatic tax' => [false, true, true],
+        'both' => [true, true, true],
+    ]);
+
     it('carries nothing secret and no inline script', function () {
         $html = $this->actingAs($this->owner)->get(route('app.billing.checkout'))->assertOk()->getContent();
         $body = substr($html, (int) strpos($html, '<body'));
@@ -134,6 +151,17 @@ describe('the billing page for a card subscriber', function () {
             ->assertOk()
             ->assertSee(__('Monthly from :date.', ['date' => Dates::day(CarbonImmutable::parse('2027-10-27'), 'j F Y')]))
             ->assertSee(__('Keep yearly'));
+    });
+
+    it('can still cancel renewal while a switch is coming, and says the switch is dropped', function () {
+        pagesPayingByCard($this, ['scheduleId' => 'sub_sched_1', 'scheduledPriceId' => 'price_month', 'scheduledInterval' => 'month']);
+
+        $this->actingAs($this->owner)->get(route('app.billing'))
+            ->assertOk()
+            ->assertSee('data-open-sheet="card-cancel-sheet"', false)
+            ->assertSee('id="card-cancel-sheet"', false)
+            ->assertSee(__('The switch to monthly is dropped too.'))
+            ->assertDontSee('id="card-switch-sheet"', false);
     });
 
     it('asks for a new card after a failed payment', function () {

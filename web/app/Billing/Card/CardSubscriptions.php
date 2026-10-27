@@ -159,7 +159,7 @@ final class CardSubscriptions
         $current = $tenant->subscription()->lockForUpdate()->first();
         $follows = $current !== null && $current->source === 'stripe' && $current->stripe_subscription_id === $remote->id;
 
-        if (! $follows && $current !== null && $current->isCurrent() && in_array($current->source, BillingState::PAID_SOURCES, true)) {
+        if (! $follows && $current !== null && BillingState::stillPaid($current)) {
             return $this->secondPayment($tenant, $current, $remote);
         }
         if ($remote->status === 'incomplete') {
@@ -199,18 +199,15 @@ final class CardSubscriptions
     }
 
     /**
-     * Another paid plan already runs. A card subscription that is not paying yet changes nothing; an older one than the
-     * card subscription the workspace follows is left alone; any other is cancelled now and its payment refunded.
+     * Another paid plan already runs. A card subscription that is not paying yet changes nothing; any other in force is
+     * cancelled now and its payment refunded, older or newer: Stripe's current state is read every time, so one still
+     * in force is a second payment, never an old event (spec §9). The plan the workspace follows is kept.
      *
      * @return array{0: string, 1: Subscription|null}
      */
     private function secondPayment(Tenant $tenant, Subscription $current, CardSubscription $remote): array
     {
         if (! in_array($remote->status, self::IN_FORCE, true)) {
-            return ['ignored', null];
-        }
-        if ($current->source === 'stripe' && $current->stripe_subscription_id !== null
-            && $remote->created->lessThanOrEqualTo($this->stripe->subscription($current->stripe_subscription_id)->created)) {
             return ['ignored', null];
         }
 
@@ -250,7 +247,8 @@ final class CardSubscriptions
     {
         $remote = $this->stripe->subscription($subscriptionId);
         [$outcome, $subscription] = $this->follow($remote, $livemode);
-        if ($subscription === null || $outcome !== 'trialing') {
+        // A trial the owner cancelled ends without a charge; the hourly reminders say when Pro stops.
+        if ($subscription === null || $outcome !== 'trialing' || $remote->cancelAtPeriodEnd) {
             return [$outcome, $subscription];
         }
 

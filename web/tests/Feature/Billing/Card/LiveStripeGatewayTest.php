@@ -256,6 +256,29 @@ describe('subscriptions', function () {
             ->and($subscription->scheduledInterval)->toBe('month');
     });
 
+    it('keeps the trial, the discount and the card the subscription is charged to when it schedules another price', function () {
+        $this->stripe->on('get', '/v1/subscriptions/sub_live_1', liveStripeSubscription(['status' => 'trialing', 'trial_end' => 1794209600]), once: true)
+            ->on('post', '/v1/subscription_schedules', ['id' => 'sub_sched_1', 'object' => 'subscription_schedule', 'phases' => [[
+                'start_date' => 1793000000, 'end_date' => 1824536000, 'trial_end' => 1794209600, 'default_payment_method' => 'pm_1',
+                'discounts' => [['coupon' => null, 'discount' => 'di_1', 'promotion_code' => null]],
+                'items' => [['price' => 'price_year', 'quantity' => 1]],
+            ]]])
+            ->on('post', '/v1/subscription_schedules/sub_sched_1', ['id' => 'sub_sched_1', 'object' => 'subscription_schedule'])
+            ->on('get', '/v1/subscriptions/sub_live_1', liveStripeSubscription(['schedule' => 'sub_sched_1']))
+            ->on('get', '/v1/subscription_schedules/sub_sched_1', ['id' => 'sub_sched_1', 'object' => 'subscription_schedule', 'phases' => [
+                ['start_date' => 1793000000, 'end_date' => 1824536000, 'items' => [['price' => 'price_year', 'quantity' => 1]]],
+                ['start_date' => 1824536000, 'end_date' => 1827214400, 'items' => [['price' => 'price_month', 'quantity' => 1]]],
+            ]])
+            ->on('get', '/v1/prices/price_month', ['id' => 'price_month', 'object' => 'price', 'recurring' => ['interval' => 'month']]);
+
+        $this->gateway->schedulePriceChange('sub_live_1', 'price_month');
+
+        [$now, $next] = $this->stripe->sent('post', '/v1/subscription_schedules/sub_sched_1')[0]['params']['phases'];
+        expect($now)->toMatchArray(['trial_end' => 1794209600, 'default_payment_method' => 'pm_1', 'discounts' => [['discount' => 'di_1']]])
+            ->and($next)->toMatchArray(['default_payment_method' => 'pm_1', 'discounts' => [['discount' => 'di_1']]])
+            ->and($next)->not->toHaveKey('trial_end');
+    });
+
     it('previews moving to another price', function () {
         $this->stripe->on('get', '/v1/subscriptions/sub_live_1', liveStripeSubscription())
             ->on('post', '/v1/invoices/create_preview', ['object' => 'invoice', 'amount_due' => 10800, 'currency' => 'usd']);

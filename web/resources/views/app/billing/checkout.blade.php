@@ -21,7 +21,9 @@
         data-period="{{ $period }}"
         data-attempt="{{ $attempt }}"
         data-failed="{{ __('Card payments are briefly unavailable. Nothing was charged; try again in a minute.') }}"
-        data-promo-applied="{{ __('Code applied.') }}">
+        data-promo-applied="{{ __('Code applied.') }}"
+        @if ($billingAddress) data-billing-address="1" @endif
+        @if ($taxId) data-tax-id="1" @endif>
 
         <section class="card checkout-summary" aria-labelledby="checkout-plan">
             <h2 id="checkout-plan" class="display checkout-plan">Qistas {{ $plan->name }}</h2>
@@ -87,6 +89,9 @@
                 <div class="skeleton checkout-skeleton" aria-hidden="true"></div>
                 <div class="skeleton checkout-skeleton is-short" aria-hidden="true"></div>
             </div>
+            {{-- Stripe's own fields for the business's billing address and tax number, when the admin asks for them. --}}
+            <div id="card-address" class="checkout-extra" hidden></div>
+            <div id="card-tax-id" class="checkout-extra" hidden></div>
 
             <p class="checkout-email">{{ __('Receipts go to :email', ['email' => $email]) }}</p>
 
