@@ -71,6 +71,7 @@ describe('what Stripe says, and the workspace\'s plan', function () {
             ->and($subscription->period)->toBe('year');
     })->with([
         'in a trial' => [['status' => 'trialing', 'trialEnd' => CarbonImmutable::parse('2026-11-10 09:00:00'), 'periodEnd' => CarbonImmutable::parse('2026-11-10 09:00:00')], 'trialing', '2026-11-10', true],
+        'in a trial that ends before the period Stripe reports' => [['status' => 'trialing', 'trialEnd' => CarbonImmutable::parse('2026-11-10 09:00:00'), 'periodEnd' => CarbonImmutable::parse('2027-10-27 09:00:00')], 'trialing', '2026-11-10', true],
         'active' => [['status' => 'active', 'periodEnd' => CarbonImmutable::parse('2027-10-27 09:00:00')], 'active', '2027-10-27', true],
         'active, renewal off' => [['status' => 'active', 'cancelAtPeriodEnd' => true, 'periodEnd' => CarbonImmutable::parse('2027-10-27 09:00:00')], 'active', '2027-10-27', false],
         'a renewal failing, Stripe retrying' => [['status' => 'past_due', 'periodEnd' => CarbonImmutable::parse('2027-10-27 09:00:00')], 'past_due', '2027-10-27', true],

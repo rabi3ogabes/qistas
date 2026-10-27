@@ -42,8 +42,8 @@ docker compose up --build        # then open http://localhost:8080  (demo login 
 
 | Done and verified | Not built yet |
 |---|---|
-| Name, Plumb q logo kit, app icons and favicon set | Admin console (users, plans, themes), Stripe billing, reports and exports |
-| Laravel web app: website, sign-up and sign-in with 2FA, customers, contracts, payments, plans and limits, five languages, REST API, admin test workspace; 1,100 tests, also green on PostgreSQL | Online payment for Pro (today the team turns Pro on), e-mail sending (needs SMTP) |
+| Name, Plumb q logo kit, app icons and favicon set | Admin console (users, plans, themes), reports and exports |
+| Laravel web app: website, sign-up and sign-in with 2FA, customers, contracts, payments, plans and limits, five languages, REST API, admin test workspace; Pro by card (Stripe), Google Play and bank transfer, each behind its own switch ([billing](docs/features/billing.md)); 1,100 tests, also green on PostgreSQL | E-mail sending (needs SMTP) |
 | Flutter app: sign-in with 2FA, dashboard, customers, contracts with a live schedule preview, payments (safe to retry), plans, five languages with right-to-left, 220+ tests | iOS and store builds, push reminders, offline queue |
 | Theme engine: base → country → event → merchant accent, Hijri schedules, WCAG gate (24 tests) | Real database behind the live site: Supabase, connected |
 | Theme Studio prototype with preview, versions, rollback | Reminders, backups, AI assistant |

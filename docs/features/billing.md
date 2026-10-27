@@ -1,17 +1,18 @@
 # Buy Pro your way (Win Plan PP13)
 
-Owners can now pay for a plan in two ways, and each way has its own switch for the whole platform in
-`/admin/features`. Both switches ship **off**:
+Owners can pay for a plan in three ways, and each way has its own switch for the whole platform in
+`/admin/features`. All three switches ship **off**:
 
 | Switch | Where owners pay | Who confirms |
 |---|---|---|
 | **Pro through Google Play** | In the Android app, monthly or yearly, at Google's price, with the free trial Google offers them | Google: the server checks every purchase with Google before Pro turns on |
 | **Pro by bank transfer** | On the website: they transfer, then send the reference and the receipt | The Qistas team in `/admin/billing`, or nobody when automatic approval is on |
+| **Pro by card** | On the website, inside Qistas: card, Apple Pay or Google Pay, monthly or yearly, at the plan's own price, with a free trial you set | Stripe: the plan follows Stripe's payments, renewals, failures and cancellations |
 
-The plan belongs to the workspace, not to the phone: a purchase made on one phone shows on the website and on every
-other phone. *Restore purchases* brings it to a new phone. The Android app never mentions bank transfer or the website,
-as Google Play's payments policy requires. Card payment on the website is not built yet: it waits for the choice of a
-payment provider (see the last section).
+The plan belongs to the workspace, not to the phone: a purchase made one way shows on the website and on every phone.
+*Restore purchases* brings a Google Play purchase to a new phone. Only one way runs at a time: while a workspace pays
+one way, the others are not offered. The Android app never mentions bank transfer, cards or the website, as Google
+Play's payments policy requires: a plan paid outside the store shows there only as "Renews 9 Dec 2026" or "Until …".
 
 ## What you set up
 
@@ -72,9 +73,66 @@ and always by asking Google again what is true now.
 | On hold, paused, expired | Back on Free (nothing is deleted) |
 | Refunded or revoked | Back on Free at once |
 
-## Not built yet: card payment on the website
+### 4. Cards on the website (Stripe)
 
-Paying by card, mada or Apple Pay on the website needs a payment provider: Moyasar, Tap, HyperPay or Stripe, for
-example. Card numbers never touch Qistas; the provider hosts the payment page. Once you choose one and create its
-account, the checkout can be added in the same way: a hosted page, a signed notification, and one-time keys so that
-nothing is charged twice.
+Owners upgrade without leaving Qistas: the checkout page is Qistas' own, and only the card fields are Stripe's, in
+Qistas' colours. Card numbers never reach Qistas' servers. Design: `docs/superpowers/specs/2026-10-27-stripe-card-billing-design.md`.
+
+**Setting it up** (about two minutes once the Stripe account exists):
+
+1. Create a Stripe account for the company that sells Qistas, in a country Stripe supports for businesses (the United
+   Arab Emirates is; Saudi Arabia, Qatar, Kuwait, Bahrain, Oman, Egypt and Morocco are not, today).
+2. In Stripe → *Developers* → *API keys*, copy the **test** secret key and publishable key. Paste both into
+   `/admin/billing` → *Card payments (Stripe)* and press **Save and connect**. Qistas checks the account, makes the
+   webhook for `https://<your site>/webhooks/stripe` with the events it follows, keeps its signing secret, and registers
+   the site's domain for Apple Pay and Google Pay. Nothing is set up by hand in Stripe. The panel then reads *Ready to
+   take cards · Test mode*. If Stripe refuses a key, its own message shows and nothing is saved.
+3. Choose the free trial (14 days by default, 0 for none; each workspace has one trial, ever), and whether owners can
+   enter promotion codes (made in Stripe), give a tax number, or have tax worked out by Stripe Tax. Prices include tax.
+4. Check *Price check*: every paid plan's monthly and yearly price must read *Ready*. A price Stripe cannot charge (for
+   example KWD with four decimals) says why.
+5. In `/admin/features`, switch on **Pro by card**, then buy once on the website with the test card
+   `4242 4242 4242 4242` (any future date, any CVC).
+6. In Stripe → *Billing* → *Revenue recovery*: turn on Smart Retries and choose **cancel the subscription** after the
+   last retry. Optional: Stripe's own customer e-mails.
+7. When Stripe has verified the account, paste the **live** keys and press **Save and connect** again. Test customers are
+   never reused with live keys.
+
+*Connect again* makes a new webhook (for example after the site moves to a new address). *Disconnect* deletes the
+webhook and forgets the keys; subscriptions already running keep renewing in Stripe, but Qistas stops hearing about them
+until you connect again. Locally, `STRIPE_SECRET`, `STRIPE_PUBLISHABLE_KEY` and `STRIPE_WEBHOOK_SECRET` in `web/.env`
+win over the saved keys (for example with `stripe listen --forward-to http://localhost:8000/webhooks/stripe`).
+
+**What owners get.** *Plan and billing* shows the plan, the next charge, the card (with a way to change it), switching
+between monthly and yearly (to yearly at once with the unused time credited, to monthly at the end of the year), cancel
+and resume, receipts as PDFs, and a way to confirm a payment their bank holds. After paying they land on a welcome page,
+already on Pro, without waiting for Stripe's message. Two tabs paying at the same moment, or a Play purchase in between,
+end in one subscription: the second is cancelled at once and refunded, and the owner is told.
+
+**What happens when Stripe says so.** Each Stripe message is checked against its signature, applied once, and always
+read again from Stripe before anything changes:
+
+| Stripe says the subscription is | The workspace |
+|---|---|
+| `trialing` | On the plan until the trial ends |
+| `active` | On the plan until the period's end |
+| `past_due` (a renewal failed, Stripe retries) | Keeps the plan |
+| `incomplete` (the checkout is still being paid) | Nothing changes |
+| `incomplete_expired`, `canceled`, `unpaid`, `paused` | Back on Free, nothing deleted |
+
+**Notices** (in the app's inbox, as a push, and by e-mail where the owner allows it):
+
+| When | The owner reads |
+|---|---|
+| Three days before a trial ends | Your Pro trial ends on 9 Nov; your card will be charged 120.00 USD. |
+| A renewal is paid | Pro renewed until 9 Dec 2027. |
+| A renewal fails | We couldn't charge your card for Pro. Update it in Billing; Pro stays on meanwhile. |
+| The bank asks to confirm a payment | Your bank asks you to confirm the Pro payment in Billing. |
+| The subscription ends | Pro has ended; your workspace is on Free. Nothing was deleted. |
+| A second payment was refunded | Your workspace already had Pro, so the new card subscription was cancelled and its payment refunded. |
+
+**For the team.** Business pages show *Card (Stripe)*, the status, monthly or yearly, the next charge or the end, the
+trial end, and a link to the subscription in Stripe's dashboard. A super admin can **cancel the card subscription**: now,
+refunding the part of the last payment not used yet (the business moves to Free), or at the end of the period. While a
+card subscription runs, changing the plan by hand is refused, so Stripe never goes on charging for a plan that no longer
+follows it.

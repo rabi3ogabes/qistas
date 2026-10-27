@@ -2,6 +2,8 @@
 
 use App\Billing\BillingSettings;
 use App\Billing\BillingState;
+use App\Billing\Card\CardCheckout;
+use App\Billing\Card\CardRefused;
 use App\Billing\Card\CardSettings;
 use App\Billing\Card\CardUnavailable;
 use App\Billing\Card\Data\SubscriptionCheckout;
@@ -194,6 +196,17 @@ describe('who cannot', function () {
         $this->actingAs($member)->get(route('app.billing.checkout'))->assertForbidden();
         expect($this->stripe->calls('createSubscriptionCheckout'))->toBe([]);
     })->with(['manager', 'accountant', 'collector']);
+
+    it('is refused by the checkout itself, whoever calls it, and the billing page offers it to the owner only', function () {
+        [$owner, $tenant] = checkoutOwner();
+        $manager = memberAs('manager', $tenant);
+
+        expect(fn () => app(CardCheckout::class)->start($tenant, $manager, 'pro', 'year', 'attempt-1'))
+            ->toThrow(CardRefused::class, 'Only the owner of the workspace can change its plan.');
+        expect(app(BillingState::class)->cardOpen($tenant, $manager))->toBeFalse()
+            ->and(app(BillingState::class)->cardOpen($tenant, $owner))->toBeTrue()
+            ->and($this->stripe->calls('createSubscriptionCheckout'))->toBe([]);
+    });
 
     it('refuses demo and test workspaces', function (string $flag) {
         [$owner] = checkoutOwner([$flag => true]);
