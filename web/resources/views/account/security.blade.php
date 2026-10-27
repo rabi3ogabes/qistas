@@ -8,6 +8,22 @@
 
         <p><a class="btn btn-quiet" href="{{ route('security.recovery-codes') }}">{{ __('View recovery codes') }}</a></p>
 
+        {{-- Devices that skip the code for 30 days after "Don't ask again on this device". --}}
+        <section class="trusted-devices" aria-labelledby="trusted-title">
+            <h2 id="trusted-title" class="devices-title">{{ __('Trusted devices') }}</h2>
+            <p class="field-hint">
+                @if ($trustedUntil)
+                    {{ __('This device skips the code until :date.', ['date' => $trustedUntil->translatedFormat('j F Y')]) }}
+                @else
+                    {{ __('This device asks for a code at every sign-in.') }}
+                @endif
+            </p>
+            <form method="POST" action="{{ route('security.trusted-devices.forget') }}" class="form">
+                @csrf
+                <x-button variant="quiet">{{ __('Forget trusted devices') }}</x-button>
+            </form>
+        </section>
+
         <form method="POST" action="{{ route('two-factor.disable') }}" class="form">
             @csrf
             @method('DELETE')
@@ -16,6 +32,7 @@
     @elseif ($user->two_factor_secret)
         <ol class="steps">
             <li>{{ __('Scan this QR code with an authenticator app such as Google Authenticator, Microsoft Authenticator or 1Password.') }}</li>
+            <li>{{ __('Type the 6-digit code the app shows.') }}</li>
         </ol>
         <div class="qr" role="img" aria-label="{{ __('Two-factor setup QR code') }}">{!! $user->twoFactorQrCodeSvg() !!}</div>
         <p class="field-hint">{{ __('Cannot scan it? Enter this key instead:') }} <code dir="ltr">{{ decrypt($user->two_factor_secret) }}</code></p>
@@ -23,7 +40,15 @@
         <form method="POST" action="{{ route('two-factor.confirm') }}" class="form" novalidate>
             @csrf
             <x-field name="code" bag="confirmTwoFactorAuthentication" :label="__('Authentication code')" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" required autofocus />
+            @include('auth._remember-device')
             <x-button>{{ __('Confirm and turn on') }}</x-button>
+        </form>
+
+        {{-- A key that was shown to someone else, or never scanned, is replaced with one press. --}}
+        <form method="POST" action="{{ route('security.two-factor.restart') }}" class="form">
+            @csrf
+            <p class="field-hint">{{ __('Shared this key with anyone, or want to start over? Get a new one.') }}</p>
+            <x-button variant="quiet">{{ __('Get a new key') }}</x-button>
         </form>
     @else
         <form method="POST" action="{{ route('two-factor.enable') }}" class="form">

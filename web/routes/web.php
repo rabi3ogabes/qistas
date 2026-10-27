@@ -82,6 +82,8 @@ Route::middleware(['auth', 'account.active', 'password.confirm'])->prefix('accou
     Route::get('/security', [SecurityController::class, 'show'])->name('security');
     Route::get('/security/recovery-codes', [SecurityController::class, 'recoveryCodes'])->name('security.recovery-codes');
     Route::delete('/security/devices/{device}', [SecurityController::class, 'signOutDevice'])->name('security.devices.destroy');
+    Route::post('/security/two-factor/restart', [SecurityController::class, 'restartTwoFactor'])->name('security.two-factor.restart');
+    Route::post('/security/trusted-devices/forget', [SecurityController::class, 'forgetTrustedDevices'])->name('security.trusted-devices.forget');
 });
 
 // Unknown addresses go through the web group too, so the not-found page speaks the reader's language.

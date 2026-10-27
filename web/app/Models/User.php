@@ -25,6 +25,7 @@ use Laravel\Sanctum\HasApiTokens;
 /**
  * @property Carbon|null $demo_expires_at when a demo account is deleted; null for every real account
  * @property string|null $phone the person's own phone, set on their profile
+ * @property Carbon|null $trusted_devices_reset_at the last "forget trusted devices"; browsers remembered before ask again
  */
 // platform_role and status are deliberately not fillable: no request payload can ever set them.
 #[Fillable(['name', 'email', 'password', 'locale'])]
@@ -139,6 +140,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'email_verified_at' => 'datetime',
             'demo_expires_at' => 'datetime',
             'two_factor_confirmed_at' => 'datetime',
+            'trusted_devices_reset_at' => 'datetime',
             'password' => 'hashed',
         ];
     }

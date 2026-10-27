@@ -3,19 +3,22 @@
 namespace App\Providers;
 
 use App\Actions\Auth\AuthenticateUser;
+use App\Actions\Auth\SkipTwoFactorOnTrustedDevice;
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
 use App\Actions\Fortify\UpdateUserPassword;
 use App\Actions\Fortify\UpdateUserProfileInformation;
 use App\Http\Responses\NeutralPasswordResetLinkResponse;
+use App\Http\Responses\RemembersTrustedDevice;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
-use Laravel\Fortify\Actions\RedirectIfTwoFactorAuthenticatable;
 use Laravel\Fortify\Contracts\FailedPasswordResetLinkRequestResponse;
 use Laravel\Fortify\Contracts\SuccessfulPasswordResetLinkRequestResponse;
+use Laravel\Fortify\Contracts\TwoFactorConfirmedResponse;
+use Laravel\Fortify\Contracts\TwoFactorLoginResponse;
 use Laravel\Fortify\Fortify;
 
 class FortifyServiceProvider extends ServiceProvider
@@ -25,6 +28,9 @@ class FortifyServiceProvider extends ServiceProvider
         // One answer for "known email" and "unknown email" alike: the form must not reveal who has an account.
         $this->app->bind(SuccessfulPasswordResetLinkRequestResponse::class, NeutralPasswordResetLinkResponse::class);
         $this->app->bind(FailedPasswordResetLinkRequestResponse::class, NeutralPasswordResetLinkResponse::class);
+        // A correct code can also remember the browser ("Don't ask again on this device").
+        $this->app->bind(TwoFactorLoginResponse::class, RemembersTrustedDevice::class);
+        $this->app->bind(TwoFactorConfirmedResponse::class, RemembersTrustedDevice::class);
     }
 
     public function boot(): void
@@ -33,7 +39,7 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::updateUserProfileInformationUsing(UpdateUserProfileInformation::class);
         Fortify::updateUserPasswordsUsing(UpdateUserPassword::class);
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
-        Fortify::redirectUserForTwoFactorAuthenticationUsing(RedirectIfTwoFactorAuthenticatable::class);
+        Fortify::redirectUserForTwoFactorAuthenticationUsing(SkipTwoFactorOnTrustedDevice::class);
         Fortify::authenticateUsing(app(AuthenticateUser::class));
 
         Fortify::loginView(fn () => view('auth.login'));
