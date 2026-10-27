@@ -14,6 +14,7 @@ use App\Models\Tenant;
 use App\Support\Audit;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -77,6 +78,9 @@ final class CardSubscriptions
 
         [$outcome, $subscription] = DB::transaction(fn (): array => $this->apply($event));
         $stored->forceFill(['outcome' => $outcome, 'processed_at' => now()])->save();
+        if ($subscription?->stripe_subscription_id !== null) {
+            Cache::forget(CardManagement::cacheKey($subscription->stripe_subscription_id)); // the billing page reads Stripe again
+        }
         if ($subscription !== null) {
             Audit::record('billing.card_event', $subscription, [
                 'event' => $event->type, 'outcome' => $outcome, 'status' => $subscription->status, 'until' => $subscription->current_period_end?->toDateString(),

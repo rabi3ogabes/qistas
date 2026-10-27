@@ -135,6 +135,13 @@ final class FakeStripeGateway implements StripeGateway
         $this->subscriptions[$subscription->id] = $subscription;
     }
 
+    /** The buyer saved a new card in a setup checkout. */
+    public function completeSetupSession(string $sessionId): void
+    {
+        $session = $this->sessions[$sessionId];
+        $this->sessions[$sessionId] = new CardSession($session->id, $session->clientSecret, 'complete', $session->mode, $session->customerId, null, $session->setupIntentId, $session->metadata);
+    }
+
     public function expireSession(string $sessionId): void
     {
         $session = $this->sessions[$sessionId];
