@@ -1848,6 +1848,7 @@
     "This payment has already been voided.": "سبق إلغاء هذه الدفعة.",
     "This payment was made before the contract became open, so it stays as it is.": "تمت هذه الدفعة قبل أن يصبح العقد مفتوحًا، لذا تبقى كما هي.",
     "This picture is larger than :mb MB.": "حجم هذه الصورة أكبر من :mb ميغابايت.",
+    "This plan cannot be bought by card at the moment.": "لا يمكن شراء هذه الباقة بالبطاقة حاليًا.",
     "This purchase belongs to another workspace.": "عملية الشراء هذه تخص مساحة عمل أخرى.",
     "This receipt is not ready yet.": "هذا الإيصال غير جاهز بعد.",
     "This removes :name from your lists and frees a place on your plan. Their contracts and payments stay in your records.": "سيُزال :name من قوائمك ويُفرَّغ مكان في خطتك. تبقى عقوده ودفعاته في سجلاتك.",

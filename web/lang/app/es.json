@@ -1848,6 +1848,7 @@
     "This payment has already been voided.": "Este pago ya se anuló.",
     "This payment was made before the contract became open, so it stays as it is.": "Este pago se hizo antes de que el contrato pasara a abierto, así que queda como está.",
     "This picture is larger than :mb MB.": "Esta imagen supera los :mb MB.",
+    "This plan cannot be bought by card at the moment.": "Este plan no se puede comprar con tarjeta en este momento.",
     "This purchase belongs to another workspace.": "Esta compra pertenece a otro espacio de trabajo.",
     "This receipt is not ready yet.": "Este recibo aún no está listo.",
     "This removes :name from your lists and frees a place on your plan. Their contracts and payments stay in your records.": "Esto quita a :name de tus listas y libera un hueco en tu plan. Sus contratos y pagos se conservan en tus registros.",
