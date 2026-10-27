@@ -6,6 +6,7 @@ use App\Http\Controllers\Workspace\ActivityController;
 use App\Http\Controllers\Workspace\BackupController;
 use App\Http\Controllers\Workspace\BillingController;
 use App\Http\Controllers\Workspace\BusinessProfileController;
+use App\Http\Controllers\Workspace\CardCheckoutController;
 use App\Http\Controllers\Workspace\ContractController;
 use App\Http\Controllers\Workspace\CustomerController;
 use App\Http\Controllers\Workspace\DashboardController;
@@ -34,6 +35,10 @@ Route::get('/', DashboardController::class)->name('dashboard');
 Route::get('billing', BillingController::class)->name('billing');
 // Paying by bank transfer, with the receipt (Win Plan PP13). The website only; the app never offers it.
 Route::post('billing/manual-requests', [ManualPaymentController::class, 'store'])->middleware('throttle:10,1')->name('billing.manual.store');
+// Pro by card (spec 2026-10-27): a Qistas checkout with Stripe's fields inside. The website only; the app never offers it.
+Route::get('billing/checkout', [CardCheckoutController::class, 'show'])->name('billing.checkout');
+Route::post('billing/card/session', [CardCheckoutController::class, 'session'])->middleware('throttle:20,1')->name('billing.card.session');
+Route::get('billing/card/return', [CardCheckoutController::class, 'return'])->name('billing.card.return');
 
 // Your profile: your own details, photo and password.
 Route::get('profile', [ProfileController::class, 'show'])->name('profile');

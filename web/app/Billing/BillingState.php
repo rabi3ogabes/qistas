@@ -2,6 +2,8 @@
 
 namespace App\Billing;
 
+use App\Billing\Card\CardCheckout;
+use App\Billing\Card\CardRefused;
 use App\Entitlements\Entitlements;
 use App\Entitlements\Feature;
 use App\Models\Plan;
@@ -15,6 +17,9 @@ use App\Models\User;
  */
 final class BillingState
 {
+    /** The ways of paying for a plan; a plan the team gives (admin) is not one. */
+    public const PAID_SOURCES = ['play', 'manual', 'stripe'];
+
     public function __construct(private readonly BillingSettings $settings) {}
 
     /** @return array<string, mixed> */
@@ -47,10 +52,36 @@ final class BillingState
         return $user !== null && ! $tenant->is_demo && ! $tenant->is_test && ($user->roleIn($tenant->id)?->managesBilling() ?? false);
     }
 
-    /** The store is switched on for this workspace and set up with something to sell. */
+    /**
+     * How the workspace pays for the plan it is on now: play, manual or stripe; null when it pays nothing (Free, or a
+     * plan the team gave). A second way to pay is never offered while one is running (spec 2026-10-27 §9).
+     */
+    public static function paidThrough(Tenant $tenant): ?string
+    {
+        $subscription = $tenant->subscription()->first();
+
+        return $subscription !== null && $subscription->isCurrent() && in_array($subscription->source, self::PAID_SOURCES, true)
+            ? $subscription->source
+            : null;
+    }
+
+    /** The store is switched on for this workspace and set up with something to sell, and no card subscription runs. */
     public function storeOpen(Tenant $tenant): bool
     {
-        return Entitlements::for($tenant)->check(Feature::StoreBilling)->enabled() && $this->settings->playReady() && $this->products() !== [];
+        return Entitlements::for($tenant)->check(Feature::StoreBilling)->enabled() && $this->settings->playReady() && $this->products() !== []
+            && self::paidThrough($tenant) !== 'stripe';
+    }
+
+    /** The owner may open a card checkout now (the website only; the app never offers it). */
+    public function cardOpen(Tenant $tenant, ?User $user): bool
+    {
+        try {
+            app(CardCheckout::class)->assertOpen($tenant, $user);
+        } catch (CardRefused) {
+            return false;
+        }
+
+        return true;
     }
 
     /** @return list<array{plan_key: string, product_id: string}> each paid plan on sale in the store */

@@ -50,6 +50,11 @@ final class StoreSubscriptions
      */
     public function verify(Tenant $tenant, string $productId, string $purchaseToken, ?User $by = null): Subscription
     {
+        // A workspace paying by card is never charged a second time through the store (spec 2026-10-27 §9).
+        if (BillingState::paidThrough($tenant) === 'stripe') {
+            throw new ApiException('already_subscribed', __('Pro is already on for this workspace.'), 409);
+        }
+
         $hash = hash('sha256', $purchaseToken);
         $holder = Subscription::query()->where('purchase_token_hash', $hash)->first();
         if ($holder !== null && $holder->tenant_id !== $tenant->id) {

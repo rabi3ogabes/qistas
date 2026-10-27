@@ -57,6 +57,10 @@ final class ManualPayments
             if ($idempotencyKey !== null && ($existing = ManualPaymentRequest::query()->where('idempotency_key', $idempotencyKey)->first()) !== null) {
                 return $existing;
             }
+            // A workspace paying by card renews by card; a transfer would pay twice (spec 2026-10-27 §9).
+            if (BillingState::paidThrough($tenant) === 'stripe') {
+                throw ValidationException::withMessages(['request' => __('Pro is already on for this workspace. It renews by card.')]);
+            }
 
             $plan = Plan::query()->where('key', $planKey)->where('is_default', false)->first();
             if (! in_array($period, ManualPaymentRequest::PERIODS, true)) {
