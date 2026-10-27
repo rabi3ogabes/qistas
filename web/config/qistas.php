@@ -70,8 +70,10 @@ return [
         // fake: instant local checkout for development and tests. stripe: real Stripe Checkout.
         'gateway' => env('BILLING_GATEWAY', 'fake'),
         'grace_days' => (int) env('BILLING_GRACE_DAYS', 7),
+        // Pro by card. Normally saved in /admin/billing; a value here wins (local testing with your own test keys).
         'stripe' => [
             'secret' => env('STRIPE_SECRET'),
+            'publishable' => env('STRIPE_PUBLISHABLE_KEY'),
             'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
         ],
     ],
