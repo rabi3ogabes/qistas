@@ -20,6 +20,9 @@ use Illuminate\Support\Carbon;
  *
  * @property Carbon|null $deletion_requested_at when the owner asked to delete the business
  * @property Carbon|null $delete_after when it is erased, unless the owner restores it first
+ * @property string|null $stripe_customer_id the workspace's customer in Stripe (Pro by card), made at the first checkout
+ * @property bool|null $stripe_livemode whether that customer was made with live keys; a test customer is never reused live
+ * @property Carbon|null $trial_used_at when the workspace's one free trial was used, by whatever way it first paid
  */
 #[Fillable(['name', 'slug', 'country', 'currency', 'timezone'])]
 class Tenant extends Model
@@ -43,6 +46,8 @@ class Tenant extends Model
             'require_app_lock' => 'boolean',
             'deletion_requested_at' => 'datetime',
             'delete_after' => 'datetime',
+            'stripe_livemode' => 'boolean',
+            'trial_used_at' => 'datetime',
         ];
     }
 
@@ -125,7 +130,7 @@ class Tenant extends Model
      * Put the workspace on a plan, changing its one subscription in place. Where it came from is written every time, so
      * a store's purchase token never outlives a plan given another way (a later message about it then finds nothing).
      *
-     * @param  array{source?: string|null, store_product_id?: string|null, purchase_token_hash?: string|null, auto_renew?: bool|null, store_status?: string|null}  $origin
+     * @param  array{source?: string|null, store_product_id?: string|null, purchase_token_hash?: string|null, auto_renew?: bool|null, store_status?: string|null, stripe_subscription_id?: string|null, period?: string|null}  $origin
      */
     public function subscribeTo(Plan $plan, string $status = 'active', ?CarbonInterface $periodEnd = null, array $origin = []): Subscription
     {
@@ -137,6 +142,8 @@ class Tenant extends Model
             'purchase_token_hash' => $origin['purchase_token_hash'] ?? null,
             'auto_renew' => $origin['auto_renew'] ?? null,
             'store_status' => $origin['store_status'] ?? null,
+            'stripe_subscription_id' => $origin['stripe_subscription_id'] ?? null,
+            'period' => $origin['period'] ?? null,
         ])->save();
         $subscription->setRelation('plan', $plan);
         $this->setRelation('subscription', $subscription);

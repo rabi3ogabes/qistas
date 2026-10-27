@@ -34,6 +34,7 @@ final class StoreSubscriptions
         private readonly StoreBilling $store,
         private readonly BillingSettings $settings,
         private readonly BillingNotices $notices,
+        private readonly Trials $trials,
     ) {}
 
     /** The workspace's account reference for store purchases: stable, not reversible, 64 characters as Google allows. */
@@ -86,6 +87,8 @@ final class StoreSubscriptions
                     'until' => $subscription->current_period_end?->toDateString(),
                 ], $tenant->id, $by?->id);
             }
+            // A Google Play purchase uses up the workspace's one free trial too (spec 2026-10-27 §6).
+            $this->trials->markUsed($tenant);
 
             return $subscription;
         });

@@ -15,11 +15,13 @@ use Illuminate\Support\Carbon;
  * @property string $plan_id
  * @property string $status active | trialing | past_due | on_hold | paused | canceled | expired
  * @property Carbon|null $current_period_end
- * @property string|null $source play | appstore | web | manual | admin; null for sign-up and sandbox plans
+ * @property string|null $source play | appstore | stripe | manual | admin; null for sign-up and sandbox plans
  * @property string|null $store_product_id
  * @property string|null $purchase_token_hash
  * @property bool|null $auto_renew
  * @property string|null $store_status
+ * @property string|null $stripe_subscription_id the Stripe subscription a card-paid plan follows
+ * @property string|null $period month | year: how the paid plan renews, when known
  */
 class Subscription extends Model
 {

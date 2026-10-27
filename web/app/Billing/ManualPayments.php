@@ -39,6 +39,7 @@ final class ManualPayments
         private readonly ChangePlan $changePlan,
         private readonly Notifier $notifier,
         private readonly CurrentTenant $current,
+        private readonly Trials $trials,
     ) {}
 
     /** @throws ValidationException naming the field at fault (plan, period, method, receipt, request) */
@@ -131,7 +132,8 @@ final class ManualPayments
             $until = $locked->period === 'year' ? $from->copy()->addYearNoOverflow() : $from->copy()->addMonthNoOverflow();
 
             $reason = 'Bank transfer '.$locked->reference.($by === null ? ' (approved automatically)' : '');
-            $this->changePlan->handle($tenant, $plan, $until, $reason, $by, 'manual');
+            $this->changePlan->handle($tenant, $plan, $until, $reason, $by, 'manual', $locked->period);
+            $this->trials->markUsed($tenant);
 
             $locked->forceFill(['status' => 'approved', 'decided_by_user_id' => $by?->id, 'decided_at' => now(), 'note' => $note])->save();
             Audit::record('billing.manual_approved', $locked, [

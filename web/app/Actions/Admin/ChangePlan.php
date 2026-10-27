@@ -23,10 +23,11 @@ final class ChangePlan
      * @param  CarbonInterface|null  $until  the last day the plan is given (end of that day); null for no end
      * @param  User|null  $by  the admin; null when the platform decided by itself (an automatically approved transfer)
      * @param  string  $source  admin, or manual for an approved bank transfer
+     * @param  string|null  $period  month or year when the plan was paid for a period (a bank transfer)
      *
      * @throws InvalidArgumentException when the business is a demo or test workspace, or the end is not in the future
      */
-    public function handle(Tenant $tenant, Plan $plan, ?CarbonInterface $until, string $reason, ?User $by, string $source = 'admin'): Subscription
+    public function handle(Tenant $tenant, Plan $plan, ?CarbonInterface $until, string $reason, ?User $by, string $source = 'admin', ?string $period = null): Subscription
     {
         if ($tenant->is_demo || $tenant->is_test) {
             throw new InvalidArgumentException('Demo and test workspaces change plan through their own tools.');
@@ -38,9 +39,9 @@ final class ChangePlan
             throw new InvalidArgumentException('A plan given until a day needs a day in the future.');
         }
 
-        return DB::transaction(function () use ($tenant, $plan, $until, $reason, $by, $source): Subscription {
+        return DB::transaction(function () use ($tenant, $plan, $until, $reason, $by, $source, $period): Subscription {
             $before = $this->describe($tenant);
-            $subscription = $tenant->subscribeTo($plan, 'active', $until, ['source' => $source]);
+            $subscription = $tenant->subscribeTo($plan, 'active', $until, ['source' => $source, 'period' => $plan->is_default ? null : $period]);
 
             Audit::record('admin.plan_changed', $subscription, [
                 'before' => $before,
