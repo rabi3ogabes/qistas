@@ -119,7 +119,7 @@ final class UnconfiguredStripeGateway implements StripeGateway
         throw $this->unavailable();
     }
 
-    public function cancelNow(string $subscriptionId, bool $refundLatestPayment): void
+    public function cancelNow(string $subscriptionId, bool $refundLatestPayment, bool $onlyUnusedTime = false): void
     {
         throw $this->unavailable();
     }

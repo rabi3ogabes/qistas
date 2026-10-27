@@ -77,8 +77,11 @@ interface StripeGateway
     /** The invoice's PDF, as bytes. */
     public function invoicePdf(string $id): string;
 
-    /** Ends the subscription now; with $refundLatestPayment, the last payment is refunded in full. */
-    public function cancelNow(string $subscriptionId, bool $refundLatestPayment): void;
+    /**
+     * Ends the subscription now; with $refundLatestPayment, the last payment is refunded: in full, or with
+     * $onlyUnusedTime the share of it for the time left in the period.
+     */
+    public function cancelNow(string $subscriptionId, bool $refundLatestPayment, bool $onlyUnusedTime = false): void;
 
     /** @throws CardSignatureInvalid when Stripe did not sign the payload with this secret within five minutes */
     public function event(string $payload, string $signatureHeader, string $secret): CardEvent;

@@ -1,5 +1,7 @@
 <?php
 
+use App\Billing\Card\FakeStripeGateway;
+use App\Billing\Card\StripeGateway;
 use App\Entitlements\Entitlements;
 use App\Entitlements\Feature;
 use App\Models\AuditLog;
@@ -7,6 +9,7 @@ use App\Models\Customer;
 use App\Models\Plan;
 use App\Models\Tenant;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Testing\TestResponse;
 
 /*
@@ -193,3 +196,111 @@ describe('changing the plan', function () {
 it('is in the admin menu', function () {
     $this->actingAs(planStaff())->get(route('admin.home'))->assertSee(route('admin.businesses.index'), false);
 });
+
+describe('a business that pays by card', function () {
+    beforeEach(function () {
+        $this->stripe = new FakeStripeGateway;
+        app()->instance(StripeGateway::class, $this->stripe);
+    });
+
+    it('shows the card subscription: where it comes from, its status and period, the next charge and the way to Stripe', function (bool $live, string $link) {
+        [, $tenant] = cardPayingBusiness($this, ['livemode' => $live]);
+
+        $this->actingAs(planStaff('admin'))->get(route('admin.businesses.show', $tenant))->assertOk()
+            ->assertSee('Card (Stripe)')->assertSee('Active')->assertSee('Yearly')
+            ->assertSee('Next charge on 11 Oct 2027')
+            ->assertSee($link, false)
+            ->assertDontSee('Cancel the card subscription');
+    })->with([
+        'test mode' => [false, 'https://dashboard.stripe.com/test/subscriptions/sub_test_9'],
+        'live mode' => [true, 'https://dashboard.stripe.com/subscriptions/sub_test_9'],
+    ]);
+
+    it('shows the end of the free trial, or the end when it will not renew', function () {
+        [, $tenant] = cardPayingBusiness($this, ['status' => 'trialing', 'until' => '2026-10-25 09:00:00']);
+        $this->actingAs(planStaff())->get(route('admin.businesses.show', $tenant))->assertSee('Free trial until 25 Oct 2026');
+
+        [, $other] = cardPayingBusiness($this, ['auto_renew' => false, 'email' => 'salem@mobiles.test', 'n' => '10']);
+        $this->actingAs(planStaff())->get(route('admin.businesses.show', $other))->assertSee('Ends on 11 Oct 2027, will not renew');
+    });
+
+    it('cancels it now with a refund for the unused time, and the business is on Free with nothing deleted', function () {
+        [, $tenant] = cardPayingBusiness($this);
+        $admin = planStaff();
+
+        $this->actingAs($admin)->post(route('admin.businesses.card.cancel', $tenant), ['when' => 'now'])
+            ->assertRedirect(route('admin.businesses.show', $tenant))
+            ->assertSessionHas('status', 'The card subscription is cancelled and the unused time refunded. Al-Fares Electronics is on Free.');
+
+        expect($this->stripe->calls('cancelNow'))->toBe([['sub_test_9', true, true]])
+            ->and($tenant->fresh()->currentPlan()->key)->toBe('free')
+            ->and(AuditLog::query()->where('action', 'admin.card_subscription_cancelled')->where('tenant_id', $tenant->id)->where('user_id', $admin->id)->sole()->changes)->toMatchArray(['when' => 'now']);
+    });
+
+    it('cancels it at the end of the period, keeping Pro until then', function () {
+        [, $tenant] = cardPayingBusiness($this);
+
+        $this->actingAs(planStaff())->post(route('admin.businesses.card.cancel', $tenant), ['when' => 'period_end'])
+            ->assertRedirect(route('admin.businesses.show', $tenant))
+            ->assertSessionHas('status', 'The card subscription ends on 11 Oct 2027 and will not renew.');
+
+        expect($this->stripe->calls('setCancelAtPeriodEnd'))->toBe([['sub_test_9', true]])
+            ->and($tenant->fresh()->currentPlan()->key)->toBe('pro')
+            ->and($tenant->fresh()->subscription->auto_renew)->toBeFalse();
+        $this->actingAs(planStaff())->get(route('admin.businesses.show', $tenant))->assertSee('Ends on 11 Oct 2027, will not renew');
+    });
+
+    it('is a super admin’s decision, and says when or refuses', function () {
+        [, $tenant] = cardPayingBusiness($this);
+
+        $this->actingAs(planStaff('admin'))->post(route('admin.businesses.card.cancel', $tenant), ['when' => 'now'])->assertForbidden();
+        $this->actingAs(planStaff())->post(route('admin.businesses.card.cancel', $tenant), ['when' => 'tomorrow'])->assertSessionHasErrors('when');
+        expect($this->stripe->calls('cancelNow'))->toBe([]);
+    });
+
+    it('refuses when the business does not pay by card', function () {
+        [, $tenant] = business();
+
+        $this->actingAs(planStaff())->post(route('admin.businesses.card.cancel', $tenant), ['when' => 'now'])
+            ->assertSessionHasErrors(['card' => 'There is no card subscription to change.']);
+    });
+
+    it('warns before a plan change by hand while the card subscription runs, and refuses it until it is cancelled', function () {
+        [, $tenant] = cardPayingBusiness($this);
+
+        $this->actingAs(planStaff())->get(route('admin.businesses.show', $tenant))
+            ->assertSee('This business pays for Pro by card.')
+            ->assertSee('Cancel the card subscription');
+        changePlan($tenant, ['plan' => 'free', 'period' => 'none'])
+            ->assertSessionHasErrors(['plan' => 'This business pays by card. Cancel the card subscription first, so Stripe stops charging them.']);
+
+        expect($tenant->fresh()->currentPlan()->key)->toBe('pro');
+    });
+});
+
+/**
+ * An owner and their business on Pro by card, yearly until 11 Oct 2027, which Stripe holds too.
+ *
+ * @param  array{livemode?: bool, status?: string, until?: string, auto_renew?: bool, email?: string, n?: string}  $options
+ * @return array{0: User, 1: Tenant}
+ */
+function cardPayingBusiness(object $test, array $options = []): array
+{
+    [$owner, $tenant] = business(email: $options['email'] ?? 'omar@alfares.test');
+    $live = $options['livemode'] ?? false;
+    $status = $options['status'] ?? 'active';
+    $until = CarbonImmutable::parse($options['until'] ?? '2027-10-11 09:00:00');
+    $renews = $options['auto_renew'] ?? true;
+    $n = $options['n'] ?? '9';
+    $tenant->forceFill(['stripe_customer_id' => 'cus_test_'.$n, 'stripe_livemode' => $live])->save();
+    $test->stripe->seedSubscription(FakeStripeGateway::subscriptionData([
+        'id' => 'sub_test_'.$n, 'customerId' => 'cus_test_'.$n, 'status' => $status, 'periodEnd' => $until,
+        'trialEnd' => $status === 'trialing' ? $until : null, 'cancelAtPeriodEnd' => ! $renews,
+        'metadata' => ['tenant_id' => $tenant->id, 'plan' => 'pro', 'period' => 'year'],
+    ]));
+    $tenant->subscribeTo(Plan::where('key', 'pro')->sole(), $status, $until, [
+        'source' => 'stripe', 'stripe_subscription_id' => 'sub_test_'.$n, 'period' => 'year', 'auto_renew' => $renews,
+    ]);
+
+    return [$owner, $tenant->fresh()];
+}

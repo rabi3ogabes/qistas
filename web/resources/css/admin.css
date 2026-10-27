@@ -1354,6 +1354,31 @@ fieldset:has(input[value="date"]:checked) .biz-until, .biz-until:has([aria-inval
 .bill-group legend + * { clear: both; }
 .bill-ready { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: 0; }
 
+/* Card payments (Stripe): where the connection stands in one line, the account in facts, then keys, options, prices. */
+.stripe-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; }
+.stripe-head .card-title { margin: 0; }
+.stripe-account dd { display: grid; gap: .125rem; overflow-wrap: anywhere; }
+.stripe-webhook bdi { overflow-wrap: anywhere; }
+.stripe-actions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: .5rem; }
+.stripe-actions form { margin: 0; }
+.stripe .stripe-days { max-width: 8rem; }
+.stripe-check { padding-top: 1rem; border-top: 1px solid var(--q-line); }
+.stripe-check-title { margin: 0; font-size: 1rem; font-weight: 600; }
+.stripe-prices { display: grid; margin: 0; padding: 0; list-style: none; }
+.stripe-prices li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: .25rem 1rem; padding: .75rem 0; border-bottom: 1px solid var(--q-line); }
+.stripe-prices li:last-child { border-bottom: 0; }
+.stripe-prices .money { font-variant-numeric: tabular-nums; font-weight: 600; }
+.stripe-price-name { font-weight: 500; }
+.stripe-price-state { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+@media (min-width: 720px) {
+    .stripe-prices li { grid-template-columns: minmax(10rem, 1fr) auto minmax(0, 1.4fr); }
+    .stripe-price-state { grid-column: auto; justify-content: flex-end; text-align: end; }
+}
+
+/* A business paying by card: what Stripe holds, as facts under the plan. */
+.biz-card { grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr)); gap: .75rem 1.25rem; padding-top: 1rem; border-top: 1px solid var(--q-line); }
+.biz-card dd { font-weight: 600; }
+
 /* Support (Win Plan PP17): each ticket reads as the message, who sent it from where, the replies, then the answer box. */
 .help-queue .card-head { display: flex; align-items: center; gap: .5rem; }
 .help-list { margin: 0; padding: 0; list-style: none; }

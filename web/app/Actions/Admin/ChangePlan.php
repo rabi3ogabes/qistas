@@ -2,6 +2,7 @@
 
 namespace App\Actions\Admin;
 
+use App\Billing\Card\CardSubscriptions;
 use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\Tenant;
@@ -9,6 +10,7 @@ use App\Models\User;
 use App\Support\Audit;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 
 /**
@@ -26,11 +28,17 @@ final class ChangePlan
      * @param  string|null  $period  month or year when the plan was paid for a period (a bank transfer)
      *
      * @throws InvalidArgumentException when the business is a demo or test workspace, or the end is not in the future
+     * @throws ValidationException (Plan) while a card subscription runs: Stripe would go on charging for a plan that no
+     *                                    longer follows it, so it is cancelled first (spec 2026-10-27 §8)
      */
     public function handle(Tenant $tenant, Plan $plan, ?CarbonInterface $until, string $reason, ?User $by, string $source = 'admin', ?string $period = null): Subscription
     {
         if ($tenant->is_demo || $tenant->is_test) {
             throw new InvalidArgumentException('Demo and test workspaces change plan through their own tools.');
+        }
+        $current = $tenant->subscription()->first();
+        if ($current !== null && $current->source === CardSubscriptions::PROVIDER && $current->stripe_subscription_id !== null && $current->isCurrent()) {
+            throw ValidationException::withMessages(['plan' => __('This business pays by card. Cancel the card subscription first, so Stripe stops charging them.')]);
         }
 
         // The free plan never runs out.

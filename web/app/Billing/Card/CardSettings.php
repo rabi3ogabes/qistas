@@ -2,6 +2,7 @@
 
 namespace App\Billing\Card;
 
+use App\Billing\Card\Data\CardAccount;
 use App\Models\PlatformSetting;
 use App\Models\User;
 use App\Support\Audit;
@@ -33,6 +34,8 @@ final class CardSettings
 
     public const AUTOMATIC_TAX = 'billing.card.automatic_tax';
 
+    public const ACCOUNT = 'billing.card.account';
+
     public const DEFAULT_TRIAL_DAYS = 14;
 
     public const MAX_TRIAL_DAYS = 90;
@@ -57,6 +60,35 @@ final class CardSettings
     public function webhookEndpointId(): ?string
     {
         return $this->get(self::WEBHOOK_ID);
+    }
+
+    /** The server's environment sets the secret key, so the keys saved here are not the ones in use. */
+    public function keysFromEnvironment(): bool
+    {
+        return $this->fromEnv('secret') !== null;
+    }
+
+    /**
+     * The Stripe account as Connect last found it, for the admin panel; null before the first Connect.
+     *
+     * @return array{id: string, name: ?string, country: string, currency: string, charges_enabled: bool, livemode: bool, wallets: bool}|null
+     */
+    public function account(): ?array
+    {
+        $account = json_decode((string) $this->get(self::ACCOUNT), true);
+
+        return is_array($account) && is_string($account['id'] ?? null) ? $account + [
+            'name' => null, 'country' => '', 'currency' => '', 'charges_enabled' => false, 'livemode' => false, 'wallets' => false,
+        ] : null;
+    }
+
+    /** @param  bool  $wallets  whether Stripe registered this site's domain for Apple Pay and Google Pay */
+    public function saveAccount(CardAccount $account, bool $wallets): void
+    {
+        $this->set(self::ACCOUNT, (string) json_encode([
+            'id' => $account->id, 'name' => $account->name, 'country' => $account->country, 'currency' => $account->currency,
+            'charges_enabled' => $account->chargesEnabled, 'livemode' => $account->livemode, 'wallets' => $wallets,
+        ]));
     }
 
     /** test or live, read from the secret key; null without one. */
@@ -116,7 +148,7 @@ final class CardSettings
     /** Forgets the keys and the webhook (Disconnect). The options stay for the next connection. */
     public function clear(User $by): void
     {
-        foreach ([self::SECRET, self::PUBLISHABLE, self::WEBHOOK_SECRET, self::WEBHOOK_ID] as $key) {
+        foreach ([self::SECRET, self::PUBLISHABLE, self::WEBHOOK_SECRET, self::WEBHOOK_ID, self::ACCOUNT] as $key) {
             $this->set($key, null, $by);
         }
         Audit::record('admin.card_settings_saved', changes: ['cleared' => ['secret_key', 'publishable_key', 'webhook']], userId: $by->id);

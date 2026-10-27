@@ -7,6 +7,7 @@ use App\Billing\Card\Data\SubscriptionCheckout;
 use App\Billing\Card\LiveStripeGateway;
 use App\Billing\Card\StripeGateway;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Http;
 use Stripe\ApiRequestor;
 use Stripe\Exception\ApiConnectionException;
@@ -295,6 +296,27 @@ describe('subscriptions', function () {
             ->and($this->stripe->sent('delete', '/v1/subscriptions/sub_live_1')[0]['params'])->toBe(['prorate' => 'false'])
             ->and($this->stripe->sent('post', '/v1/refunds')[0]['params'])->toBe(['payment_intent' => 'pi_1']);
     });
+
+    it('cancels now and refunds only the unused time of the latest payment', function (int $elapsed, ?int $refunded) {
+        // A year of 31,536,000 seconds, paid 120.00; cancelled $elapsed seconds into it.
+        $this->travelTo(CarbonImmutable::createFromTimestamp(1793000000 + $elapsed));
+        $item = ['id' => 'si_live_1', 'object' => 'subscription_item', 'current_period_start' => 1793000000, 'current_period_end' => 1824536000,
+            'price' => ['id' => 'price_year', 'object' => 'price', 'unit_amount' => 12000, 'currency' => 'usd', 'recurring' => ['interval' => 'year', 'interval_count' => 1]]];
+        $this->stripe->on('delete', '/v1/subscriptions/sub_live_1', liveStripeSubscription(['status' => 'canceled', 'items' => ['object' => 'list', 'data' => [$item]]]))
+            ->on('get', '/v1/invoices/in_live_1', ['id' => 'in_live_1', 'object' => 'invoice', 'customer' => 'cus_live_1', 'payments' => ['object' => 'list', 'data' => [
+                ['id' => 'inpay_1', 'object' => 'invoice_payment', 'status' => 'paid', 'amount_paid' => 12000, 'payment' => ['type' => 'payment_intent', 'payment_intent' => 'pi_1']],
+            ]]])
+            ->on('post', '/v1/refunds', ['id' => 're_1', 'object' => 'refund']);
+
+        $this->gateway->cancelNow('sub_live_1', true, true);
+
+        $refunds = $this->stripe->sent('post', '/v1/refunds');
+        expect($refunds === [] ? null : $refunds[0]['params'])->toBe($refunded === null ? null : ['payment_intent' => 'pi_1', 'amount' => $refunded]);
+    })->with([
+        'a quarter used' => [7884000, 9000],
+        'the first day' => [86400, 11967],
+        'the period over' => [31536000, null],
+    ]);
 
     it('makes the card a setup session saved the one the subscription is charged to', function () {
         $this->stripe->on('get', '/v1/setup_intents/seti_1', ['id' => 'seti_1', 'object' => 'setup_intent', 'payment_method' => 'pm_new', 'customer' => 'cus_live_1'])

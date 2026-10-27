@@ -1,5 +1,6 @@
 {{-- Billing (Win Plan PP13): bank transfers waiting for a decision with their receipts, recent decisions, and how Qistas
-     takes payment (automatic approval, the bank details owners pay to, Google Play). Staff look; a super admin decides. --}}
+     takes payment (automatic approval, the bank details owners pay to, Google Play, cards through Stripe). Staff look; a
+     super admin decides. --}}
 @php
     use App\Support\Format;
 
@@ -14,6 +15,7 @@
     </x-page-head>
 
     @error('request')<p class="alert alert-error" role="alert">{{ $message }}</p>@enderror
+    @error('plan')<p class="alert alert-error" role="alert">{{ $message }}</p>@enderror
 
     <section class="card bill-queue" aria-labelledby="waiting-title">
         <div class="card-head">
@@ -156,4 +158,6 @@
             @endif
         </form>
     </section>
+
+    @include('admin.billing._card')
 </x-layouts.admin>

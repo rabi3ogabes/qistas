@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Actions\Admin\ChangePlan;
+use App\Billing\Card\CardManagement;
+use App\Billing\Card\CardRefused;
+use App\Billing\Card\CardUnavailable;
 use App\Entitlements\Entitlements;
 use App\Entitlements\Feature;
 use App\Http\Requests\Admin\ChangePlanRequest;
@@ -15,6 +18,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 /**
@@ -78,6 +83,30 @@ final class BusinessController
         $change->handle($tenant, $plan, $request->until(), (string) $request->validated('reason'), $request->user());
 
         return redirect()->route('admin.businesses.show', $tenant)->with('status', __(':business is now on the :plan plan.', ['business' => $tenant->name, 'plan' => $plan->name]));
+    }
+
+    /**
+     * A super admin ends the business's card subscription (spec 2026-10-27 §8): now, refunding the unused time and
+     * moving it to Free, or at the end of the period it has paid for.
+     */
+    public function cancelCard(Request $request, Tenant $tenant, CardManagement $cards): RedirectResponse
+    {
+        Gate::authorize('manage-plans');
+        abort_if($tenant->is_demo || $tenant->is_test, 404);
+        $choose = __('Choose now or at the end of the period.');
+        $when = (string) $request->validate(['when' => ['required', 'in:now,period_end']], ['when.required' => $choose, 'when.in' => $choose])['when'];
+
+        try {
+            $subscription = $cards->cancelForPlatform($tenant, $when, $request->user());
+        } catch (CardRefused $e) {
+            throw ValidationException::withMessages(['card' => $e->getMessage()]);
+        } catch (CardUnavailable) {
+            throw ValidationException::withMessages(['card' => __('Stripe could not be reached. Nothing was changed; try again in a minute.')]);
+        }
+
+        return redirect()->route('admin.businesses.show', $tenant)->with('status', $when === 'now'
+            ? __('The card subscription is cancelled and the unused time refunded. :business is on :plan.', ['business' => $tenant->name, 'plan' => Plan::default()->name])
+            : __('The card subscription ends on :date and will not renew.', ['date' => $subscription->current_period_end?->translatedFormat('j M Y')]));
     }
 
     /** @return Builder<Tenant> */

@@ -175,6 +175,29 @@ final class CardManagement
         return $synced;
     }
 
+    /**
+     * The platform team ends a workspace's card subscription (spec 2026-10-27 §8): now, refunding the part of the last
+     * payment not used yet, which puts the workspace on Free with nothing deleted; or at the end of the period.
+     *
+     * @param  string  $when  now or period_end
+     *
+     * @throws CardRefused when the workspace has no card subscription running
+     */
+    public function cancelForPlatform(Tenant $tenant, string $when, User $by): Subscription
+    {
+        $local = $this->current($tenant);
+        $id = (string) $local->stripe_subscription_id;
+        if ($when === 'now') {
+            $this->stripe->cancelNow($id, true, true);
+        } else {
+            $this->stripe->setCancelAtPeriodEnd($id, true);
+        }
+        $synced = $this->changed($local);
+        Audit::record('admin.card_subscription_cancelled', $local, ['when' => $when], $tenant->id, $by->id);
+
+        return $synced;
+    }
+
     public function resume(Tenant $tenant, User $by): Subscription
     {
         $local = $this->current($tenant);

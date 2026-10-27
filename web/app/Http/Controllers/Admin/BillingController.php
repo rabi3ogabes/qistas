@@ -3,11 +3,21 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Billing\BillingSettings;
+use App\Billing\Card\CardConnection;
+use App\Billing\Card\CardSettings;
+use App\Billing\Card\CardSubscriptions;
+use App\Billing\Card\StripePrices;
 use App\Billing\ManualPayments;
+use App\Entitlements\Feature;
+use App\Entitlements\PlatformFeatures;
+use App\Entitlements\PlatformState;
 use App\Models\ManualPaymentReceipt;
 use App\Models\ManualPaymentRequest;
 use App\Models\Plan;
+use App\Models\Subscription;
 use App\Support\Audit;
+use App\Support\Money;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -22,7 +32,7 @@ use Illuminate\View\View;
  */
 final class BillingController
 {
-    public function index(BillingSettings $settings): View
+    public function index(BillingSettings $settings, CardSettings $card, StripePrices $prices): View
     {
         $requests = ManualPaymentRequest::withoutGlobalScopes()->with(['tenant', 'plan', 'createdBy', 'decidedBy', 'receipt:id,manual_payment_request_id,mime,size'])
             ->orderByRaw("case when status = 'pending' then 0 else 1 end")
@@ -42,10 +52,49 @@ final class BillingController
                 'push_email' => $settings->pushEmail(),
                 'play_ready' => $settings->playReady(),
             ],
-            'paidPlans' => Plan::query()->where('is_default', false)->orderBy('sort_order')->get(),
+            'paidPlans' => $paidPlans = Plan::query()->where('is_default', false)->orderBy('sort_order')->get(),
             'webhookUrl' => route('webhooks.google-play'),
+            'card' => [
+                'secret' => $card->maskedSecret(),
+                'mode' => $card->mode(),
+                'ready' => $card->ready(),
+                'account' => $card->account(),
+                'from_env' => $card->keysFromEnvironment(),
+                'webhook_url' => CardConnection::webhookUrl(),
+                'switched_on' => PlatformFeatures::state(Feature::CardBilling) !== PlatformState::Off,
+                'running' => Subscription::query()->where('source', CardSubscriptions::PROVIDER)->whereIn('status', Subscription::IN_FORCE)->count(),
+                'trial_days' => $card->trialDays(),
+                'promotion_codes' => $card->promotionCodes(),
+                'collect_tax_id' => $card->collectTaxId(),
+                'automatic_tax' => $card->automaticTax(),
+            ],
+            'cardPrices' => $this->cardPrices($paidPlans, $prices),
             'canDecide' => Gate::allows('manage-plans'),
         ]);
+    }
+
+    /**
+     * Each paid plan's monthly and yearly price, with what Stripe would refuse about it (spec 2026-10-27 §8).
+     *
+     * @param  Collection<int, Plan>  $plans
+     * @return list<array{plan: string, period: string, price: ?string, currency: string, problem: ?string}>
+     */
+    private function cardPrices(Collection $plans, StripePrices $prices): array
+    {
+        $problems = collect($prices->problems())->keyBy(fn (array $row) => $row['plan'].'|'.$row['period']);
+        $rows = [];
+        foreach ($plans as $plan) {
+            foreach (StripePrices::PERIODS as $period) {
+                $price = $period === 'year' ? $plan->price_yearly : $plan->price_monthly;
+                $rows[] = [
+                    'plan' => $plan->name, 'period' => $period, 'currency' => $plan->currency,
+                    'price' => $price !== null && Money::isPositive($price) ? $price : null,
+                    'problem' => $problems->get($plan->name.'|'.$period)['problem'] ?? null,
+                ];
+            }
+        }
+
+        return $rows;
     }
 
     /** The receipt itself, shown inline; never cached, and never guessed as another type. */

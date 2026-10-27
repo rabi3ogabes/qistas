@@ -242,7 +242,7 @@ describe('a second paid subscription', function () {
         $outcome = app(CardSubscriptions::class)->handle(subscriptionChangedEvent());
 
         expect($outcome)->toBe('refunded_duplicate')
-            ->and($this->stripe->calls('cancelNow'))->toBe([['sub_test_1', true]])
+            ->and($this->stripe->calls('cancelNow'))->toBe([['sub_test_1', true, false]])
             ->and($this->stripe->refunded('sub_test_1'))->toBeTrue()
             ->and($this->tenant->fresh()->subscription()->first()->source)->toBe('play')
             ->and(AuditLog::where('action', 'billing.card_refunded_duplicate')->where('tenant_id', $this->tenant->id)->count())->toBe(1)
@@ -257,7 +257,7 @@ describe('a second paid subscription', function () {
         $outcome = app(CardSubscriptions::class)->handle(subscriptionChangedEvent('sub_second'));
 
         expect($outcome)->toBe('refunded_duplicate')
-            ->and($this->stripe->calls('cancelNow'))->toBe([['sub_second', true]])
+            ->and($this->stripe->calls('cancelNow'))->toBe([['sub_second', true, false]])
             ->and($this->tenant->fresh()->subscription()->first()->stripe_subscription_id)->toBe('sub_first');
     });
 

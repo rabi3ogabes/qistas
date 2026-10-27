@@ -324,10 +324,10 @@ final class LiveStripeGateway implements StripeGateway
         }
     }
 
-    public function cancelNow(string $subscriptionId, bool $refundLatestPayment): void
+    public function cancelNow(string $subscriptionId, bool $refundLatestPayment, bool $onlyUnusedTime = false): void
     {
-        $this->ask(function () use ($subscriptionId, $refundLatestPayment): void {
-            // First stop every future charge; then give the last payment back.
+        $this->ask(function () use ($subscriptionId, $refundLatestPayment, $onlyUnusedTime): void {
+            // First stop every future charge; then give the last payment back, or the part of it not used yet.
             $subscription = $this->stripe->subscriptions->cancel($subscriptionId, ['prorate' => false]);
             if (! $refundLatestPayment) {
                 return;
@@ -337,10 +337,22 @@ final class LiveStripeGateway implements StripeGateway
             if ($invoiceId === null) {
                 return;
             }
+            $item = $subscription->items->data[0] ?? null;
+            $start = (int) ($item->current_period_start ?? 0);
+            $end = (int) ($item->current_period_end ?? 0);
+            $left = max(0, $end - CarbonImmutable::now()->getTimestamp());
             foreach ($this->stripe->invoices->retrieve($invoiceId, ['expand' => ['payments']])->payments->data ?? [] as $payment) {
-                if (($payment->status ?? null) === 'paid' && ($payment->payment->type ?? null) === 'payment_intent') {
-                    $this->stripe->refunds->create(['payment_intent' => (string) self::id($payment->payment->payment_intent ?? null)]);
+                if (($payment->status ?? null) !== 'paid' || ($payment->payment->type ?? null) !== 'payment_intent') {
+                    continue;
                 }
+                $refund = ['payment_intent' => (string) self::id($payment->payment->payment_intent ?? null)];
+                if ($onlyUnusedTime) {
+                    $refund['amount'] = $end > $start ? intdiv((int) ($payment->amount_paid ?? 0) * $left, $end - $start) : 0;
+                    if ($refund['amount'] <= 0) {
+                        continue;
+                    }
+                }
+                $this->stripe->refunds->create($refund);
             }
         });
     }

@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\AppearanceController;
 use App\Http\Controllers\Admin\AppearanceEventController;
 use App\Http\Controllers\Admin\BillingController;
 use App\Http\Controllers\Admin\BusinessController;
+use App\Http\Controllers\Admin\CardSettingsController;
 use App\Http\Controllers\Admin\DemoAccountsController;
 use App\Http\Controllers\Admin\FeaturesController;
 use App\Http\Controllers\Admin\HomeController;
@@ -34,6 +35,7 @@ Route::prefix('businesses')->name('businesses.')->controller(BusinessController:
     Route::get('/', 'index')->name('index');
     Route::get('{tenant}', 'show')->whereUuid('tenant')->name('show');
     Route::put('{tenant}/plan', 'changePlan')->whereUuid('tenant')->middleware('throttle:30,1')->name('plan');
+    Route::post('{tenant}/card/cancel', 'cancelCard')->whereUuid('tenant')->middleware('throttle:30,1')->name('card.cancel');
 });
 
 // Support (Win Plan PP17): the ticket queue and the support WhatsApp number; what's new in each app version.
@@ -69,6 +71,13 @@ Route::prefix('billing')->name('billing.')->controller(BillingController::class)
         Route::post('requests/{paymentRequest}/reject', 'reject')->whereUuid('paymentRequest')->name('reject');
         Route::put('settings', 'settings')->name('settings');
     });
+});
+// Card payments (spec 2026-10-27 §8): the Stripe keys, saved and connected in one step; Reconnect, Disconnect, options.
+Route::prefix('billing/card')->name('billing.card.')->controller(CardSettingsController::class)->middleware('throttle:60,1')->group(function () {
+    Route::put('keys', 'keys')->name('keys');
+    Route::post('connect', 'connect')->name('connect');
+    Route::post('disconnect', 'disconnect')->name('disconnect');
+    Route::put('settings', 'settings')->name('settings');
 });
 
 // Feature control: what the platform has on, off or in beta. Anyone on the platform team may look; only a super admin

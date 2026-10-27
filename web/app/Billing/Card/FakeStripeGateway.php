@@ -68,6 +68,8 @@ final class FakeStripeGateway implements StripeGateway
 
     private ?Throwable $failNext = null;
 
+    private ?string $failOn = null;
+
     private int $sequence = 0;
 
     public CardAccount $account;
@@ -88,9 +90,11 @@ final class FakeStripeGateway implements StripeGateway
         return array_values(array_map(fn (array $call) => $call[1], array_filter($this->calls, fn (array $call) => $call[0] === $method)));
     }
 
-    public function failNext(Throwable $e): void
+    /** The next call throws $e; with $method, the next call to that method only. */
+    public function failNext(Throwable $e, ?string $method = null): void
     {
         $this->failNext = $e;
+        $this->failOn = $method;
     }
 
     public function seedSubscription(CardSubscription $subscription): void
@@ -409,9 +413,9 @@ final class FakeStripeGateway implements StripeGateway
         return $this->pdfs[$id] ?? throw new CardRefused('No such invoice.');
     }
 
-    public function cancelNow(string $subscriptionId, bool $refundLatestPayment): void
+    public function cancelNow(string $subscriptionId, bool $refundLatestPayment, bool $onlyUnusedTime = false): void
     {
-        $this->call(__FUNCTION__, [$subscriptionId, $refundLatestPayment]);
+        $this->call(__FUNCTION__, [$subscriptionId, $refundLatestPayment, $onlyUnusedTime]);
         $this->subscriptions[$subscriptionId] = $this->with($this->held($subscriptionId), ['status' => 'canceled', 'cancelAtPeriodEnd' => false]);
         if ($refundLatestPayment) {
             $this->refunds[] = $subscriptionId;
@@ -422,9 +426,10 @@ final class FakeStripeGateway implements StripeGateway
     private function call(string $method, array $arguments): void
     {
         $this->calls[] = [$method, $arguments];
-        if ($this->failNext !== null) {
+        if ($this->failNext !== null && ($this->failOn === null || $this->failOn === $method)) {
             $failure = $this->failNext;
             $this->failNext = null;
+            $this->failOn = null;
 
             throw $failure;
         }

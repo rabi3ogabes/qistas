@@ -2,12 +2,18 @@
      Never its customers or money. --}}
 @php
     use App\Http\Requests\Admin\ChangePlanRequest;
+    use App\Models\Plan;
 
     $canChange = auth()->user()?->can('manage-plans') ?? false;
     $country = $tenant->country ? \Locale::getDisplayRegion('-'.$tenant->country, app()->getLocale()) : null;
     $periods = ['none' => __('No end date'), '1' => __('One month'), '3' => __('Three months'), '12' => __('Twelve months'), 'date' => __('Until a day I choose')];
     $planNames = $plans->pluck('name', 'key');
     $describe = fn (?array $state): string => $state === null ? '—' : ($planNames[$state['plan']] ?? $state['plan']).($state['until'] ? ' · '.__('until :date', ['date' => \Illuminate\Support\Carbon::parse($state['until'])->translatedFormat('j M Y')]) : '');
+
+    // Pro by card (spec 2026-10-27 §8): what Stripe holds, read from the subscription Qistas keeps in step with it.
+    $card = $subscription !== null && $subscription->source === 'stripe' && $subscription->stripe_subscription_id !== null ? $subscription : null;
+    $cardRunning = $card?->isCurrent() ?? false;
+    $cardDate = $card?->current_period_end?->translatedFormat('j M Y');
 @endphp
 <x-layouts.admin :title="$tenant->name" section="businesses">
     <x-page-head :title="$tenant->name">
@@ -23,7 +29,57 @@
                 <h2 id="membership-title" class="card-title">{{ __('Membership') }}</h2>
                 <div class="biz-plan">@include('admin.businesses._plan', ['plan' => $plan, 'subscription' => $subscription])</div>
 
-                @if ($canChange)
+                @if ($card)
+                    <dl class="facts biz-card">
+                        <div><dt>{{ __('Paid through') }}</dt><dd>{{ __('Card (Stripe)') }}</dd></div>
+                        <div><dt>{{ __('Status') }}</dt><dd>{{ match (true) {
+                            ! $cardRunning => __('Ended'),
+                            $card->status === 'trialing' => __('Free trial'),
+                            $card->status === 'past_due' => __('Payment failed'),
+                            default => __('Active'),
+                        } }}</dd></div>
+                        <div><dt>{{ __('Period') }}</dt><dd>{{ $card->period === 'month' ? __('Monthly') : __('Yearly') }}</dd></div>
+                        <div><dt>{{ __('What comes next') }}</dt><dd>{{ match (true) {
+                            $cardDate === null => '—',
+                            ! $cardRunning => __('Ended on :date', ['date' => $cardDate]),
+                            $card->status === 'past_due' => __('Stripe is trying the card again'),
+                            ! $card->auto_renew => __('Ends on :date, will not renew', ['date' => $cardDate]),
+                            $card->status === 'trialing' => __('Free trial until :date', ['date' => $cardDate]),
+                            default => __('Next charge on :date', ['date' => $cardDate]),
+                        } }}</dd></div>
+                        <div><dt>{{ __('In Stripe') }}</dt><dd><a class="link" href="https://dashboard.stripe.com/{{ $tenant->stripe_livemode ? '' : 'test/' }}subscriptions/{{ $card->stripe_subscription_id }}" target="_blank" rel="noopener noreferrer" dir="ltr">{{ $card->stripe_subscription_id }}</a></dd></div>
+                    </dl>
+                @endif
+                @error('card')<p class="alert alert-error" role="alert">{{ $message }}</p>@enderror
+
+                @if ($canChange && $cardRunning)
+                    <div class="stack biz-change">
+                        <p class="alert alert-warning">
+                            <strong>{{ __('This business pays for :plan by card.', ['plan' => $card->plan->name]) }}</strong>
+                            {{ __('A plan change here would leave Stripe charging them, so cancel the card subscription first.') }}
+                        </p>
+                        <details class="bill-reject" @if ($errors->has('when')) open @endif>
+                            <summary class="btn btn-quiet btn-sm">{{ __('Cancel the card subscription') }}</summary>
+                            <div class="stack">
+                                <form method="POST" action="{{ route('admin.businesses.card.cancel', $tenant) }}" class="stack">
+                                    @csrf
+                                    <input type="hidden" name="when" value="now">
+                                    <p class="field-hint">{{ __('Stripe stops charging at once and refunds the time not used yet. The business moves to :free, with nothing deleted.', ['free' => Plan::default()->name]) }}</p>
+                                    <div><button class="btn btn-sm" type="submit">{{ __('Cancel now and refund the unused time') }}</button></div>
+                                </form>
+                                @if ($card->auto_renew && $cardDate !== null)
+                                    <form method="POST" action="{{ route('admin.businesses.card.cancel', $tenant) }}" class="stack">
+                                        @csrf
+                                        <input type="hidden" name="when" value="period_end">
+                                        <p class="field-hint">{{ __(':plan stays on until :date, then the business moves to :free.', ['plan' => $card->plan->name, 'date' => $cardDate, 'free' => Plan::default()->name]) }}</p>
+                                        <div><button class="btn btn-quiet btn-sm" type="submit">{{ __('Cancel at the end of the period') }}</button></div>
+                                    </form>
+                                @endif
+                            </div>
+                        </details>
+                        @error('when')<p class="field-error" role="alert">{{ $message }}</p>@enderror
+                    </div>
+                @elseif ($canChange)
                     <form method="POST" action="{{ route('admin.businesses.plan', $tenant) }}" class="form stack biz-change" novalidate>
                         @csrf
                         @method('PUT')

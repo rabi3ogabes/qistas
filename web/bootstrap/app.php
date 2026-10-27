@@ -92,6 +92,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // "Not on your plan" and "switched off" are answers shown to the person, not failures for the error log.
         $exceptions->dontReport(EntitlementException::class);
 
+        // Keys and service accounts pasted into the admin area never go back into the session with a refused form.
+        $exceptions->dontFlash(['secret_key', 'publishable_key', 'key', 'play_account', 'service_account']);
+
         // /api/ answers every failure in one shape (see ApiErrors); everything else keeps the framework's pages.
         $exceptions->render(fn (Throwable $e, Request $request) => ApiErrors::render($e, $request));
 
