@@ -20,9 +20,9 @@ final class Catalog
         'daily_digest' => ['group' => 'alerts', 'types' => ['daily_digest'], 'channels' => self::APP_ONLY],
         'instalment_due' => ['group' => 'alerts', 'types' => ['instalment_due'], 'channels' => self::APP_ONLY],
         'instalment_late' => ['group' => 'alerts', 'types' => ['instalment_late'], 'channels' => self::APP_ONLY],
-        'billing_renewal_due' => ['group' => 'billing', 'types' => ['billing.renewal_due'], 'channels' => self::APP_AND_EMAIL],
+        'billing_renewal_due' => ['group' => 'billing', 'types' => ['billing.renewal_due', 'billing.trial_ending'], 'channels' => self::APP_AND_EMAIL],
         'billing_renewed' => ['group' => 'billing', 'types' => ['billing.renewed', 'billing.approved'], 'channels' => self::APP_AND_EMAIL],
-        'billing_payment_failed' => ['group' => 'billing', 'types' => ['billing.payment_failed', 'billing.rejected'], 'channels' => self::APP_AND_EMAIL],
+        'billing_payment_failed' => ['group' => 'billing', 'types' => ['billing.payment_failed', 'billing.rejected', 'billing.action_needed'], 'channels' => self::APP_AND_EMAIL],
         'billing_expired' => ['group' => 'billing', 'types' => ['billing.expired'], 'channels' => self::APP_AND_EMAIL],
         'support_reply' => ['group' => 'support', 'types' => ['support.reply'], 'channels' => self::APP_AND_EMAIL],
     ];

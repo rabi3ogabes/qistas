@@ -8,6 +8,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Notifications\Alerts\Notifier;
 use App\Notifications\Push\PushMessage;
+use App\Support\Format;
 use App\Support\InLanguage;
 use App\Tenancy\CurrentTenant;
 use App\Tenancy\TenantRole;
@@ -80,6 +81,48 @@ final class BillingNotices
                 __('Google Play could not take the payment for :plan. Update your payment method in Google Play to keep it.', ['plan' => $plan->name]),
             ]),
             'expired', 'refunded' => $this->ended($subscription),
+            default => null,
+        };
+    }
+
+    /**
+     * After Stripe told us about a card subscription (spec 2026-10-27 §7). [$outcome]: trial_ending, renewed,
+     * payment_failed, action_needed, ended or refunded_duplicate; $context carries amount, currency, date, reference.
+     *
+     * @param  array{amount?: string, currency?: string, date?: CarbonInterface|null, reference?: string}  $context
+     */
+    public function card(Subscription $subscription, string $outcome, array $context = []): void
+    {
+        $end = $subscription->current_period_end;
+        $period = $end?->toDateString() ?? 'none';
+        $date = $context['date'] ?? $end;
+        // Formatted inside each owner's language, like the rest of the words.
+        $amount = fn (): string => isset($context['amount'], $context['currency']) ? Format::money($context['amount'], strtoupper($context['currency'])) : '';
+
+        match ($outcome) {
+            'trial_ending' => $this->tell($subscription, 'billing.trial_ending', $date?->toDateString() ?? $period, fn (Plan $plan) => [
+                __('Your :plan trial ends soon', ['plan' => $plan->name]),
+                __('Your :plan trial ends on :date. Your card will then be charged :amount; cancel any time before in Plan and billing.', [
+                    'plan' => $plan->name, 'date' => $date === null ? '' : $this->day($date), 'amount' => $amount(),
+                ]),
+            ]),
+            'renewed' => $this->tell($subscription, 'billing.renewed', $period, fn (Plan $plan) => [
+                __(':plan renewed', ['plan' => $plan->name]),
+                __('Your workspace is on :plan until :date.', ['plan' => $plan->name, 'date' => $end === null ? '' : $this->day($end)]),
+            ]),
+            'payment_failed' => $this->tell($subscription, 'billing.payment_failed', $period, fn (Plan $plan) => [
+                __('Payment not taken'),
+                __('We could not charge your card for :plan. Update it in Plan and billing; :plan stays on meanwhile.', ['plan' => $plan->name]),
+            ]),
+            'action_needed' => $this->tell($subscription, 'billing.action_needed', $period, fn (Plan $plan) => [
+                __('Confirm your payment'),
+                __('Your bank asks you to confirm the :plan payment. Open Plan and billing to confirm it.', ['plan' => $plan->name]),
+            ]),
+            'refunded_duplicate' => $this->tell($subscription, 'billing.refunded', $context['reference'] ?? $period, fn (Plan $plan) => [
+                __('Second payment refunded'),
+                __('Your workspace already had :plan, so the new card subscription was cancelled and its payment refunded.', ['plan' => $plan->name]),
+            ]),
+            'ended' => $this->ended($subscription),
             default => null,
         };
     }

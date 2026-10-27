@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\GooglePlayWebhookController;
+use App\Http\Controllers\StripeWebhookController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -9,3 +10,4 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::post('/google-play', GooglePlayWebhookController::class)->name('webhooks.google-play');
+Route::post('/stripe', StripeWebhookController::class)->name('webhooks.stripe');
