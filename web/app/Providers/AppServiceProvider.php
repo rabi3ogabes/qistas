@@ -5,6 +5,8 @@ namespace App\Providers;
 use App\Activity\ActivityRecorder;
 use App\Activity\LastActivity;
 use App\Billing\BillingSettings;
+use App\Billing\Card\CardSettings;
+use App\Billing\Card\LiveStripeGateway;
 use App\Billing\Card\StripeGateway;
 use App\Billing\Card\UnconfiguredStripeGateway;
 use App\Billing\Store\GooglePlayBilling;
@@ -125,7 +127,11 @@ class AppServiceProvider extends ServiceProvider
 
         // Pro by card (spec 2026-10-27): Stripe once a secret key is saved in /admin/billing (or set in the
         // environment), and until then a gateway that sends nothing anywhere.
-        $this->app->bind(StripeGateway::class, fn ($app): StripeGateway => new UnconfiguredStripeGateway);
+        $this->app->bind(StripeGateway::class, function ($app): StripeGateway {
+            $settings = $app->make(CardSettings::class);
+
+            return $settings->secretKey() !== null ? new LiveStripeGateway($settings) : new UnconfiguredStripeGateway;
+        });
 
         // One per request: the live look is read once however many parts of a page ask for it.
         $this->app->scoped(Appearance::class);
