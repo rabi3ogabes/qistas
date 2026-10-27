@@ -42,6 +42,12 @@ if (cockpit) import('./admin-features').then(({ initFeatureControl }) => initFea
 if (document.querySelector('[data-studio]')) import('./admin-appearance').then(({ initAppearanceStudio }) => initAppearanceStudio());
 if (document.querySelector('[data-event-editor]')) import('./admin-events').then(({ initEventEditor }) => initEventEditor());
 
+// Pro by card: the checkout and the card dashboard bring Stripe.js, and only those pages download it.
+const cardCheckout = document.querySelector('[data-card-checkout]');
+if (cardCheckout) import('./card-checkout').then(({ initCardCheckout }) => initCardCheckout(cardCheckout));
+const cardBilling = document.querySelector('[data-card-billing]');
+if (cardBilling) import('./card-billing').then(({ initCardBilling }) => initCardBilling(cardBilling));
+
 // The business profile page brings its signature pad.
 if (document.querySelector('[data-signature-pad], input[data-autosubmit]')) import('./business-profile').then(({ initBusinessProfile }) => initBusinessProfile());
 

@@ -8,6 +8,7 @@
     $sourceLine = [
         'play' => __('Paid through Google Play. Change or cancel it in the Play Store on your phone.'),
         'manual' => __('Paid by bank transfer.'),
+        'stripe' => __('Paid by card.'),
         'admin' => __('Given by the Qistas team.'),
     ];
     $statusBadge = [
@@ -25,19 +26,32 @@
     </x-page-head>
 
 
+    @error('card')<p class="alert alert-error" role="alert">{{ $message }}</p>@enderror
+
     <section class="card card-pad" aria-labelledby="your-plan">
         <h2 id="your-plan" class="checklist-title">{{ __('Your plan') }}: {{ $current->name }}</h2>
-        @if ($subscription)
+        @if ($card)
+            @include('app.billing._card', ['card' => $card])
+        @elseif ($subscription)
             <p class="plan-until">
                 @if ($subscription->current_period_end){{ __('Until :date.', ['date' => $subscription->current_period_end->translatedFormat('j F Y')]) }}@endif
                 {{ $sourceLine[$subscription->source] ?? '' }}
             </p>
+            @if ($cardUnavailable)<p class="field-hint">{{ __('Card details are briefly unavailable. Try again in a minute.') }}</p>@endif
         @endif
         <div class="usage">
             <x-meter :label="__('Customers')" :entitlement="$usage['customers']" />
             <x-meter :label="__('Active contracts')" :entitlement="$usage['contracts']" />
         </div>
     </section>
+
+    @if ($card && $receipts !== [])
+        @include('app.billing._receipts', ['receipts' => $receipts])
+    @endif
+
+    @if ($cardOpen)
+        @include('app.billing._card-offer', ['paidPlans' => $paidPlans, 'trialDays' => $trialDays, 'offers' => $offers])
+    @endif
 
     @if ($offerTransfer)
         <section class="card card-pad stack transfer" aria-labelledby="transfer-title" style="margin-top:1rem">
@@ -104,7 +118,7 @@
                 </form>
             @endif
         </section>
-    @elseif ($current->isFree())
+    @elseif ($current->isFree() && ! $cardOpen)
         <section class="card card-pad" aria-labelledby="upgrade" style="margin-top:1rem">
             <h2 id="upgrade" class="checklist-title">{{ __('Move to Pro') }}</h2>
             <p>{{ __('Online payment is not switched on yet. Until it is, the Qistas team turns Pro on for your workspace: write to us from the e-mail address you sign in with and say which workspace it is for.') }}</p>

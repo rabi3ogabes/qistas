@@ -4,6 +4,11 @@ namespace App\Http\Controllers\Workspace;
 
 use App\Billing\BillingSettings;
 use App\Billing\BillingState;
+use App\Billing\Card\CardManagement;
+use App\Billing\Card\CardRefused;
+use App\Billing\Card\CardSettings;
+use App\Billing\Card\CardUnavailable;
+use App\Billing\Trials;
 use App\Entitlements\Entitlements;
 use App\Entitlements\Feature;
 use App\Models\ManualPaymentRequest;
@@ -20,7 +25,7 @@ use Illuminate\View\View;
  */
 final class BillingController
 {
-    public function __invoke(Request $request, CurrentTenant $tenants, PricingCatalog $catalog, BillingSettings $settings): View
+    public function __invoke(Request $request, CurrentTenant $tenants, PricingCatalog $catalog, BillingSettings $settings, BillingState $state, CardManagement $cards, CardSettings $cardSettings, Trials $trials): View
     {
         $tenant = $tenants->get();
         abort_if($tenant === null, 403);
@@ -30,7 +35,23 @@ final class BillingController
         $subscription = $tenant->subscription()->first();
         $canBuy = BillingState::canBuy($tenant, $request->user());
 
+        // Pro by card (spec 2026-10-27 §4.3): read from Stripe when shown; the page still opens when Stripe does not answer.
+        [$card, $receipts, $cardUnavailable] = [null, [], false];
+        if ($canBuy) {
+            try {
+                $card = $cards->overview($tenant);
+                $receipts = $card === null ? [] : $cards->receipts($tenant);
+            } catch (CardUnavailable|CardRefused) {
+                $cardUnavailable = $subscription?->source === 'stripe';
+            }
+        }
+
         return view('app.billing', [
+            'card' => $card,
+            'receipts' => $receipts,
+            'cardUnavailable' => $cardUnavailable,
+            'cardOpen' => $state->cardOpen($tenant, $request->user()),
+            'trialDays' => $trials->available($tenant) ? $cardSettings->trialDays() : 0,
             'current' => $current,
             'subscription' => $subscription !== null && $subscription->isCurrent() && ! $current->is_default ? $subscription : null,
             'usage' => [
