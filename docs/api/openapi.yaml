@@ -2842,8 +2842,9 @@ components:
           enum: [active, trialing, past_due, null]
           description: Null on the free plan.
         until: {type: [string, "null"], format: date, description: "The last day of the period paid; null when it does not lapse or on the free plan."}
-        source: {type: [string, "null"], enum: [play, appstore, web, manual, admin, null], description: "How the plan was paid: Google Play, the App Store, the website, a bank transfer, or given by the Qistas team."}
+        source: {type: [string, "null"], enum: [play, appstore, web, manual, stripe, admin, null], description: "How the plan was paid: Google Play, the App Store, the website, a bank transfer, a card subscription taken on the website (stripe), or given by the Qistas team. The app shows a plan paid outside the store as it stands and never names or offers that way to pay."}
         auto_renew: {type: [boolean, "null"]}
+        period: {type: [string, "null"], enum: [month, year, null], description: "How often the plan is paid for; null on the free plan, for a plan the team gave, or when the store does not say."}
         can_buy: {type: boolean, description: "The owner of a real workspace (not a demo or test one)."}
         store:
           type: object

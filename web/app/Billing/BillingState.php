@@ -37,6 +37,8 @@ final class BillingState
             'until' => $current?->current_period_end?->toDateString(),
             'source' => $current?->source,
             'auto_renew' => $current?->auto_renew,
+            // month or year for a plan paid by period; never how to pay by card (the app does not sell it).
+            'period' => $current?->period,
             'can_buy' => $canBuy,
             'store' => [
                 'available' => $store,

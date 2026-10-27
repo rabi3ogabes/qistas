@@ -110,6 +110,7 @@ class _PlanCard extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     final monthly = offer.monthlyPrice;
     final onStore = current && (billing?.paidThroughStore ?? false);
+    final outside = current && (billing?.paidOutsideStore ?? false);
 
     return QCard(
       padding: const EdgeInsets.all(20),
@@ -126,6 +127,9 @@ class _PlanCard extends StatelessWidget {
           const SizedBox(height: 12),
           if (offer.isFree)
             Text(context.t('Free'), style: text.titleLarge)
+          // A plan paid outside the store shows no price: the app never quotes one it does not sell.
+          else if (outside)
+            const SizedBox.shrink()
           // The store's own price when the plan is sold in the app: one price, in the person's currency.
           else if (storeOffers.isNotEmpty)
             Text(_priceLine(context, storeOffers.first), style: text.titleLarge)
@@ -158,6 +162,7 @@ class _PlanCard extends StatelessWidget {
               ),
             ),
           if (onStore) _StoreSubscription(billing: billing!)
+          else if (outside) _PaidPlan(billing: billing!)
           else if (!current && storeOffers.isNotEmpty && billing?.accountRef != null) _Subscribe(offers: storeOffers, accountRef: billing!.accountRef!),
         ],
       ),
@@ -265,6 +270,35 @@ class _OfferTile extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// A plan paid or given outside the store: when it renews or until when, and nothing else. No button, no price and no
+/// word of how it was paid (Google Play's payments policy); a plan with no end shows nothing here.
+class _PaidPlan extends ConsumerWidget {
+  const _PaidPlan({required this.billing});
+
+  final BillingState billing;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = context.qc;
+    final text = Theme.of(context).textTheme;
+    if (billing.until == null) return const SizedBox.shrink();
+    final date = formatDay(billing.until!, ref.watch(localeProvider));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 16),
+        Divider(color: c.line, height: 1),
+        const SizedBox(height: 16),
+        Text(
+          billing.autoRenew ?? false ? context.t('Renews :date', {'date': date}) : context.t('Until :date', {'date': date}),
+          style: text.bodyMedium,
+        ),
+      ],
     );
   }
 }

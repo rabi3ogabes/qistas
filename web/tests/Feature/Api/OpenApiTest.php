@@ -49,6 +49,31 @@ function servedOperations(): array
     return $operations;
 }
 
+/** @return list<string> the property names a schema under components lists, in order */
+function documentedProperties(string $schema): array
+{
+    $properties = [];
+    $inside = false;
+
+    foreach (file(base_path('../docs/api/openapi.yaml'), FILE_IGNORE_NEW_LINES) as $line) {
+        if ($line === "    {$schema}:") {
+            $inside = true;
+        } elseif ($inside && preg_match('/^    \S/', $line)) {
+            break;
+        } elseif ($inside && preg_match('/^        ([a-z_]+):/', $line, $match)) {
+            $properties[] = $match[1];
+        }
+    }
+
+    return $properties;
+}
+
+it('describes every field of the billing state the apps read', function () {
+    apiOwner();
+
+    expect(documentedProperties('BillingState'))->toBe(array_keys($this->getJson('/api/v1/billing')->assertOk()->json('data')));
+});
+
 it('documents every endpoint the API serves', function () {
     expect(array_keys(array_diff_key(servedOperations(), documentedOperations())))->toBe([]);
 });

@@ -176,6 +176,38 @@ describe('verifying a purchase', function () {
     });
 });
 
+describe('a plan paid outside the app', function () {
+    it('shows a plan paid by card and how often it renews, with nothing to buy and no way to pay in sight', function () {
+        playStore();
+        [, $tenant] = apiOwner();
+        $tenant->subscribeTo(Plan::where('key', 'pro')->sole(), 'active', now()->addYear(), [
+            'source' => 'stripe', 'stripe_subscription_id' => 'sub_api_1', 'period' => 'year', 'auto_renew' => true,
+        ]);
+
+        $response = $this->getJson('/api/v1/billing')->assertOk()
+            ->assertJsonPath('data.plan.key', 'pro')->assertJsonPath('data.source', 'stripe')
+            ->assertJsonPath('data.period', 'year')->assertJsonPath('data.auto_renew', true)
+            ->assertJsonPath('data.store.available', false)->assertJsonPath('data.store.products', []);
+
+        $body = strtolower((string) $response->getContent());
+        expect(array_keys($response->json('data')))->toBe(['plan', 'status', 'until', 'source', 'auto_renew', 'period', 'can_buy', 'store'])
+            ->and($body)->not->toContain('card')->not->toContain('http')->not->toContain('sub_api_1')
+            ->and(substr_count($body, 'stripe'))->toBe(1);
+    });
+
+    it('says how often a plan is paid for, and nothing on Free or for a plan the team gave', function () {
+        [, $tenant] = apiOwner();
+        $pro = Plan::where('key', 'pro')->sole();
+        $this->getJson('/api/v1/billing')->assertJsonPath('data.period', null);
+
+        $tenant->subscribeTo($pro, 'active', now()->addMonth(), ['source' => 'manual', 'period' => 'month']);
+        $this->getJson('/api/v1/billing')->assertJsonPath('data.source', 'manual')->assertJsonPath('data.period', 'month');
+
+        $tenant->subscribeTo($pro, 'active', null, ['source' => 'admin']);
+        $this->getJson('/api/v1/billing')->assertJsonPath('data.source', 'admin')->assertJsonPath('data.period', null);
+    });
+});
+
 /** A key and certificate standing in for Google's, served where Google publishes its certificates. */
 function googleSigner(): array
 {

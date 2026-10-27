@@ -26,6 +26,7 @@ class BillingState {
     this.until,
     this.source,
     this.autoRenew,
+    this.period,
     this.accountRef,
   });
 
@@ -40,6 +41,7 @@ class BillingState {
       until: json['until'] as String?,
       source: json['source'] as String?,
       autoRenew: json['auto_renew'] as bool?,
+      period: json['period'] as String?,
       canBuy: json['can_buy'] == true,
       storeAvailable: store['available'] == true,
       accountRef: store['account_ref'] as String?,
@@ -54,15 +56,22 @@ class BillingState {
   /// The last day of the period paid (yyyy-MM-dd), or null.
   final String? until;
 
-  /// play, appstore, web, manual or admin.
+  /// play, appstore, web, manual, stripe or admin; only while a paid plan is current.
   final String? source;
   final bool? autoRenew;
+
+  /// month or year, for a plan paid by period.
+  final String? period;
   final bool canBuy;
   final bool storeAvailable;
   final String? accountRef;
   final List<StoreProductRef> products;
 
   bool get paidThroughStore => source == 'play';
+
+  /// A current plan paid or given outside the store (by card or transfer on the website, or by the team). The app shows
+  /// it as it stands and never names, prices or offers that way to pay (Google Play's payments policy).
+  bool get paidOutsideStore => const {'stripe', 'manual', 'admin'}.contains(source);
 
   /// The store's id for [planKey], when it is on sale in the store.
   String? productFor(String planKey) => products.where((p) => p.planKey == planKey).firstOrNull?.productId;

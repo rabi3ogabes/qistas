@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart' hide Route;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qistas/core/billing/store_gateway.dart';
+import 'package:qistas/core/design/widgets.dart';
 
 import '../support/fake_api.dart';
 import '../support/fake_store.dart';
@@ -14,12 +15,13 @@ import '../support/samples.dart';
 /// told it was received only then. Restore brings a purchase to a new phone. The app never mentions paying by bank
 /// transfer or on the website (Google Play's payments policy).
 
-Map<String, dynamic> billingJson({bool store = true, bool canBuy = true, String plan = 'free', String? source, String? until, bool? autoRenew}) => {
+Map<String, dynamic> billingJson({bool store = true, bool canBuy = true, String plan = 'free', String? source, String? until, bool? autoRenew, String? period}) => {
       'plan': {'key': plan, 'name': plan == 'pro' ? 'Pro' : 'Free'},
       'status': plan == 'pro' ? 'active' : null,
       'until': until,
       'source': source,
       'auto_renew': autoRenew,
+      'period': period,
       'can_buy': canBuy,
       'store': {
         'available': store && canBuy,
@@ -167,6 +169,51 @@ void main() {
       expect(find.textContaining('Through Google Play, renews'), findsOneWidget);
       expect(find.text('Manage in the Play Store'), findsOneWidget);
       expect(find.text('Start the free trial'), findsNothing);
+    });
+
+    testWidgets('a plan paid outside the app: when it renews, and nothing to buy, no price and no word of how it was paid', (tester) async {
+      final store = FakeStoreGateway();
+      await pumpApp(
+        tester,
+        billingServer(billing: billingJson(plan: 'pro', source: 'stripe', until: '2026-12-09', autoRenew: true, period: 'year', store: false), account: accountJson(plan: 'pro')),
+        store: store,
+      );
+      await openSettings(tester);
+      await tapText(tester, 'Pro is on');
+
+      expect(find.text('Renews Dec 9, 2026'), findsOneWidget);
+      expect(find.text('Subscribe'), findsNothing);
+      expect(find.text('Start the free trial'), findsNothing);
+      expect(find.text('Manage in the Play Store'), findsNothing);
+      expect(find.byType(MoneyText), findsNothing, reason: 'no price beside a plan paid outside the store');
+      expect(find.text('per month'), findsNothing);
+      for (final words in wordsOnScreen(tester)) {
+        expect(words, isNot(anyOf(contains('card'), contains('website'), contains('stripe'), contains('bank'))), reason: 'shown: "$words"');
+      }
+      expect(store.askedFor, isNull);
+    });
+
+    testWidgets('a plan paid outside the app that will not renew says until when', (tester) async {
+      await pumpApp(
+        tester,
+        billingServer(billing: billingJson(plan: 'pro', source: 'stripe', until: '2026-12-09', autoRenew: false, period: 'month', store: false), account: accountJson(plan: 'pro')),
+        store: FakeStoreGateway(),
+      );
+      await openSettings(tester);
+      await tapText(tester, 'Pro is on');
+
+      expect(find.text('Until Dec 9, 2026'), findsOneWidget);
+      expect(find.textContaining('Renews'), findsNothing);
+    });
+
+    testWidgets('a plan the team gave with no end shows no date and no price', (tester) async {
+      await pumpApp(tester, billingServer(billing: billingJson(plan: 'pro', source: 'admin', store: false), account: accountJson(plan: 'pro')), store: FakeStoreGateway());
+      await openSettings(tester);
+      await tapText(tester, 'Pro is on');
+
+      expect(find.textContaining('Until'), findsNothing);
+      expect(find.textContaining('Renews'), findsNothing);
+      expect(find.byType(MoneyText), findsNothing);
     });
 
     for (final (name, billing) in [
