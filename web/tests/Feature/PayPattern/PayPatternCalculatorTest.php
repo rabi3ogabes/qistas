@@ -4,6 +4,7 @@ use App\Domain\PayPattern\PayPattern;
 use App\Domain\PayPattern\PayPatternCalculator;
 use App\Entitlements\Feature;
 use App\Entitlements\FeatureGroup;
+use App\Entitlements\FeatureType;
 use App\Entitlements\PlatformState;
 use App\Models\CustomerPayPattern;
 use Carbon\CarbonImmutable;
@@ -162,6 +163,49 @@ test('the limits between high, medium and nothing sit where they are documented'
     'a spread of 6 says nothing' => [21, null],
 ]);
 
+test('the share of months on the payday has its own limits: 75 for high, 60 for medium', function (array $days, ?array $expected) {
+    // One payment a month on these days of 2026, in consecutive months from January. Every row keeps the OTHER gates
+    // open (enough months, and a spread that the confidence in question allows) so that the within percent alone
+    // decides, and a gate that is wrong shows up as a row that comes out differently.
+    $dates = array_map(fn (int $day, int $index) => sprintf('2026-%02d-%02d', $index + 1, $day), $days, array_keys($days));
+
+    expect(patternOf(PayPatternCalculator::calculate(paidOn(...$dates))))->toBe($expected);
+})->with([
+    // Days [24, 24, 24, 28], sorted the same, n = 4. Median rank 2 -> 24. Q1 rank 1 -> 24. Q3 rank 3 -> 24. Spread 0.
+    // Within 3 of 24 (21 to 27): the three 24s are, the 28 is 4 away -> 3/4 = 75%. HIGH is months 4 >= 4, spread 0 <= 3,
+    // within 75 >= 75: exactly on the limit. Isolates the 75: months and spread are both comfortably inside, so only
+    // a gate that says "above 75" or "80 or more" turns this into medium.
+    'exactly 75 percent is high' => [[24, 24, 24, 28], ['day' => 24, 'spread' => 0, 'months' => 4, 'within' => 75, 'confidence' => 'high']],
+
+    // Days [10, 10, 24 x 8, 28]: eleven months, sorted [10, 10, 24 x 8, 28]. Median rank ceil(5.5) = 6 -> 24 (the 24s sit
+    // at ranks 3 to 10). Q1 rank ceil(2.75) = 3 -> 24. Q3 rank ceil(8.25) = 9 -> 24. Spread 0.
+    // Within 3 of 24: the eight 24s; the two 10s and the 28 are not -> 8/11 = 72.7%, 73 rounded. Not high (73 < 75, with
+    // months 11 and spread 0 both fine, so the 75 is the only thing in the way); medium (spread 0 <= 5, 73 >= 60).
+    // 73 is the closest figure under 75 that 12 months or fewer can reach (74 cannot: no k/n with n <= 12 rounds to it),
+    // so a high gate lowered to 73 or less turns this into high.
+    'just under 75 percent is medium' => [[10, 10, 24, 24, 24, 24, 24, 24, 24, 24, 28], ['day' => 24, 'spread' => 0, 'months' => 11, 'within' => 73, 'confidence' => 'medium']],
+
+    // Days [20, 20, 20, 24, 24], n = 5. Median rank ceil(2.5) = 3 -> 20. Q1 rank ceil(1.25) = 2 -> 20. Q3 rank
+    // ceil(3.75) = 4 -> 24. Spread 4.
+    // Within 3 of 20 (17 to 23): the three 20s; the 24s are 4 away -> 3/5 = 60%. Not high (spread 4 > 3 and 60 < 75).
+    // MEDIUM is spread 4 <= 5, within 60 >= 60: exactly on the limit. Isolates the 60: the spread passes, so only a gate
+    // that says "above 60" (or 65 or more) turns this into nothing.
+    'exactly 60 percent is medium' => [[20, 20, 20, 24, 24], ['day' => 20, 'spread' => 4, 'months' => 5, 'within' => 60, 'confidence' => 'medium']],
+
+    // Days [20, 20, 20, 20, 24, 24, 24], sorted the same, n = 7. Median rank ceil(3.5) = 4 -> 20. Q1 rank ceil(1.75) = 2
+    // -> 20. Q3 rank ceil(5.25) = 6 -> 24. Spread 4.
+    // Within 3 of 20: the four 20s -> 4/7 = 57.1%, 57 rounded. Seven months and a spread of 4 pass the medium gates
+    // (months >= 3, spread <= 5), so the ONLY thing that says nothing here is within 57 < 60: with the within gate gone
+    // this would be medium.
+    'just under 60 percent says nothing' => [[20, 20, 20, 20, 24, 24, 24], null],
+
+    // Days [20, 20, 24, 24], sorted the same, n = 4. Median rank 2 -> 20 (the lower middle). Q1 rank 1 -> 20. Q3 rank 3
+    // -> 24. Spread 4.
+    // Within 3 of 20: the two 20s -> 2/4 = 50%. Four months and a spread of 4 pass the medium gates (and 4 months would
+    // allow high, but its spread of 4 is over 3), so again the only thing that says nothing is within 50 < 60.
+    'half the months on the payday says nothing' => [[20, 20, 24, 24], null],
+]);
+
 test('only the date is read, as it falls on the calendar it was given', function () {
     // Just after midnight in Riyadh is still the day before in UTC. The dates are the workspace's own, so the 15th
     // at 00:10 is the 15th, not the 14th, whatever the server's clock is.
@@ -175,7 +219,9 @@ test('only the date is read, as it falls on the calendar it was given', function
 
 test('payday learning is a Collecting toggle, off for Free and on for Pro, and ships switched off like every new feature', function () {
     expect(Feature::PaydayLearning->value)->toBe('payday_learning')
+        ->and(Feature::PaydayLearning->type())->toBe(FeatureType::Toggle)
         ->and(Feature::PaydayLearning->group())->toBe(FeatureGroup::Collecting)
+        ->and(Feature::PaydayLearning->dependsOn())->toBe([])
         ->and(Feature::PaydayLearning->isCore())->toBeFalse()
         ->and(Feature::PaydayLearning->launchState())->toBe(PlatformState::Off)
         ->and(Feature::PaydayLearning->defaultFor('free'))->toBe(['enabled' => false, 'limit' => null])
