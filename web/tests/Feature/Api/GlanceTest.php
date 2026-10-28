@@ -78,6 +78,21 @@ describe('the glance', function () {
         ]);
     });
 
+    it('is filled by today’s instalments alone when there are three or more, in contract order', function () {
+        switchOn(Feature::HomeWidget);
+        [, $tenant] = apiOwner();
+        $same = customerIn($tenant, ['name' => 'Same'])->id;
+        foreach (range(1, 4) as $unused) {
+            openContract($tenant, ['customer_id' => $same, 'first_due_date' => '2026-10-07']);
+        }
+        openContract($tenant, ['customer_id' => customerIn($tenant, ['name' => 'Later'])->id, 'first_due_date' => '2026-10-09']);
+
+        $next = $this->getJson('/api/v1/glance')->assertOk()->json('data.next');
+
+        expect(Arr::pluck($next, 'reference'))->toBe(['C-0001', 'C-0002', 'C-0003'])
+            ->and(Arr::pluck($next, 'due_on'))->toBe(['2026-10-07', '2026-10-07', '2026-10-07']);
+    });
+
     it('shows what is still owed on an instalment that was part paid', function () {
         switchOn(Feature::HomeWidget);
         [, $tenant] = apiOwner();

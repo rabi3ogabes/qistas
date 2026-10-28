@@ -236,6 +236,7 @@ final class DashboardMetrics
             ->whereDate('installments.due_date', '<=', $now->copy()->addDays(7)->toDateString())
             ->orderBy('installments.due_date')
             ->orderByRaw('LOWER(customers.name)')
+            ->orderBy('contracts.number')
             ->limit($limit)
             ->toBase()
             ->get(self::ROW_COLUMNS)
