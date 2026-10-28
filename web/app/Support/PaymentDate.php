@@ -42,6 +42,11 @@ final class PaymentDate
     {
         $now ??= now();
 
+        // A typed day is compared as a date: the end of 9999-12-31 is built from year 10000, which reads back as 2000.
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+            return $value > WorkspaceDay::of($tenant, $now)->date;
+        }
+
         return self::moment($tenant, $value, $now)->greaterThan($now);
     }
 

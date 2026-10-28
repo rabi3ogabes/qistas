@@ -188,6 +188,15 @@ describe('PaymentDate::moment', function () {
         return Tenant::factory()->create(['country' => 'SA', 'timezone' => 'Asia/Riyadh']);
     }
 
+    it('calls the last day the calendar has a future day, not a past one', function () {
+        $now = CarbonImmutable::parse('2026-10-22 06:00:00', 'UTC');
+
+        expect(PaymentDate::isFuture(pdRiyadh(), '9999-12-31', $now))->toBeTrue()
+            ->and(PaymentDate::isFuture(pdRiyadh(), '2026-10-23', $now))->toBeTrue()
+            ->and(PaymentDate::isFuture(pdRiyadh(), '2026-10-22', $now))->toBeFalse()
+            ->and(PaymentDate::isFuture(pdRiyadh(), '2026-10-21', $now))->toBeFalse();
+    });
+
     it('is the last second of a past day on the workspace’s calendar, in UTC', function () {
         $moment = PaymentDate::moment(pdRiyadh(), '2026-10-21', CarbonImmutable::parse('2026-10-22 06:00:00', 'UTC'));
 
