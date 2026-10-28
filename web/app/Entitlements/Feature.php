@@ -37,6 +37,7 @@ enum Feature: string
     case AiReading = 'ai_reading';
     case HomeWidget = 'home_widget';
     case DayClose = 'day_close';
+    case PaydayLearning = 'payday_learning';
 
     /** How many customers the free plan keeps (tests and copy read this rather than repeating the number). */
     public const FREE_CUSTOMERS = 20;
@@ -48,7 +49,7 @@ enum Feature: string
             self::PdfStatements, self::AiReading => FeatureType::Quota,
             self::ExportCsv, self::AdvancedReports, self::CustomBranding, self::FlexibleSchedules, self::OpenContracts, self::ContractItems, self::CustomerTags,
             self::InstalmentAlerts, self::DailyDigest, self::EarlySettlement, self::Reschedule, self::PaymentTargeting,
-            self::StoreBilling, self::ManualBilling, self::CardBilling, self::LateFees, self::HijriDates, self::Guarantors, self::PromissoryNote, self::HomeWidget, self::DayClose => FeatureType::Toggle,
+            self::StoreBilling, self::ManualBilling, self::CardBilling, self::LateFees, self::HijriDates, self::Guarantors, self::PromissoryNote, self::HomeWidget, self::DayClose, self::PaydayLearning => FeatureType::Toggle,
         };
     }
 
@@ -84,6 +85,7 @@ enum Feature: string
             self::AiReading => __('Reading notebook photos and PDFs'),
             self::HomeWidget => __('Home-screen widget'),
             self::DayClose => __('End-of-day close'),
+            self::PaydayLearning => __('Payday learning'),
         };
     }
 
@@ -95,7 +97,7 @@ enum Feature: string
             self::AdvancedReports, self::CustomBranding, self::ApiTokens => FeatureGroup::Core,
             self::Members, self::Investors, self::Import, self::AiReading, self::DayClose => FeatureGroup::Team,
             self::FlexibleSchedules, self::OpenContracts, self::ContractItems, self::EarlySettlement, self::Reschedule, self::PaymentTargeting => FeatureGroup::ContractTerms,
-            self::CustomerTags, self::InstalmentAlerts, self::DailyDigest, self::HomeWidget => FeatureGroup::Collecting,
+            self::CustomerTags, self::InstalmentAlerts, self::DailyDigest, self::HomeWidget, self::PaydayLearning => FeatureGroup::Collecting,
             self::StoreBilling, self::ManualBilling, self::CardBilling => FeatureGroup::Membership,
             self::LateFees => FeatureGroup::LateCustomers,
             self::HijriDates, self::Guarantors, self::PromissoryNote => FeatureGroup::Documents,
@@ -135,6 +137,7 @@ enum Feature: string
             self::LateFees => __('A fee for each period an instalment is late, after the grace days: an amount or a percent, once, daily, weekly or monthly, with caps, and optionally for charity. Each fee is its own line, paid or waived with a reason.'),
             self::HomeWidget => __('Today’s money on the phone’s home screen: how many pay today, how many are late and how much, with the next few instalments; counts and amounts only, unless the owner allows customers’ names.'),
             self::DayClose => __('A short evening ritual: the cash counted is compared with what was recorded for the day, and a signed-off summary is kept.'),
+            self::PaydayLearning => __('Notices the day of the month each customer really pays and suggests dates and nudges around it, never changing anything by itself.'),
         };
     }
 
@@ -170,6 +173,7 @@ enum Feature: string
             self::LateFees => __('No new fees are charged. Fees already charged stay on their contracts and can still be paid or waived; each contract keeps the policy it was made with.'),
             self::HomeWidget => __('An installed widget shows “Open Qistas” and stops reading. Nothing is deleted.'),
             self::DayClose => __('No new closes and no reminders, and the page and the API are hidden. Closed days and their summaries are kept, and come back when it is switched on again.'),
+            self::PaydayLearning => __('Suggestions disappear and patterns stop updating. Patterns already worked out are kept for when it is switched back on.'),
         };
     }
 
@@ -184,7 +188,7 @@ enum Feature: string
             self::Customers, self::ActiveContracts, self::PdfStatements, self::ExportCsv,
             self::AdvancedReports, self::CustomBranding, self::ApiTokens, self::Members, self::FlexibleSchedules, self::Investors, self::OpenContracts, self::ContractItems, self::CustomerTags,
             self::InstalmentAlerts, self::DailyDigest, self::EarlySettlement, self::Reschedule, self::PaymentTargeting,
-            self::StoreBilling, self::ManualBilling, self::CardBilling, self::LateFees, self::HijriDates, self::Guarantors, self::PromissoryNote, self::Import, self::HomeWidget, self::DayClose => [],
+            self::StoreBilling, self::ManualBilling, self::CardBilling, self::LateFees, self::HijriDates, self::Guarantors, self::PromissoryNote, self::Import, self::HomeWidget, self::DayClose, self::PaydayLearning => [],
             self::AiReading => [self::Import],
         };
     }
@@ -292,6 +296,8 @@ enum Feature: string
                 // Win Plan 6.4: reading photos and PDFs with AI is part of Pro.
                 self::AiReading => ['enabled' => false, 'limit' => null],
                 self::ExportCsv, self::AdvancedReports, self::CustomBranding => ['enabled' => false, 'limit' => null],
+                // Daily-habit spec D15: the widget and the day close are Free; learning the real payday is Pro.
+                self::PaydayLearning => ['enabled' => false, 'limit' => null],
                 self::FlexibleSchedules, self::OpenContracts, self::ContractItems, self::CustomerTags,
                 self::InstalmentAlerts, self::DailyDigest, self::EarlySettlement, self::Reschedule, self::PaymentTargeting, self::LateFees, self::HijriDates, self::Guarantors, self::PromissoryNote, self::HomeWidget, self::DayClose => ['enabled' => true, 'limit' => null],
                 // The platform's own switches are not part of any plan: only the switch decides.
