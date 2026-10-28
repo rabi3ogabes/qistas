@@ -30,7 +30,7 @@ use Laravel\Sanctum\Sanctum;
 use Tests\Support\RecordingPushSender;
 
 /*
-| Daily-habit wave A, H4: in the evening, from the workspace's closing time and for two hours, each person who may close
+| Daily-habit wave A, H4: in the evening, from the workspace's closing time and for up to two hours (never past midnight), each person who may close
 | the day is reminded once, when the day is still open and has money in it or something to look at; and when someone who
 | is not an owner closes with a difference between the cash counted and the cash recorded, every owner is told once.
 | Nothing goes while the platform has the end-of-day close switched off, and no notice ever names a customer.

@@ -29,7 +29,8 @@ Each notice goes once: its log line has a unique key, so a rerun or a retried st
    key). E-mail: once the SMTP server is saved in `/admin/mail`, and only to a verified address. Text messages: once an
    SMS provider is chosen (none yet: the channel is not offered anywhere).
 2. **The admin allows it**, in `/admin/notifications`: a grid of every kind by every channel. Everything is allowed until
-   the admin changes it.
+   the admin saves the grid. After that, a kind the saved grid has never seen (one added later) takes its own default
+   channels from the catalogue until the admin saves the grid again.
 3. **The person chose it**: in the app (Settings, then Alert settings, "How notices reach you") or on the web (account
    menu, then Notifications). Owners see the billing kinds and the cash-difference notice; others do not. On the web the
    evening reminder is shown only to people who may close the day (not viewers).

@@ -9,7 +9,10 @@
 - **Instalment alerts**: on an instalment's due date (off by default, since the summary already says who pays today)
   and, once its grace days are over, again every day, week (the default) or month, until it is paid. Several in one
   morning arrive as one alert that names the customers.
-- **Quiet hours**: nothing arrives in them; it waits until they end.
+- **Quiet hours**: nothing arrives in them; it waits until they end. One exception: the notice that a day was closed with
+  a cash difference is a one-time event, so an owner in their quiet hours gets it in the inbox with no push, e-mail or
+  SMS (an owner who has switched the in-app channel off and takes it by e-mail only gets nothing then; the difference is
+  still shown on the day-close page).
 - **Inbox**: every alert is kept in the app (the bell on the dashboard), pushes or not.
 - **Remind everyone**: a checklist of who pays today (or who is late). "Next" opens WhatsApp with the message
   written; coming back ticks the customer off. On the web it is under the dashboard's "Due today".
