@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart' show HttpClientAdapter;
 import 'package:flutter/foundation.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../app/providers.dart';
@@ -79,24 +80,44 @@ class GlanceRefresher {
     // nothing left to show, and the app itself signs out the next time it opens.
     final client = ApiClient(baseUrl: AppConfig.apiBaseUrl, tokens: _tokens, language: () => language, onUnauthorized: () {}, adapter: _adapter);
 
+    // Everything the encoding needs is fetched before the request, so that once the answer is here nothing is awaited
+    // between the last look at the token and the write. `intl` starts with no locale data, and only `main()` loads it,
+    // which has not run in this isolate: without this, the encoder's time and date formats throw and the widget is
+    // never refreshed.
+    final words = await _loadWords(language);
+    await initializeDateFormatting(words.language);
+
     final answer = await _ask(QistasApi(client), names: privacy.namesShown(appLockOn: appLockOn));
     if (answer == null) return false;
 
-    // Signed out (or into another account) while the answer was on its way: the widget was emptied, and stays empty.
-    if (await _tokens.read() != token) {
+    final values = encodeGlance(answer, privacy: privacy, appLockOn: appLockOn, language: words.language, rtl: words.isRtl, words: words, now: _clock());
+
+    // Signing out empties the widget first and forgets the token after, so a token that is gone means the widget was
+    // already emptied: writing now would put the figures back.
+    if (!await _stillSignedInAs(token)) {
       _log('the person signed out meanwhile, the answer was dropped');
 
       return false;
     }
 
-    final words = await _loadWords(language);
-    final values = encodeGlance(answer, privacy: privacy, appLockOn: appLockOn, language: words.language, rtl: words.isRtl, words: words, now: _clock());
     await _store.write(values);
+
+    // A sign-out that began while the widget was being written has emptied it before the last values landed: do it again.
+    if (!await _stillSignedInAs(token)) {
+      await _store.clear();
+      await _store.redraw();
+      _log('the person signed out while the widget was written, it was emptied again');
+
+      return false;
+    }
+
     await _store.redraw();
     _log('the widget was refreshed');
 
     return true;
   }
+
+  Future<bool> _stillSignedInAs(String token) async => await _tokens.read() == token;
 
   /// The glance, or null when there is nothing new to write (and the widget was left, or emptied, as it should be).
   Future<GlanceData?> _ask(QistasApi api, {required bool names}) async {

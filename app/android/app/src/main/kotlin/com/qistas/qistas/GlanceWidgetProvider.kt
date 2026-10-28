@@ -110,12 +110,7 @@ open class GlanceWidgetProvider : HomeWidgetProvider() {
     private fun visibleIf(shown: Boolean): Int = if (shown) View.VISIBLE else View.GONE
 
     /** One stored string, trimmed; empty when it was never stored (or was stored as something else). */
-    private fun SharedPreferences.stored(key: String): String =
-        try {
-            getString(key, "")?.trim() ?: ""
-        } catch (e: ClassCastException) {
-            ""
-        }
+    private fun SharedPreferences.stored(key: String): String = (all[key] as? String)?.trim() ?: ""
 
     private companion object {
         /** Figures older than this are not shown as today's: the widget asks the person to open Qistas instead. */

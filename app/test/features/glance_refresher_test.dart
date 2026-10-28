@@ -1,82 +1,24 @@
 import 'dart:async';
-import 'dart:convert';
 
-import 'package:dio/dio.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:qistas/app/providers.dart';
 import 'package:qistas/core/config.dart';
 import 'package:qistas/core/push/background.dart';
 import 'package:qistas/core/storage/token_store.dart';
-import 'package:qistas/data/models.dart';
 import 'package:qistas/features/glance/glance_privacy.dart';
 import 'package:qistas/features/glance/glance_refresher.dart';
 import 'package:qistas/features/security/app_lock.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../support/fake_api.dart';
-import '../support/fake_glance_store.dart';
+import '../support/glance_phone.dart';
 import '../support/glance_samples.dart';
 import '../support/harness.dart';
-import '../support/samples.dart';
 
 /// The widget's morning refresh (daily-habit wave A, H3): what runs when the server's silent push arrives and the app is
 /// closed. No Riverpod, no screens: the token, the preferences and the cached account are all it has.
-
-/// A phone with the app closed: a token in the secure store, the preferences and the account the app last saw on disk,
-/// and a refresher wired to a fake server and a fake widget.
-class Phone {
-  Phone(this.refresher, this.store, this.server);
-
-  final GlanceRefresher refresher;
-  final FakeGlanceStore store;
-  final FakeServer server;
-
-  List<RequestOptions> get glanceCalls => server.requestsTo('GET /glance');
-}
-
-const String token = 'qst_test-token';
-
-Map<String, dynamic> cachedAccount({bool requireAppLock = false}) {
-  final account = accountWithWidget();
-  (account['tenant'] as Map<String, dynamic>)['require_app_lock'] = requireAppLock;
-
-  return account;
-}
-
-Future<Phone> phone({
-  MemoryTokenStore? tokens,
-  String? signedInWith = token,
-  bool hasCachedAccount = true,
-  bool businessRequiresLock = false,
-  Map<String, Object> prefs = const {},
-  Map<String, Route> routes = const {},
-  bool supported = true,
-}) async {
-  SharedPreferences.setMockInitialValues({
-    'language': 'en',
-    if (hasCachedAccount) AuthController.accountKey: jsonEncode(Account.fromJson(cachedAccount(requireAppLock: businessRequiresLock)).toJson()),
-    ...prefs,
-  });
-  final server = FakeServer({
-    'GET /glance': (options) => json(200, {'data': glanceJson(names: options.queryParameters['names'].toString() == '1')}),
-    ...routes,
-  });
-  final store = FakeGlanceStore();
-  final refresher = GlanceRefresher(
-    tokens: tokens ?? MemoryTokenStore(signedInWith),
-    store: store,
-    adapter: server.adapter,
-    clock: () => moment,
-    supported: supported,
-    loadWords: (language) async => wordsFor(language),
-  );
-
-  return Phone(refresher, store, server);
-}
 
 /// Counts how often the widget was asked to refresh.
 class CountingRefresher implements GlanceRefresher {
@@ -97,6 +39,8 @@ class CountingRefresher implements GlanceRefresher {
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
+    // For the expected values only (the encoder builds them). The refresher must not need this: a background isolate has
+    // no main(), and glance_refresher_background_test.dart pins that in a file that initialises nothing.
     for (final code in AppConfig.locales) {
       await initializeDateFormatting(code);
     }
@@ -260,6 +204,22 @@ void main() {
       expect(p.glanceCalls, hasLength(1));
       expect(p.store.writes, isEmpty, reason: 'the home screen was emptied by the sign-out and must stay empty');
       expect(p.store.redraws, 0);
+    });
+
+    test('it empties the widget again when the person signed out while it was being written', () async {
+      final tokens = MemoryTokenStore(token);
+      final p = await phone(tokens: tokens);
+      final order = <String>[];
+      p.store.onWrite = () async {
+        order.add('write');
+        await tokens.clear();
+      };
+      p.store.onClear = () async => order.add('clear');
+
+      expect(await p.refresher.run(), isFalse);
+
+      expect(order, ['write', 'clear'], reason: 'a sign-out empties the widget before it drops the token, so a write that lands after it must be undone');
+      expect(p.store.redraws, 1, reason: 'the home screen is told to draw the emptied widget');
     });
 
     test('it never logs the token or any name', () async {
