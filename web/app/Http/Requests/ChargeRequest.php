@@ -41,7 +41,11 @@ class ChargeRequest extends FormRequest
         return ['tag.in' => __('Choose one of the tags offered.')];
     }
 
-    /** When they took it: a date on its own is that day (now, if it is today); null is now. */
+    /**
+     * When they took it: a date on its own is that day (now, if it is today); null is now. A date with a time is the
+     * instant it names, as a payment's is (PaymentDate::moment): its offset, when it has one, says which, it is read as
+     * UTC without one, and it is handed back in UTC, because the database keeps a moment's digits whatever their zone.
+     */
     public function chargedAt(): ?CarbonInterface
     {
         $value = $this->validated('charged_at');
@@ -50,7 +54,7 @@ class ChargeRequest extends FormRequest
         }
         $moment = Carbon::parse($value);
         if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
-            return $moment;
+            return $moment->utc();
         }
 
         return $moment->isToday() ? now() : $moment->endOfDay();

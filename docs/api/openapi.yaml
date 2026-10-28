@@ -774,7 +774,7 @@ paths:
                 amount: {$ref: "#/components/schemas/Money"}
                 tag: {type: string, enum: [advance, refund, early_discount, unpaid]}
                 note: {type: string, maxLength: 1000}
-                charged_at: {type: string, description: "A date or a moment, never in the future."}
+                charged_at: {type: string, description: "A date or a moment, never in the future. A moment with an offset or Z is that instant; one without an offset is read as UTC."}
                 idempotency_key: {type: string}
       responses:
         "200":
@@ -3968,7 +3968,7 @@ components:
       properties:
         amount: {$ref: "#/components/schemas/Money"}
         method: {type: string, enum: [cash, bank_transfer, card, cheque, other]}
-        paid_at: {type: string, description: "A date or a moment, never in the future. A date alone means that day."}
+        paid_at: {type: string, description: "A date or a moment, never in the future. A date alone means that day on the workspace's calendar; a moment with an offset or Z is that instant, and one without an offset is read as UTC."}
         note: {type: string, maxLength: 1000}
         tag: {type: string, enum: [advance, refund, early_discount, unpaid]}
         idempotency_key: {type: string, description: "The Idempotency-Key header may be used instead."}

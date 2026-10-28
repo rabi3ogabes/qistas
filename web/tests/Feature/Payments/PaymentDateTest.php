@@ -27,6 +27,12 @@ function pdChannels(): array
     return ['api contract payment', 'api customer payment', 'api early settlement', 'web contract payment', 'web customer payment'];
 }
 
+/** @return list<string> the channels whose date field also takes a time (the web's customer payment takes a date alone) */
+function pdTimedChannels(): array
+{
+    return array_values(array_filter(pdChannels(), fn (string $channel) => ! str_contains($channel, 'web customer')));
+}
+
 /**
  * An owner of a workspace whose clock is [$timezone], with the features the channels need switched on.
  *
@@ -136,17 +142,50 @@ describe('a date and time typed for a payment', function () {
 
         pdRefused($channel, $response);
         expect(asTenant($tenant, fn () => Transaction::where('contract_id', $contract->id)->count()))->toBe(0);
-    })->with(array_values(array_filter(pdChannels(), fn (string $channel) => ! str_contains($channel, 'web customer'))));
+    })->with(pdTimedChannels());
 
     it('is kept as typed when it is earlier than now', function () {
         $this->travelTo('2026-10-22 06:00:00');
         [$owner, $tenant] = pdWorkspace();
 
+        // Without an offset it is read on the server's clock (UTC), as it always was: the app and the web forms send a
+        // date alone, and a client that sends a time says which zone it means.
         [$response, $contract] = pdPay('api contract payment', $owner, $tenant, '2026-10-22 02:15:00');
 
         pdAccepted('api contract payment', $response);
         expect(pdStored($tenant, $contract))->toBe('2026-10-22 02:15:00');
     });
+});
+
+describe('a date and time typed with an offset', function () {
+    it('is stored as the instant it names, never as its digits', function (string $channel, string $typed, string $stored) {
+        $this->travelTo('2026-10-22 06:00:00');
+        [$owner, $tenant] = pdWorkspace();
+
+        [$response, $contract] = pdPay($channel, $owner, $tenant, $typed);
+
+        pdAccepted($channel, $response);
+        expect(pdStored($tenant, $contract))->toBe($stored);
+    })->with(pdTimedChannels())->with([
+        // 22:30 in Riyadh is 19:30 UTC, still the 21st there; its digits read as UTC would be 01:30 on the 22nd in Riyadh.
+        'an integration in Riyadh' => ['2026-10-21T22:30:00+03:00', '2026-10-21 19:30:00'],
+        // Noon on the 21st fourteen hours behind UTC is 02:00 on the 22nd in UTC: today in Riyadh, not the 21st.
+        'fourteen hours behind' => ['2026-10-21T12:00:00-14:00', '2026-10-22 02:00:00'],
+        // Its digits are later than now (06:00 UTC); the moment itself, midnight UTC, is not.
+        'fourteen hours ahead' => ['2026-10-22T14:00:00+14:00', '2026-10-22 00:00:00'],
+        'UTC, written Z' => ['2026-10-21T23:15:00Z', '2026-10-21 23:15:00'],
+    ]);
+
+    it('is refused when the instant it names is later than now, however far east its offset', function (string $channel) {
+        $this->travelTo('2026-10-22 06:00:00');
+        [$owner, $tenant] = pdWorkspace();
+
+        // 20:30 fourteen hours ahead is 06:30 UTC, half an hour from now.
+        [$response, $contract] = pdPay($channel, $owner, $tenant, '2026-10-22T20:30:00+14:00');
+
+        pdRefused($channel, $response);
+        expect(asTenant($tenant, fn () => Transaction::where('contract_id', $contract->id)->count()))->toBe(0);
+    })->with(pdTimedChannels());
 });
 
 describe('a New York workspace', function () {
@@ -223,11 +262,30 @@ describe('PaymentDate::moment', function () {
         expect(PaymentDate::moment(pdRiyadh(), '2026-10-22')->equalTo(now()))->toBeTrue();
     });
 
-    it('leaves a date and time as it was typed', function (string $typed) {
-        $tenant = pdRiyadh();
+    it('reads a date and time as the instant it names, in UTC', function (string $typed, string $utc) {
+        $moment = PaymentDate::moment(pdRiyadh(), $typed, CarbonImmutable::parse('2026-10-22 06:00:00', 'UTC'));
 
-        expect(PaymentDate::moment($tenant, $typed, CarbonImmutable::parse('2026-10-22 06:00:00', 'UTC'))->equalTo(CarbonImmutable::parse($typed)))->toBeTrue();
-    })->with(['2026-10-21 23:30:00', '2026-10-21T23:30:00+03:00', '2026-10-21T23:30:00Z', '2026-10-21 23:30']);
+        // In UTC, so the row stores the instant: the database keeps a moment's digits, whatever zone they were written in.
+        expect($moment->format('Y-m-d H:i:s'))->toBe($utc)
+            ->and($moment->getTimezone()->getName())->toBe('UTC');
+    })->with([
+        'no offset (read as UTC)' => ['2026-10-21 23:30:00', '2026-10-21 23:30:00'],
+        'no offset, no seconds' => ['2026-10-21 23:30', '2026-10-21 23:30:00'],
+        'Riyadh' => ['2026-10-21T23:30:00+03:00', '2026-10-21 20:30:00'],
+        'Z' => ['2026-10-21T23:30:00Z', '2026-10-21 23:30:00'],
+        'fourteen hours behind' => ['2026-10-21T10:00:00-14:00', '2026-10-22 00:00:00'],
+        'fourteen hours ahead' => ['2026-10-22T01:00:00+14:00', '2026-10-21 11:00:00'],
+    ]);
+
+    it('calls a date and time with an offset future only when its instant is', function () {
+        $tenant = pdRiyadh();
+        $now = CarbonImmutable::parse('2026-10-22 06:00:00', 'UTC');
+
+        expect(PaymentDate::isFuture($tenant, '2026-10-22T19:59:59+14:00', $now))->toBeFalse()
+            ->and(PaymentDate::isFuture($tenant, '2026-10-22T20:00:01+14:00', $now))->toBeTrue()
+            ->and(PaymentDate::isFuture($tenant, '2026-10-21T15:59:59-14:00', $now))->toBeFalse()
+            ->and(PaymentDate::isFuture($tenant, '2026-10-21T16:00:01-14:00', $now))->toBeTrue();
+    });
 
     it('closes 1 November on the New York clock at 04:59:59 UTC the next day', function () {
         $newYork = Tenant::factory()->create(['country' => 'US', 'timezone' => 'America/New_York']);

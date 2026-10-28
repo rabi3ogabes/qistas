@@ -113,6 +113,21 @@ describe('an open contract', function () {
         expect(balanceOf($contract))->toBe('120.00');
     });
 
+    it('stores a charge typed with an offset at the instant it names', function (string $typed, string $stored) {
+        [, $tenant] = apiOwner();
+        $contract = openAccount($tenant);
+
+        $id = $this->postJson("/api/v1/contracts/{$contract->id}/charges", ['amount' => '10.00', 'charged_at' => $typed])->assertCreated()->json('data.id');
+
+        // The database keeps a moment's digits: written as they were typed, -14:00 would land on another day.
+        expect(asTenant($tenant, fn () => Transaction::query()->findOrFail($id)->paid_at->format('Y-m-d H:i:s')))->toBe($stored);
+    })->with([
+        'Riyadh' => ['2026-10-06T22:30:00+03:00', '2026-10-06 19:30:00'],
+        'fourteen hours behind' => ['2026-10-06T12:00:00-14:00', '2026-10-07 02:00:00'],
+        'UTC, written Z' => ['2026-10-06T23:15:00Z', '2026-10-06 23:15:00'],
+        'no offset (read as UTC)' => ['2026-10-06 23:15:00', '2026-10-06 23:15:00'],
+    ]);
+
     it('stores the tag of a line and refuses one it does not know', function () {
         [, $tenant] = apiOwner();
         $contract = openAccount($tenant);

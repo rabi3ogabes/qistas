@@ -18,17 +18,23 @@ use LogicException;
 final class PaymentDate
 {
     /**
-     * The moment a payment typed as [$value] was received.
+     * The moment a payment typed as [$value] was received, always as a UTC instant.
      *
      * A date alone is that day on the workspace's calendar: right now when it is the workspace's today (whatever the hour
      * there), otherwise the last second of that day, as a UTC instant like those of {@see WorkspaceDay}. So it is never
-     * in the future unless the day itself is. Anything else (a date with a time, with or without an offset) is read as it
-     * was typed and returned unchanged.
+     * in the future unless the day itself is.
+     *
+     * A date with a time is the instant it names. With an offset or a `Z` ("2026-10-20T12:00:00-14:00") the offset says
+     * which instant; without one ("2026-10-20 12:00") it is read on the server's clock, UTC, as it always has been (the app
+     * and the web forms send a date alone, so only an API client sends a time, and it can say which zone it means). The
+     * instant is handed back in UTC because the database keeps a moment's digits, whatever zone they were written in: kept
+     * as -14:00, noon on the 20th (02:00 UTC on the 21st) was stored as noon UTC on the 20th, so the after-close rule and
+     * the future check judged one moment and the ledger kept another.
      */
     public static function moment(Tenant $tenant, string $value, ?CarbonInterface $now = null): CarbonInterface
     {
         if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
-            return Carbon::parse($value);
+            return Carbon::parse($value)->utc();
         }
 
         $now ??= now();

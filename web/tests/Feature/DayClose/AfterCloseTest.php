@@ -51,6 +51,12 @@ function contractsAndLinesOf(Tenant $tenant): array
     return asTenant($tenant, fn () => [Contract::query()->count(), Transaction::query()->count()]);
 }
 
+/** When the line [$id] of [$contract] says its money was taken, as stored (UTC). */
+function storedPaidAt(Contract $contract, string $id): string
+{
+    return asTenant($contract->tenant, fn () => Transaction::query()->findOrFail($id)->paid_at->format('Y-m-d H:i:s'));
+}
+
 beforeEach(function () {
     $this->travelTo('2026-10-01 06:00:00');
     switchOn(Feature::DayClose);
@@ -106,6 +112,49 @@ test('an owner can, and an audit row is written', function () {
         // The close is what was signed: it stays as it was, and reopening it is a separate, deliberate step.
         ->and($this->closed->fresh()->status)->toBe('closed')
         ->and($this->closed->fresh()->expected_cash)->toBe('100.0000');
+});
+
+describe('a date and time typed with an offset', function () {
+    test('cannot put money into a closed day by writing a today instant as that day\'s digits', function () {
+        // The 20th was closed with nothing in it.
+        $this->travelTo('2026-10-20 17:00:00');
+        closeDay($this->shop, '2026-10-20', $this->sara);
+        $this->travelTo('2026-10-21 12:00:00');
+        Sanctum::actingAs($this->sara, ['app']);
+
+        // Noon on the 20th fourteen hours behind UTC is 02:00 UTC on the 21st, 05:00 in Riyadh: today, and hers to take.
+        $id = $this->postJson("/api/v1/contracts/{$this->contract->id}/payments", ['amount' => '40.00', 'method' => 'cash', 'paid_at' => '2026-10-20T12:00:00-14:00'])
+            ->assertCreated()->json('data.id');
+
+        // Stored at that instant, so it is today's money: the closed 20th's figures do not move.
+        expect(storedPaidAt($this->contract, $id))->toBe('2026-10-21 02:00:00')
+            ->and(closeTotals($this->shop, '2026-10-20'))->toMatchArray(['expected_cash' => '0.00', 'count' => 0])
+            ->and(closeTotals($this->shop, '2026-10-21'))->toMatchArray(['expected_cash' => '40.00', 'count' => 1])
+            ->and(closeAudits($this->shop->id, 'day_close.%after_close'))->toBe([]);
+    });
+
+    test('a collector cannot date a payment into a closed day with one, and an owner can, at that instant', function () {
+        $this->travelTo('2026-10-20 17:00:00');
+        $twentieth = closeDay($this->shop, '2026-10-20', $this->sara);
+        $this->travelTo('2026-10-21 12:00:00');
+        // 23:30 on the 20th in Riyadh, written the way an integration in Riyadh writes it: 20:30 UTC, the 20th there.
+        $late = ['amount' => '40.00', 'method' => 'cash', 'paid_at' => '2026-10-20T23:30:00+03:00'];
+
+        Sanctum::actingAs($this->sara, ['app']);
+        $this->postJson("/api/v1/contracts/{$this->contract->id}/payments", $late)
+            ->assertUnprocessable()->assertJsonPath('error.fields', closedDayError('paid_at'));
+        expect(ledgerLinesOf($this->contract))->toBe(1);
+
+        Sanctum::actingAs($this->boss, ['app']);
+        $id = $this->postJson("/api/v1/contracts/{$this->contract->id}/payments", $late)->assertCreated()->json('data.id');
+
+        expect(storedPaidAt($this->contract, $id))->toBe('2026-10-20 20:30:00')
+            ->and(closeTotals($this->shop, '2026-10-20')['expected_cash'])->toBe('40.00')
+            ->and(closeTotals($this->shop, '2026-10-21')['expected_cash'])->toBe('0.00')
+            ->and(closeAudits($this->shop->id, 'day_close.%after_close'))->toBe([[
+                'action' => 'day_close.change_after_close', 'subject_id' => $twentieth->id, 'user_id' => $this->boss->id, 'changes' => ['day' => '2026-10-20', 'change' => 'payment'],
+            ]]);
+    });
 });
 
 test('a collector cannot void a payment from a closed day', function () {
