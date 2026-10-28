@@ -1,5 +1,8 @@
 <?php
 
+use App\Entitlements\Feature;
+use App\Models\CustomerPayPattern;
+use App\Models\Plan;
 use Illuminate\Support\Facades\Route;
 
 /**
@@ -72,6 +75,21 @@ it('describes every field of the billing state the apps read', function () {
     apiOwner();
 
     expect(documentedProperties('BillingState'))->toBe(array_keys($this->getJson('/api/v1/billing')->assertOk()->json('data')));
+});
+
+it('describes every field of the payday pattern a customer’s page carries', function () {
+    switchOn(Feature::PaydayLearning);
+    [, $tenant] = apiOwner();
+    $tenant->subscribeTo(Plan::where('key', 'pro')->sole());
+    $customer = customerIn($tenant);
+    asTenant($tenant, fn () => CustomerPayPattern::query()->create([
+        'customer_id' => $customer->id, 'day' => 27, 'spread' => 2, 'months' => 6, 'within' => 83, 'confidence' => 'high', 'computed_at' => now(),
+    ]));
+
+    $sent = $this->getJson("/api/v1/customers/{$customer->id}")->assertOk()->json('data');
+
+    expect(documentedProperties('PayPattern'))->toBe(array_keys($sent['pay_pattern']))
+        ->and(documentedProperties('Customer'))->toContain('pay_pattern');
 });
 
 it('documents every endpoint the API serves', function () {

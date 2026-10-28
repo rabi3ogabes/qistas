@@ -592,6 +592,9 @@ paths:
     get:
       tags: [Customers]
       summary: One customer with their contracts
+      description: >-
+        The only call that carries `pay_pattern`, and only while payday learning is on for the workspace (see the Customer
+        schema).
       responses:
         "200":
           description: The customer.
@@ -3549,6 +3552,39 @@ components:
         owed: {$ref: "#/components/schemas/Money"}
         running_contracts: {type: integer}
         contracts: {type: array, items: {$ref: "#/components/schemas/Contract"}}
+        pay_pattern:
+          oneOf: [{$ref: "#/components/schemas/PayPattern"}, {type: "null"}]
+          description: >-
+            The day of the month this customer usually pays on, worked out from their payments. It is on the customer's own
+            page (`GET /customers/{customer}`) and nowhere else: never in the list, and not in what adding, changing or
+            pinning a customer answers. It is there only while the `payday_learning` feature is on for the workspace (the
+            platform switch and the plan); with it off the key is left out altogether, and a pattern worked out earlier is
+            kept for when it is switched back on. With the feature on, `null` means there is not enough to say yet.
+    PayPattern:
+      type: object
+      description: >-
+        When a customer usually pays, for a chip next to their name ("Usually pays around day 27 of the month") and for
+        suggesting contract dates. It is worked out from the first payment of each of their last months with payments, on
+        monthly contracts, and is a hint: nothing changes by itself because of it. `label` and `basis` are written by the
+        server in the language of the request; show them as sent and never build the wording from the figures.
+      required: [day, spread, months, within, confidence, end_of_month, label, basis]
+      properties:
+        day: {type: integer, minimum: 1, maximum: 28, description: "The usual day of the month. 28 also stands for the 29th to the 31st (see `end_of_month`); suggest dates from it, clamped to the length of the month."}
+        spread: {type: integer, minimum: 0, maximum: 27, description: "How far apart the days run, in days: the middle half of the months fall within this many days of each other."}
+        months: {type: integer, minimum: 3, maximum: 12, description: How many months it was worked out from.}
+        within: {type: integer, minimum: 0, maximum: 100, description: The percent of those months paid within three days of `day`.}
+        confidence: {type: string, enum: [high, medium], description: "high is four months or more that agree closely; medium is a looser pattern, or one from only three months."}
+        end_of_month: {type: boolean, description: True when `day` is 28, that is the customer pays at the end of the month whatever its length.}
+        label:
+          type: string
+          example: "Usually pays around day 27 of the month"
+          description: >-
+            One line in the language of the request: "Usually pays around day 27 of the month", or "Usually pays at the end of
+            the month" when `end_of_month` is true.
+        basis:
+          type: string
+          example: "Seen in 83% of recent months"
+          description: A second, smaller line saying how sure it is (`within` as a percent of the recent months), in the language of the request.
     CustomerPage:
       allOf:
         - {$ref: "#/components/schemas/Page"}

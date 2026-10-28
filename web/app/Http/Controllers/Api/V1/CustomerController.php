@@ -65,6 +65,12 @@ final class CustomerController
         $customer->setAttribute('running_contracts', $figures['running']);
         $customer->setRelation('contracts', $contracts);
 
+        // The payday pattern is asked for here, on the customer's own page, and not in the list. With payday learning off
+        // it is neither read nor shown, though a row worked out earlier stays for when it is switched back on.
+        if (Entitlements::for($this->current->get())->check(Feature::PaydayLearning)->enabled()) {
+            $customer->load('payPattern');
+        }
+
         return new CustomerResource($customer->load('tags'));
     }
 

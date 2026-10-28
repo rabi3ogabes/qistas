@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Http\Resources\Concerns\Presents;
 use App\Models\Customer;
+use App\Models\CustomerPayPattern;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -11,7 +12,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * @mixin Customer
  *
  * A customer. The national ID is only ever shown masked (its last three digits); the full number never leaves
- * the server. `owed` and `running_contracts` are present when the controller worked them out for the list.
+ * the server. `owed` and `running_contracts` are present when the controller worked them out for the list. `pay_pattern`
+ * is present only when the controller loaded it (see CustomerController::show).
  */
 class CustomerResource extends JsonResource
 {
@@ -37,6 +39,9 @@ class CustomerResource extends JsonResource
             'owed' => $this->when($this->getAttribute('owed') !== null, fn () => $this->money($this->getAttribute('owed'))),
             'running_contracts' => $this->when($this->getAttribute('running_contracts') !== null, fn () => (int) $this->getAttribute('running_contracts')),
             'contracts' => $this->whenLoaded('contracts', fn () => ContractResource::collection($this->contracts)),
+            // Only on the customer's own page, and only when payday learning is on: the controller loads it then. Loaded and
+            // empty is `null` (on, nothing to say yet); not loaded is no key at all.
+            'pay_pattern' => $this->whenLoaded('payPattern', fn (CustomerPayPattern $pattern) => new PayPatternResource($pattern)),
         ];
     }
 }

@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 
@@ -55,6 +56,17 @@ class Customer extends Model
     public function contracts(): HasMany
     {
         return $this->hasMany(Contract::class);
+    }
+
+    /**
+     * The day of the month they usually pay on, when enough of their payments could say (daily-habit wave A, H6). The row
+     * may be there while the feature is off; whoever shows it asks the feature first.
+     *
+     * @return HasOne<CustomerPayPattern, $this>
+     */
+    public function payPattern(): HasOne
+    {
+        return $this->hasOne(CustomerPayPattern::class);
     }
 
     /** @return BelongsToMany<Tag, $this> */
