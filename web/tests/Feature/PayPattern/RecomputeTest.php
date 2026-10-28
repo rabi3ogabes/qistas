@@ -15,6 +15,7 @@ use App\Models\Transaction;
 use App\Tenancy\CurrentTenant;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Log;
@@ -382,6 +383,7 @@ test('an exception in the recompute never fails the payment', function () {
 
     // Over the API, where an error would be a failed request for the person at the counter.
     [$owner, $apiShop] = apiOwner(['country' => 'SA', 'timezone' => 'Asia/Riyadh']);
+    $apiShop->subscribeTo(Plan::where('key', 'pro')->sole());
     $apiContract = learnContract($apiShop);
     $this->postJson("/api/v1/contracts/{$apiContract->id}/payments", ['amount' => '100.00', 'method' => 'cash'])
         ->assertCreated();
@@ -391,15 +393,115 @@ test('an exception in the recompute never fails the payment', function () {
     Exceptions::assertReportedCount(3);
 });
 
-test('a payment that is a settlement carries on when the recompute breaks', function () {
+test('an early settlement registers no recompute and changes no pattern', function () {
     Exceptions::fake();
-    app()->bind(RecomputePayPattern::class, fn () => throw new RuntimeException('the pattern broke'));
+    foreach (LEARN_FOUR_MONTHS as $month) {
+        learnPayOn27th($this->contract, $month);
+    }
+    $before = learnRow($this->customer);
+    expect($before->computed_at->toDateTimeString())->toBe('2026-10-28 12:00:00');
 
-    $settled = app(RecordPayment::class)->settle($this->contract, 'none', '0', '3600.00', 'cash');
+    // The payoff is always tagged `early_discount`, which says nothing about the payday, so settling asks for nothing:
+    // were a recompute registered it would be reported here (it cannot be built), and would restamp the row.
+    app()->bind(RecomputePayPattern::class, fn () => throw new RuntimeException('nothing should ask for this'));
+    $this->travelTo('2026-10-28 13:00:00');
+    $settled = app(RecordPayment::class)->settle($this->contract, 'none', '0', '3200.00', 'cash');
 
     expect($settled->tag)->toBe('early_discount')
-        ->and(asTenant($this->shop, fn () => Contract::query()->findOrFail($this->contract->id)->status))->toBe('settled');
-    Exceptions::assertReportedCount(1);
+        ->and(asTenant($this->shop, fn () => Contract::query()->findOrFail($this->contract->id)->status))->toBe('settled')
+        ->and(learnShape(learnRow($this->customer)))->toBe(learnShape($before))
+        ->and(learnRow($this->customer)->computed_at->toDateTimeString())->toBe('2026-10-28 12:00:00');
+    Exceptions::assertNothingReported();
+});
+
+test('with the feature off a payment registers no recompute and reads no customer or pattern', function () {
+    switchOff(Feature::PaydayLearning);
+    learnPayOn27th($this->contract, '2026-07', '2026-08');
+    Exceptions::fake();
+    // A recompute that was registered would be reported here, because it cannot be built.
+    app()->bind(RecomputePayPattern::class, fn () => throw new RuntimeException('nothing should ask for this'));
+    $queries = [];
+    DB::listen(function ($query) use (&$queries) {
+        $queries[] = $query->sql;
+    });
+
+    $payment = learnPay($this->contract, '2026-09-27 09:00:00');
+    app(VoidTransaction::class)->handle($payment);
+
+    $reads = array_values(array_filter($queries, fn (string $sql) => str_contains($sql, 'customer_pay_patterns') || (str_starts_with(ltrim($sql), 'select') && str_contains($sql, 'from "customers"'))));
+    expect($reads)->toBe([]);
+    Exceptions::assertNothingReported();
+
+    // Switched on, the third month is worked out as before.
+    switchOn(Feature::PaydayLearning);
+    app()->offsetUnset(RecomputePayPattern::class);
+    learnPayOn27th($this->contract, '2026-09');
+    expect(learnShape(learnRow($this->customer)))->toBe(['day' => 27, 'spread' => 0, 'months' => 3, 'within' => 100, 'confidence' => 'medium']);
+});
+
+test('a feature switched off between the payment and the commit writes nothing', function () {
+    learnPayOn27th($this->contract, '2026-07', '2026-08');
+
+    // Control: the work waits for the surrounding transaction to commit, and is done then.
+    DB::transaction(function () {
+        learnPay($this->contract, '2026-09-27 09:00:00');
+        expect(learnRow($this->customer))->toBeNull();
+    });
+    expect(learnShape(learnRow($this->customer)))->toBe(['day' => 27, 'spread' => 0, 'months' => 3, 'within' => 100, 'confidence' => 'medium']);
+
+    // Asked again when it runs: the platform has switched the feature off in the meantime, so nothing is read or written.
+    learnForget($this->shop);
+    $queries = [];
+    DB::listen(function ($query) use (&$queries) {
+        $queries[] = $query->sql;
+    });
+    DB::transaction(function () {
+        learnPay($this->contract, '2026-10-27 09:00:00');
+        switchOff(Feature::PaydayLearning);
+    });
+
+    $seen = $queries;
+    expect(learnRow($this->customer))->toBeNull()
+        ->and(learnCount($this->shop))->toBe(0)
+        ->and(array_values(array_filter($seen, fn (string $sql) => str_contains($sql, 'customer_pay_patterns'))))->toBe([]);
+});
+
+test('an error, not only an exception, inside the recompute never fails the payment', function () {
+    Exceptions::fake();
+    learnPayOn27th($this->contract, '2026-07', '2026-08');
+    // The recompute itself dies with an Error (not an Exception) as it stores the pattern.
+    DB::listen(function ($query) {
+        if (str_contains($query->sql, 'customer_pay_patterns')) {
+            throw new Error('a type went wrong');
+        }
+    });
+
+    $payment = learnPay($this->contract, '2026-09-27 09:00:00');
+    $reversal = app(VoidTransaction::class)->handle($payment);
+
+    expect($payment->exists)->toBeTrue()
+        ->and($reversal->type)->toBe('reversal')
+        ->and(asTenant($this->shop, fn () => Transaction::query()->where('type', 'payment')->count()))->toBe(3);
+    Exceptions::assertReported(fn (Error $e) => $e->getMessage() === 'a type went wrong');
+    Exceptions::assertReportedCount(2);
+});
+
+test('a failing report of a failure never fails the payment', function () {
+    learnPayOn27th($this->contract, '2026-07', '2026-08');
+    app()->bind(RecomputePayPattern::class, fn () => throw new RuntimeException('the pattern broke'));
+    // And reporting it breaks too: a reportable callback that throws stands for a log that cannot be written.
+    app(ExceptionHandler::class)->reportable(function (RuntimeException $e) {
+        throw new LogicException('the log is broken');
+    });
+
+    // The money is already committed by then; an error here would be a failed request for a payment that exists, and a
+    // client that retries would take the money twice.
+    $payment = learnPay($this->contract, '2026-09-27 09:00:00');
+    $reversal = app(VoidTransaction::class)->handle($payment);
+
+    expect($payment->exists)->toBeTrue()
+        ->and($reversal->type)->toBe('reversal')
+        ->and(asTenant($this->shop, fn () => Transaction::query()->where('type', 'payment')->count()))->toBe(3);
 });
 
 test('the nightly command is idempotent', function () {

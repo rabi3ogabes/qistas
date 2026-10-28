@@ -49,24 +49,40 @@ final class RecomputePayPattern
      * Work out [$customerId]'s pattern again once the transaction that is writing the ledger commits (at once when there is
      * none). Anything that goes wrong is reported and swallowed: a calculation problem must never fail or delay a payment
      * or a void, which by then are written.
+     *
+     * Nothing is registered while the workspace has the feature off, so a payment then costs no customer load and no
+     * callback. The switch is asked again when the work runs (see handle()), because it can change in between.
      */
     public static function afterCommit(Tenant $tenant, string $customerId): void
     {
+        if (! self::enabled($tenant)) {
+            return;
+        }
+
         DB::afterCommit(static fn () => self::swallow(static function () use ($tenant, $customerId): void {
             $customer = app(CurrentTenant::class)->use($tenant, fn () => Customer::withTrashed()->find($customerId));
             if ($customer !== null) {
-                app(self::class)->handle($customer);
+                // The workspace is in hand: handle() need not load it again.
+                app(self::class)->handle($customer->setRelation('tenant', $tenant));
             }
         }));
     }
 
-    /** Runs [$work] and reports, rather than throws, whatever goes wrong in it. */
+    /**
+     * Runs [$work] and reports, rather than throws, whatever goes wrong in it. Reporting can fail too (a log that cannot
+     * be written, a handler that throws), and that is swallowed as well: the money is already committed, and an error
+     * escaping a commit callback would fail a payment that exists, which a client that retries would then take twice.
+     */
     private static function swallow(Closure $work): void
     {
         try {
             $work();
         } catch (Throwable $e) {
-            report($e);
+            try {
+                report($e);
+            } catch (Throwable) {
+                // Nothing more can be done about it here.
+            }
         }
     }
 
@@ -79,7 +95,7 @@ final class RecomputePayPattern
         $tenant = $customer->tenant;
 
         $this->current->use($tenant, function () use ($tenant, $customer): void {
-            if ($this->enabled($tenant)) {
+            if (self::enabled($tenant)) {
                 $this->refresh($tenant, [$customer]);
             }
         });
@@ -95,7 +111,7 @@ final class RecomputePayPattern
     public function forWorkspace(Tenant $tenant): int
     {
         return $this->current->use($tenant, function () use ($tenant): int {
-            if (! $this->enabled($tenant)) {
+            if (! self::enabled($tenant)) {
                 return 0;
             }
 
@@ -112,9 +128,13 @@ final class RecomputePayPattern
         });
     }
 
-    private function enabled(Tenant $tenant): bool
+    /**
+     * Whether [$tenant] has payday learning on right now: the platform's switch and the plan. Never remembered beyond the
+     * request, and then only as Entitlements remembers (forgotten when either is edited), so it can be asked again at
+     * every run.
+     */
+    private static function enabled(Tenant $tenant): bool
     {
-        // Asked at every run, before anything is read: the platform's switch and the plan can change at any time.
         return Entitlements::for($tenant)->check(Feature::PaydayLearning)->enabled();
     }
 

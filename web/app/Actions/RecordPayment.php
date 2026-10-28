@@ -194,9 +194,8 @@ final class RecordPayment
                 if ($transaction !== null) {
                     // Every cent financed goes back to the investor; the rebate comes out of profit only (Win Plan PP3).
                     $this->investors->creditPayment($transaction);
-                    // Tagged `early_discount`, so it says nothing about the payday and the pattern will not change; asked
-                    // all the same, with every other line that is written, once it is committed.
-                    RecomputePayPattern::afterCommit($locked->tenant, $transaction->customer_id);
+                    // No payday-pattern recompute here, unlike handle(): the payoff is always tagged `early_discount`,
+                    // which says nothing about when the customer pays and which the pattern never reads.
                 }
                 Audit::record('contract.settled_early', $locked, ['payoff' => $quote->payoff, 'rebate' => $quote->rebate], $locked->tenant_id, $by?->id);
 
