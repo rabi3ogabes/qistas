@@ -28,6 +28,15 @@ final dayCloseTodayProvider = FutureProvider.autoDispose<DayCloseToday>((ref) =>
 /// while the feature is on and the person may close; with the feature off nothing asks.
 final dayCloseTileProvider = FutureProvider.autoDispose<DayCloseToday>((ref) => ref.watch(apiProvider).dayCloseToday());
 
+/// Tells everything that reads the day to look again, through the container rather than a widget's `ref`: a close or a
+/// reopening can be answered after the screen that asked has gone, and a widget's `ref` is unusable by then.
+void refreshDayClose(ProviderContainer container) {
+  container
+    ..invalidate(dayCloseTodayProvider)
+    ..invalidate(dayCloseTileProvider)
+    ..invalidate(dayCloseHistoryProvider);
+}
+
 /// Every close, newest day first.
 class DayCloseHistory extends PagedNotifier<DayCloseRecord> {
   @override

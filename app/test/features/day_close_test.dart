@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qistas/app/router.dart';
-import 'package:qistas/core/design/widgets.dart' show QButton;
+import 'package:qistas/core/design/widgets.dart' show QButton, QErrorView;
 import 'package:qistas/core/l10n/formats.dart';
 import 'package:qistas/core/money.dart';
 import 'package:qistas/core/push/push_service.dart';
@@ -268,7 +268,7 @@ void main() {
       expect(server.requestsTo('POST /day-close').single.headers['Idempotency-Key'], matches(RegExp(r'^app-[0-9a-f]{24}$')));
     });
 
-    testWidgets('a retry after a lost answer carries the same key, and a different amount a new one', (tester) async {
+    testWidgets('a retry after a lost answer carries the same key', (tester) async {
       final server = dayServer(Day());
       await pumpApp(tester, server, size: tall);
       await openDayClose(tester);
@@ -424,6 +424,117 @@ void main() {
       expect(find.text('Expected cash'), findsOneWidget);
     });
 
+    testWidgets('leaving while the close is on its way throws nothing, tells Today the day is closed, and neither buzzes nor opens a sheet', (tester) async {
+      final haptics = <Object?>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'HapticFeedback.vibrate') haptics.add(call.arguments);
+
+        return null;
+      });
+      addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
+
+      final gate = Completer<void>();
+      final day = Day();
+      final server = dayServer(day, routes: {
+        'POST /day-close': (_) async {
+          await gate.future;
+          day.closed = true;
+
+          return json(201, {'data': dayCloseJson()});
+        },
+      });
+      await pumpApp(tester, server, size: tall, clock: FakeClock(DateTime(2026, 10, 21, 21)));
+      final tile = find.byKey(const ValueKey('day-close-tile'));
+      expect(find.descendant(of: tile, matching: find.text('It is past 20:00. Count the till and close the day.')), findsOneWidget);
+
+      await openDayClose(tester);
+      await enter(tester, '3100');
+      await tester.tap(closeButton);
+      await tester.pump();
+
+      // Back to Today while the close is still on its way; then the server answers.
+      await tester.pageBack();
+      await settle(tester);
+      expect(closeButton, findsNothing);
+      gate.complete();
+      await settle(tester);
+
+      expect(tester.takeException(), isNull);
+      expect(server.calls('POST /day-close'), 1);
+      // Today looks again and now knows: the tile is not nagging about a day that is closed.
+      expect(find.descendant(of: tile, matching: find.text('The day is closed.')), findsOneWidget);
+      expect(find.text('It is past 20:00. Count the till and close the day.'), findsNothing);
+      // Nobody is there to feel the tap or to see the seal.
+      expect(haptics, isNot(contains('HapticFeedbackType.mediumImpact')));
+      expect(find.byType(DayClosedSheet), findsNothing);
+    });
+
+    testWidgets('the same figures closed again after a reopening are a new close with a new key', (tester) async {
+      final server = dayServer(Day());
+      await pumpApp(tester, server, size: tall);
+      await openDayClose(tester);
+
+      Future<void> closeWith(String note) async {
+        await enter(tester, '3100');
+        await tester.enterText(find.byType(TextField), note);
+        await tester.pump();
+        await tester.tap(closeButton);
+        await settle(tester);
+      }
+
+      await closeWith('Counted twice');
+      await tester.tap(find.descendant(of: find.byType(DayClosedSheet), matching: find.widgetWithText(QButton, 'Done')));
+      await settle(tester);
+      await tapButton(tester, 'Reopen this day');
+      await tester.enterText(find.byType(TextField).last, 'Wrong count of the till');
+      await tapButton(tester, 'Reopen the day');
+      expect(find.byKey(const ValueKey('pad-1')), findsOneWidget);
+
+      await closeWith('Counted twice');
+
+      final posts = server.requestsTo('POST /day-close');
+      expect(posts, hasLength(2));
+      expect(body(server, 'POST /day-close'), {'counted_cash': '3100.00', 'note': 'Counted twice', 'day': '2026-10-21'});
+      expect(posts.first.headers['Idempotency-Key'], isNot(posts.last.headers['Idempotency-Key']));
+    });
+
+    testWidgets('when looking at the day again fails after closing, the page stays and says so with a way to try again', (tester) async {
+      final day = Day();
+      late final FakeServer server;
+      server = dayServer(day, routes: {
+        'POST /day-close': (_) {
+          day.closed = true;
+          server.offline = true; // the signal goes the moment the close is answered
+
+          return json(201, {'data': dayCloseJson()});
+        },
+      });
+      await pumpApp(tester, server, size: tall);
+      await openDayClose(tester);
+      await enter(tester, '3100');
+      await tester.tap(closeButton);
+      await settle(tester);
+      expect(find.byType(DayClosedSheet), findsOneWidget);
+
+      await tester.tap(find.descendant(of: find.byType(DayClosedSheet), matching: find.widgetWithText(QButton, 'Done')));
+      await settle(tester);
+
+      // What was on the screen stays, with the trouble said in place: not an error page in its stead.
+      final problem = find.byKey(const ValueKey('refresh-problem'));
+      expect(problem, findsOneWidget);
+      expect(find.descendant(of: problem, matching: find.text('No connection. Check your internet and try again.')), findsOneWidget);
+      expect(find.byType(QErrorView), findsNothing);
+      expect(find.text('Expected cash'), findsOneWidget);
+
+      server.offline = false;
+      await tester.tap(find.descendant(of: problem, matching: find.widgetWithText(QButton, 'Try again')));
+      await settle(tester);
+
+      expect(problem, findsNothing);
+      expect(find.byKey(const ValueKey('day-seal')), findsOneWidget);
+      expect(find.byKey(const ValueKey('pad-1')), findsNothing);
+    });
+
     testWidgets('a reopened day says so and why, and can be closed again', (tester) async {
       final day = Day(reopened: true);
       await pumpApp(tester, dayServer(day), size: tall);
@@ -501,6 +612,59 @@ void main() {
       expect(find.text('The day is open again. Close it again when the figures are right.'), findsOneWidget);
       expect(find.byKey(const ValueKey('pad-1')), findsOneWidget);
       expect(find.byKey(const ValueKey('day-seal')), findsNothing);
+    });
+
+    testWidgets('a reopening whose sheet was closed on its way still lets the screen and Today know', (tester) async {
+      final gate = Completer<void>();
+      final day = Day(closed: true);
+      final server = dayServer(day, routes: {
+        'POST /day-close/dc1/reopen': (_) async {
+          await gate.future;
+          day.closed = false;
+          day.reopened = true;
+
+          return json(200, {'data': dayCloseJson(status: 'reopened', reopenReason: 'Wrong count of the till')});
+        },
+      });
+      await pumpApp(tester, server, size: tall, clock: FakeClock(DateTime(2026, 10, 21, 9)));
+      final tile = find.byKey(const ValueKey('day-close-tile'));
+      expect(find.descendant(of: tile, matching: find.text('The day is closed.')), findsOneWidget);
+      await openDayClose(tester);
+
+      await tapButton(tester, 'Reopen this day');
+      await tester.enterText(find.byType(TextField).last, 'Wrong count of the till');
+      await tapButton(tester, 'Reopen the day');
+      expect(find.text('Reopen the day'), findsNothing); // the button is a spinner while it is on its way
+
+      // The sheet is dismissed (a tap beside it) before the server has answered.
+      await tester.tapAt(const Offset(10, 10));
+      await settle(tester);
+      expect(find.byType(TextField), findsNothing);
+      gate.complete();
+      await settle(tester);
+
+      expect(tester.takeException(), isNull);
+      // The day is open on the server, and what reads it looks again: the screen shows the pad, Today the closing time.
+      expect(find.byKey(const ValueKey('pad-1')), findsOneWidget);
+      await tester.pageBack();
+      await settle(tester);
+      expect(find.descendant(of: tile, matching: find.text('Closing time is 20:00.')), findsOneWidget);
+    });
+
+    testWidgets('in Arabic the day and the time read in the page’s own direction, the names too, and only the amounts run left to right', (tester) async {
+      await pumpApp(tester, dayServer(Day(closed: true)), size: tall, language: 'ar');
+      await openDayClose(tester);
+
+      TextDirection around(Finder finder) => Directionality.of(tester.element(finder.first));
+
+      // "21 أكتوبر, 20:42": Arabic month names inside a left-to-right island would come out scrambled.
+      final closedAt = find.text(formatMomentLong(DateTime.parse('2026-10-21T17:42:00+00:00'), 'ar'));
+      expect(closedAt, findsOneWidget);
+      expect(around(closedAt), TextDirection.rtl);
+      expect(around(find.text(formatDay('2026-10-21', 'ar'))), TextDirection.rtl);
+      expect(around(find.text('Layla Haddad')), TextDirection.rtl);
+      // Amounts and nothing else are the left-to-right islands.
+      expect(around(find.text('SAR 3,100.00')), TextDirection.ltr);
     });
 
     for (final (role, canReopen, offered) in [('owner', true, true), ('manager', true, true), ('accountant', false, false), ('collector', false, false), ('viewer', false, false)]) {

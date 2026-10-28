@@ -91,15 +91,14 @@ class _DayCloseScreenState extends ConsumerState<DayCloseScreen> {
         }
       });
 
-  void _changed() {
-    ref.invalidate(dayCloseTodayProvider);
-    ref.invalidate(dayCloseTileProvider);
-    ref.invalidate(dayCloseHistoryProvider);
-  }
-
   Future<void> _close(DayCloseToday today) async {
     final counted = _entry.amount;
     if (_busy || counted == null) return;
+
+    // Both are taken before the first wait. The answer can arrive after the person has left this screen, when a State's own
+    // `ref` is gone: the day is closed all the same, and whatever reads it (Today's tile, the history) must still be told.
+    final container = ProviderScope.containerOf(context);
+    final api = ref.read(apiProvider);
 
     final fingerprint = '${counted.toDecimalString()}|${_note.text.trim()}|${today.day}';
     if (fingerprint != _keyFor) {
@@ -116,10 +115,11 @@ class _DayCloseScreenState extends ConsumerState<DayCloseScreen> {
 
     try {
       // The day the person was shown is the day that is closed, even if midnight passed while they counted.
-      final close = await ref.read(apiProvider).closeDay(countedCash: counted, idempotencyKey: _key, note: _note.text, day: today.day);
-      unawaited(HapticFeedback.mediumImpact());
-      _changed();
+      final close = await api.closeDay(countedCash: counted, idempotencyKey: _key, note: _note.text, day: today.day);
+      refreshDayClose(container);
+      // Nobody is here to feel the tap or to see the seal.
       if (!mounted) return;
+      unawaited(HapticFeedback.mediumImpact());
       setState(() {
         _busy = false;
         _entry = const CountedEntry();
@@ -133,10 +133,12 @@ class _DayCloseScreenState extends ConsumerState<DayCloseScreen> {
       setState(() => _busy = false);
       await showUpgradeSheet(context, e);
     } on ApiException catch (e) {
-      if (!mounted) return;
       final counted = e.fieldError('counted_cash');
       final day = e.fieldError('day');
       final note = e.fieldError('note');
+      // The day may have been closed from another phone in the meantime: whatever reads it looks again.
+      if (day != null) refreshDayClose(container);
+      if (!mounted) return;
       setState(() {
         _busy = false;
         _countedError = counted;
@@ -145,16 +147,14 @@ class _DayCloseScreenState extends ConsumerState<DayCloseScreen> {
         _problem = counted == null && day == null && note == null ? errorMessage(context, e) : null;
       });
       if (counted != null) _scrollTo(_cashKey);
-      // The day may have been closed from another phone in the meantime: look again.
-      if (day != null) _changed();
     }
   }
 
   Future<void> _reopen(DayCloseRecord close) async {
+    // The sheet has already told whatever reads the day (it can be dismissed while its request is still on its way).
     final reopened = await showReopenSheet(context, close);
     if (reopened == null || !mounted) return;
 
-    _changed();
     setState(() {
       _entry = const CountedEntry();
       _keyFor = '';
@@ -182,6 +182,8 @@ class _DayCloseScreenState extends ConsumerState<DayCloseScreen> {
       ),
       body: today.when(
         skipLoadingOnReload: true,
+        // Looking again can fail (the signal goes just after a close): what is on the screen stays, and the trouble is said in place.
+        skipError: true,
         loading: () => const _Loading(),
         error: (error, _) => QErrorView(message: errorMessage(context, error), retryLabel: context.t('Try again'), onRetry: () => ref.invalidate(dayCloseTodayProvider)),
         data: (data) => RefreshIndicator(
@@ -191,7 +193,13 @@ class _DayCloseScreenState extends ConsumerState<DayCloseScreen> {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
             child: ContentColumn(
               padding: EdgeInsets.zero,
-              child: data.closed && data.close != null ? _closed(context, data, data.close!, account!) : _open(context, data, account!),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (today.hasError) _RefreshProblem(message: errorMessage(context, today.error!), onRetry: () => ref.invalidate(dayCloseTodayProvider)),
+                  data.closed && data.close != null ? _closed(context, data, data.close!, account!) : _open(context, data, account!),
+                ],
+              ),
             ),
           ),
         ),
@@ -329,7 +337,7 @@ class _DayCloseScreenState extends ConsumerState<DayCloseScreen> {
                 child: Text(differenceWords(context, difference, currency), style: text.titleSmall?.copyWith(color: _standingColor(c, standingOf(difference))), textAlign: TextAlign.end),
               ),
               _FactRow(label: context.t('Closed by'), child: Text(close.closedBy ?? context.t('Someone no longer on the team'), style: text.titleSmall, textAlign: TextAlign.end)),
-              if (close.closedAt != null) _FactRow(label: context.t('Closed at'), child: Directionality(textDirection: TextDirection.ltr, child: Text(formatMomentLong(close.closedAt!, language), style: text.titleSmall))),
+              if (close.closedAt != null) _FactRow(label: context.t('Closed at'), child: Text(formatMomentLong(close.closedAt!, language), style: text.titleSmall, textAlign: TextAlign.end)),
               if ((close.note ?? '').isNotEmpty) _FactRow(label: context.t('Note'), child: Text(close.note!, style: text.titleSmall, textAlign: TextAlign.end)),
             ],
           ),
@@ -353,6 +361,30 @@ class _Loading extends StatelessWidget {
   Widget build(BuildContext context) => const Padding(
         padding: EdgeInsets.fromLTRB(16, 20, 16, 0),
         child: Column(children: [QSkeleton(height: 330), SizedBox(height: 18), QSkeleton(height: 110), SizedBox(height: 18), QSkeleton(height: 90)]),
+      );
+}
+
+/// Looking at the day again failed while there is still a page to show: the trouble in place, and a way to try again.
+class _RefreshProblem extends StatelessWidget {
+  const _RefreshProblem({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        key: const ValueKey('refresh-problem'),
+        padding: const EdgeInsets.only(top: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            QNotice(message, icon: Icons.cloud_off_outlined),
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: QButton(label: context.t('Try again'), kind: QButtonKind.text, expand: false, onPressed: onRetry),
+            ),
+          ],
+        ),
       );
 }
 
@@ -913,6 +945,11 @@ class _ReopenSheetState extends ConsumerState<ReopenSheet> {
 
   Future<void> _submit() async {
     if (_busy) return;
+
+    // Taken before the wait: the sheet can be dismissed while its request is on its way, and a reopening the server has
+    // made must still reach whatever reads the day.
+    final container = ProviderScope.containerOf(context);
+    final api = ref.read(apiProvider);
     setState(() {
       _busy = true;
       _reasonError = null;
@@ -920,7 +957,8 @@ class _ReopenSheetState extends ConsumerState<ReopenSheet> {
     });
 
     try {
-      final reopened = await ref.read(apiProvider).reopenDay(widget.close.id, _reason.text);
+      final reopened = await api.reopenDay(widget.close.id, _reason.text);
+      refreshDayClose(container);
       if (mounted) Navigator.of(context).pop(reopened);
     } on UpgradeRequired catch (e) {
       if (!mounted) return;
