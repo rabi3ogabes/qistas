@@ -22,15 +22,4 @@ final class PayPatternWords
     {
         return __('Seen in :percent% of recent months', ['percent' => $within]);
     }
-
-    /**
-     * What a customer is called in a sentence about them: the first word of their name, in any script ("Ahmad" for
-     * "Ahmad Ali", "أحمد" for "أحمد علي"), or the whole name when it is one word.
-     */
-    public static function firstName(string $name): string
-    {
-        $words = preg_split('/\s+/u', trim($name), 2);
-
-        return $words === false ? trim($name) : $words[0];
-    }
 }

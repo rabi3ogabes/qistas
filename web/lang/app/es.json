@@ -563,6 +563,7 @@
     "Date of issue": "Fecha de emisión",
     "Date received": "Fecha de recepción",
     "Date received (optional)": "Fecha de recepción (opcional)",
+    "Date set to :date": "Fecha establecida: :date",
     "Dates are shown in the Gregorian calendar alone again. Each workspace’s choice is kept for when it is switched back on.": "Las fechas vuelven a mostrarse solo en el calendario gregoriano. La elección de cada espacio se guarda para cuando se vuelva a activar.",
     "Day": "Día",
     "Day close": "Cierre del día",

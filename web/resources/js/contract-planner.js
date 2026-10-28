@@ -46,6 +46,9 @@ export function contractPlanner() {
         // while the feature is off.
         payPatterns: {},
         today: '',
+        // The one thing a screen reader is told about it (a hidden status line): what is offered when a customer with a pattern is
+        // chosen, and which date the button wrote. Kept apart from the sentence on screen, which changes with every key typed.
+        payAnnouncement: '',
 
         // output
         schedule: null,
@@ -162,6 +165,19 @@ export function contractPlanner() {
             field.value = date;
             field.dispatchEvent(new Event('input', { bubbles: true }));
             field.dispatchEvent(new Event('change', { bubbles: true }));
+            this.payAnnouncement = fill(this.messages.dateSet, { date: this.suggestionDay(date) });
+            // The button is gone now that the field holds the day it offered, and focus would fall to the top of the page with it.
+            field.focus();
+        },
+
+        // A customer was chosen: say what is offered when they have a pattern, and nothing when they do not.
+        customerChanged() {
+            this.payAnnouncement = this.hasPaySuggestion ? this.paySuggestionText : '';
+        },
+
+        // A date as the suggestion says it, kept in one piece so it does not break across two lines of a narrow phone.
+        suggestionDay(date) {
+            return this.shortDate(date).replace(/\s/g, '\u00a0');
         },
 
         // Debounced: typing "1500" asks once, not four times.
@@ -306,9 +322,7 @@ export function contractPlanner() {
             if (!this.hasPaySuggestion) return '';
             const pattern = this.payPattern;
             const says = fill(pattern.end_of_month ? this.messages.saysEnd : this.messages.says, { name: pattern.name, day: pattern.day });
-            // The date is kept in one piece, so it does not break across two lines of a narrow phone.
-            const date = this.shortDate(this.paySuggestionDate).replace(/\s/g, ' ');
-            const then = this.canUsePaySuggestion ? fill(this.messages.ask, { date }) : this.messages.onPayday;
+            const then = this.canUsePaySuggestion ? fill(this.messages.ask, { date: this.suggestionDay(this.paySuggestionDate) }) : this.messages.onPayday;
 
             return `${says} ${then}`;
         },

@@ -22,6 +22,9 @@ Write the failing test first, watch it fail for the right reason, then implement
 - **Money.** Never `float`. Amounts are `decimal(18,4)` in the database and bcmath strings in PHP through
   `App\Support\Money`. Schedules come from `App\Domain\Schedule\ScheduleGenerator`, which is cross-checked against
   `../shared/schedule-vectors.json`; the Flutter app must pass the same vectors.
+- **Payday suggestions.** The date the "Use it" button writes on the new-contract form (`resources/js/pay-day.js`,
+  `nextOccurrence`) is cross-checked against `../shared/payday-vectors.json` (hand-computed, rule included; Pest runs it
+  through Node); the Flutter app's Dart copy must pass the same vectors.
 - **Entitlements.** Features are declared in code (enum `Feature`) and switched on/off per plan by an admin in the
   database. Check them through the entitlements service, never by plan name. Downgrades never delete data.
 - **Mass assignment.** Models list `#[Fillable]` explicitly. Roles, status, tenant ids and plan fields are set by

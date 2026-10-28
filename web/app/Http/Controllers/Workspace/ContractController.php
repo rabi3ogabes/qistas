@@ -14,7 +14,6 @@ use App\Domain\LateFees\LateFeePolicy;
 use App\Domain\Ledger\LedgerLines;
 use App\Domain\Ledger\OpenAccount;
 use App\Domain\PayPattern\PayPattern;
-use App\Domain\PayPattern\PayPatternWords;
 use App\Entitlements\Entitlements;
 use App\Entitlements\Feature;
 use App\Http\ApiException;
@@ -101,8 +100,9 @@ final class ContractController
 
     /**
      * What payday learning knows about the customers in the form's list (daily-habit wave A, H6), by customer id: the day
-     * they usually pay on, whether that means the end of the month, and the name to say it with. Read in one query for all
-     * of them, and empty while the feature is off or when nobody has a pattern yet, so the form then carries nothing.
+     * they usually pay on, whether that means the end of the month, and their name as the list shows it (a name is not
+     * "the first word": "عبد الله", "Mr. Ahmad", "Mobile Zone"). Read in one query for all of them, and empty while the
+     * feature is off or when nobody has a pattern yet, so the form then carries nothing.
      *
      * @param  Collection<int, Customer>  $customers
      * @return array<string, array{day: int, end_of_month: bool, name: string}>
@@ -113,9 +113,8 @@ final class ContractController
             return [];
         }
 
-        // The patterns of the workspace's customers still in the list (the sub-select keeps out a deleted customer's), and
-        // then only those of the customers in this form's own list.
-        $stored = CustomerPayPattern::query()->whereIn('customer_id', Customer::query()->select('id'))->get(['customer_id', 'day'])->keyBy('customer_id');
+        // One query for the customers in this form's own list, and no others.
+        $stored = CustomerPayPattern::query()->whereIn('customer_id', $customers->modelKeys())->get(['customer_id', 'day'])->keyBy('customer_id');
 
         $patterns = [];
         foreach ($customers as $customer) {
@@ -124,7 +123,7 @@ final class ContractController
                 $patterns[$customer->id] = [
                     'day' => $pattern->day,
                     'end_of_month' => $pattern->day === PayPattern::END_OF_MONTH,
-                    'name' => PayPatternWords::firstName($customer->name),
+                    'name' => $customer->name,
                 ];
             }
         }

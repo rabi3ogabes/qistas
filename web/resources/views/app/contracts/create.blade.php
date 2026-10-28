@@ -56,6 +56,7 @@
             'saysEnd' => __(':name usually pays at the end of the month.'),
             'ask' => __('Use :date?'),
             'onPayday' => __('This date is already their payday.'),
+            'dateSet' => __('Date set to :date'),
         ];
     }
 @endphp
@@ -87,6 +88,12 @@
         <form class="planner" method="POST" action="{{ route('app.contracts.store') }}" novalidate
               x-data="contractPlanner" data-config="{{ json_encode($config) }}" :data-loading="isLoading">
             @csrf
+            @if ($payPatterns !== [])
+                {{-- What a screen reader is told about the payday suggestion: only when a customer is chosen, and after the button. The
+                     sentence under the date field changes with every key typed there, so it is not announced; this line is, and it is
+                     always drawn, never inside anything that shows and hides. --}}
+                <p class="sr-only" role="status" x-text="payAnnouncement"></p>
+            @endif
 
             <section class="card card-pad stack planner-fields" aria-label="{{ __('Contract details') }}">
                 <x-meter :label="__('Active contracts')" :entitlement="$usage" />
@@ -96,7 +103,7 @@
                 <div class="form form-grid">
                     <div class="field field-wide">
                         <label for="f-customer_id">{{ __('Customer') }}</label>
-                        <select id="f-customer_id" name="customer_id" required x-model="customerId" @error('customer_id') aria-invalid="true" aria-describedby="f-customer_id-error" @enderror>
+                        <select id="f-customer_id" name="customer_id" required x-model="customerId" @change="customerChanged" @error('customer_id') aria-invalid="true" aria-describedby="f-customer_id-error" @enderror>
                             <option value="">{{ __('Choose a customer') }}</option>
                             @foreach ($customers as $customer)
                                 <option value="{{ $customer->id }}" @selected(old('customer_id', $selected) === $customer->id)>{{ $customer->name }} · {{ $customer->phone }}</option>
@@ -244,8 +251,8 @@
                             @if ($payPatterns !== [])
                                 {{-- Payday learning: the date they usually pay on, offered and never applied. Only the button changes the field. --}}
                                 <div class="pay-suggest" data-pay-suggestion x-show="hasPaySuggestion" x-cloak>
-                                    <p class="pay-suggest-text" role="status" x-text="paySuggestionText"></p>
-                                    <button type="button" class="btn btn-quiet btn-sm" x-show="canUsePaySuggestion" x-cloak @click="usePaySuggestion">{{ __('Use it') }}</button>
+                                    <p class="pay-suggest-text" id="pay-suggest-text" x-text="paySuggestionText"></p>
+                                    <button type="button" class="btn btn-quiet btn-sm" x-show="canUsePaySuggestion" x-cloak @click="usePaySuggestion" aria-describedby="pay-suggest-text">{{ __('Use it') }}</button>
                                 </div>
                             @endif
                         </div>

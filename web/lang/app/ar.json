@@ -563,6 +563,7 @@
     "Date of issue": "تاريخ الإصدار",
     "Date received": "تاريخ الاستلام",
     "Date received (optional)": "تاريخ الاستلام (اختياري)",
+    "Date set to :date": "تم ضبط التاريخ على :date",
     "Dates are shown in the Gregorian calendar alone again. Each workspace’s choice is kept for when it is switched back on.": "تعود التواريخ إلى التقويم الميلادي وحده. ويُحفظ اختيار كل نشاط لحين إعادة التشغيل.",
     "Day": "اليوم",
     "Day close": "إغلاق اليوم",
