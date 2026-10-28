@@ -378,4 +378,36 @@ void main() {
       await snapshot(tester, name);
     });
   }
+  // Payday learning: the chip on a customer's page, and the offer of their usual payday under the first due date. The server writes
+  // the chip's words in the language of the request; the sentence under the date is the app's own.
+  for (final (name, language, label, basis, customerName) in [
+    ('payday-customer', 'en', 'Usually pays around day 27 of the month', 'Seen in 83% of recent months', 'Ahmad Salem'),
+    ('payday-customer-ar', 'ar', 'عادة ما يدفع حوالي يوم 27 من الشهر', 'لوحظ في 83% من الأشهر الأخيرة', 'أحمد سالم'),
+  ]) {
+    picture(name, (tester) async {
+      final server = workspaceServer(account: accountWithPayday(), routes: {
+        'GET /customers': always(json(200, pageJson([customerJson(name: customerName)], page: 1, last: 1, total: 1))),
+        'GET /customers/c1': always(json(200, {'data': {...customerJson(name: customerName), 'contracts': <Map<String, dynamic>>[contractJson()], 'pay_pattern': payPatternJson(label: label, basis: basis)}})),
+      });
+      await pumpApp(tester, server, realFonts: true, size: const Size(360, 900), language: language);
+      await tapText(tester, language == 'en' ? 'Customers' : 'العملاء', last: true);
+      await tapText(tester, customerName);
+      await snapshot(tester, name);
+    });
+  }
+
+  for (final (name, language, customerName) in [('payday-suggestion', 'en', 'Ahmad Salem Abdullah Al-Ghamdi'), ('payday-suggestion-ar', 'ar', 'أحمد سالم عبد الله الغامدي')]) {
+    picture(name, (tester) async {
+      final server = workspaceServer(account: accountWithPayday(), routes: {
+        'GET /customers': always(json(200, pageJson([customerJson(name: customerName)], page: 1, last: 1, total: 1))),
+        'GET /customers/c1': always(json(200, {'data': {...customerJson(name: customerName), 'contracts': <Map<String, dynamic>>[], 'pay_pattern': payPatternJson()}})),
+      });
+      await pumpApp(tester, server, realFonts: true, size: const Size(360, 1500), language: language);
+      await tapText(tester, language == 'en' ? 'Contracts' : 'العقود', last: true);
+      await tapText(tester, language == 'en' ? 'New contract' : 'عقد جديد');
+      await tapText(tester, language == 'en' ? 'Choose a customer' : 'اختر عميلًا');
+      await tapText(tester, customerName);
+      await snapshot(tester, name);
+    });
+  }
 }

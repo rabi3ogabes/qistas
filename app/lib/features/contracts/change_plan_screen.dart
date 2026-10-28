@@ -13,6 +13,8 @@ import '../../core/ui/day_picker.dart';
 import '../../core/ui/errors.dart';
 import '../../data/models.dart';
 import '../../data/plan_changes.dart';
+import '../customers/customer_detail_screen.dart';
+import '../customers/payday_suggestion.dart';
 import '../payments/payments_state.dart';
 import 'contracts_screen.dart';
 
@@ -158,7 +160,8 @@ class _ChangePlanScreenState extends ConsumerState<ChangePlanScreen> {
     final c = context.qc;
     final text = Theme.of(context).textTheme;
     final language = ref.watch(localeProvider);
-    final currency = ref.watch(accountProvider)?.currency ?? '';
+    final account = ref.watch(accountProvider);
+    final currency = account?.currency ?? '';
     final untouched = _untouched(contract);
     final preview = _preview;
 
@@ -166,6 +169,13 @@ class _ChangePlanScreenState extends ConsumerState<ChangePlanScreen> {
       return QEmpty(icon: Icons.event_busy_outlined, title: context.t('Every instalment has been paid towards; there is nothing left to change.'), message: '');
     }
     final chosen = untouched.firstWhere((i) => i.id == _installmentId, orElse: () => untouched.first);
+    // Payday learning: when the customer usually pays, from their own page. Nothing is asked for while the feature is off, or
+    // where there is no date field to offer it under.
+    final customerId = contract.customerId;
+    final payer = _type == 'move' && customerId != null && offersPaydaySuggestion(account) ? ref.watch(customerProvider(customerId)).valueOrNull : null;
+    final payPattern = payer?.payPattern;
+    final moveTo = _newDate ?? chosen.dueDate;
+    final now = DateTime.now();
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -210,7 +220,8 @@ class _ChangePlanScreenState extends ConsumerState<ChangePlanScreen> {
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   initialValue: chosen.id,
-                  items: [for (final i in untouched) DropdownMenuItem(value: i.id, child: Text('${formatDay(i.dueDate, language)}, ${i.amount.format(currency)}'))],
+                  isExpanded: true,
+                  items: [for (final i in untouched) DropdownMenuItem(value: i.id, child: Text('${formatDay(i.dueDate, language)}, ${i.amount.format(currency)}', maxLines: 1, overflow: TextOverflow.ellipsis))],
                   onChanged: _busy
                       ? null
                       : (id) {
@@ -225,6 +236,22 @@ class _ChangePlanScreenState extends ConsumerState<ChangePlanScreen> {
                     value: formatDay(_newDate ?? chosen.dueDate, language),
                     onTap: _busy ? null : () => _pickDate(_newDate ?? chosen.dueDate, (d) => setState(() => _newDate = d)),
                   ),
+                  // Offered, never applied: only the button inside changes the date.
+                  if (payer != null && payPattern != null) ...[
+                    const SizedBox(height: 10),
+                    PaydaySuggestion(
+                      name: payer.name,
+                      pattern: payPattern,
+                      from: DateTime.tryParse(moveTo),
+                      notBefore: DateTime(now.year, now.month, now.day),
+                      onUse: _busy
+                          ? null
+                          : (day) {
+                              setState(() => _newDate = isoDay(day));
+                              _edited();
+                            },
+                    ),
+                  ],
                 ],
               ],
               if (_problem != null) ...[const SizedBox(height: 14), QNotice(_problem!, icon: Icons.error_outline)],
@@ -271,7 +298,7 @@ class _DateRow extends StatelessWidget {
             Icon(Icons.event_outlined, color: context.qc.inkMuted),
             const SizedBox(width: 12),
             Expanded(child: Text(label, style: Theme.of(context).textTheme.bodyMedium)),
-            Text(value, style: Theme.of(context).textTheme.titleSmall),
+            Flexible(child: Text(value, style: Theme.of(context).textTheme.titleSmall, textAlign: TextAlign.end)),
           ],
         ),
       );

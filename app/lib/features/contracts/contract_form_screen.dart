@@ -18,6 +18,7 @@ import '../../data/qistas_api.dart';
 import '../../domain/schedule_generator.dart';
 import '../billing/upgrade_sheet.dart';
 import '../customers/customer_detail_screen.dart';
+import '../customers/payday_suggestion.dart';
 import '../investors/investors_screen.dart';
 import '../payments/payments_state.dart';
 import '../products/products_screen.dart';
@@ -265,13 +266,14 @@ class _ContractFormScreenState extends ConsumerState<ContractFormScreen> {
 
   Future<void> _pickFirstDue() async {
     final picked = await _pick(_firstDue, first: DateTime(_start.year - 1), last: DateTime(_start.year + 12));
-    if (picked != null) {
-      setState(() {
-        _firstDue = picked;
+    if (picked != null) _setFirstDue(picked);
+  }
+
+  /// The first instalment's date, from the calendar or from the customer's usual payday: the schedule below follows either.
+  void _setFirstDue(DateTime day) => setState(() {
+        _firstDue = day;
         _firstDueTouched = true;
       });
-    }
-  }
 
   Future<void> _pickCustomer() async {
     final picked = await showModalBottomSheet<Customer>(
@@ -519,6 +521,11 @@ class _ContractFormScreenState extends ConsumerState<ContractFormScreen> {
     // What was sold, a discount, the tax and the shop's own number (Win Plan PP7), while the feature is on.
     final details = showsContractDetails(account);
     final custom = scheduled && _isCustom;
+    // Payday learning: when the customer usually pays. It is read from their own page, because the list the picker draws from
+    // does not carry it; nothing is asked for while the feature is off, or where there is no first-due date to suggest for.
+    final customerId = _customer?.id;
+    final payer = scheduled && !custom && customerId != null && offersPaydaySuggestion(account) ? ref.watch(customerProvider(customerId)).valueOrNull : null;
+    final payPattern = payer?.payPattern;
     final (preview, previewErrors) = _preview(context);
 
     String? shown(String field) => _error(field) ?? (_submitted || _principal.text.isNotEmpty ? previewErrors[field] : null);
@@ -788,6 +795,11 @@ class _ContractFormScreenState extends ConsumerState<ContractFormScreen> {
                     OutlinedButton.icon(onPressed: _saving ? null : _pickFirstDue, icon: const Icon(Icons.event_outlined, size: 18), label: Text(formatMoment(_firstDue, language))),
                     if (_error('first_due_date') != null)
                       Padding(padding: const EdgeInsets.only(top: 6), child: Text(_error('first_due_date')!, style: text.bodySmall?.copyWith(color: c.danger))),
+                    // Offered, never applied: only the button inside changes the date.
+                    if (payer != null && payPattern != null) ...[
+                      const SizedBox(height: 10),
+                      PaydaySuggestion(name: payer.name, pattern: payPattern, from: _firstDue, onUse: _saving ? null : _setFirstDue),
+                    ],
                   ],
                   if (scheduled && flexible) ...[
                     const SizedBox(height: 20),

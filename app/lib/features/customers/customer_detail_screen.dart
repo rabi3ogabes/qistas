@@ -20,6 +20,7 @@ import '../documents/document_options_sheet.dart';
 import '../payments/customer_payment_sheet.dart';
 import '../reminders/reminders.dart';
 import 'customers_screen.dart';
+import 'payday_suggestion.dart';
 import 'tags.dart';
 
 
@@ -143,6 +144,8 @@ class _Body extends ConsumerWidget {
     final owed = customer.owed;
     final running = customer.runningContracts ?? 0;
     final tags = showsTags(account) ? customer.tags : const <CustomerTag>[];
+    // When they usually pay (payday learning): only while the feature is on, and only the pattern the server sent with this page.
+    final payPattern = paydayLearningOn(account) ? customer.payPattern : null;
     // Finished contracts the shop put away wait at the bottom, folded (Win Plan PP12).
     final current = [for (final contract in customer.contracts) if (!contract.archived) contract];
     final archived = [for (final contract in customer.contracts) if (contract.archived) contract];
@@ -197,6 +200,7 @@ class _Body extends ConsumerWidget {
             padding: const EdgeInsets.only(top: 14),
             child: Wrap(spacing: 6, runSpacing: 6, children: [for (final tag in tags) TagChip(tag)]),
           ),
+        if (payPattern != null) Padding(padding: const EdgeInsets.only(top: 14), child: PaydayChip(payPattern)),
         if (hasPhone || email != null)
           Reveal(
             order: order++,
