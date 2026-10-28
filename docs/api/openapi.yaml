@@ -517,6 +517,36 @@ paths:
                 properties:
                   data: {$ref: "#/components/schemas/Dashboard"}
         "401": {$ref: "#/components/responses/Unauthenticated"}
+  /glance:
+    get:
+      tags: [Dashboard]
+      summary: Today's money in a glance, for the phone's home-screen widget
+      description: |
+        What the Android home-screen widget reads. Unlike other feature-gated endpoints it never answers 402 or 403: when the
+        `home_widget` feature is not enabled for the workspace (the platform has it off, or the plan lacks it) it answers
+        `200` with `{"data": {"enabled": false}}` and nothing else, so an installed widget shows "Open Qistas" instead of
+        a failure.
+        Otherwise `enabled` is true, and the counts and amounts are exactly those of the morning summary, on the
+        workspace's own day: `due_count` and `due_amount` are the instalments due today or inside their grace days, and
+        `late_count` and `late_amount` those past it. `next` is the first three of those due today (oldest first) and then
+        those coming up in the next seven days; each shows what is still owed. A customer's `name` is included only with
+        `names=1`; a phone number or national ID never is. Every successful read counts one use of the feature.
+      parameters:
+        - {name: names, in: query, schema: {type: integer, enum: [0, 1], default: 0}, description: "1 to include each customer's name in `next`; left out otherwise."}
+      responses:
+        "200":
+          description: "The snapshot, or only `enabled: false` when the feature is not enabled for the workspace."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    oneOf:
+                      - {$ref: "#/components/schemas/Glance"}
+                      - {$ref: "#/components/schemas/GlanceOff"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
   /customers:
     get:
       tags: [Customers]
@@ -3296,6 +3326,35 @@ components:
             properties:
               date: {type: string, format: date}
               amount: {$ref: "#/components/schemas/Money"}
+    Glance:
+      type: object
+      required: [enabled, currency, due_count, due_amount, late_count, late_amount, next, generated_at]
+      properties:
+        enabled: {type: boolean, enum: [true]}
+        currency: {type: string, example: SAR}
+        due_count: {type: integer, description: Instalments due today, or due already and still inside their grace days.}
+        due_amount: {$ref: "#/components/schemas/Money"}
+        late_count: {type: integer, description: Instalments past their last day of grace.}
+        late_amount: {$ref: "#/components/schemas/Money"}
+        next:
+          type: array
+          maxItems: 3
+          description: The first three of those due today (oldest first), then those coming up in the next seven days (soonest first).
+          items:
+            type: object
+            required: [reference, amount, due_on]
+            properties:
+              reference: {type: string, example: C-0042, description: The contract's number.}
+              amount: {$ref: "#/components/schemas/Money", description: What is still owed on the instalment.}
+              due_on: {type: string, format: date}
+              name: {type: string, description: The customer's name. Only when the request passed `names=1`.}
+        generated_at: {type: string, format: date-time, description: When the snapshot was made.}
+    GlanceOff:
+      type: object
+      required: [enabled]
+      description: The whole answer when the home-screen widget feature is not enabled for the workspace.
+      properties:
+        enabled: {type: boolean, enum: [false]}
     DueInstallment:
       type: object
       properties:

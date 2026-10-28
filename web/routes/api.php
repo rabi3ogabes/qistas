@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\V1\DemoController;
 use App\Http\Controllers\Api\V1\DeviceController;
 use App\Http\Controllers\Api\V1\DocumentController;
 use App\Http\Controllers\Api\V1\FileController;
+use App\Http\Controllers\Api\V1\GlanceController;
 use App\Http\Controllers\Api\V1\GuarantorController;
 use App\Http\Controllers\Api\V1\ImportController;
 use App\Http\Controllers\Api\V1\InvestorController;
@@ -77,6 +78,8 @@ Route::name('api.')->group(function (): void {
         Route::post('support/tickets', [SupportController::class, 'store'])->middleware(['throttle:10,60', 'once'])->name('support.tickets.store');
         Route::get('release-notes', ReleaseNoteController::class)->name('release-notes');
         Route::get('dashboard', DashboardController::class)->name('dashboard');
+        // The home-screen widget's snapshot. Not under feature:home_widget on purpose: an installed widget is told `enabled: false`.
+        Route::get('glance', GlanceController::class)->name('glance');
 
         Route::get('settings/tools', [ToolsController::class, 'index'])->name('settings.tools.index');
         Route::put('settings/tools/{key}', [ToolsController::class, 'update'])->name('settings.tools.update');
