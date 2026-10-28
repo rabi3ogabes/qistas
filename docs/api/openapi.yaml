@@ -532,6 +532,9 @@ paths:
         `late_count` and `late_amount` those past it. `next` is the first three of those due today (oldest first) and then
         those coming up in the next seven days; each shows what is still owed. A customer's `name` is included only with
         `names=1`; a phone number or national ID never is. Every successful read counts one use of the feature.
+        Any role of the workspace may read it, a viewer included, and it covers the whole workspace. The server does not decide
+        who sees names (anyone signed in can ask, and can already read them on the dashboard): the app asks for them only when
+        the phone's own rules allow, and draws counts alone when the app lock is on.
       parameters:
         - {name: names, in: query, schema: {type: integer, enum: [0, 1], default: 0}, description: "1 to include each customer's name in `next`; left out otherwise."}
       responses:
@@ -952,7 +955,8 @@ paths:
         `per_member` (each person's cash, keyed by user id), `non_cash` (every card, transfer, cheque and other line, each
         with its customer's name and note) and `watch` (what is worth a look: voided payments, waived fees, back-dated
         payments, contracts opened and cancelled) are the figures a close would keep. `closing_time` is the workspace's
-        setting (`day_close.closing_time`, by its own clock).
+        setting (`day_close.closing_time`, by its own clock). `per_member` names each person who took cash and how much, and
+        every role that may read the day sees it (a collector and a viewer included).
 
         `close` is the day's latest close, when there is one: `closed` is true while it stands, and false once it has been
         reopened (the reopened close is still shown, with `status` `reopened`). `can_close` is true when the person may
@@ -977,7 +981,8 @@ paths:
       summary: Every close, newest day first
       description: |
         Within a day the latest version comes first, so a day that was reopened and closed again lists both. Anyone in the
-        business may read it. Behind the `day_close` feature.
+        business may read it. Behind the `day_close` feature (403 `feature_unavailable` while the platform has it off, 402
+        `feature_locked` when the plan lacks it).
       parameters:
         - {$ref: "#/components/parameters/Page"}
         - {$ref: "#/components/parameters/PerPage"}
@@ -1002,7 +1007,9 @@ paths:
         next version. Safe to retry with an `Idempotency-Key`: the retry answers with the first close.
 
         `counted_cash` is an amount with at most two decimals, written as text (`"3100.00"`); the server never reads it as
-        a number. A mistake in it or in `day` is a 422 naming the field.
+        a number. A mistake in it or in `day` is a 422 naming the field. Behind the `day_close` feature (403
+        `feature_unavailable` while the platform has it off, 402 `feature_locked` when the plan lacks it; tell them apart from a
+        viewer's 403 by `code`). When someone who is not an owner closes with a difference, the owners are told.
       parameters:
         - {$ref: "#/components/parameters/IdempotencyKey"}
       requestBody:
@@ -1032,7 +1039,8 @@ paths:
         Owners and managers only (403 otherwise), with a reason of at least five characters. The close itself stays as it
         was signed: only its `status` moves to `reopened`, and who reopened it, when and why are written beside it. The day
         can then be closed again as the next version. Only a day's standing close can be reopened, once (422 on `day`).
-        Another workspace's close is a 404.
+        Another workspace's close is a 404. Behind the `day_close` feature (403 `feature_unavailable` while the platform has
+        it off, 402 `feature_locked` when the plan lacks it).
       parameters:
         - {name: close, in: path, required: true, schema: {type: string, format: uuid}}
       requestBody:
@@ -1067,8 +1075,9 @@ paths:
         The day, who closed it, the cash expected, counted and the difference, the money by way of paying and by person,
         and the card, transfer and other payments one by one: no customer's ID or phone. A reopened close says so. Like the
         other documents it counts one unit of the plan's PDF allowance, the same document again within ten minutes does
-        not count twice, and its QR code opens `/verify/{code}`. Anyone in the business may have it. Behind the `day_close`
-        feature.
+        not count twice, and its QR code opens `/verify/{code}`. Anyone in the business may have it, a viewer included (it holds
+        each person's cash for the day). Behind the `day_close` feature (403 `feature_unavailable` while the platform has it
+        off, 402 `feature_locked` when the plan lacks it; 402 `limit_reached` when the month's PDF allowance is used up).
       parameters:
         - {name: close, in: path, required: true, schema: {type: string, format: uuid}}
         - {$ref: "#/components/parameters/DocumentPaper"}

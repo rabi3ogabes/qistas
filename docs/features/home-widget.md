@@ -1,7 +1,11 @@
 # The home-screen widget (daily-habit features, H3)
 
 Today's money on the phone's home screen, without opening Qistas: how many instalments are due today, how many are late,
-how much, and the next few. **Android only** for now (the app reads the glance and keeps a snapshot nowhere else).
+how much, and the next few. **Android only** for now: there is no iPhone widget until the iPhone launch.
+
+Design: [`docs/superpowers/specs/2026-10-22-daily-habit-features-design.md`](../superpowers/specs/2026-10-22-daily-habit-features-design.md),
+H3. API: `docs/api/openapi.yaml`, `GET /glance`. **What the owner must check on a phone** is the
+[manual device checklist](#manual-device-checklist) at the end of this note.
 
 ## What the owner gets
 
@@ -18,7 +22,7 @@ tap: it opens Qistas on Today.
 
 ## The admin switch
 
-`home_widget`, in admin → Features, group Collecting. It ships off. Switch it on when you are ready.
+`home_widget`, in admin → Features, group **Collecting money**. It ships **off**. Switch it on when you are ready.
 
 Switched off (for the platform, or because the plan lacks it), nothing is deleted:
 
@@ -27,6 +31,67 @@ Switched off (for the platform, or because the plan lacks it), nothing is delete
 - The app writes that state to the widget once (it shows "Open Qistas") and stops reading; the "Home-screen widget" row
   disappears from Settings.
 - The morning push stops (checked when it runs, not when it was queued).
+
+The people's own choices on the phone ("Show amounts", "Show customer names") are kept for when it is switched back on.
+
+### Plans
+
+| Plan | `home_widget` |
+|---|---|
+| Free | **on** |
+| Pro | **on** |
+
+Those are the code's defaults (`Feature::defaultFor`) until the admin edits the chips under **Included in plans**.
+
+### Rolling it out
+
+All in `/admin/features`, on the **Home-screen widget** card (only a super admin can change a switch):
+
+1. **Off** (where it ships). The widget list still offers the two widgets once the app is installed, and a widget added then shows
+   "Open Qistas". Nothing else is visible.
+2. **Beta, for the owner's own workspace.** Choose **Beta**, open **Plans, early access and history**, and under **Early access**
+   enter the workspace id or the owner's e-mail, a reason, optionally an end date, and press **Let in**. Beta opens the platform
+   switch for that workspace only; the plan must still include the feature (Free and Pro both do). Work through the manual
+   device checklist below.
+3. **On for one friendly shop.** There is no "on for one shop" button: it is **Beta** with that shop under Early access.
+4. **On for everyone.** Choose **On**.
+
+The cockpit's "Used by N workspaces in the last 30 days" counts reads of `GET /glance`, so it is the one switch of the three whose
+badge moves.
+
+### Settings (on the phone)
+
+There is no workspace setting. Two switches live in the app, **Settings → Home-screen widget** (Android only, and only while the
+feature is on), kept **on that phone** and applied to the widget at once:
+
+| Switch | Default | Notes |
+|---|---|---|
+| **Show amounts** | on | Off: counts only |
+| **Show customer names** | **off** | Needs amounts; the screen warns that anyone who sees the home screen could read them |
+
+With the app lock on, both are shown disabled and read "Amounts stay hidden while the app lock is on" and "Names stay hidden
+while the app lock is on" (and "Names stay hidden while amounts are hidden" when only amounts are off). The choices are not part
+of the account: they stay on the phone, and signing out does not reset them, so a second business that signs in on the same
+phone inherits the first one's "Show customer names" choice until it opens this screen.
+
+### Who gets the widget, and what each role sees
+
+Every role that signs in on an Android phone can add it: owner, manager, accountant, collector and viewer. It shows the
+**whole workspace's** figures, counted exactly as the morning summary counts them, so a collector sees the same numbers as an
+owner (there is no assignment of customers to collectors yet). The server does not decide who may see names: any signed-in
+person can ask `GET /glance?names=1` and could already read the same names from the dashboard; what keeps them off the home
+screen is the phone's own rule (the switches and the app lock, below). The morning refresh goes to everyone but viewers.
+
+### Scheduled work
+
+| What | When | Does |
+|---|---|---|
+| `qistas:send-glance-refresh` | every five minutes (the scheduler workflow) | Once a day for each owner, manager, accountant and collector with an active phone, from their morning-summary time (09:00 by default) and for up to four hours after it on the workspace's clock (never past midnight), sends **one silent data push** (`glance.refresh`: no notification, no inbox entry) to each of their phones. Only for workspaces that have the widget on, asked when it runs. It ignores the person's morning-summary switch and quiet hours (a person who turned the summary off still gets the silent refresh; they cannot see it). A send that fails is not retried that day |
+
+### Audit rows and API
+
+No audit rows (nothing is changed). One route, `glance` (`GET /api/v1/glance`, optional `names=1`), 401 without a token; the
+OpenAPI file is the reference. Every successful read counts one use of the feature.
 
 ## What it shows, and what it never shows
 
@@ -141,6 +206,26 @@ The app and the widget share the key contract below, all strings, in the plugin'
 - The business's own look from the admin site does not reach the widget; it is always Qistas.
 - No Kotlin or XML here is compiled or run by the Dart tests: `flutter test` proves the app side and the refresher; the CI
   Android build proves the native side compiles; only a phone proves how it looks.
+
+## Known limits
+
+Most are explained where they arise above; in one place:
+
+- **Android only.** There is no iPhone widget (it follows the iPhone launch).
+- **It is as fresh as its last refresh.** Opening or resuming the app, recording a payment and the morning push refresh it; a
+  payment recorded on another phone does not wake this one. After 12 hours without a refresh it says "Open Qistas to refresh".
+- **Viewers get no morning push**; their widget is refreshed when the app is opened or resumed.
+- **Android may hold or drop a silent push** (battery saver, a force-stopped app, no network), and with no Firebase project in the
+  build there is no push at all (`alerts.md`, "Turning pushes on"). The "updated" time on the widget is the honest signal.
+- **Names are the phone's decision, not the server's** (see "Who gets the widget"); with the app lock on, only counts reach the widget.
+- **The lock state is read from the account the app last saw**: a business that switches "require app lock" on is seen by the
+  widget once the app has been opened; if the account cannot be read the widget shows counts only.
+- **A sign-out can leave the last figures for up to 12 hours** if it lands in the few milliseconds between the background
+  refresh's last check and the app's own clear (the app and the background isolate cannot lock each other).
+- **Privacy choices are per phone** and survive a sign-out (see Settings).
+- **The disabled and stale lines follow the phone's language**, not the app's, since the widget has nothing stored to read it from.
+- **The Dart tests cannot run the Kotlin or the layouts.** `flutter test` proves the app side and the refresher; the CI Android
+  build proves the native side compiles; only a phone proves how it looks and behaves (the checklist below).
 
 ## Manual device checklist
 

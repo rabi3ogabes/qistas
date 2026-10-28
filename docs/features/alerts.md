@@ -29,6 +29,10 @@ Collectors, accountants, managers and owners get alerts; viewers do not.
 Both ship off. Switch them on in `/admin/features` when you are ready. Each person's choices and the wording are
 kept while a switch is off.
 
+Three daily-habit switches add scheduled work and notices of their own: `home_widget` ([home-widget.md](home-widget.md)),
+`day_close` ([day-close.md](day-close.md)) and `payday_learning` ([payday-learning.md](payday-learning.md)); their jobs are
+listed under "How it runs" below.
+
 ## Turning pushes on (owner)
 
 Until these two steps are done, alerts reach the inbox only.
@@ -50,7 +54,8 @@ The scheduler (the GitHub workflow that calls `/internal/cron` every five minute
 again never sends the same thing twice. A phone Firebase reports gone is forgotten.
 
 It also runs `qistas:send-glance-refresh`, which sends one silent push a day (no notification, no inbox entry) to each
-person's phones at their digest time, only for workspaces that have the home-screen widget switched on. It tells the app
+person's phones from their digest time (and for up to four hours after it, on the workspace's clock), only for workspaces
+that have the home-screen widget switched on. It ignores the person's morning-summary switch and quiet hours. It tells the app
 to re-read `/api/v1/glance` so the widget is fresh before the owner opens Qistas. People with the viewer role get no
 morning refresh; their widget updates when the app is opened or resumed.
 
@@ -63,6 +68,7 @@ others still get theirs. When someone who is not an owner closes a day with a ca
 right after the close is saved (not by the scheduler); an owner in their quiet hours finds it in the inbox with no push.
 Both notices open `/day-close`.
 
-It also runs `qistas:learn-paydays` once a night, which works out again the day of the month each customer really pays on
-(a payment or a void also updates it right away), only for workspaces that have payday learning switched on. A workspace
+It also runs `qistas:learn-paydays` once a day at midnight server time (UTC), which works out again the day of the month
+each customer really pays on (a payment or a void also updates it right away), only for workspaces that have payday
+learning switched on. A workspace
 that fails is logged and skipped, and the others are still worked out.
