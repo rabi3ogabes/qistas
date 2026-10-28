@@ -91,9 +91,20 @@ class User extends Authenticatable implements MustVerifyEmail
         return in_array($this->platform_role, self::ADMIN_ROLES, true);
     }
 
+    /**
+     * May this person use two-factor at all? The admin team never does (owner's decision, 28 Oct 2026): the console and
+     * every sign-in open with the password alone, and nothing about two-factor is offered to them. Business owners keep
+     * it as an option. A key an admin once set up stays in the database, ignored, so nothing is lost if this changes.
+     */
+    public function mayUseTwoFactor(): bool
+    {
+        return ! $this->isPlatformAdmin();
+    }
+
+    /** Does signing in need a code from this person? Always no for the admin team, whatever is stored. */
     public function hasConfirmedTwoFactor(): bool
     {
-        return $this->two_factor_secret !== null && $this->two_factor_confirmed_at !== null;
+        return $this->mayUseTwoFactor() && $this->two_factor_secret !== null && $this->two_factor_confirmed_at !== null;
     }
 
     /**

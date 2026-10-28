@@ -1,7 +1,6 @@
 <?php
 
 use App\Actions\CreateContract;
-use App\Auth\TeamTwoFactor;
 use App\Entitlements\Feature;
 use App\Entitlements\FeatureControl;
 use App\Entitlements\PlatformState;
@@ -9,7 +8,6 @@ use App\Models\Contract;
 use App\Models\Customer;
 use App\Models\Installment;
 use App\Models\Plan;
-use App\Models\PlatformSetting;
 use App\Models\Tenant;
 use App\Models\Transaction;
 use App\Models\TransactionAllocation;
@@ -70,12 +68,6 @@ function switchOn(Feature $feature): void
 function switchOff(Feature $feature): void
 {
     app(FeatureControl::class)->setState($feature, PlatformState::Off, null, null);
-}
-
-/** A super admin has required two-factor for the whole admin team (it is optional until then). */
-function requireTeamTwoFactor(): void
-{
-    PlatformSetting::query()->updateOrInsert(['key' => TeamTwoFactor::SETTING], ['value' => '1', 'updated_at' => now()]);
 }
 
 /**

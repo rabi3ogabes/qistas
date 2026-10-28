@@ -46,14 +46,10 @@ describe('who may use the test tools', function () {
         expect(Tenant::where('is_test', true)->count())->toBe(0);
     });
 
-    it('sends an admin without a second factor to set it up first, while the team rule requires it', function () {
-        requireTeamTwoFactor();
+    it('opens for an admin who has no second factor', function () {
         $admin = User::factory()->create(['platform_role' => 'admin']);
 
-        $this->actingAs($admin)->get('/admin')->assertRedirect(route('security'));
-        $this->actingAs($admin)->post('/admin/test/open')->assertRedirect(route('security'));
-
-        expect(Tenant::where('is_test', true)->count())->toBe(0);
+        $this->actingAs($admin)->get('/admin')->assertOk();
     });
 
     it('refuses the service itself to anyone who is not an admin', function () {

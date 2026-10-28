@@ -90,6 +90,7 @@ class Account {
     required this.emailVerified,
     required this.locale,
     required this.twoFactor,
+    this.twoFactorAvailable = true,
     this.phone,
     this.photo,
     this.memberSince,
@@ -120,6 +121,8 @@ class Account {
       emailVerified: user['email_verified'] == true,
       locale: (user['locale'] ?? 'en').toString(),
       twoFactor: user['two_factor'] == true,
+      // Only a server that says the admin team has none turns it off; an older one says nothing and changes nothing.
+      twoFactorAvailable: user['two_factor_available'] != false,
       phone: _text(user['phone']),
       photo: _text(user['photo']),
       memberSince: _text(user['member_since']),
@@ -147,6 +150,9 @@ class Account {
   final bool emailVerified;
   final String locale;
   final bool twoFactor;
+
+  /// The admin team never uses two-step sign-in, so the app shows them no setting for it.
+  final bool twoFactorAvailable;
 
   /// The person's own phone, set on their profile; null when not given.
   final String? phone;
@@ -235,7 +241,7 @@ class Account {
 
   Map<String, dynamic> toJson() => {
         'user': {
-          'id': userId, 'name': name, 'email': email, 'email_verified': emailVerified, 'locale': locale, 'two_factor': twoFactor,
+          'id': userId, 'name': name, 'email': email, 'email_verified': emailVerified, 'locale': locale, 'two_factor': twoFactor, 'two_factor_available': twoFactorAvailable,
           'phone': phone, 'photo': photo, 'member_since': memberSince,
         },
         'tenant': {

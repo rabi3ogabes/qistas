@@ -46,15 +46,14 @@ function liveLook(): AppearanceView
 }
 
 describe('who may use it', function () {
-    it('is for the platform team only, with a second factor', function () {
+    it('is for the platform team only', function () {
         $this->get('/admin/appearance')->assertRedirect(route('login'));
 
         [$owner] = owner();
         $this->actingAs($owner)->get('/admin/appearance')->assertNotFound();
 
-        requireTeamTwoFactor();
-        $unsafe = User::factory()->create(['platform_role' => 'super_admin']);
-        $this->actingAs($unsafe)->get('/admin/appearance')->assertRedirect(route('security'));
+        // The team signs in with the password alone: no second factor stands in the way.
+        $this->actingAs(User::factory()->create(['platform_role' => 'super_admin']))->get('/admin/appearance')->assertOk();
     });
 
     it('lets other staff look, but not change anything', function () {

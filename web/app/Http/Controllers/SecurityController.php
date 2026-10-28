@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Auth\TeamTwoFactor;
 use App\Auth\TrustedDevice;
 use App\Support\Audit;
 use Illuminate\Http\RedirectResponse;
@@ -13,12 +12,12 @@ use Laravel\Fortify\Actions\EnableTwoFactorAuthentication;
 /** Two-factor authentication settings. Fortify owns turning it on and off; this renders the state and the extras. */
 final class SecurityController
 {
-    public function show(Request $request, TrustedDevice $devices, TeamTwoFactor $team): View
+    public function show(Request $request, TrustedDevice $devices): View
     {
         return view('account.security', [
             'user' => $request->user(),
-            // Two-factor is each person's choice, unless a super admin requires it for the admin team.
-            'mustUseTwoFactor' => $request->user()->isPlatformAdmin() && $team->required(),
+            // Two-factor is a business owner's choice. The admin team never uses it, so the page shows them none.
+            'twoFactorAvailable' => $request->user()->mayUseTwoFactor(),
             'trustedUntil' => $devices->trustedUntil($request, $request->user()),
             // The phones signed in with the app (Win Plan PP16); API tokens for other software are not sign-ins.
             'devices' => $request->user()->tokens()->where('abilities', 'like', '%"app"%')->orderByDesc('last_used_at')->orderByDesc('created_at')->get(),

@@ -33,14 +33,6 @@ it('shows the QR code and asks for a code while setup is unconfirmed', function 
         ->assertSee('action="'.url('/user/confirmed-two-factor-authentication').'"', false);
 });
 
-it('explains that two-factor authentication is required for administrators while the team rule is on', function () {
-    requireTeamTwoFactor();
-
-    confirmedSession(User::factory()->platformAdmin()->create())
-        ->get(route('security'))
-        ->assertSee(__('Administrators must use two-factor authentication.'));
-});
-
 it('leads back to where the person came from: the admin area for the team, the dashboard for everyone else', function () {
     confirmedSession(User::factory()->platformAdmin()->create())->get(route('security'))
         ->assertOk()->assertSee('href="'.route('admin.home').'"', false)->assertSee(__('Back to the admin area'));
@@ -48,17 +40,6 @@ it('leads back to where the person came from: the admin area for the team, the d
     [$owner] = owner();
     confirmedSession($owner)->get(route('security'))
         ->assertOk()->assertSee('href="'.route('app.dashboard').'"', false)->assertDontSee(__('Back to the admin area'));
-});
-
-it('leaves it to the administrator while the team rule is off, with the way to turn it off once it is on', function () {
-    confirmedSession(User::factory()->platformAdmin()->create())->get(route('security'))
-        ->assertOk()
-        ->assertDontSee(__('Administrators must use two-factor authentication.'))
-        ->assertSee(__('Turn on two-factor authentication'));
-
-    confirmedSession(User::factory()->platformAdmin()->withTwoFactor()->create())->get(route('security'))
-        ->assertOk()
-        ->assertSee(__('Turn off two-factor authentication'));
 });
 
 it('offers recovery codes and a way to turn it off once confirmed, without printing the codes', function () {

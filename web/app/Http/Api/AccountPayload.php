@@ -30,6 +30,8 @@ final class AccountPayload
                 'member_since' => $user->created_at?->toDateString(),
                 'locale' => $user->locale,
                 'two_factor' => $user->hasConfirmedTwoFactor(),
+                // The admin team never uses two-factor: the app shows no setting for it.
+                'two_factor_available' => $user->mayUseTwoFactor(),
             ],
             'tenant' => [
                 'id' => $tenant->id,
