@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The medium home-screen widget in the phone's widget list (GlanceWidgetProvider). It lives on the home screen only: it
+     is never offered for a locked screen, where anyone could read it. The phone asks for a redraw about every half hour
+     (Android may delay it); the time on the widget is the honest signal of how fresh it is. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/glance_description_medium"
+    android:initialLayout="@layout/glance_medium"
+    android:minHeight="110dp"
+    android:minResizeHeight="110dp"
+    android:minResizeWidth="250dp"
+    android:minWidth="250dp"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellHeight="2"
+    android:targetCellWidth="4"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />

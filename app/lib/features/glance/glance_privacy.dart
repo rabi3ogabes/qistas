@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../app/providers.dart';
 
@@ -8,6 +9,13 @@ import '../../app/providers.dart';
 @immutable
 class GlancePrivacy {
   const GlancePrivacy({this.showAmounts = true, this.showNames = false});
+
+  /// The choices kept on this phone: amounts on and names off until the owner says otherwise. The background refresh
+  /// reads them the same way, without Riverpod.
+  factory GlancePrivacy.fromPreferences(SharedPreferences prefs) => GlancePrivacy(
+        showAmounts: prefs.getBool(GlancePrivacyController.amountsKey) ?? true,
+        showNames: prefs.getBool(GlancePrivacyController.namesKey) ?? false,
+      );
 
   final bool showAmounts;
   final bool showNames;
@@ -34,11 +42,7 @@ class GlancePrivacyController extends Notifier<GlancePrivacy> {
   static const String namesKey = 'glance.show_names';
 
   @override
-  GlancePrivacy build() {
-    final prefs = ref.read(sharedPreferencesProvider);
-
-    return GlancePrivacy(showAmounts: prefs.getBool(amountsKey) ?? true, showNames: prefs.getBool(namesKey) ?? false);
-  }
+  GlancePrivacy build() => GlancePrivacy.fromPreferences(ref.read(sharedPreferencesProvider));
 
   Future<void> setShowAmounts(bool on) async {
     state = state.copyWith(showAmounts: on);

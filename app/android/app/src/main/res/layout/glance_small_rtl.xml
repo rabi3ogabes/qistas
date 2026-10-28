@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The small home-screen widget (about two cells wide), right to left, for an app in Arabic or Urdu.
+     The direction is set here and not left to the phone, because the widget speaks the app's language, which is not
+     always the phone's. GlanceWidgetProvider fills every line in from the strings the app stored; nothing is formatted
+     or translated natively. One tap anywhere opens Qistas. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/glance_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/glance_background"
+    android:gravity="center_vertical"
+    android:layoutDirection="rtl"
+    android:orientation="vertical"
+    android:padding="14dp"
+    android:textAlignment="viewStart"
+    android:textDirection="rtl">
+
+    <!-- Nothing to show: not signed in, the feature is off, or nothing was ever stored. -->
+    <TextView
+        android:id="@+id/glance_message"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="serif"
+        android:gravity="center"
+        android:text="@string/glance_open"
+        android:textAlignment="center"
+        android:textColor="@color/glance_ink"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
+    <!-- Nothing recent to show: the figures are more than twelve hours old. -->
+    <TextView
+        android:id="@+id/glance_stale"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="serif"
+        android:gravity="center"
+        android:text="@string/glance_open_to_refresh"
+        android:textAlignment="center"
+        android:textColor="@color/glance_muted"
+        android:textSize="14sp"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/glance_content"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/glance_due"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:fontFamily="serif"
+            android:maxLines="2"
+            android:textColor="@color/glance_ink"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/glance_late"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:fontFamily="serif"
+            android:maxLines="2"
+            android:textColor="@color/glance_gold"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/glance_amounts"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:ellipsize="end"
+            android:fontFamily="serif"
+            android:maxLines="2"
+            android:textColor="@color/glance_muted"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/glance_updated"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:ellipsize="end"
+            android:fontFamily="sans-serif"
+            android:maxLines="1"
+            android:textColor="@color/glance_muted"
+            android:textSize="10sp" />
+    </LinearLayout>
+</LinearLayout>

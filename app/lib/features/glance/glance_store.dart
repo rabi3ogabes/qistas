@@ -14,13 +14,17 @@ abstract class GlanceStore {
 
   /// Asks the widget to draw what is kept now.
   Future<void> redraw();
+
+  /// The widget was tapped while the app was already running (a cold start from the widget lands on Today anyway).
+  Stream<void> get taps;
 }
 
 /// The Android widget's storage, through the `home_widget` package. It never throws: on a phone or a platform without
 /// the widget (iOS, desktop, the web) the platform channel is missing, and nothing is stored or drawn.
 class HomeWidgetStore implements GlanceStore {
-  /// The widget's class in the app's Android package (written in Kotlin, with the widget itself).
-  static const String provider = 'GlanceWidgetProvider';
+  /// The widget's two sizes, each a class in the app's Android package (written in Kotlin, with the widget itself). The
+  /// plugin draws the instances of the class it is asked for, so each size is asked.
+  static const List<String> providers = ['GlanceWidgetProvider', 'GlanceMediumWidgetProvider'];
 
   @override
   Future<void> write(Map<String, String> values) async {
@@ -41,7 +45,14 @@ class HomeWidgetStore implements GlanceStore {
   List<String> _sensitiveFirst(Iterable<String> keys) => [...keys.where(glanceSensitiveKeys.contains), ...keys.where((key) => !glanceSensitiveKeys.contains(key))];
 
   @override
-  Future<void> redraw() => _guard(() => HomeWidget.updateWidget(androidName: provider));
+  Future<void> redraw() async {
+    for (final provider in providers) {
+      await _guard(() => HomeWidget.updateWidget(androidName: provider));
+    }
+  }
+
+  @override
+  Stream<void> get taps => HomeWidget.widgetClicked.map<void>((_) {}).handleError((Object _) {});
 
   Future<void> _guard(Future<Object?> Function() call) async {
     try {

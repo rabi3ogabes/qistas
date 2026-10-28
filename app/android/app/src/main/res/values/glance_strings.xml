@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The home-screen widget's own words: its names in the widget list and the lines it can say without the app (nothing to
+         show yet, nothing recent to show). Everything else it draws comes already written, in the app's language, by the app. -->
+    <string name="glance_label_small">Qistas today</string>
+    <string name="glance_label_medium">Qistas today and next</string>
+    <string name="glance_description_small">What is due and late today, at a glance.</string>
+    <string name="glance_description_medium">What is due and late today, with the next instalments coming.</string>
+    <string name="glance_open">Open Qistas</string>
+    <string name="glance_open_to_refresh">Open Qistas to refresh</string>
+    <string name="glance_updated_at">Updated %1$s</string>
+</resources>

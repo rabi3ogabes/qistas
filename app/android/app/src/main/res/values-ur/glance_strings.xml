@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The home-screen widget's own words: its names in the widget list and the lines it can say without the app (nothing to
+         show yet, nothing recent to show). Everything else it draws comes already written, in the app's language, by the app. -->
+    <string name="glance_label_small">قسطاس آج</string>
+    <string name="glance_label_medium">قسطاس آج اور آگے</string>
+    <string name="glance_description_small">آج کیا واجب الادا ہے اور کیا تاخیر میں ہے، ایک نظر میں۔</string>
+    <string name="glance_description_medium">آج کیا واجب الادا ہے اور کیا تاخیر میں ہے، آنے والی قسطوں کے ساتھ۔</string>
+    <string name="glance_open">قسطاس کھولیں</string>
+    <string name="glance_open_to_refresh">تازہ کرنے کے لیے قسطاس کھولیں</string>
+    <string name="glance_updated_at">آخری تازہ کاری %1$s</string>
+</resources>

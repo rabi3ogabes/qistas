@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart' hide Route;
 import 'package:flutter/services.dart';
@@ -11,7 +9,6 @@ import 'package:qistas/app/app.dart';
 import 'package:qistas/app/providers.dart';
 import 'package:qistas/app/shell.dart';
 import 'package:qistas/core/config.dart';
-import 'package:qistas/core/l10n/translations.dart';
 import 'package:qistas/core/money.dart';
 import 'package:qistas/core/storage/token_store.dart';
 import 'package:qistas/features/glance/glance_data.dart';
@@ -25,51 +22,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../support/fake_api.dart';
 import '../support/fake_device_auth.dart';
 import '../support/fake_glance_store.dart';
+import '../support/glance_samples.dart';
 import '../support/harness.dart';
 import '../support/samples.dart';
 
 /// The home-screen widget, app side (daily-habit wave A, H3): the snapshot the app reads, the privacy rules that decide
 /// what may reach a screen anyone can see, the exact strings the Android widget draws, and the settings to change them.
-
-/// `GET /glance` as the server writes it: three instalments coming, with customers' names only when asked for.
-Map<String, dynamic> glanceJson({bool names = false, int due = 3, String dueAmount = '825.00', int late = 2, String lateAmount = '400.00', int rows = 3}) => {
-      'enabled': true,
-      'currency': 'SAR',
-      'due_count': due,
-      'due_amount': dueAmount,
-      'late_count': late,
-      'late_amount': lateAmount,
-      'next': [
-        for (final row in [
-          ('C-0007', '275.00', '2026-10-07', 'Ahmad Salem'),
-          ('C-0011', '150.00', '2026-10-07', 'Badr Khan'),
-          ('C-0003', '400.00', '2026-10-09', 'Dalia Amin'),
-        ].take(rows))
-          {'reference': row.$1, 'amount': row.$2, 'due_on': row.$3, if (names) 'name': row.$4},
-      ],
-      'generated_at': '2026-10-07T06:05:00Z',
-    };
-
-final DateTime moment = DateTime(2026, 10, 7, 9, 5);
-
-Translations wordsFor(String language) {
-  if (language == 'en') return const Translations.english();
-  final table = jsonDecode(File('assets/i18n/$language.json').readAsStringSync()) as Map<String, dynamic>;
-
-  return Translations(language, {for (final entry in table.entries) entry.key: entry.value.toString()});
-}
-
-Map<String, String> encode(
-  Map<String, dynamic> json, {
-  GlancePrivacy privacy = const GlancePrivacy(),
-  bool lock = false,
-  String language = 'en',
-  DateTime? now,
-}) {
-  final words = wordsFor(language);
-
-  return encodeGlance(GlanceData.fromJson(json), privacy: privacy, appLockOn: lock, language: language, rtl: words.isRtl, words: words, now: now ?? moment);
-}
 
 /// The app and the widget store without the screens: sign in from a token, then ask the service for things.
 class Rig {
@@ -554,11 +512,25 @@ void main() {
       expect(calls.every((call) => (call.arguments as Map)['data'] == null), isTrue);
     });
 
-    test('asks the widget’s Android class to draw', () async {
+    test('asks the widget’s Android classes to draw, the small one and the medium one', () async {
       await HomeWidgetStore().redraw();
 
-      expect(calls.single.method, 'updateWidget');
-      expect((calls.single.arguments as Map)['android'], 'GlanceWidgetProvider');
+      expect(calls.map((call) => call.method), everyElement('updateWidget'));
+      expect(calls.map((call) => (call.arguments as Map)['android']), ['GlanceWidgetProvider', 'GlanceMediumWidgetProvider'], reason: 'a phone may have only one size on its home screen');
+    });
+
+    test('tells the app when the widget is tapped', () async {
+      const updates = EventChannel('home_widget/updates');
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockStreamHandler(
+        updates,
+        MockStreamHandler.inline(onListen: (arguments, events) {
+          events.success(true);
+          events.success('');
+        }),
+      );
+      addTearDown(() => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockStreamHandler(updates, null));
+
+      expect(await HomeWidgetStore().taps.take(2).length, 2);
     });
 
     test('never throws, whatever the platform says', () async {
@@ -599,6 +571,28 @@ void main() {
       await tapButton(tester, 'Record payment');
       expect(find.text('Payment recorded'), findsOneWidget);
       expect(server.calls('GET /glance'), greaterThan(before), reason: 'a payment was recorded');
+    });
+
+    testWidgets('tapping the widget while the app is open lands on Today', (tester) async {
+      final store = FakeGlanceStore();
+      await pumpApp(tester, widgetServer(), overrides: widgetOverrides(store));
+      expect(find.text('Still to collect'), findsOneWidget);
+      expect(store.tapped.hasListener, isTrue);
+
+      await tapText(tester, 'Customers', last: true);
+      expect(find.text('Still to collect'), findsNothing, reason: 'the app was left on another section');
+
+      store.tapped.add(null);
+      await settle(tester);
+
+      expect(find.text('Still to collect'), findsOneWidget);
+    });
+
+    testWidgets('a phone without the widget does not listen for taps', (tester) async {
+      final store = FakeGlanceStore();
+      await pumpApp(tester, widgetServer(), overrides: widgetOverrides(store, supported: false));
+
+      expect(store.tapped.hasListener, isFalse);
     });
 
     testWidgets('a quick look away and back asks for nothing', (tester) async {

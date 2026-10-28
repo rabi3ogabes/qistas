@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The medium home-screen widget (about four cells wide), right to left, for an app in Arabic or Urdu.
+     The direction is set here and not left to the phone, because the widget speaks the app's language, which is not
+     always the phone's. GlanceWidgetProvider fills every line in from the strings the app stored; nothing is formatted
+     or translated natively. One tap anywhere opens Qistas. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/glance_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/glance_background"
+    android:gravity="center_vertical"
+    android:layoutDirection="rtl"
+    android:orientation="vertical"
+    android:padding="14dp"
+    android:textAlignment="viewStart"
+    android:textDirection="rtl">
+
+    <!-- Nothing to show: not signed in, the feature is off, or nothing was ever stored. -->
+    <TextView
+        android:id="@+id/glance_message"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="serif"
+        android:gravity="center"
+        android:text="@string/glance_open"
+        android:textAlignment="center"
+        android:textColor="@color/glance_ink"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
+    <!-- Nothing recent to show: the figures are more than twelve hours old. -->
+    <TextView
+        android:id="@+id/glance_stale"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="serif"
+        android:gravity="center"
+        android:text="@string/glance_open_to_refresh"
+        android:textAlignment="center"
+        android:textColor="@color/glance_muted"
+        android:textSize="14sp"
+        android:visibility="gone" />
+
+    <!-- The counts on one side and the next instalments on the other. A medium widget with no instalments to list
+         (amounts hidden, or the app lock on) is drawn with the small layout instead, so the counts get the whole width. -->
+    <LinearLayout
+        android:id="@+id/glance_content"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:baselineAligned="false"
+        android:orientation="horizontal">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="9"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/glance_due"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:fontFamily="serif"
+                android:maxLines="2"
+                android:textColor="@color/glance_ink"
+                android:textSize="17sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/glance_late"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:fontFamily="serif"
+                android:maxLines="2"
+                android:textColor="@color/glance_gold"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/glance_amounts"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:ellipsize="end"
+                android:fontFamily="serif"
+                android:maxLines="2"
+                android:textColor="@color/glance_muted"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/glance_updated"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif"
+                android:maxLines="1"
+                android:textColor="@color/glance_muted"
+                android:textSize="10sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="1dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:background="@color/glance_line" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical"
+            android:layout_weight="11"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/glance_next_1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="4dp"
+                android:ellipsize="end"
+                android:fontFamily="serif"
+                android:maxLines="2"
+                android:textColor="@color/glance_ink"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/glance_next_2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="4dp"
+                android:ellipsize="end"
+                android:fontFamily="serif"
+                android:maxLines="2"
+                android:textColor="@color/glance_ink"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/glance_next_3"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:fontFamily="serif"
+                android:maxLines="2"
+                android:textColor="@color/glance_ink"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

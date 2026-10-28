@@ -12,9 +12,12 @@ import 'glance_encoder.dart';
 import 'glance_privacy.dart';
 import 'glance_store.dart';
 
+/// Whether this build runs on an Android phone, the only place the widget exists. The background refresh asks the same.
+bool get isAndroidPhone => !kIsWeb && Platform.isAndroid;
+
 /// Only an Android phone has the widget; elsewhere the app neither reads the glance nor keeps anything for it. Tests
 /// turn it on, with a fake store.
-final glanceSupportedProvider = Provider<bool>((ref) => !kIsWeb && Platform.isAndroid);
+final glanceSupportedProvider = Provider<bool>((ref) => isAndroidPhone);
 
 /// The settings row and the refreshing come with the feature: only once the server lists it for this workspace and it is
 /// on (an older server never lists it).

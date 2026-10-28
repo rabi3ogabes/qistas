@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The dark set of the widget's colours: the app's navy canvas, warm white ink, lighter gold (QistasColors.dark). -->
+    <color name="glance_surface">#071634</color>
+    <color name="glance_line">#22386B</color>
+    <color name="glance_ink">#F2EEE3</color>
+    <color name="glance_muted">#A9B4CC</color>
+    <color name="glance_gold">#DDBB7A</color>
+</resources>

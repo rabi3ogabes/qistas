@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The home-screen widget's own words: its names in the widget list and the lines it can say without the app (nothing to
+         show yet, nothing recent to show). Everything else it draws comes already written, in the app's language, by the app. -->
+    <string name="glance_label_small">قسطاس اليوم</string>
+    <string name="glance_label_medium">قسطاس اليوم والقادم</string>
+    <string name="glance_description_small">ما يستحق وما تأخّر اليوم، في لمحة.</string>
+    <string name="glance_description_medium">ما يستحق وما تأخّر اليوم، مع الأقساط القادمة.</string>
+    <string name="glance_open">افتح قسطاس</string>
+    <string name="glance_open_to_refresh">افتح قسطاس للتحديث</string>
+    <string name="glance_updated_at">آخر تحديث %1$s</string>
+</resources>
