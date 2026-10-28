@@ -8,6 +8,7 @@ import '../../core/design/widgets.dart';
 import '../../core/l10n/translations.dart';
 import '../../core/ui/errors.dart';
 import '../../data/notifications.dart';
+import '../day_close/day_close_state.dart';
 import 'alerts.dart';
 
 /// What this person is told, when, and how (Win Plan PP9, Sprint 3 Task 1b): the alerts and their timing, then every kind
@@ -55,6 +56,8 @@ class _AlertSettingsScreenState extends ConsumerState<AlertSettingsScreen> {
     final digestOn = account?.entitlements['daily_digest']?.isOn ?? false;
     final alertsOn = remindsEveryone(account);
     final owner = account?.isOwner ?? false;
+    final dayClose = dayCloseOn(account);
+    final writes = account?.canWrite ?? false;
 
     return Scaffold(
       appBar: AppBar(title: Text(context.t('Alert settings'))),
@@ -159,14 +162,14 @@ class _AlertSettingsScreenState extends ConsumerState<AlertSettingsScreen> {
               ),
               if (p.kinds.isNotEmpty) ...[
                 QSectionTitle(context.t('How notices reach you')),
-                for (final (group, title) in [('alerts', context.t('Instalments')), ('billing', context.t('Your plan and payments')), ('support', context.t('Support'))])
-                  if (_shownIn(p, group, owner: owner, digestOn: digestOn, alertsOn: alertsOn).isNotEmpty) ...[
+                for (final (group, title) in [('alerts', context.t('Instalments')), ('day_close', context.t('Close the day')), ('billing', context.t('Your plan and payments')), ('support', context.t('Support'))])
+                  if (_shownIn(p, group, owner: owner, digestOn: digestOn, alertsOn: alertsOn, dayClose: dayClose, writes: writes).isNotEmpty) ...[
                     Padding(padding: const EdgeInsets.fromLTRB(4, 4, 4, 8), child: Text(title, style: text.titleSmall?.copyWith(color: c.inkMuted))),
                     QCard(
                       padding: EdgeInsets.zero,
                       child: Column(
                         children: [
-                          for (final (index, kind) in _shownIn(p, group, owner: owner, digestOn: digestOn, alertsOn: alertsOn).indexed) ...[
+                          for (final (index, kind) in _shownIn(p, group, owner: owner, digestOn: digestOn, alertsOn: alertsOn, dayClose: dayClose, writes: writes).indexed) ...[
                             if (index > 0) const Divider(height: 1),
                             _NoticeRow(kind: kind, preferences: p, onChanged: _save),
                           ],
@@ -186,15 +189,23 @@ class _AlertSettingsScreenState extends ConsumerState<AlertSettingsScreen> {
   }
 
   /// The kinds of [group] this person can be told about: alerts only while their switch is on for the platform, billing
-  /// only for owners.
-  List<NoticeKind> _shownIn(AlertPreferences p, String group, {required bool owner, required bool digestOn, required bool alertsOn}) => [
+  /// only for owners. The two notices about closing the day (the server lists them for everyone) belong to a group of
+  /// their own, and only where the feature is on: the evening reminder for whoever may close the day, the notice of a
+  /// cash difference for the owner alone.
+  List<NoticeKind> _shownIn(AlertPreferences p, String group, {required bool owner, required bool digestOn, required bool alertsOn, required bool dayClose, required bool writes}) => [
         for (final kind in p.kinds)
-          if (kind.group == group &&
+          if (_groupOf(kind) == group &&
               (group != 'billing' || owner) &&
               (kind.key != 'daily_digest' || digestOn) &&
-              (!{'instalment_due', 'instalment_late'}.contains(kind.key) || alertsOn))
+              (!{'instalment_due', 'instalment_late'}.contains(kind.key) || alertsOn) &&
+              (kind.key != 'day_close_reminder' || (dayClose && writes)) &&
+              (kind.key != 'day_close_difference' || (dayClose && owner)))
             kind,
       ];
+
+  static const _dayCloseKinds = {'day_close_reminder', 'day_close_difference'};
+
+  String _groupOf(NoticeKind kind) => _dayCloseKinds.contains(kind.key) ? 'day_close' : kind.group;
 }
 
 /// One kind of notice: its switch (the alerts have theirs above) and the channels it reaches the person on.

@@ -95,6 +95,87 @@ Map<String, dynamic> accountWithWidget({String role = 'owner', String plan = 'fr
   return account;
 }
 
+/// An account whose platform and plan have the end-of-day close on (daily-habit wave A, H4). [status] `platform_off` or
+/// `plan_locked` is the feature switched off or not in the plan; [listed] false is a server that does not know it.
+Map<String, dynamic> accountWithDayClose({String role = 'owner', String plan = 'free', String status = 'on', bool listed = true}) {
+  final account = accountJson(role: role, plan: plan);
+  if (listed) {
+    account['entitlements'] = {
+      ...Map<String, dynamic>.from(account['entitlements'] as Map),
+      'day_close': {'type': 'toggle', 'enabled': status == 'on', 'status': status, 'limit': null, 'used': null, 'remaining': null, 'unlimited': false},
+    };
+  }
+
+  return account;
+}
+
+/// One close of one day, as `GET /day-close` and `POST /day-close` write it.
+Map<String, dynamic> dayCloseJson({
+  String id = 'dc1',
+  String day = '2026-10-21',
+  int version = 1,
+  String status = 'closed',
+  String expected = '3100.00',
+  String counted = '3100.00',
+  String difference = '0.00',
+  String? note,
+  String? reopenReason,
+  String summary = 'Al-Fares Electronics, 21 Oct: collected SAR 3,150 (cash 3,100, other 50), 14 payments, difference 0.',
+  String? closedBy = 'Layla Haddad',
+}) =>
+    {
+      'id': id, 'day': day, 'version': version, 'status': status,
+      'expected_cash': expected, 'counted_cash': counted, 'difference': difference,
+      'totals': {
+        'by_method': {'cash': expected, 'card': '50.00'},
+        'count': 14,
+        'per_member': {'u1': {'name': 'Layla Haddad', 'cash': expected, 'count': 12}},
+      },
+      'note': note,
+      'closed_by': closedBy == null ? null : {'id': 'u1', 'name': closedBy},
+      'closed_at': '${day}T17:42:00+00:00',
+      'reopened_by': status == 'reopened' ? {'id': 'u1', 'name': 'Layla Haddad'} : null,
+      'reopened_at': status == 'reopened' ? '${day}T18:10:00+00:00' : null,
+      'reopen_reason': reopenReason,
+      'snapshot_hash': 'a' * 64,
+      'summary_text': summary,
+      'summary_url': 'https://qistas.test/api/v1/day-close/$id/summary.pdf',
+    };
+
+/// What `GET /day-close/today` answers: the cash to count, the other payments and what is worth a look.
+Map<String, dynamic> dayCloseTodayJson({
+  String expected = '3100.00',
+  bool closed = false,
+  Map<String, dynamic>? close,
+  bool canClose = true,
+  bool canReopen = false,
+  String closingTime = '20:00',
+  List<Map<String, dynamic>>? nonCash,
+  List<Map<String, dynamic>>? watch,
+}) =>
+    {
+      'day': '2026-10-21',
+      'closing_time': closingTime,
+      'closed': closed,
+      'close': close,
+      'expected_cash': expected,
+      'by_method': {'cash': expected, 'card': '50.00'},
+      'count': 14,
+      'per_member': {'u1': {'name': 'Layla Haddad', 'cash': expected, 'count': 12}},
+      'non_cash': nonCash ??
+          [
+            {'id': 'n1', 'customer': 'Noura Al-Saif', 'amount': '50.00', 'method': 'card', 'note': 'Ref 7731'},
+            {'id': 'n2', 'customer': 'Badr Hamdan', 'amount': '-20.00', 'method': 'bank_transfer', 'note': null},
+          ],
+      'watch': watch ??
+          [
+            {'kind': 'void', 'id': 'w1', 'label': 'Youssef Mansour', 'amount': '75.00'},
+            {'kind': 'opened', 'id': 'w2', 'label': 'Sara Idris', 'amount': null},
+          ],
+      'can_close': canClose,
+      'can_reopen': canReopen,
+    };
+
 /// What `GET /demo` answers when the site offers "Try the demo".
 Map<String, dynamic> demoOfferJson() => {
       'enabled': true,

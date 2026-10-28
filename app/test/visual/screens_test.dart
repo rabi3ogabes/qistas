@@ -271,6 +271,86 @@ void main() {
     await snapshot(tester, 'payment-recorded');
   });
 
+  // The end of the day (daily-habit wave A, H4): the till being counted, balanced and short; the day closed; and Today's tile.
+  Future<void> typeCount(WidgetTester tester, String keys) async {
+    for (final key in keys.split('')) {
+      final pad = find.byKey(ValueKey(key == '.' ? 'pad-point' : 'pad-$key'));
+      await tester.ensureVisible(pad);
+      await tester.pump();
+      await tester.tap(pad);
+      await tester.pump();
+    }
+    // The button warms from disabled to ready over a moment: wait for it before taking the picture.
+    await settle(tester);
+  }
+
+  FakeServer dayCloseServer({bool closed = false, String difference = '0.00'}) => workspaceServer(account: accountWithDayClose(), routes: {
+        'GET /day-close/today': always(json(200, {
+          'data': dayCloseTodayJson(
+            closed: closed,
+            close: closed ? dayCloseJson(counted: difference == '0.00' ? '3100.00' : '3080.00', difference: difference, note: difference == '0.00' ? null : 'Two torn notes put aside') : null,
+            canClose: !closed,
+            canReopen: closed,
+          ),
+        })),
+        'POST /day-close': always(json(201, {'data': dayCloseJson()})),
+      });
+
+  for (final (name, language, keys, mode) in [
+    ('day-close-balanced', 'en', '3100', 'light'),
+    ('day-close-short', 'en', '3080.5', 'light'),
+    ('day-close-balanced-ar', 'ar', '3100', 'light'),
+    ('day-close-short-ar-dark', 'ar', '3080.5', 'dark'),
+  ]) {
+    picture(name, (tester) async {
+      await pumpApp(tester, dayCloseServer(), realFonts: true, size: const Size(390, 2150), language: language, preferences: {'theme_mode': mode});
+      await tester.tap(find.byKey(const ValueKey('day-close-tile')));
+      await settle(tester);
+      await typeCount(tester, keys);
+      await snapshot(tester, name);
+    });
+  }
+
+  for (final (name, language, difference, mode) in [
+    ('day-close-closed', 'en', '0.00', 'light'),
+    ('day-close-closed-short', 'en', '-20.00', 'light'),
+    ('day-close-closed-ar-dark', 'ar', '0.00', 'dark'),
+  ]) {
+    picture(name, (tester) async {
+      await pumpApp(tester, dayCloseServer(closed: true, difference: difference), realFonts: true, size: const Size(390, 1900), language: language, preferences: {'theme_mode': mode});
+      await tester.tap(find.byKey(const ValueKey('day-close-tile')));
+      await settle(tester);
+      await snapshot(tester, name);
+    });
+  }
+
+  picture('day-close-moment', (tester) async {
+    await pumpApp(tester, dayCloseServer(), realFonts: true, size: const Size(390, 900));
+    await tester.tap(find.byKey(const ValueKey('day-close-tile')));
+    await settle(tester);
+    await typeCount(tester, '3100');
+    await tester.tap(find.byKey(const ValueKey('close-day-button')));
+    await settle(tester);
+    await snapshot(tester, 'day-close-moment');
+  });
+
+  picture('day-close-moment-ar', (tester) async {
+    await pumpApp(tester, dayCloseServer(), realFonts: true, size: const Size(390, 900), language: 'ar');
+    await tester.tap(find.byKey(const ValueKey('day-close-tile')));
+    await settle(tester);
+    await typeCount(tester, '3100');
+    await tester.tap(find.byKey(const ValueKey('close-day-button')));
+    await settle(tester);
+    await snapshot(tester, 'day-close-moment-ar');
+  });
+
+  for (final (name, closed, language, hour) in [('dashboard-day-close-evening', false, 'en', 21), ('dashboard-day-close-morning-ar', false, 'ar', 9), ('dashboard-day-close-closed', true, 'en', 21)]) {
+    picture(name, (tester) async {
+      await pumpApp(tester, dayCloseServer(closed: closed), realFonts: true, size: const Size(390, 900), language: language, clock: FakeClock(DateTime(2026, 10, 21, hour)));
+      await snapshot(tester, name);
+    });
+  }
+
   // The app lock: what a locked Qistas shows, by day, by night and in Arabic; and its settings screen.
   for (final (name, language, mode) in [('app-lock', 'en', 'light'), ('app-lock-dark', 'en', 'dark'), ('app-lock-ar', 'ar', 'light')]) {
     picture(name, (tester) async {
