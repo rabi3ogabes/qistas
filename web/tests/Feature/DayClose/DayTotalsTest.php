@@ -2,6 +2,7 @@
 
 use App\Actions\CancelContract;
 use App\Actions\RecordCharge;
+use App\Actions\RecordCustomerPayment;
 use App\Actions\VoidTransaction;
 use App\Actions\WaiveLateFee;
 use App\Entitlements\Feature;
@@ -11,6 +12,7 @@ use App\Models\Customer;
 use App\Models\DayClose;
 use App\Models\LateFee;
 use App\Models\Tenant;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Settings\SettingsRegistry;
 use App\Settings\TenantSettings;
@@ -80,6 +82,52 @@ it('counts the payments that stand, and not the one voided the same day', functi
     app(VoidTransaction::class)->handle($mistake, null, $this->boss);
 
     expect(closeTotals($this->shop)['count'])->toBe(2);
+});
+
+/**
+ * Sara takes one payment of 300.00 from a customer with three contracts, 100.00 on each: a ledger line per contract,
+ * tied by its batch.
+ *
+ * @return list<Transaction> the lines
+ */
+function dtAcrossThree(object $test): array
+{
+    switchOn(Feature::PaymentTargeting);
+    $customer = customerIn($test->shop, ['name' => 'Huda Saleh']);
+    $split = array_map(fn () => ['contract_id' => openContract($test->shop, ['customer_id' => $customer->id])->id, 'amount' => '100.00'], range(1, 3));
+
+    $batch = app(RecordCustomerPayment::class)->handle($customer, '300.00', 'cash', by: $test->sara, split: $split);
+
+    return asTenant($test->shop, fn () => Transaction::query()->where('batch_id', $batch->id)->get()->all());
+}
+
+it('counts a payment across a customer\'s contracts once, however many contracts it was spread over', function () {
+    expect(dtAcrossThree($this))->toHaveCount(3);
+    closeTake($this->contract, '40.00', by: $this->omar);
+    closeTake($this->contract, '25.00', 'card', by: $this->omar);
+
+    $totals = closeTotals($this->shop);
+
+    // One across three contracts, and Omar's two single payments.
+    expect($totals['count'])->toBe(3)
+        ->and($totals['expected_cash'])->toBe('340.00')
+        ->and($totals['per_member'][$this->sara->id])->toBe(['name' => 'Sara Collector', 'cash' => '300.00', 'count' => 1])
+        ->and($totals['per_member'][$this->omar->id])->toBe(['name' => 'Omar Collector', 'cash' => '40.00', 'count' => 1]);
+});
+
+it('counts a payment across contracts until every one of its lines is voided the same day', function () {
+    [$first, $second, $third] = dtAcrossThree($this);
+    closeTake($this->contract, '40.00', by: $this->sara);
+
+    app(VoidTransaction::class)->handle($first, null, $this->boss);
+    expect(closeTotals($this->shop)['count'])->toBe(2);
+
+    app(VoidTransaction::class)->handle($second, null, $this->boss);
+    app(VoidTransaction::class)->handle($third, null, $this->boss);
+    $totals = closeTotals($this->shop);
+
+    expect($totals['count'])->toBe(1)
+        ->and($totals['per_member'][$this->sara->id])->toBe(['name' => 'Sara Collector', 'cash' => '340.00', 'count' => 1]);
 });
 
 it('counts down payments as money in', function () {

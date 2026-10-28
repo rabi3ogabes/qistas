@@ -207,6 +207,17 @@ describe('becoming open', function () {
             ->and(balanceOf($contract))->toBe('300.00');
     });
 
+    it('names a balance an import brought in, in words, once the contract is open', function () {
+        [$user, $tenant] = owner();
+        $contract = openContract($tenant);
+        app(RecordPayment::class)->handle($contract, '100.00', 'other', tag: Transaction::IMPORTED);
+        app(ConvertToOpen::class)->handle($contract);
+
+        $this->actingAs($user)->get(route('app.contracts.show', $contract))->assertOk()
+            ->assertSee('<span class="badge">Paid before Qistas</span>', false)
+            ->assertDontSee('<span class="badge">imported</span>', false);
+    });
+
     it('will not void a payment made before the contract became open', function () {
         [, $tenant] = apiOwner();
         $contract = openContract($tenant);

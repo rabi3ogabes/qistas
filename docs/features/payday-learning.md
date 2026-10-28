@@ -30,8 +30,9 @@ H6. API: `docs/api/openapi.yaml`, schemas **PayPattern** and **Customer** (`pay_
 From a customer's payments, on the workspace's own calendar (`App\Domain\PayPattern`):
 
 1. Only **untagged `payment` lines on monthly, non-open contracts** count. A down payment, an advance, a refund, a payoff in an
-   early settlement (it carries the early-discount tag) and an "unpaid" mark say nothing about the payday; a payment that has been
-   voided is left out; weekly and other schedules are ignored. A cancelled contract's earlier payments still count.
+   early settlement (it carries the early-discount tag), an "unpaid" mark and what an import brought in as "Paid before Qistas"
+   (one lump on the import day, tagged `imported`) say nothing about the payday; a payment that has been voided is left out;
+   weekly and other schedules are ignored. A cancelled contract's earlier payments still count.
 2. **The first payment of each calendar month** stands for that month, from the last 18 calendar months, and the last 12 months
    that have a payment are used.
 3. At least **3 distinct months**. The day is capped at 28 (28 means the end of the month).
@@ -133,10 +134,9 @@ of the request; show them as sent. On the website the same words come from the s
 - **Monthly contracts only.** Weekly, two-weekly and other schedules and open accounts are ignored.
 - **A customer who pays twice a year gets no pattern** (3 months in the last 18 are needed), and one who pays in the same
   months does not either until 3 have passed.
-- **An imported balance can look like a payment.** The import records what a customer "Paid before Qistas" as one payment dated
-  the day of the import, on their contract. If that contract is monthly it counts as a payment in that month, and it can hide
-  the day the customer really paid first in that month. Decide per shop whether that matters before relying on a freshly
-  imported customer's line.
+- **A freshly imported customer starts with no history.** What the import brought in as "Paid before Qistas" is one lump, not
+  the payments it stands for, so it is left out; the line appears once three months of real payments are recorded (or typed
+  in with their dates on the payment sheet).
 - **It runs inside the payment's request.** The payment is already saved, nothing is locked, and a failure is swallowed; with the
   feature off only the switch is checked. A large import or the demo seeding recomputes once per payment line.
 - **The nightly run is best-effort.** It is a daily schedule entry (midnight, UTC), so it runs only if a scheduler call lands in

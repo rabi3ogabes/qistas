@@ -46,7 +46,8 @@ final class RecordPayment
      * @param  string  $amount  positive, at most two decimals, not more than is still owed
      * @param  ?string  $idempotencyKey  1-100 characters from A-Z a-z 0-9 _ . : -
      * @param  ?CarbonInterface  $paidAt  when the money was received (default now; never in the future)
-     * @param  ?string  $tag  one of Transaction::TAGS (an advance, a refund, an early-payment discount)
+     * @param  ?string  $tag  one of Transaction::TAGS (an advance, a refund, an early-payment discount), or
+     *                        Transaction::IMPORTED, which only the import passes (a request may only send one of TAGS)
      * @param  ?string  $applyTo  the instalment to fill first (Win Plan PP6); the rest goes to the oldest
      * @param  ?string  $batchId  the payment across contracts this line is part of (Win Plan PP6). Only
      *                            RecordCustomerPayment passes one, and only after it has put the whole payment to the
@@ -344,7 +345,7 @@ final class RecordPayment
         if ($paidAt !== null && $paidAt->isFuture()) {
             $errors['paid_at'] = __('A payment cannot be dated in the future.');
         }
-        if ($tag !== null && ! in_array($tag, Transaction::TAGS, true)) {
+        if ($tag !== null && ! in_array($tag, [...Transaction::TAGS, Transaction::IMPORTED], true)) {
             $errors['tag'] = __('Choose one of the tags offered.');
         }
         if ($key !== null && ! preg_match('/^[A-Za-z0-9_.:\-]{1,100}$/', $key)) {

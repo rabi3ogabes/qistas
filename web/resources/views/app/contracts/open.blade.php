@@ -12,7 +12,7 @@
     $running = $contract->status === 'active';
     $inCredit = Money::isNegative($balance);
     $overLimit = $contract->credit_limit !== null && Money::cmp($balance, $contract->credit_limit) > 0;
-    $tagLabel = ['advance' => __('Advance'), 'refund' => __('Refund'), 'early_discount' => __('Early-payment discount'), 'unpaid' => __('Unpaid')];
+    $tagLabel = ['advance' => __('Advance'), 'refund' => __('Refund'), 'early_discount' => __('Early-payment discount'), 'unpaid' => __('Unpaid'), 'imported' => __('Paid before Qistas')];
     $statusLabel = ['active' => __('Active'), 'settled' => __('Settled'), 'cancelled' => __('Cancelled')];
 @endphp
 <x-layouts.app :title="$contract->reference()" section="contracts">

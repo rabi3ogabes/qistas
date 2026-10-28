@@ -954,9 +954,11 @@ paths:
         `expected_cash` is the cash recorded today (cash payments, less cash given back by voids). `by_method`, `count`,
         `per_member` (each person's cash, keyed by user id), `non_cash` (every card, transfer, cheque and other line, each
         with its customer's name and note) and `watch` (what is worth a look: voided payments, waived fees, back-dated
-        payments, contracts opened and cancelled) are the figures a close would keep. `closing_time` is the workspace's
-        setting (`day_close.closing_time`, by its own clock). `per_member` names each person who took cash and how much, and
-        every role that may read the day sees it (a collector and a viewer included).
+        payments, contracts opened and cancelled) are the figures a close would keep. What an import brought in as paid
+        before Qistas (lines tagged `imported`, and a void of one) is in none of them: it never went through a till.
+        `closing_time` is the workspace's setting (`day_close.closing_time`, by its own clock). `per_member` names each
+        person who took cash and how much, and every role that may read the day sees it (a collector and a viewer
+        included).
 
         `close` is the day's latest close, when there is one: `closed` is true while it stands, and false once it has been
         reopened (the reopened close is still shown, with `status` `reopened`). `can_close` is true when the person may
@@ -3996,7 +3998,7 @@ components:
       properties:
         id: {type: string, format: uuid}
         type: {type: string, enum: [payment, down_payment, reversal, charge, charge_reversal]}
-        tag: {type: [string, "null"], enum: [advance, refund, early_discount, unpaid, null]}
+        tag: {type: [string, "null"], enum: [advance, refund, early_discount, unpaid, imported, null], description: "`imported` marks what an import brought in as paid before Qistas; only the import writes it, a request may not send it."}
         balance_after: {type: string, description: "On an open contract's ledger: the balance once this line was written."}
         recorded_by: {type: [object, "null"], properties: {id: {type: string}, name: {type: string}}, description: Who wrote the line; null for lines the system wrote.}
         recorded_at: {type: string, format: date-time, description: When the line was written (paid_at is when the money moved).}
@@ -4050,7 +4052,7 @@ components:
       description: The day's figures, as they were when it was closed.
       properties:
         by_method: {type: object, additionalProperties: {$ref: "#/components/schemas/Money"}, description: "The net of each way of paying that had a line in the day (an empty object when none), cash first."}
-        count: {type: integer, description: Payments taken in the day that were not voided in it.}
+        count: {type: integer, description: "Payments taken in the day that were not voided in it: a payment across a customer's contracts is one, until all of its lines are voided."}
         per_member:
           type: object
           description: "The cash side of the day by the person who recorded each line, keyed by user id (`unknown` for someone who has since left the team); an empty object when there was none."
@@ -4129,13 +4131,16 @@ components:
               note: {type: [string, "null"]}
         watch:
           type: array
-          description: What is worth a look today.
+          description: >-
+            What is worth a look today. When more than ten contracts were opened in the day (an import), they are one
+            `opened` line: its `label` says how many ("300 contracts opened"), its `id` is the first of them and its
+            `amount` the sum of their prices.
           items:
             type: object
             properties:
               kind: {type: string, enum: [void, waived_fee, back_dated, opened, cancelled]}
               id: {type: string, format: uuid}
-              label: {type: string, description: The customer's name.}
+              label: {type: string, description: "The customer's name, or how many contracts were opened for a line that stands for many."}
               amount: {type: [string, "null"], description: "What it concerned, always positive; null for an open account, which has no price."}
         can_close: {type: boolean}
         can_reopen: {type: boolean}

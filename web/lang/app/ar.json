@@ -16,6 +16,7 @@
     ":business is now on the :plan plan.": "أصبح :business على باقة :plan.",
     ":business is on :plan.": "أصبح :business على باقة :plan.",
     ":count / month": ":count / شهر",
+    ":count contracts opened": "العقود التي فُتحت: :count",
     ":count new in 7 days": ":count جديد خلال 7 أيام",
     ":count of :max demo accounts in use (:expired expired and waiting to be cleared).": ":count من :max حسابًا تجريبيًا قيد الاستخدام (منها :expired منتهية بانتظار المسح).",
     ":count payments": "عدد الدفعات: :count",

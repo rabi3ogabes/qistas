@@ -16,6 +16,7 @@
     ":business is now on the :plan plan.": ":business ahora está en el plan :plan.",
     ":business is on :plan.": ":business ya está en el plan :plan.",
     ":count / month": ":count / mes",
+    ":count contracts opened": ":count contratos abiertos",
     ":count new in 7 days": ":count nuevos en 7 días",
     ":count of :max demo accounts in use (:expired expired and waiting to be cleared).": ":count de :max cuentas de demo en uso (:expired caducadas, pendientes de borrar).",
     ":count payments": ":count pagos",

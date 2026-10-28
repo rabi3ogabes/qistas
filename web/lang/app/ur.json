@@ -16,6 +16,7 @@
     ":business is now on the :plan plan.": ":business اب :plan پلان پر ہے۔",
     ":business is on :plan.": ":business اب :plan پر ہے۔",
     ":count / month": ":count / ماہ",
+    ":count contracts opened": "کھولے گئے معاہدے: :count",
     ":count new in 7 days": "7 دنوں میں :count نئے",
     ":count of :max demo accounts in use (:expired expired and waiting to be cleared).": ":max میں سے :count ڈیمو اکاؤنٹ استعمال میں ہیں (:expired کی مدت ختم، صفائی کے منتظر)۔",
     ":count payments": "ادائیگیوں کی تعداد: :count",

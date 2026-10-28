@@ -191,7 +191,7 @@ test('weekly and open contracts are ignored', function () {
     expect(learnShape(learnRow($this->customer)))->toBe(['day' => 27, 'spread' => 0, 'months' => 3, 'within' => 100, 'confidence' => 'medium']);
 });
 
-test('only untagged payments count: no advance, refund, early discount, unpaid mark or down payment', function () {
+test('only untagged payments count: no advance, refund, early discount, unpaid mark, imported balance or down payment', function () {
     learnPayOn27th($this->contract, '2026-07', '2026-08', '2026-09');
 
     // Each of these would be a month of its own, on the 3rd, if it counted. One for every tag a line may carry.
@@ -199,6 +199,8 @@ test('only untagged payments count: no advance, refund, early discount, unpaid m
     foreach (array_combine(Transaction::TAGS, ['2026-06', '2026-05', '2026-10', '2026-04']) as $tag => $month) {
         learnPay($this->contract, "{$month}-03 09:00:00", $tag);
     }
+    // And what an import brought in as paid before Qistas: one lump on the import day, never a payday.
+    learnPay($this->contract, '2026-02-03 09:00:00', Transaction::IMPORTED);
     // And a down payment, which is the contract's own term and a day chosen at the counter.
     learnContract($this->shop, $this->customer, ['down_payment' => '200.00', 'start_date' => '2026-03-03', 'first_due_date' => '2026-04-03']);
 

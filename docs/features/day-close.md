@@ -17,7 +17,8 @@ The same ritual on the phone and on the website, on the same server rules.
 - **The screen.** Three cards. **Cash**: the cash expected, a number pad for the cash counted, and the difference in plain
   words (Balanced, Short by, Over by). **Other payments**: every card, transfer, cheque and other line of the day, one by one,
   with customer and note. **Worth a look**: voided payments, waived fees, payments dated earlier than today, contracts opened
-  and contracts cancelled that day. Then an optional note and **Close the day**.
+  and contracts cancelled that day (more than ten contracts opened in one day, as after an import, are one line: "300
+  contracts opened", with what they were sold for together). Then an optional note and **Close the day**.
 - **After closing.** A seal, the sentence ("Al-Fares, 21 Oct: collected SAR 8,420 (cash 3,100, other 5,320), 14 payments,
   difference 0.") with a **Share** button in the app and a **Copy** button on the web, and the history of past closes.
 - **On the web.** `Day close` in the menu (people who may close the day only) opens `/app/day-close`: the same cards, a live
@@ -27,7 +28,13 @@ The same ritual on the phone and on the website, on the same server rules.
 - **The numbers.** The day is the workspace's own calendar day (its time zone, not the server's). A payment belongs to the day
   it was **taken** (`paid_at`); a void belongs to the day it was **recorded**, so cash given back today lowers today's expected
   cash and leaves yesterday as it was. Only the ledger's money-in lines count (payments, down payments and their reversals);
-  what a customer takes on an open account is owed money, never cash.
+  what a customer takes on an open account is owed money, never cash. One payment across a customer's contracts is one
+  payment in the count, however many contracts it was spread over.
+- **The day of an import.** What an import brings in as already paid ("Paid before Qistas", one line per customer, tagged
+  `imported`) was taken before the shop used Qistas and never went through that day's till, so it is left out of every day's
+  figures: the cash, the money by way of paying, the count, the per-person totals, the other payments and the sentence. A void
+  of one is left out the same way (the void itself is still worth a look). It still pays the customer's instalments and counts
+  in the reports and the dashboard as before.
 - **The rules of a close.** Today and the seven days before it can be closed. A day is closed once (a double tap or a second
   phone gets "This day is already closed."; the app and the API also send an `Idempotency-Key`, so a retry after a lost answer
   returns the first close). The counted cash is an amount with at most two decimals, not negative. Each close keeps the day's
