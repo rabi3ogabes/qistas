@@ -8,6 +8,7 @@ use App\Domain\PayPattern\PayPatternWords;
 use App\Entitlements\Entitlement;
 use App\Entitlements\Entitlements;
 use App\Entitlements\Feature;
+use App\Entitlements\FeatureUsage;
 use App\Http\Requests\CustomerRequest;
 use App\Models\Contract;
 use App\Models\Customer;
@@ -75,6 +76,10 @@ final class CustomerController
         // The day they usually pay on (daily-habit wave A, H6), while payday learning is on. A pattern worked out earlier
         // stays in the database when it is off, and is not read or shown.
         $pattern = Entitlements::for($this->current->get())->check(Feature::PaydayLearning)->enabled() ? $customer->payPattern : null;
+        if ($pattern !== null) {
+            // The cockpit's "used by" count: a pattern really shown to someone is this feature's primary action.
+            FeatureUsage::hit(Feature::PaydayLearning);
+        }
 
         return view('app.customers.show', [
             'customer' => $customer->load('tags'),

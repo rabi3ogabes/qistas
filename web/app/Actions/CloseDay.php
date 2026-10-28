@@ -7,6 +7,7 @@ use App\Entitlements\Entitlements;
 use App\Entitlements\Feature;
 use App\Entitlements\FeatureLocked;
 use App\Entitlements\FeatureUnavailable;
+use App\Entitlements\FeatureUsage;
 use App\Models\DayClose;
 use App\Models\Tenant;
 use App\Models\User;
@@ -79,12 +80,17 @@ final class CloseDay
             $note = $note === null || trim($note) === '' ? null : trim($note);
 
             try {
-                return DB::transaction(fn (): DayClose => $this->write($tenant, $day, $counted, $note, $by));
+                $close = DB::transaction(fn (): DayClose => $this->write($tenant, $day, $counted, $note, $by));
             } catch (UniqueConstraintViolationException) {
                 // Another close of the day was written between this one's look at the day and its own write (the first
                 // close of a day has no row to lock): the key (tenant, day, version) let one through, and it was not this.
                 throw self::alreadyClosed();
             }
+
+            // The cockpit's "used by" count: a day really closed is this feature's primary action.
+            FeatureUsage::hit(Feature::DayClose, $tenant);
+
+            return $close;
         });
     }
 

@@ -10,6 +10,7 @@ use App\Support\WorkspaceDay;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 
 /*
 | Daily-habit wave A, H4: closing a day sets the cash a person counted against what Qistas recorded for the workspace's
@@ -31,6 +32,16 @@ beforeEach(function () {
     $this->mona = closeStaff($this->shop, 'Mona Manager', 'manager');
     $this->contract = closeContract($this->shop);
     $this->travelTo('2026-10-21 12:00:00');
+});
+
+it('counts one use of the feature for a day that is really closed, and none for a refused close', function () {
+    $hits = fn () => (int) DB::table('feature_usage_daily')->where(['tenant_id' => $this->shop->id, 'feature_key' => 'day_close'])->sum('hits');
+
+    closeDay($this->shop, '2026-10-21', $this->sara, '0.00');
+    expect($hits())->toBe(1);
+
+    expect(fn () => closeDay($this->shop, '2026-10-21', $this->sara, '0.00'))->toThrow(ValidationException::class);
+    expect($hits())->toBe(1);
 });
 
 it('closes today with counted cash and records the difference', function () {

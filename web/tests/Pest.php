@@ -75,7 +75,8 @@ function switchOn(Feature $feature): void
 /** Switch a feature off for everyone again, as the admin does (what exists stays; nothing new can be added). */
 function switchOff(Feature $feature): void
 {
-    app(FeatureControl::class)->setState($feature, PlatformState::Off, null, null);
+    // A reason, because the cockpit asks for one whenever a workspace used the feature in the last 30 days.
+    app(FeatureControl::class)->setState($feature, PlatformState::Off, 'switched off by a test', null);
 }
 
 /**

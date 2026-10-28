@@ -77,6 +77,22 @@ describe('on the customer’s page', function () {
         ]);
     });
 
+    it('counts one use of the feature when a pattern is shown, and none when there is nothing to show', function () {
+        $hits = fn () => (int) DB::table('feature_usage_daily')->where(['tenant_id' => $this->shop->id, 'feature_key' => 'payday_learning'])->sum('hits');
+
+        payPatternPage($this->ahmad);
+        expect($hits())->toBe(0);
+
+        payPatternOf($this->ahmad);
+        payPatternPage($this->ahmad);
+        payPatternPage($this->ahmad);
+        expect($hits())->toBe(2);
+
+        switchOff(Feature::PaydayLearning);
+        payPatternPage($this->ahmad);
+        expect($hits())->toBe(2);
+    });
+
     it('shows null when the customer has none', function () {
         $data = payPatternPage($this->ahmad)->json('data');
 
