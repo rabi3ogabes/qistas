@@ -218,7 +218,7 @@ describe('in the language of the request', function () {
         $page = payPatternPage($this->ahmad, ['Accept-Language' => 'ar']);
 
         expect($page->headers->get('Content-Language'))->toBe('ar')
-            ->and($page->json('data.pay_pattern.label'))->toBe('عادة ما يدفع حوالي اليوم 27 من الشهر')
+            ->and($page->json('data.pay_pattern.label'))->toBe('عادة ما يدفع حوالي يوم 27 من الشهر')
             ->and($page->json('data.pay_pattern.basis'))->toBe('لوحظ في 83% من الأشهر الأخيرة')
             // Only the words follow the language; the figures the apps compute with do not.
             ->and($page->json('data.pay_pattern.day'))->toBe(27)
@@ -253,7 +253,7 @@ describe('in the language of the request', function () {
         $arabic = payPatternPage($this->ahmad, ['Accept-Language' => 'ar'])->json('data.pay_pattern.label');
         $english = payPatternPage($this->ahmad, ['Accept-Language' => 'en'])->json('data.pay_pattern.label');
 
-        expect($arabic)->toBe('عادة ما يدفع حوالي اليوم 27 من الشهر')
+        expect($arabic)->toBe('عادة ما يدفع حوالي يوم 27 من الشهر')
             ->and($english)->toBe('Usually pays around day 27 of the month');
     });
 });
