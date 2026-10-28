@@ -422,14 +422,14 @@ Decisions made while writing the wave A plan, after reading the code. The groups
 - **Foundations.** Each feature case is registered in the task that builds it, so no switch exists for an unbuilt feature.
   The AI gateway and the `/receipt`, `/coach` and `/sale` deep links move to the wave B plan, and `FeatureUsage::hit()`
   already does the instrumentation. Wave A's foundation is the workspace-day helper.
-- **Day close, card 2.** It lists non-cash payments (method, customer, amount, note); the *has proof* marker arrives
-  with H1 in wave B.
+- **Day close, card 2.** It lists non-cash payments (method, customer, amount, note); the *has proof* marker and the flag
+  on duplicate references arrive with H1 in wave B.
 - **Closing time.** Settings have no time type, so `day_close.closing_time` is a select of half-hour options, default 20:00.
 - **Widget refresh.** Wave A sends one silent push a day at each person's digest time, and refreshes on open, resume and
-  payment. A refresh after a payment on another device is not built (it needs a background handler and a silent push that
-  do not exist yet).
+  payment. A refresh the moment a payment is taken on another device is not built: it needs a push sent on every payment,
+  which nothing does today.
 - **Payday timing.** Wave A ships the pattern, the suggestion chip and the suggestions. Timing reminders for the day
-  before the real payday is the Coach's job, in the wave B Coach plan.
+  before the real payday belongs to the Coach, in the wave B Coach plan.
 - **Day close on the web.** The web workspace is a first-class surface, so wave A adds a small day-close page there as well
   as the app.
 
