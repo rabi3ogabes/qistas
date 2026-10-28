@@ -11,6 +11,8 @@ kind and channel by channel, among what the admin allows and what is set up.
 | Morning summary | everyone who collects or keeps the books | at the time they choose | in the app |
 | On the due date | the same | an instalment falls due (off by default) | in the app |
 | When an instalment is late | the same | after the grace days, repeating daily, weekly or monthly | in the app |
+| Evening reminder to close the day | everyone who may close the day (not viewers) | from the workspace's closing time, for two hours, while the day is open and has payments or something to look at | in the app |
+| When a day is closed with a cash difference | owners | someone who is not an owner closed a day and the cash counted did not match | in the app |
 | Before your plan ends | owners | 7 days and 1 day before a plan that does not renew by itself ends (a bank transfer, or a store subscription they cancelled) | in the app and by e-mail |
 | When your plan renews | owners | Google Play renewed it, or the team confirmed a bank transfer | in the app and by e-mail |
 | When a payment fails | owners | Google Play could not take the payment (grace, on hold), or a transfer was not confirmed | in the app and by e-mail |
@@ -18,8 +20,8 @@ kind and channel by channel, among what the admin allows and what is set up.
 | Support replies | the person who wrote | the team answered | in the app and by e-mail |
 
 The morning summary and the instalment alerts also need their platform switches (**Morning summary**, **Instalment
-alerts and remind-all**) in `/admin/features`. Billing and support notices need no switch. Each notice goes once: its
-log line has a unique key, so a rerun or a retried store message never repeats it.
+alerts and remind-all**) in `/admin/features`; the two end-of-day notices need **End-of-day close**. Billing and support notices need no switch.
+Each notice goes once: its log line has a unique key, so a rerun or a retried store message never repeats it.
 
 ## Who decides what
 

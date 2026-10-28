@@ -10,10 +10,12 @@ use App\Entitlements\FeatureUnavailable;
 use App\Models\DayClose;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Notifications\Alerts\DayCloseDifference;
 use App\Support\Audit;
 use App\Support\Money;
 use App\Support\WorkspaceDay;
 use App\Tenancy\CurrentTenant;
+use App\Tenancy\TenantRole;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -29,6 +31,9 @@ use InvalidArgumentException;
  *
  * A day is closed once: a second close, from a double tap or a second phone, is refused. After an owner or a manager
  * reopens it (ReopenDay), closing it again writes the next version.
+ *
+ * When someone who is not an owner closes with a difference, the owners are told (DayCloseDifference), once the close is
+ * committed.
  */
 final class CloseDay
 {
@@ -44,7 +49,7 @@ final class CloseDay
     /** A figure the decimal(18,4) columns can hold, either side of zero. */
     private const FITS = '/^-?\d{1,14}(\.\d+)?$/';
 
-    public function __construct(private readonly CurrentTenant $current) {}
+    public function __construct(private readonly CurrentTenant $current, private readonly DayCloseDifference $difference) {}
 
     /**
      * In this order: may the workspace and [$by] close a day at all; is what they typed right; then the write, which
@@ -189,6 +194,12 @@ final class CloseDay
         Audit::record('day_close.closed', $close, [
             'day' => $day->date, 'version' => $version, 'expected_cash' => $expected, 'counted_cash' => $counted, 'difference' => $difference,
         ], $tenant->id, $by->id);
+
+        // The owners hear of a difference found by someone else, once this close is safely written: a close that is rolled
+        // back tells no one. Telling never throws, so it can never undo or fail the close.
+        if (! Money::isZero($difference) && $by->roleIn($tenant->id) !== TenantRole::Owner) {
+            DB::afterCommit(fn () => $this->difference->tell($tenant, $close, $by));
+        }
 
         return $close;
     }

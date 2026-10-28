@@ -50,3 +50,9 @@ It also runs `qistas:send-glance-refresh`, which sends one silent push a day (no
 person's phones at their digest time, only for workspaces that have the home-screen widget switched on. It tells the app
 to re-read `/api/v1/glance` so the widget is fresh before the owner opens Qistas. People with the viewer role get no
 morning refresh; their widget updates when the app is opened or resumed.
+
+It also runs `qistas:send-day-close-reminders`: from each workspace's closing time (20:00 by default, a workspace tool)
+and for two hours, on the business's own clock, everyone who may close the day (not viewers) gets one reminder an
+evening, only while the day is still open and has payments or something to look at, and only for workspaces that have
+the end-of-day close switched on. When someone who is not an owner closes a day with a cash difference, each owner is
+told once, right after the close is saved (not by the scheduler); both notices open `/day-close`.
