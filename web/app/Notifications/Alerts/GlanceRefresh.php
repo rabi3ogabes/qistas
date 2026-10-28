@@ -24,7 +24,7 @@ final class GlanceRefresh
     /** What the app and the Android widget listen for. */
     public const TYPE = 'glance.refresh';
 
-    /** Longer than any day, whatever the workspace's offset from UTC, so a guard never lapses before its day is over. */
+    /** Longer than a day, so a guard claimed at the start of its local day still stands when that day ends. */
     private const GUARD_HOURS = 36;
 
     public function __construct(
@@ -58,7 +58,7 @@ final class GlanceRefresh
 
                 // Claimed only once there is a phone to tell: one that signs in later this morning is still refreshed.
                 $own = $phones->get($person->id);
-                if ($own === null || ! Cache::add("glance:{$person->id}:{$local->toDateString()}", 1, $guardUntil)) {
+                if ($own === null || ! Cache::add("glance:{$tenant->id}:{$person->id}:{$local->toDateString()}", 1, $guardUntil)) {
                     continue;
                 }
 

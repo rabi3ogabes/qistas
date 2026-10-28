@@ -120,7 +120,7 @@ describe('the morning refresh', function () {
         $this->travelTo('2026-10-11 06:00:00');
         app(GlanceRefresh::class)->run($tenant, now());
 
-        $key = "glance:{$owner->id}:2026-10-11";
+        $key = "glance:{$tenant->id}:{$owner->id}:2026-10-11";
         expect(is_scalar(Cache::get($key)))->toBeTrue();
 
         $this->travelTo('2026-10-12 17:00:00');
@@ -138,8 +138,22 @@ describe('the morning refresh', function () {
         // 21:10 UTC on the 11th is ten past midnight on the 12th in Riyadh.
         $this->travelTo('2026-10-11 21:10:00');
         expect(app(GlanceRefresh::class)->run($tenant, now()))->toBe(1)
-            ->and(Cache::has("glance:{$owner->id}:2026-10-12"))->toBeTrue()
-            ->and(Cache::has("glance:{$owner->id}:2026-10-11"))->toBeFalse();
+            ->and(Cache::has("glance:{$tenant->id}:{$owner->id}:2026-10-12"))->toBeTrue()
+            ->and(Cache::has("glance:{$tenant->id}:{$owner->id}:2026-10-11"))->toBeFalse();
+    });
+
+    it('tells a person who works in two workspaces in each of them', function () {
+        [$owner, $first] = owner();
+        [, $second] = owner();
+        $second->users()->attach($owner->id, ['role' => 'collector']);
+        glancePhone($owner, $first, 'first-phone');
+        glancePhone($owner, $second, 'second-phone');
+
+        $this->travelTo('2026-10-11 06:00:00');
+        runGlanceRefresh();
+
+        expect($this->push->to('first-phone'))->toHaveCount(1)
+            ->and($this->push->to('second-phone'))->toHaveCount(1);
     });
 
     it('does nothing when the feature is off', function () {

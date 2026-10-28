@@ -45,3 +45,8 @@ Never paste either file into a chat or commit it to the repository.
 The scheduler (the GitHub workflow that calls `/internal/cron` every five minutes) runs `qistas:send-digests` and
 `qistas:instalment-alerts`. Each alert is logged under a unique key (`notification_log.dedupe_key`), so running them
 again never sends the same thing twice. A phone Firebase reports gone is forgotten.
+
+It also runs `qistas:send-glance-refresh`, which sends one silent push a day (no notification, no inbox entry) to each
+person's phones at their digest time, only for workspaces that have the home-screen widget switched on. It tells the app
+to re-read `/api/v1/glance` so the widget is fresh before the owner opens Qistas. People with the viewer role get no
+morning refresh; their widget updates when the app is opened or resumed.
