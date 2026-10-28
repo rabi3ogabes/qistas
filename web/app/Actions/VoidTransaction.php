@@ -6,6 +6,7 @@ use App\Domain\DayClose\DayCloseGuard;
 use App\Domain\Investors\InvestorLedger;
 use App\Domain\LateFees\LateFees;
 use App\Domain\Ledger\ContractSettlement;
+use App\Domain\PayPattern\RecomputePayPattern;
 use App\Models\Contract;
 use App\Models\ContractAdjustment;
 use App\Models\Installment;
@@ -107,6 +108,12 @@ final class VoidTransaction
             ContractSettlement::sync($contract, $at);
             // The investor gives back exactly what the payment had credited.
             $this->investors->reverse($reversal);
+
+            // A voided payment no longer tells when the customer paid: their payday pattern is worked out again once the
+            // reversal is committed. A failure there never reaches the void. A charge has no part in it.
+            if ($original->type === 'payment') {
+                RecomputePayPattern::afterCommit($transaction->tenant, $original->customer_id);
+            }
 
             return $reversal;
         }));

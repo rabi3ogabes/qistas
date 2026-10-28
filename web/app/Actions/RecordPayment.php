@@ -7,6 +7,7 @@ use App\Domain\Investors\InvestorLedger;
 use App\Domain\LateFees\LateFees;
 use App\Domain\Ledger\ContractSettlement;
 use App\Domain\Ledger\PaymentAllocator;
+use App\Domain\PayPattern\RecomputePayPattern;
 use App\Domain\Settlement\EarlySettlementQuote;
 use App\Domain\Settlement\QuoteChanged;
 use App\Models\Contract;
@@ -85,7 +86,12 @@ final class RecordPayment
                         DayCloseGuard::assertMayChange($contract->tenant, $paidAt, $by);
                     }
 
-                    return $this->record($contract, $amount, $method, $idempotencyKey, $by, $note, $paidAt, $tag, $applyTo, $batchId);
+                    $transaction = $this->record($contract, $amount, $method, $idempotencyKey, $by, $note, $paidAt, $tag, $applyTo, $batchId);
+                    // Once it is safely written (a replay of an earlier line returned above and wrote nothing), the
+                    // customer's payday pattern is worked out again; a failure there never reaches this payment.
+                    RecomputePayPattern::afterCommit($contract->tenant, $transaction->customer_id);
+
+                    return $transaction;
                 });
             } catch (UniqueConstraintViolationException $e) {
                 // Two requests with the same key arrived together and the other one won: answer with its result.
@@ -188,6 +194,9 @@ final class RecordPayment
                 if ($transaction !== null) {
                     // Every cent financed goes back to the investor; the rebate comes out of profit only (Win Plan PP3).
                     $this->investors->creditPayment($transaction);
+                    // Tagged `early_discount`, so it says nothing about the payday and the pattern will not change; asked
+                    // all the same, with every other line that is written, once it is committed.
+                    RecomputePayPattern::afterCommit($locked->tenant, $transaction->customer_id);
                 }
                 Audit::record('contract.settled_early', $locked, ['payoff' => $quote->payoff, 'rebate' => $quote->rebate], $locked->tenant_id, $by?->id);
 

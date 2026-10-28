@@ -62,3 +62,7 @@ the end-of-day close switched on. The window ends at midnight, like the morning 
 others still get theirs. When someone who is not an owner closes a day with a cash difference, each owner is told once,
 right after the close is saved (not by the scheduler); an owner in their quiet hours finds it in the inbox with no push.
 Both notices open `/day-close`.
+
+It also runs `qistas:learn-paydays` once a night, which works out again the day of the month each customer really pays on
+(a payment or a void also updates it right away), only for workspaces that have payday learning switched on. A workspace
+that fails is logged and skipped, and the others are still worked out.
