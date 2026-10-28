@@ -34,6 +34,8 @@
     .auth-main { position: relative; display: grid; align-content: center; justify-items: center; padding: max(1.5rem, env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right)) max(1.5rem, env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left)); }
     .auth-card { width: min(26rem, 100%); display: grid; gap: 1.5rem; }
     .auth-card.is-wide { width: min(34rem, 100%); }
+    .auth-back { margin: 0; font-size: .9375rem; }
+    .auth-back a { display: inline-flex; align-items: center; gap: .25rem; }
     .auth-brand { display: inline-flex; width: fit-content; border-radius: 8px; }
     @media (min-width: 960px) { .auth-main .auth-brand { display: none; } }
     .auth-head h1 { margin: 0; font-size: 2rem; line-height: 1.1; }

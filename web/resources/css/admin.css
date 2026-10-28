@@ -1375,6 +1375,21 @@ fieldset:has(input[value="date"]:checked) .biz-until, .biz-until:has([aria-inval
     .stripe-price-state { grid-column: auto; justify-content: flex-end; text-align: end; }
 }
 
+/* Team security: the two-factor rule as two choices, then the team with who uses it. */
+.team-rule-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; }
+.team-rule-head .card-title { margin: 0; }
+.team-rule { grid-template-columns: minmax(0, 1fr); }
+.team-list { display: grid; margin: 0; padding: 0; list-style: none; }
+.team-list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; padding: .75rem 0; border-bottom: 1px solid var(--q-line); }
+.team-list li:first-child { padding-top: 0; }
+.team-list li:last-child { border-bottom: 0; padding-bottom: 0; }
+.team-who { display: grid; gap: .125rem; min-width: 0; }
+.team-who .cell-sub { overflow-wrap: anywhere; }
+.team-name { font-weight: 600; }
+.team-you { font-weight: 400; font-size: .8125rem; color: var(--q-ink-muted); }
+.team-tags { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.team-tags .badge { display: inline-flex; align-items: center; gap: .25rem; }
+
 /* A business paying by card: what Stripe holds, as facts under the plan. */
 .biz-card { grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr)); gap: .75rem 1.25rem; padding-top: 1rem; border-top: 1px solid var(--q-line); }
 .biz-card dd { font-weight: 600; }

@@ -46,7 +46,8 @@ describe('who may use the test tools', function () {
         expect(Tenant::where('is_test', true)->count())->toBe(0);
     });
 
-    it('sends an admin without a second factor to set it up first', function () {
+    it('sends an admin without a second factor to set it up first, while the team rule requires it', function () {
+        requireTeamTwoFactor();
         $admin = User::factory()->create(['platform_role' => 'admin']);
 
         $this->actingAs($admin)->get('/admin')->assertRedirect(route('security'));

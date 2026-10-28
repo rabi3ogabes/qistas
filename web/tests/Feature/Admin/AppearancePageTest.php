@@ -52,6 +52,7 @@ describe('who may use it', function () {
         [$owner] = owner();
         $this->actingAs($owner)->get('/admin/appearance')->assertNotFound();
 
+        requireTeamTwoFactor();
         $unsafe = User::factory()->create(['platform_role' => 'super_admin']);
         $this->actingAs($unsafe)->get('/admin/appearance')->assertRedirect(route('security'));
     });

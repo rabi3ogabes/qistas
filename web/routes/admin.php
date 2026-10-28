@@ -13,6 +13,7 @@ use App\Http\Controllers\Admin\MailController;
 use App\Http\Controllers\Admin\NotificationsController;
 use App\Http\Controllers\Admin\ReleaseNoteController;
 use App\Http\Controllers\Admin\SupportController;
+use App\Http\Controllers\Admin\TeamSecurityController;
 use App\Http\Controllers\Admin\TestWorkspaceController;
 use Illuminate\Support\Facades\Route;
 
@@ -55,6 +56,9 @@ Route::put('ai', [AiController::class, 'update'])->middleware('throttle:30,1')->
 Route::get('mail', [MailController::class, 'index'])->name('mail.index');
 Route::put('mail', [MailController::class, 'update'])->middleware('throttle:30,1')->name('mail.update');
 Route::post('mail/test', [MailController::class, 'test'])->middleware('throttle:10,1')->name('mail.test');
+// Team security: whether the admin team must use two-factor (optional until a super admin requires it), and who does.
+Route::get('security', [TeamSecurityController::class, 'index'])->name('security.index');
+Route::put('security', [TeamSecurityController::class, 'update'])->middleware('throttle:30,1')->name('security.update');
 // Notifications for everyone (Sprint 3 Task 1b): what may go where, and the Firebase key for pushes.
 Route::get('notifications', [NotificationsController::class, 'index'])->name('notifications.index');
 Route::put('notifications', [NotificationsController::class, 'update'])->middleware('throttle:30,1')->name('notifications.update');

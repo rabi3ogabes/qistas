@@ -1,5 +1,12 @@
 <x-layouts.auth :title="__('Security')" :heading="__('Two-factor authentication')" :lead="__('A second step at sign-in keeps your business data safe even if your password leaks.')">
-    @if ($user->isPlatformAdmin())
+    {{-- The way back: the console for the admin team (it opens without two-factor unless the team rule requires it). --}}
+    <p class="auth-back">
+        <a class="link" href="{{ $user->isPlatformAdmin() ? route('admin.home') : route('app.dashboard') }}">
+            <x-icon name="chevronLeft" :size="16" class="flip" /> {{ $user->isPlatformAdmin() ? __('Back to the admin area') : __('Back to your dashboard') }}
+        </a>
+    </p>
+
+    @if ($mustUseTwoFactor)
         <x-alert type="warning" :message="__('Administrators must use two-factor authentication.')" />
     @endif
 

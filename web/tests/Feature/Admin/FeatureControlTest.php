@@ -245,7 +245,8 @@ describe('presets', function () {
 });
 
 describe('the admin endpoints', function () {
-    it('keep out guests, ordinary users and staff who have not set up a second factor', function () {
+    it('keep out guests, ordinary users and, while the team rule is on, staff who have not set up a second factor', function () {
+        requireTeamTwoFactor();
         $this->get('/admin/features')->assertRedirect('/login');
 
         [$owner] = owner();

@@ -1,7 +1,26 @@
-# Trusted devices and a new setup key
+# Two-factor for the admin team, trusted devices and a new setup key
 
 Asked by the owner on 27 October 2026: signing in to the admin area asked for an authenticator code every time, and
-the owner wanted it easier. Two-factor authentication stays required for administrators; it now asks far less often.
+the owner wanted it easier. First it asked far less often (trusted devices, below); then, on 28 October, the owner
+made it optional for the team.
+
+## Optional for the team, unless a super admin requires it
+
+Two-factor is each person's choice, administrators included. Anyone turns it on or off on their own Security page
+(`/account/security`, which asks for the password again first), and the admin area opens either way. Turning it off is
+written to the audit log (`two_factor.disabled`). The Security page leads back to the admin area for the team and to the
+dashboard for everyone else.
+
+**Admin → Team security** (`/admin/security`) shows the rule and the team: who is a super admin or an admin, who is
+suspended, and who uses two-factor ("1 of 3 people on the team use two-factor"). A super admin can switch the rule to
+**Required**; from then on the admin area opens only with two-factor, and anyone without it is sent to set it up the
+next time they open it (the Security page then says administrators must use it). A super admin cannot require it while
+their own two-factor is off, so nobody locks the team out by accident. Every change of the rule is audited
+(`admin.team_two_factor_changed`). Other staff can see the page but not change it.
+
+Code: `App\Auth\TeamTwoFactor` (platform setting `security.require_team_two_factor`, off unless set),
+`App\Http\Middleware\RequireTwoFactorForAdmins`, `App\Http\Controllers\Admin\TeamSecurityController`, gate
+`manage-team-security`. Tests: `tests/Feature/Admin/TeamSecurityTest.php` (8 of 8 mutations caught).
 
 ## Don't ask again on this device
 

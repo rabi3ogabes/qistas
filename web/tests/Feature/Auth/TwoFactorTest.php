@@ -72,13 +72,20 @@ describe('the admin gate', function () {
         $this->actingAs(User::factory()->create(['platform_role' => $role]))->get('/_test/admin')->assertNotFound();
     })->with([['support'], [null]]);
 
-    it('sends an admin without a confirmed second factor to set one up', function (string $role) {
+    it('lets an admin without a second factor in while the team rule is off (the default)', function (string $role) {
+        $this->actingAs(User::factory()->create(['platform_role' => $role]))->get('/_test/admin')->assertOk()->assertSee('console');
+    })->with(['admin', 'super_admin']);
+
+    it('sends an admin without a confirmed second factor to set one up while the team rule requires it', function (string $role) {
+        requireTeamTwoFactor();
+
         $this->actingAs(User::factory()->create(['platform_role' => $role]))
             ->get('/_test/admin')
             ->assertRedirect(route('security'));
     })->with(['admin', 'super_admin']);
 
     it('does not count an unconfirmed second factor', function () {
+        requireTeamTwoFactor();
         $admin = User::factory()->create(['platform_role' => 'admin', 'two_factor_secret' => encrypt('JBSWY3DPEHPK3PXP')]);
 
         $this->actingAs($admin)->get('/_test/admin')->assertRedirect(route('security'));
