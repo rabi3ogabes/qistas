@@ -39,9 +39,9 @@ it('spans 23 hours when the clocks go forward and 25 when they go back', functio
     $back = WorkspaceDay::on($newYork, '2026-11-01');
     $plain = WorkspaceDay::on($newYork, '2026-06-15');
 
-    expect((int) $forward->start->diffInHours($forward->end))->toBe(23)
-        ->and((int) $back->start->diffInHours($back->end))->toBe(25)
-        ->and((int) $plain->start->diffInHours($plain->end))->toBe(24);
+    expect($forward->start->diffInSeconds($forward->end))->toEqual(23 * 3600)
+        ->and($back->start->diffInSeconds($back->end))->toEqual(25 * 3600)
+        ->and($plain->start->diffInSeconds($plain->end))->toEqual(24 * 3600);
 });
 
 it('treats the end as exclusive', function () {
@@ -73,6 +73,15 @@ it('turns a wall-clock time into an instant', function () {
         ->and($day->contains($eight))->toBeTrue();
 });
 
+it('keeps a wall-clock time at the same local hour across a clock change', function () {
+    $newYork = dayWorkspace('US', 'America/New_York');
+
+    // 20:00 local is 01:00 UTC in winter (UTC-5) and 00:00 UTC in summer (UTC-4), so it is not "start plus 20 hours".
+    expect(WorkspaceDay::on($newYork, '2026-03-07')->atTime('20:00')->format('Y-m-d H:i'))->toBe('2026-03-08 01:00')
+        ->and(WorkspaceDay::on($newYork, '2026-03-08')->atTime('20:00')->format('Y-m-d H:i'))->toBe('2026-03-09 00:00')
+        ->and(WorkspaceDay::on($newYork, '2026-11-01')->atTime('20:00')->format('Y-m-d H:i'))->toBe('2026-11-02 01:00');
+});
+
 it('follows the country’s zone when the workspace has none stored', function () {
     $tenant = dayWorkspace('SA', null);
 
@@ -89,7 +98,7 @@ it('keeps the days joined where a zone skips its own midnight', function () {
 
     $day = WorkspaceDay::on($cairo, '2026-04-24');
 
-    expect((int) $day->start->diffInHours($day->end))->toBe(23)
+    expect($day->start->diffInSeconds($day->end))->toEqual(23 * 3600)
         ->and($day->previous()->end->equalTo($day->start))->toBeTrue()
         ->and(WorkspaceDay::on($cairo, '2026-04-25')->previous()->date)->toBe('2026-04-24');
 });

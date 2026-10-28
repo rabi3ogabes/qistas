@@ -48,7 +48,8 @@ final readonly class WorkspaceDay
 
     /**
      * [$hhmm] ("20:00") on this day's wall clock, as a UTC instant. A time the clocks skip over that day (02:30 when they
-     * go forward) lands an hour later, as PHP resolves it.
+     * go forward) lands an hour later, and a time that happens twice (01:30 when they go back) means the first one, as PHP
+     * resolves it.
      */
     public function atTime(string $hhmm): CarbonImmutable
     {
