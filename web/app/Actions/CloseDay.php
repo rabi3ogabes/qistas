@@ -39,7 +39,7 @@ final class CloseDay
      * What every amount in the app looks like (MoneyRules, AmendmentPlanner): at most fourteen digits before the point,
      * which is all a decimal(18,4) column holds, and at most two after it.
      */
-    private const AMOUNT = '/^\d{1,14}(\.\d{1,2})?$/';
+    private const AMOUNT = '/^\d{1,14}(\.\d{1,2})?\z/';
 
     /** A figure the decimal(18,4) columns can hold, either side of zero. */
     private const FITS = '/^-?\d{1,14}(\.\d+)?$/';

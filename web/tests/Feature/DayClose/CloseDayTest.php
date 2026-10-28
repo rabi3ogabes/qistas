@@ -134,6 +134,8 @@ it('rejects a negative or three-decimal amount', function () {
         ' 12' => __('Enter a valid amount.'),
         '12.' => __('Enter a valid amount.'),
         '.5' => __('Enter a valid amount.'),
+        // `$` would accept a trailing newline and bcadd would then throw: the pattern ends with \z.
+        "12\n" => __('Enter a valid amount.'),
     ] as $amount => $message) {
         expect(validationErrors(fn () => closeDay($this->shop, '2026-10-21', $this->sara, (string) $amount)))
             ->toBe(['counted_cash' => [$message]], "counted cash [{$amount}]");
