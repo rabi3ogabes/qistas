@@ -153,7 +153,7 @@ class DayCloseWatch {
   final String kind;
   final String id;
 
-  /// The customer's name.
+  /// What to say about it: the customer's name, or "N contracts opened" when more than ten were opened that day.
   final String label;
 
   /// What it concerned, always positive; null for an open account, which has no price.

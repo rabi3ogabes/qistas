@@ -136,7 +136,8 @@ of the request; show them as sent. On the website the same words come from the s
   months does not either until 3 have passed.
 - **A freshly imported customer starts with no history.** What the import brought in as "Paid before Qistas" is one lump, not
   the payments it stands for, so it is left out; the line appears once three months of real payments are recorded (or typed
-  in with their dates on the payment sheet).
+  in with their dates on the payment sheet). Imports made before 1.28.0 carry no tag (the ledger is never rewritten), so for
+  those customers the lump still counts as one payment month for up to 18 months.
 - **It runs inside the payment's request.** The payment is already saved, nothing is locked, and a failure is swallowed; with the
   feature off only the switch is checked. A large import or the demo seeding recomputes once per payment line.
 - **The nightly run is best-effort.** It is a daily schedule entry (midnight, UTC), so it runs only if a scheduler call lands in

@@ -2765,7 +2765,7 @@ paths:
                 rebate_value: {type: string}
                 payoff: {$ref: "#/components/schemas/Money"}
                 method: {type: string, enum: [cash, bank_transfer, card, cheque, other]}
-                paid_at: {type: string}
+                paid_at: {type: string, description: "A date or a moment, never in the future. A date alone means that day on the workspace's calendar; a moment with an offset or Z is that instant, and one without an offset is read as UTC."}
                 note: {type: string, maxLength: 500}
       responses:
         "201":
@@ -2857,7 +2857,7 @@ paths:
               properties:
                 amount: {$ref: "#/components/schemas/Money"}
                 method: {type: string, enum: [cash, bank_transfer, card, cheque, other]}
-                paid_at: {type: string}
+                paid_at: {type: string, description: "A date or a moment, never in the future. A date alone means that day on the workspace's calendar; a moment with an offset or Z is that instant, and one without an offset is read as UTC."}
                 note: {type: string, maxLength: 1000}
                 split:
                   type: array
