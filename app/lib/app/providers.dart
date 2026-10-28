@@ -14,6 +14,7 @@ import '../core/push/push_service.dart';
 import '../core/storage/token_store.dart';
 import '../data/models.dart';
 import '../data/qistas_api.dart';
+import '../features/glance/glance_service.dart';
 
 /// Overridden in main() (and in tests) with the opened preferences.
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) => throw UnimplementedError('sharedPreferencesProvider must be overridden'));
@@ -261,6 +262,8 @@ class AuthController extends AsyncNotifier<AuthState> {
   Future<void> _forget() async {
     await ref.read(tokenStoreProvider).clear();
     await _prefs.remove(accountKey);
+    // The home-screen widget shows this business's figures: it must not outlive the sign-in.
+    await ref.read(glanceServiceProvider).clear();
   }
 
   /// What this phone is called in the list of signed-in devices.

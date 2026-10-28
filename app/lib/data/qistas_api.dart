@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import '../core/api/api_client.dart';
 import '../core/money.dart';
 import '../domain/schedule_generator.dart';
+import '../features/glance/glance_data.dart';
 import 'backups.dart';
 import 'billing.dart';
 import 'documents.dart';
@@ -118,6 +119,10 @@ class QistasApi {
   }
 
   Future<Dashboard> dashboard() async => Dashboard.fromJson(_data(await _client.get('/dashboard')));
+
+  /// Today's money in a glance, for the home-screen widget. [names] asks for each customer's name too; leave it off
+  /// unless the owner allowed names on the widget.
+  Future<GlanceData> glance({required bool names}) async => GlanceData.fromJson(_data(await _client.get('/glance', query: {'names': names ? 1 : 0})));
 
   /// How to reach the Qistas team (Win Plan PP17).
   Future<SupportInfo> supportInfo() async => SupportInfo.fromJson(_data(await _client.get('/support')));

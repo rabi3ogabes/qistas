@@ -40,6 +40,7 @@ import '../features/settings/devices_screen.dart';
 import '../features/settings/profile_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/settings/tools_screen.dart';
+import '../features/settings/widget_settings_screen.dart';
 import '../features/team/team_screen.dart';
 import 'providers.dart';
 import 'shell.dart';
@@ -101,6 +102,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/settings/backups', builder: (_, _) => const BackupsScreen()),
       GoRoute(path: '/settings/activity', builder: (_, _) => const ActivityLogScreen()),
       GoRoute(path: '/settings/tags', builder: (_, _) => const TagsScreen()),
+      GoRoute(path: '/settings/widget', builder: (_, _) => const WidgetSettingsScreen()),
       // Alerts and reminders (Win Plan PP9).
       GoRoute(path: '/inbox', builder: (_, _) => const InboxScreen()),
       GoRoute(path: '/settings/alerts', builder: (_, _) => const AlertSettingsScreen()),

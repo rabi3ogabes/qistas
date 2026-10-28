@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:qistas/features/glance/glance_service.dart';
+import 'package:qistas/features/glance/glance_store.dart';
 
 import '../support/fake_api.dart';
 import '../support/fake_device_auth.dart';
+import '../support/fake_glance_store.dart';
 import '../support/harness.dart';
 import '../support/samples.dart';
 import '../support/visual.dart';
@@ -283,4 +286,16 @@ void main() {
     await tapText(tester, 'App lock');
     await snapshot(tester, 'app-lock-settings');
   });
+
+  // The home-screen widget's settings: its two switches, and with the app lock on the reasons they cannot be changed.
+  for (final (name, language, mode, lock) in [('widget-settings', 'en', 'light', false), ('widget-settings-ar-dark-locked', 'ar', 'dark', true)]) {
+    picture(name, (tester) async {
+      await pumpApp(tester, workspaceServer(account: accountWithWidget()), realFonts: true, language: language, deviceAuth: FakeDeviceAuth(),
+          overrides: [glanceSupportedProvider.overrideWithValue(true), glanceStoreProvider.overrideWithValue(FakeGlanceStore())],
+          preferences: {'theme_mode': mode, if (lock) 'app_lock.enabled': true, 'glance.show_names': true});
+      await openSettings(tester);
+      await tapText(tester, language == 'en' ? 'Home-screen widget' : 'أداة الشاشة الرئيسية');
+      await snapshot(tester, name);
+    });
+  }
 }

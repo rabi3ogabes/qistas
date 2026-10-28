@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,11 +16,19 @@ import '../../core/ui/errors.dart';
 import '../../data/models.dart';
 import '../appearance/welcome_banner.dart';
 import '../billing/upgrade_sheet.dart';
+import '../glance/glance_service.dart';
 import '../notifications/alerts.dart';
 import '../reminders/reminders.dart';
 import '../settings/delete_account_screen.dart';
 
-final dashboardProvider = FutureProvider.autoDispose<Dashboard>((ref) => ref.watch(apiProvider).dashboard());
+final dashboardProvider = FutureProvider.autoDispose<Dashboard>((ref) async {
+  final glance = ref.read(glanceServiceProvider);
+  final board = await ref.watch(apiProvider).dashboard();
+  // The home-screen widget shows the same day: whenever the dashboard has fresh figures, so does the widget.
+  unawaited(glance.refresh());
+
+  return board;
+});
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});

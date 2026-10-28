@@ -84,6 +84,17 @@ Map<String, dynamic> accountWithInvestors({String role = 'owner', String plan = 
   return account;
 }
 
+/// An account whose platform and plan have the home-screen widget on (daily-habit wave A, H3).
+Map<String, dynamic> accountWithWidget({String role = 'owner', String plan = 'free'}) {
+  final account = accountJson(role: role, plan: plan);
+  account['entitlements'] = {
+    ...Map<String, dynamic>.from(account['entitlements'] as Map),
+    'home_widget': {'type': 'toggle', 'enabled': true, 'status': 'on', 'limit': null, 'used': null, 'remaining': null, 'unlimited': false},
+  };
+
+  return account;
+}
+
 /// What `GET /demo` answers when the site offers "Try the demo".
 Map<String, dynamic> demoOfferJson() => {
       'enabled': true,

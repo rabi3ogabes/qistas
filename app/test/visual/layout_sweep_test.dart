@@ -30,6 +30,7 @@ void main() {
     '/settings/alerts',
     '/settings/business',
     '/settings/tags',
+    '/settings/widget',
     '/tools',
     '/reports',
     '/products',

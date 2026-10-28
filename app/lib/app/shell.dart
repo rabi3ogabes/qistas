@@ -11,7 +11,9 @@ import '../core/l10n/translations.dart';
 import '../data/appearance.dart';
 import '../data/models.dart';
 import '../features/dashboard/dashboard_screen.dart';
+import '../features/glance/glance_service.dart';
 import '../features/help/whats_new.dart';
+import '../features/security/app_lock.dart';
 import 'chrome.dart';
 import 'language_button.dart';
 import 'providers.dart';
@@ -64,6 +66,7 @@ class _AppShellState extends ConsumerState<AppShell> with WidgetsBindingObserver
         ref.invalidate(dashboardProvider);
         // An event may have started or ended, or the admin published a new look, while the app was away.
         unawaited(ref.read(lookProvider.notifier).refresh());
+        unawaited(ref.read(glanceServiceProvider).refresh());
       }
     }
   }
@@ -78,6 +81,11 @@ class _AppShellState extends ConsumerState<AppShell> with WidgetsBindingObserver
     final auth = ref.watch(authProvider).valueOrNull;
     final account = auth?.account;
     final shell = widget.shell;
+
+    // What the home-screen widget may show, and in which words, follows the app lock and the language: when either
+    // changes, the widget is drawn again at once, not at the next refresh.
+    ref.listen(appLockProvider.select((lock) => lock.active), (_, _) => unawaited(ref.read(glanceServiceProvider).restyle()));
+    ref.listen(localeProvider, (_, _) => unawaited(ref.read(glanceServiceProvider).restyle()));
 
     final destinations = [
       NavDestination(Icons.home_outlined, Icons.home_rounded, context.t('Dashboard')),
