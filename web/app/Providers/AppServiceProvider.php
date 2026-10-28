@@ -21,6 +21,7 @@ use App\Listeners\AuditAuthEvents;
 use App\Mail\MailSettings;
 use App\Models\Contract;
 use App\Models\Customer;
+use App\Models\DayClose;
 use App\Models\Investor;
 use App\Models\Tenant;
 use App\Models\TenantInvitation;
@@ -233,6 +234,18 @@ class AppServiceProvider extends ServiceProvider
         LateFeePolicy::register(app(SettingsRegistry::class));
         // How dates are shown: Gregorian alone, or with the Hijri date beside it or first (Win Plan CT26).
         Dates::register(app(SettingsRegistry::class));
+
+        // When the evening reminder to close the day goes out, on the workspace's own clock (daily-habit wave A, H4).
+        app(SettingsRegistry::class)->register(new SettingDefinition(
+            key: DayClose::CLOSING_TIME_SETTING,
+            feature: Feature::DayClose,
+            type: 'select',
+            default: DayClose::DEFAULT_CLOSING_TIME,
+            rules: [],
+            label: fn () => __('Closing time'),
+            help: fn () => __('The time of day, by the business’s clock, when Qistas reminds the team to close the day.'),
+            options: array_combine(DayClose::CLOSING_TIMES, DayClose::CLOSING_TIMES),
+        ));
 
         // Reports reveal every investor's money (Win Plan K8): everyone in the workspace but collectors.
         // Bringing a file of customers in (Win Plan K9): owners and managers.

@@ -36,6 +36,7 @@ enum Feature: string
     case Import = 'import';
     case AiReading = 'ai_reading';
     case HomeWidget = 'home_widget';
+    case DayClose = 'day_close';
 
     /** How many customers the free plan keeps (tests and copy read this rather than repeating the number). */
     public const FREE_CUSTOMERS = 20;
@@ -47,7 +48,7 @@ enum Feature: string
             self::PdfStatements, self::AiReading => FeatureType::Quota,
             self::ExportCsv, self::AdvancedReports, self::CustomBranding, self::FlexibleSchedules, self::OpenContracts, self::ContractItems, self::CustomerTags,
             self::InstalmentAlerts, self::DailyDigest, self::EarlySettlement, self::Reschedule, self::PaymentTargeting,
-            self::StoreBilling, self::ManualBilling, self::CardBilling, self::LateFees, self::HijriDates, self::Guarantors, self::PromissoryNote, self::HomeWidget => FeatureType::Toggle,
+            self::StoreBilling, self::ManualBilling, self::CardBilling, self::LateFees, self::HijriDates, self::Guarantors, self::PromissoryNote, self::HomeWidget, self::DayClose => FeatureType::Toggle,
         };
     }
 
@@ -82,6 +83,7 @@ enum Feature: string
             self::Import => __('Import from Excel'),
             self::AiReading => __('Reading notebook photos and PDFs'),
             self::HomeWidget => __('Home-screen widget'),
+            self::DayClose => __('End-of-day close'),
         };
     }
 
@@ -91,7 +93,7 @@ enum Feature: string
         return match ($this) {
             self::Customers, self::ActiveContracts, self::PdfStatements, self::ExportCsv,
             self::AdvancedReports, self::CustomBranding, self::ApiTokens => FeatureGroup::Core,
-            self::Members, self::Investors, self::Import, self::AiReading => FeatureGroup::Team,
+            self::Members, self::Investors, self::Import, self::AiReading, self::DayClose => FeatureGroup::Team,
             self::FlexibleSchedules, self::OpenContracts, self::ContractItems, self::EarlySettlement, self::Reschedule, self::PaymentTargeting => FeatureGroup::ContractTerms,
             self::CustomerTags, self::InstalmentAlerts, self::DailyDigest, self::HomeWidget => FeatureGroup::Collecting,
             self::StoreBilling, self::ManualBilling, self::CardBilling => FeatureGroup::Membership,
@@ -132,6 +134,7 @@ enum Feature: string
             self::PromissoryNote => __('A promissory note for what the customer owes, the amount in figures and in words, ready to sign and checked through its QR code. Its wording is a draft until a lawyer approves it.'),
             self::LateFees => __('A fee for each period an instalment is late, after the grace days: an amount or a percent, once, daily, weekly or monthly, with caps, and optionally for charity. Each fee is its own line, paid or waived with a reason.'),
             self::HomeWidget => __('Today’s money on the phone’s home screen: how many pay today, how many are late and how much, with the next few instalments; counts and amounts only, unless the owner allows customers’ names.'),
+            self::DayClose => __('A short evening ritual: the cash counted is compared with what was recorded for the day, and a signed-off summary is kept.'),
         };
     }
 
@@ -166,6 +169,7 @@ enum Feature: string
             self::PromissoryNote => __('The promissory note is no longer offered. Notes already printed stay valid on their verification page.'),
             self::LateFees => __('No new fees are charged. Fees already charged stay on their contracts and can still be paid or waived; each contract keeps the policy it was made with.'),
             self::HomeWidget => __('An installed widget shows “Open Qistas” and stops reading. Nothing is deleted.'),
+            self::DayClose => __('No new closes and no reminders. Days already closed, and their summaries, stay readable.'),
         };
     }
 
@@ -180,7 +184,7 @@ enum Feature: string
             self::Customers, self::ActiveContracts, self::PdfStatements, self::ExportCsv,
             self::AdvancedReports, self::CustomBranding, self::ApiTokens, self::Members, self::FlexibleSchedules, self::Investors, self::OpenContracts, self::ContractItems, self::CustomerTags,
             self::InstalmentAlerts, self::DailyDigest, self::EarlySettlement, self::Reschedule, self::PaymentTargeting,
-            self::StoreBilling, self::ManualBilling, self::CardBilling, self::LateFees, self::HijriDates, self::Guarantors, self::PromissoryNote, self::Import, self::HomeWidget => [],
+            self::StoreBilling, self::ManualBilling, self::CardBilling, self::LateFees, self::HijriDates, self::Guarantors, self::PromissoryNote, self::Import, self::HomeWidget, self::DayClose => [],
             self::AiReading => [self::Import],
         };
     }
@@ -289,7 +293,7 @@ enum Feature: string
                 self::AiReading => ['enabled' => false, 'limit' => null],
                 self::ExportCsv, self::AdvancedReports, self::CustomBranding => ['enabled' => false, 'limit' => null],
                 self::FlexibleSchedules, self::OpenContracts, self::ContractItems, self::CustomerTags,
-                self::InstalmentAlerts, self::DailyDigest, self::EarlySettlement, self::Reschedule, self::PaymentTargeting, self::LateFees, self::HijriDates, self::Guarantors, self::PromissoryNote, self::HomeWidget => ['enabled' => true, 'limit' => null],
+                self::InstalmentAlerts, self::DailyDigest, self::EarlySettlement, self::Reschedule, self::PaymentTargeting, self::LateFees, self::HijriDates, self::Guarantors, self::PromissoryNote, self::HomeWidget, self::DayClose => ['enabled' => true, 'limit' => null],
                 // The platform's own switches are not part of any plan: only the switch decides.
                 self::StoreBilling, self::ManualBilling, self::CardBilling => ['enabled' => true, 'limit' => null],
             },
