@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Workspace;
 
 use App\Actions\CreateCustomer;
 use App\Actions\DeleteCustomer;
+use App\Domain\PayPattern\PayPatternWords;
 use App\Entitlements\Entitlement;
 use App\Entitlements\Entitlements;
 use App\Entitlements\Feature;
@@ -71,8 +72,13 @@ final class CustomerController
 
         $contracts = Contract::query()->where('customer_id', $customer->id)->orderByDesc('number')->get();
 
+        // The day they usually pay on (daily-habit wave A, H6), while payday learning is on. A pattern worked out earlier
+        // stays in the database when it is off, and is not read or shown.
+        $pattern = Entitlements::for($this->current->get())->check(Feature::PaydayLearning)->enabled() ? $customer->payPattern : null;
+
         return view('app.customers.show', [
             'customer' => $customer->load('tags'),
+            'payPattern' => $pattern === null ? null : ['label' => PayPatternWords::label($pattern->day), 'basis' => PayPatternWords::basis($pattern->within)],
             'contracts' => $contracts,
             'owed' => $balances->forContracts($contracts->pluck('id')->all()),
             'currency' => $this->current->get()?->currency,

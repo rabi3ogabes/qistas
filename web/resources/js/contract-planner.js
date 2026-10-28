@@ -3,6 +3,8 @@
 // contract and never from a second copy of the maths here. Money is only *formatted* here; every amount stays
 // an exact decimal string until display. The form works without this file: the preview is a convenience.
 
+import { nextOccurrence } from './pay-day';
+
 const ARABIC_INDIC = '٠١٢٣٤٥٦٧٨٩';
 const EXTENDED_ARABIC_INDIC = '۰۱۲۳۴۵۶۷۸۹';
 
@@ -16,9 +18,16 @@ function ascii(value) {
         .trim();
 }
 
+// A sentence with its :name, :day or :date filled in. One pass over the template, so a customer called ":day" stays
+// ":day", and a name with a $ in it is not read as a replacement pattern.
+function fill(template, values) {
+    return String(template ?? '').replace(/:(name|day|date)/g, (found, key) => values[key] ?? found);
+}
+
 export function contractPlanner() {
     return {
         // inputs (the form's own fields, bound with x-model)
+        customerId: '',
         type: 'scheduled',
         price: '',
         down: '',
@@ -32,6 +41,11 @@ export function contractPlanner() {
         discountValue: '',
         items: [], // what was sold: { key, product_id, name, quantity, serial, price, cost }
         products: [],
+
+        // Payday learning: the day each customer usually pays on, by customer id, and the workspace's today. Both stay empty
+        // while the feature is off.
+        payPatterns: {},
+        today: '',
 
         // output
         schedule: null,
@@ -60,6 +74,8 @@ export function contractPlanner() {
             const { customRows = [], items = [], ...initial } = config.initial;
             Object.assign(this, initial);
             this.products = config.products ?? [];
+            this.payPatterns = config.payPatterns ?? {};
+            this.today = config.today ?? '';
             this.customRows = customRows.map((row) => this.row(row.due_date, row.amount));
             this.items = items.map((item) => this.item(item));
             if (this.isCustom && this.customRows.length === 0) this.customRows = [this.row(this.firstDue, '')];
@@ -137,6 +153,17 @@ export function contractPlanner() {
             return `${this.labels[kind] ?? ''} ${index + 1}`.trim();
         },
 
+        // The button under the first due date: the field takes the suggested day, exactly as if it had been typed, so everything
+        // that listens to the field (the schedule preview, the Hijri twin beside it) follows. Only this ever changes the date.
+        usePaySuggestion() {
+            const date = this.paySuggestionDate;
+            if (date === '' || date === this.firstDue) return;
+            const field = this.$refs.firstDueField;
+            field.value = date;
+            field.dispatchEvent(new Event('input', { bubbles: true }));
+            field.dispatchEvent(new Event('change', { bubbles: true }));
+        },
+
         // Debounced: typing "1500" asks once, not four times.
         changed() {
             clearTimeout(this.timer);
@@ -211,8 +238,10 @@ export function contractPlanner() {
 
         shortDate(iso) {
             const [y, m, d] = iso.split('-').map(Number);
-            return new Intl.DateTimeFormat(this.locale, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
-                .format(new Date(Date.UTC(y, m - 1, d)));
+            // Date.UTC reads a year from 0 to 99 as 19xx, so the year is set apart (a year being typed is 0002 for a moment).
+            const day = new Date(Date.UTC(2000, m - 1, d));
+            day.setUTCFullYear(y);
+            return new Intl.DateTimeFormat(this.locale, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(day);
         },
 
         get isScheduled() { return this.type === 'scheduled'; },
@@ -262,6 +291,26 @@ export function contractPlanner() {
                 date: this.shortDate(row.due_date),
                 amount: this.money(row.amount),
             }));
+        },
+        // Payday learning. The chosen customer's usual payday, if there is one; the day it would put the first due date on, worked
+        // out from what the field holds now (see pay-day.js); and the words, with the date said as the page says its dates.
+        get payPattern() { return Object.hasOwn(this.payPatterns, this.customerId) ? this.payPatterns[this.customerId] : null; },
+        get paySuggestionDate() {
+            const pattern = this.payPattern;
+            return pattern === null ? '' : nextOccurrence(this.firstDue, this.today, pattern.day, pattern.end_of_month);
+        },
+        get hasPaySuggestion() { return this.paySuggestionDate !== ''; },
+        // Nothing to offer when the field already holds that day.
+        get canUsePaySuggestion() { return this.hasPaySuggestion && this.paySuggestionDate !== this.firstDue; },
+        get paySuggestionText() {
+            if (!this.hasPaySuggestion) return '';
+            const pattern = this.payPattern;
+            const says = fill(pattern.end_of_month ? this.messages.saysEnd : this.messages.says, { name: pattern.name, day: pattern.day });
+            // The date is kept in one piece, so it does not break across two lines of a narrow phone.
+            const date = this.shortDate(this.paySuggestionDate).replace(/\s/g, ' ');
+            const then = this.canUsePaySuggestion ? fill(this.messages.ask, { date }) : this.messages.onPayday;
+
+            return `${says} ${then}`;
         },
         get hasError() { return this.error !== ''; },
         get isLoading() { return this.loading; },
