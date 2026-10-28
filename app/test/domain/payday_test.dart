@@ -21,6 +21,9 @@ void main() {
 
   PayPattern endOfTheMonth() => pattern(day: 28, endOfMonth: true);
 
+  /// 'YYYY-MM-DD' of a day, written out here.
+  String isoOf(DateTime day) => '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+
   group('the shared vectors', () {
     final file = File('../shared/payday-vectors.json');
     final vectors = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
@@ -46,6 +49,53 @@ void main() {
 
         // An empty expected answer is "no suggestion", which is null here.
         expect(answer, expected.isEmpty ? isNull : expected);
+      });
+    }
+  });
+
+  // The function the screens call is `nextPayday`, on a DateTime: drive it with the same vectors, from whichever of `typed` and
+  // `today` the rule starts from, so a slip in how it reads the date or hands the answer back cannot hide behind the string
+  // form.
+  group('the shared vectors, through the DateTime functions the screens use', () {
+    final file = File('../shared/payday-vectors.json');
+    final cases = ((jsonDecode(file.readAsStringSync()) as Map<String, dynamic>)['cases'] as List<dynamic>).cast<Map<String, dynamic>>();
+
+    /// A real day written exactly YYYY-MM-DD in the years 1 to 9999 (worked out here, apart from the rule under test), or null.
+    DateTime? real(String? text) {
+      final match = text == null ? null : RegExp(r'^([0-9]{4})-([0-9]{2})-([0-9]{2})$').firstMatch(text);
+      if (match == null) return null;
+      final (year, month, day) = (int.parse(match[1]!), int.parse(match[2]!), int.parse(match[3]!));
+      final made = DateTime(year, month, day);
+
+      return year >= 1 && made.year == year && made.month == month && made.day == day ? made : null;
+    }
+
+    for (final (index, vector) in cases.indexed) {
+      final from = real(vector['typed'] as String?) ?? real(vector['today'] as String);
+      // Where neither is a day there is no DateTime to start from: the string vectors above cover those.
+      if (from == null) continue;
+      final expected = vector['expected'] as String;
+      final onPattern = PayPattern(
+        day: vector['day'] as int,
+        spread: 0,
+        months: 3,
+        within: 100,
+        confidence: 'high',
+        endOfMonth: vector['endOfMonth'] as bool,
+        label: 'Usually pays',
+        basis: 'Seen',
+      );
+
+      test('${index + 1}. ${vector['edge']}: from ${isoOf(from)} gives ${expected.isEmpty ? 'nothing' : expected}', () {
+        final next = nextPayday(from, onPattern);
+
+        expect(next == null ? '' : isoOf(next), expected);
+        if (next != null) {
+          expect(next.isUtc, isFalse);
+          expect((next.hour, next.minute, next.second), (0, 0, 0));
+        }
+        // `nextOccurrence` is the same answer, or the day it was given when there is none.
+        expect(isoOf(nextOccurrence(from, onPattern)), expected.isEmpty ? isoOf(from) : expected);
       });
     }
   });

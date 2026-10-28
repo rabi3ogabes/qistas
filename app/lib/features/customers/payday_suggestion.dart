@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:intl/intl.dart';
+
 import '../../app/providers.dart';
 import '../../core/design/tokens.dart';
 import '../../core/l10n/formats.dart';
@@ -19,9 +21,15 @@ bool paydayLearningOn(Account? account) => account?.entitlements['payday_learnin
 /// (A viewer cannot reach those screens, and is not offered what they could not use.)
 bool offersPaydaySuggestion(Account? account) => paydayLearningOn(account) && (account?.canWrite ?? false);
 
+final RegExp _placeholder = RegExp(r':(name|day|date)');
+final RegExp _space = RegExp(r'\s');
+
+/// A no-break space: what keeps the words of a date together.
+const String _nbsp = '\u00a0';
+
 /// A sentence with its `:name`, `:day` and `:date` filled in, in one pass over the template: a customer called ":day" stays
 /// ":day", and the website's script does the same.
-String _fill(String template, Map<String, String> values) => template.replaceAllMapped(RegExp(r':(name|day|date)'), (found) => values[found[1]] ?? found[0]!);
+String _fill(String template, Map<String, String> values) => template.replaceAllMapped(_placeholder, (found) => values[found[1]] ?? found[0]!);
 
 /// "Ahmad Salem usually pays around day 27. Use 27 Dec 2026?", or "...This date is already their payday." when the date is
 /// already that day. The name is the customer's whole name, and the date is said as the app says its dates.
@@ -35,8 +43,14 @@ String paydaySentence(BuildContext context, {required String name, required PayP
   return '$says $then';
 }
 
-/// A date kept in one piece, so it does not break across two lines of a narrow phone.
-String _dateWords(DateTime day, String language) => formatMoment(day, language).replaceAll(RegExp(r'\s'), ' ');
+/// A date as the app says it, with its Gregorian words kept in one piece so they do not break across two lines of a narrow phone.
+/// With Hijri dates on the app says "27 Nov 2026 (17 Jumada al-Ula 1448 AH)": the Hijri words, and the space before them, stay
+/// ordinary, so at a large text size the line can still break there instead of one long run being cut in the middle of a word.
+String _dateWords(DateTime day, String language) {
+  final gregorian = westernDigits(DateFormat.yMMMd(language).format(day.toLocal()));
+
+  return formatMoment(day, language).replaceFirst(gregorian, gregorian.replaceAll(_space, _nbsp));
+}
 
 /// The row under a date field: what the customer usually pays on, and a button that sets the date to it.
 ///

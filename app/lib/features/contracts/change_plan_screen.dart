@@ -16,6 +16,7 @@ import '../../data/plan_changes.dart';
 import '../customers/customer_detail_screen.dart';
 import '../customers/payday_suggestion.dart';
 import '../payments/payments_state.dart';
+import '../security/app_lock.dart' show clockProvider;
 import 'contracts_screen.dart';
 
 /// Change the plan (Win Plan PP6): a new count or amount for what is left, a skipped month, or a moved date. The old
@@ -81,7 +82,7 @@ class _ChangePlanScreenState extends ConsumerState<ChangePlanScreen> {
   }
 
   Future<void> _pickDate(String current, ValueChanged<String> chosen) async {
-    final now = DateTime.now();
+    final now = ref.read(clockProvider)();
     final picked = await pickDay(context, initial: DateTime.tryParse(current) ?? now, first: DateTime(now.year, now.month, now.day), last: DateTime(now.year + 50), language: ref.read(localeProvider));
     if (picked != null) {
       chosen(isoDay(picked));
@@ -175,7 +176,7 @@ class _ChangePlanScreenState extends ConsumerState<ChangePlanScreen> {
     final payer = _type == 'move' && customerId != null && offersPaydaySuggestion(account) ? ref.watch(customerProvider(customerId)).valueOrNull : null;
     final payPattern = payer?.payPattern;
     final moveTo = _newDate ?? chosen.dueDate;
-    final now = DateTime.now();
+    final now = ref.watch(clockProvider)();
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -293,13 +294,21 @@ class _DateRow extends StatelessWidget {
   Widget build(BuildContext context) => QCard(
         onTap: onTap,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            Icon(Icons.event_outlined, color: context.qc.inkMuted),
-            const SizedBox(width: 12),
-            Expanded(child: Text(label, style: Theme.of(context).textTheme.bodyMedium)),
-            Flexible(child: Text(value, style: Theme.of(context).textTheme.titleSmall, textAlign: TextAlign.end)),
-          ],
+        // The date takes the room it needs, up to a little over half the row, and the label the rest. (Two flexible children would
+        // each be given half, and the label would wrap at the normal text size; with the date capped, it wraps instead of
+        // overflowing at large sizes.)
+        child: LayoutBuilder(
+          builder: (context, constraints) => Row(
+            children: [
+              Icon(Icons.event_outlined, color: context.qc.inkMuted),
+              const SizedBox(width: 12),
+              Expanded(child: Text(label, style: Theme.of(context).textTheme.bodyMedium)),
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: constraints.maxWidth * 0.55),
+                child: Text(value, style: Theme.of(context).textTheme.titleSmall, textAlign: TextAlign.end),
+              ),
+            ],
+          ),
         ),
       );
 }

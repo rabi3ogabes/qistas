@@ -1,5 +1,9 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:qistas/features/glance/glance_service.dart';
 import 'package:qistas/features/glance/glance_store.dart';
 
@@ -407,6 +411,40 @@ void main() {
       await tapText(tester, language == 'en' ? 'New contract' : 'عقد جديد');
       await tapText(tester, language == 'en' ? 'Choose a customer' : 'اختر عميلًا');
       await tapText(tester, customerName);
+      await snapshot(tester, name);
+    });
+  }
+  // The change-plan screen's "move one date": its date row and, under it, the offer of the customer's usual payday. At the normal
+  // text size, and at 200% in Arabic (where the date wraps beside its label instead of pushing it out).
+  for (final (name, language, scale, size, customerName) in [
+    ('change-plan-move', 'en', 1.0, const Size(360, 1000), 'Ahmad Salem'),
+    ('change-plan-move-ar-200', 'ar', 2.0, const Size(360, 2400), 'أحمد سالم الغامدي'),
+  ]) {
+    picture(name, (tester) async {
+      final account = accountWithPayday();
+      account['entitlements'] = {
+        ...Map<String, dynamic>.from(account['entitlements'] as Map),
+        'reschedule': {'type': 'toggle', 'enabled': true, 'status': 'on', 'limit': null, 'used': null, 'remaining': null, 'unlimited': false},
+      };
+      final contract = {
+        ...contractJson(),
+        'customer': {'id': 'c1', 'name': customerName},
+        'installments': [
+          installmentJson(1, state: 'paid', paid: '275.00', status: 'paid'),
+          {...installmentJson(2), 'due_date': '2026-12-07'},
+          {...installmentJson(3), 'due_date': '2027-01-07'},
+          {...installmentJson(4), 'due_date': '2027-02-07'},
+        ],
+      };
+      final server = workspaceServer(account: account, routes: {
+        'GET /contracts/k1': always(json(200, {'data': contract})),
+        'GET /customers/c1': always(json(200, {'data': {...customerJson(name: customerName), 'contracts': <Map<String, dynamic>>[], 'pay_pattern': payPatternJson()}})),
+      });
+      await pumpApp(tester, server, realFonts: true, size: size, language: language, textScale: scale, clock: FakeClock(DateTime(2026, 10, 14, 9)));
+      GoRouter.of(tester.element(find.byType(Scaffold).first)).go('/contracts/k1/plan');
+      await settle(tester);
+      final move = language == 'en' ? 'Move one date' : (jsonDecode(File('assets/i18n/ar.json').readAsStringSync()) as Map<String, dynamic>)['Move one date'] as String;
+      await tapText(tester, move);
       await snapshot(tester, name);
     });
   }

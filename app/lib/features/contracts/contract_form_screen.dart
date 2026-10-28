@@ -23,6 +23,7 @@ import '../investors/investors_screen.dart';
 import '../payments/payments_state.dart';
 import '../products/products_screen.dart';
 import '../products/scanner.dart';
+import '../security/app_lock.dart' show clockProvider;
 import 'contract_draft.dart';
 import 'sold_items.dart';
 
@@ -87,8 +88,9 @@ class _ContractFormScreenState extends ConsumerState<ContractFormScreen> {
   Map<String, List<String>> _fields = const {};
   String? _problem;
 
-  static DateTime _today() {
-    final now = DateTime.now();
+  /// Today as the app keeps it (the phone's own clock, unless a test sets another).
+  DateTime _today() {
+    final now = ref.read(clockProvider)();
 
     return DateTime(now.year, now.month, now.day);
   }
