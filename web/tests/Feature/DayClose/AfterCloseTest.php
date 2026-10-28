@@ -5,8 +5,11 @@ use App\Actions\RecordPayment;
 use App\Actions\VoidTransaction;
 use App\Entitlements\Feature;
 use App\Models\Contract;
+use App\Models\ContractAdjustment;
 use App\Models\Customer;
+use App\Models\Installment;
 use App\Models\PaymentBatch;
+use App\Models\Tenant;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Support\Money;
@@ -40,6 +43,22 @@ function closedDayError(string $field): array
 function ledgerLinesOf(Contract $contract): int
 {
     return asTenant($contract->tenant, fn () => Transaction::query()->where('contract_id', $contract->id)->count());
+}
+
+/** How many contracts [$tenant] has, and how many ledger lines in all. */
+function contractsAndLinesOf(Tenant $tenant): array
+{
+    return asTenant($tenant, fn () => [Contract::query()->count(), Transaction::query()->count()]);
+}
+
+/** A sale of 1,200.00 to the customer of [$contract], [$downPayment] down and four monthly instalments, the contract dated [$start]. */
+function saleOn(Contract $contract, string $start, string $downPayment = '200.00'): array
+{
+    return [
+        'customer_id' => $contract->customer_id, 'type' => 'scheduled', 'principal' => '1200.00', 'down_payment' => $downPayment,
+        'markup_type' => 'none', 'markup_value' => '0', 'installment_count' => 4, 'frequency' => 'monthly',
+        'start_date' => $start, 'first_due_date' => '2026-11-25',
+    ];
 }
 
 beforeEach(function () {
@@ -246,5 +265,86 @@ it('never lets another workspace\'s close guard this one', function () {
 
     expect(ledgerLinesOf($theirs))->toBe(2)
         ->and(closeAudits($other->id))->toBe([])
+        ->and(closeAudits($this->shop->id, 'day_close.%after_close'))->toBe([]);
+});
+
+test('an early settlement that takes no money changes no closed day, and notes nothing', function () {
+    // 1,000.00 financed with 100.00 of markup: four instalments of 275.00. A payoff of nothing is out of reach of the
+    // screens (what is left always carries more than its unearned profit), so three instalments are set aside straight
+    // in the table; 200.00 paid on the fourth leaves 75.00, all of which a rebate of 100.00 covers.
+    $contract = openContract($this->shop, [
+        'customer_id' => $this->contract->customer_id, 'principal' => '1000.00', 'markup_type' => 'fixed', 'markup_value' => '100',
+        'installment_count' => 4, 'start_date' => '2026-10-01', 'first_due_date' => '2026-11-01',
+    ]);
+    asTenant($this->shop, fn () => Installment::query()->where('contract_id', $contract->id)->whereIn('number', [1, 2, 3])->update(['status' => 'waived']));
+    closeTake($contract, '200.00', by: $this->sara);
+
+    $result = app(RecordPayment::class)->settle($contract, 'fixed', '100', '0.00', 'cash', by: $this->sara, paidAt: CarbonImmutable::parse('2026-10-19 12:00:00', 'UTC'));
+
+    expect($result)->toBeInstanceOf(ContractAdjustment::class)
+        ->and(Money::cmp($result->amount, '75.00'))->toBe(0)
+        ->and(ledgerLinesOf($contract))->toBe(1)
+        ->and(asTenant($this->shop, fn () => Contract::query()->findOrFail($contract->id)->status))->toBe('settled')
+        ->and(closeAudits($this->shop->id, 'day_close.%after_close'))->toBe([]);
+});
+
+// A contract's down payment is money in, dated by the contract's start: a back-dated contract can put cash into a closed day.
+
+test('a collector cannot open a contract whose down payment falls on a closed day', function () {
+    Sanctum::actingAs($this->sara, ['app']);
+    $before = contractsAndLinesOf($this->shop);
+
+    $this->postJson('/api/v1/contracts', saleOn($this->contract, '2026-10-19'))
+        ->assertUnprocessable()
+        ->assertJsonPath('error.fields', closedDayError('start_date'));
+
+    expect(contractsAndLinesOf($this->shop))->toBe($before)
+        ->and(closeAudits($this->shop->id, 'day_close.%after_close'))->toBe([]);
+});
+
+test('an owner can open it, and an audit row is written', function () {
+    Sanctum::actingAs($this->boss, ['app']);
+
+    $id = $this->postJson('/api/v1/contracts', saleOn($this->contract, '2026-10-19'))->assertCreated()->json('data.id');
+
+    $downPayment = asTenant($this->shop, fn () => Transaction::query()->where('contract_id', $id)->sole());
+    expect($downPayment->type)->toBe('down_payment')
+        ->and($downPayment->paid_at->toDateTimeString())->toBe('2026-10-19 00:00:00')
+        ->and(closeAudits($this->shop->id, 'day_close.%after_close'))->toBe([[
+            'action' => 'day_close.change_after_close', 'subject_id' => $this->closed->id, 'user_id' => $this->boss->id, 'changes' => ['day' => '2026-10-19', 'change' => 'payment'],
+        ]]);
+});
+
+test('a contract starting today with a down payment is allowed after today was closed, and noted', function () {
+    $this->travelTo('2026-10-21 17:00:00'); // 20:00 in Riyadh
+    $today = closeDay($this->shop, '2026-10-21', $this->sara);
+    $this->travelTo('2026-10-21 17:30:00');
+    Sanctum::actingAs($this->sara, ['app']);
+
+    $this->postJson('/api/v1/contracts', saleOn($this->contract, '2026-10-21'))->assertCreated();
+
+    expect(closeAudits($this->shop->id, 'day_close.%after_close'))->toBe([[
+        'action' => 'day_close.entry_after_close', 'subject_id' => $today->id, 'user_id' => $this->sara->id, 'changes' => ['day' => '2026-10-21'],
+    ]]);
+});
+
+test('a contract without a down payment may start on a closed day', function () {
+    Sanctum::actingAs($this->sara, ['app']);
+    [$contracts, $lines] = contractsAndLinesOf($this->shop);
+
+    $this->postJson('/api/v1/contracts', saleOn($this->contract, '2026-10-19', '0'))->assertCreated();
+
+    // Nothing came in, so nothing in the closed day moved.
+    expect(contractsAndLinesOf($this->shop))->toBe([$contracts + 1, $lines])
+        ->and(closeAudits($this->shop->id, 'day_close.%after_close'))->toBe([]);
+});
+
+test('a contract with a down payment on an open day before today is unaffected', function () {
+    Sanctum::actingAs($this->sara, ['app']);
+    [$contracts, $lines] = contractsAndLinesOf($this->shop);
+
+    $this->postJson('/api/v1/contracts', saleOn($this->contract, '2026-10-20'))->assertCreated();
+
+    expect(contractsAndLinesOf($this->shop))->toBe([$contracts + 1, $lines + 1])
         ->and(closeAudits($this->shop->id, 'day_close.%after_close'))->toBe([]);
 });

@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Domain\DayClose\DayCloseGuard;
 use App\Domain\Investors\InvestorLedger;
 use App\Domain\Investors\MainInvestor;
 use App\Domain\LateFees\LateFeePolicy;
@@ -46,7 +47,8 @@ final class CreateContract
      * @param  array<string, mixed>  $data  validated input (see App\Http\Requests\ContractRequest)
      *
      * @throws ModelNotFoundException when the customer is not one of this workspace's
-     * @throws ValidationException when the schedule cannot be built
+     * @throws ValidationException when the schedule cannot be built, or on `start_date` when the down payment would fall
+     *                             on a closed day before today and [$by] is not an owner or a manager (DayCloseGuard)
      * @throws FeatureLocked|FeatureUnavailable|LimitReached
      */
     public function handle(Tenant $tenant, array $data, ?User $by = null): Contract
@@ -74,6 +76,14 @@ final class CreateContract
             $schedule = $this->schedule($type, [...$data, 'principal' => $net], $startDate);
             $items = $data['items'] ?? [];
             $investor = $this->investor($tenant, $data['investor_id'] ?? null);
+            $downPayment = $type === 'cash' ? '0' : Money::parse($data['down_payment'] ?? '0');
+            $downPaymentAt = Carbon::parse($startDate);
+
+            // The down payment is money in, dated by the contract's start: into a closed day it is an owner's or a
+            // manager's (D10), asked before anything is written, at the very instant its ledger line will carry.
+            if (! Money::isZero($downPayment)) {
+                DayCloseGuard::assertMayChange($tenant, $downPaymentAt, $by, DayCloseGuard::PAYMENT, 'start_date');
+            }
 
             $contract = (new Contract)->forceFill([
                 'customer_id' => $customer->id,
@@ -81,7 +91,7 @@ final class CreateContract
                 'type' => $type,
                 'status' => 'active',
                 'principal' => Money::parse($data['principal']),
-                'down_payment' => $type === 'cash' ? '0' : Money::parse($data['down_payment'] ?? '0'),
+                'down_payment' => $downPayment,
                 'financed' => $schedule->financed,
                 'markup_type' => $type === 'cash' ? 'none' : ($data['markup_type'] ?? 'none'),
                 'markup_value' => $type === 'cash' ? '0' : Money::parse($data['markup_value'] ?? '0'),
@@ -132,7 +142,7 @@ final class CreateContract
                     'type' => 'down_payment',
                     'method' => 'cash',
                     'amount' => $contract->down_payment,
-                    'paid_at' => Carbon::parse($startDate),
+                    'paid_at' => $downPaymentAt,
                     'created_by_user_id' => $by?->id,
                 ])->save();
             }

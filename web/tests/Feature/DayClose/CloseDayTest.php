@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\CloseDay;
+use App\Actions\VoidTransaction;
 use App\Entitlements\Feature;
 use App\Entitlements\FeatureUnavailable;
 use App\Models\AuditLog;
@@ -121,16 +122,54 @@ it('rejects a negative or three-decimal amount', function () {
     foreach ([
         '-0.01' => __('The counted cash cannot be negative.'),
         '12.345' => __('The amount can have at most two decimals.'),
-        '12.34567' => __('Enter a valid amount.'),
+        '12.34567' => __('The amount can have at most two decimals.'),
+        '12.500' => __('The amount can have at most two decimals.'),
         'twelve' => __('Enter a valid amount.'),
         '' => __('Enter a valid amount.'),
+        // More than the fourteen digits before the point that the column holds (PostgreSQL would refuse the row).
+        '100000000000000' => __('Enter a valid amount.'),
+        '1000000000000000000' => __('Enter a valid amount.'),
+        '1e18' => __('Enter a valid amount.'),
+        '1e5' => __('Enter a valid amount.'),
+        ' 12' => __('Enter a valid amount.'),
+        '12.' => __('Enter a valid amount.'),
+        '.5' => __('Enter a valid amount.'),
     ] as $amount => $message) {
         expect(validationErrors(fn () => closeDay($this->shop, '2026-10-21', $this->sara, (string) $amount)))
-            ->toBe(['counted_cash' => [$message]]);
+            ->toBe(['counted_cash' => [$message]], "counted cash [{$amount}]");
     }
 
     expect(asTenant($this->shop, fn () => DayClose::count()))->toBe(0)
         ->and(closeDay($this->shop, '2026-10-21', $this->sara, '12.5')->fresh()->counted_cash)->toBe('12.5000');
+});
+
+it('keeps every figure within what the columns hold, the difference included', function () {
+    // Fourteen digits before the point is the most the columns hold, and it is accepted on a day that took nothing. (What
+    // is written, not what SQLite reads back: it keeps a number this long as a float; PostgreSQL keeps it exactly.)
+    $largest = closeDay($this->shop, '2026-10-20', $this->sara, '99999999999999.99');
+    expect($largest->counted_cash)->toBe('99999999999999.9900')
+        ->and($largest->difference)->toBe('99999999999999.9900');
+
+    // Today only gave money back, so its expected cash is negative and the same count would make a fifteen-digit
+    // difference: refused like an amount that is too large, and nothing is written.
+    $this->travelTo('2026-10-19 09:00:00');
+    $earlier = closeTake($this->contract, '100.00', by: $this->sara);
+    $this->travelTo('2026-10-21 12:00:00');
+    app(VoidTransaction::class)->handle($earlier, 'Refunded', $this->boss);
+
+    expect(closeTotals($this->shop)['expected_cash'])->toBe('-100.00')
+        ->and(validationErrors(fn () => closeDay($this->shop, '2026-10-21', $this->sara, '99999999999999.99')))
+        ->toBe(['counted_cash' => [__('Enter a valid amount.')]])
+        ->and(asTenant($this->shop, fn () => DayClose::query()->where('day', '2026-10-21')->count()))->toBe(0)
+        ->and(closeDay($this->shop, '2026-10-21', $this->sara, '0.00')->fresh()->difference)->toBe('100.0000');
+});
+
+it('refuses a day cut on another workspace\'s clock', function () {
+    // A programming mistake, not something a person typed: the day's range would be cut in the wrong zone.
+    $newYorkDay = WorkspaceDay::on(closeShop('US', 'America/New_York'), '2026-10-21');
+
+    expect(fn () => app(CloseDay::class)->handle($this->shop, $newYorkDay, '0.00', null, $this->sara))->toThrow(InvalidArgumentException::class)
+        ->and(asTenant($this->shop, fn () => DayClose::count()))->toBe(0);
 });
 
 test('a collector may close, a viewer may not', function () {
@@ -222,6 +261,8 @@ test('the hash changes when any figure changes', function () {
         'the version' => $hash(['version' => 2]),
         'the expected cash' => $hash(['expected' => '120.01']),
         'the counted cash' => $hash(['counted' => '118.01']),
+        'the fourth decimal of the counted cash' => $hash(['counted' => '118.0001']),
+        'the fourth decimal of a method\'s total' => $hash(figures: ['by_method' => ['cash' => '120.0001', 'card' => '50.00']]),
         'a method\'s total' => $hash(figures: ['by_method' => ['cash' => '120.00', 'card' => '50.01']]),
         'another method' => $hash(figures: ['by_method' => ['cash' => '120.00', 'card' => '50.00', 'bank_transfer' => '0.00']]),
         'the count' => $hash(figures: ['count' => 4]),
@@ -245,6 +286,27 @@ test('the hash changes when any figure changes', function () {
         ],
         'by_method' => ['card' => '50.0000', 'cash' => '120.0000'],
     ], changes: ['expected' => '120.0000', 'counted' => '118.0000']))->toBe($signed);
+});
+
+test('a change in the fourth decimal of a stored close no longer matches its hash', function () {
+    closeTake($this->contract, '120.00', by: $this->sara);
+    $close = closeDay($this->shop, '2026-10-21', $this->sara, '118.00');
+    $recomputed = function () use ($close): string {
+        $row = $close->fresh();
+
+        return CloseDay::snapshotHash($row->day, $row->version, $row->expected_cash, $row->counted_cash, $row->totals);
+    };
+    expect($recomputed())->toBe($close->snapshot_hash);
+
+    // Straight to the table, past the model's refusal to edit a close: the columns keep four decimals.
+    DB::table('day_closes')->where('id', $close->id)->update(['counted_cash' => '118.0001']);
+    expect($recomputed())->not->toBe($close->snapshot_hash);
+
+    DB::table('day_closes')->where('id', $close->id)->update(['counted_cash' => '118.0000', 'expected_cash' => '120.0001']);
+    expect($recomputed())->not->toBe($close->snapshot_hash);
+
+    DB::table('day_closes')->where('id', $close->id)->update(['expected_cash' => '120.0000']);
+    expect($recomputed())->toBe($close->snapshot_hash);
 });
 
 test('the hash is the same whichever language the day is closed in', function () {

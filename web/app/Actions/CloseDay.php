@@ -35,21 +35,37 @@ final class CloseDay
     /** Today and the seven days before it can be closed (the message names the seven). */
     private const DAYS_BACK = 7;
 
+    /**
+     * What every amount in the app looks like (MoneyRules, AmendmentPlanner): at most fourteen digits before the point,
+     * which is all a decimal(18,4) column holds, and at most two after it.
+     */
+    private const AMOUNT = '/^\d{1,14}(\.\d{1,2})?$/';
+
+    /** A figure the decimal(18,4) columns can hold, either side of zero. */
+    private const FITS = '/^-?\d{1,14}(\.\d+)?$/';
+
     public function __construct(private readonly CurrentTenant $current) {}
 
     /**
      * In this order: may the workspace and [$by] close a day at all; is what they typed right; then the write, which
      * takes the day's lock, finds the day not yet closed, and reads the figures it keeps.
      *
-     * @param  string  $countedCash  what is in the till: not negative, at most two decimals
+     * @param  WorkspaceDay  $day  a day on [$tenant]'s own clock (WorkspaceDay::of or ::on with this workspace)
+     * @param  string  $countedCash  what is in the till: not negative, at most fourteen digits and two decimals
      * @param  ?string  $note  anything the person wants kept with the close
      *
+     * @throws InvalidArgumentException when [$day] was cut on another clock than [$tenant]'s (a programming mistake)
      * @throws FeatureUnavailable|FeatureLocked when the workspace does not have the end-of-day close
      * @throws AuthorizationException when [$by] does not record payments in [$tenant] (a viewer, or someone from elsewhere)
      * @throws ValidationException on `day` (a day still to come, more than seven days back, or already closed) or `counted_cash`
      */
     public function handle(Tenant $tenant, WorkspaceDay $day, string $countedCash, ?string $note, User $by): DayClose
     {
+        // The day's range is cut in its own zone, so a day of another clock would count the wrong hours.
+        if ($day->timezone !== $tenant->localTimezone()) {
+            throw new InvalidArgumentException("The day {$day->date} was cut in {$day->timezone}, and this workspace's clock is {$tenant->localTimezone()}.");
+        }
+
         return $this->current->use($tenant, function () use ($tenant, $day, $countedCash, $note, $by): DayClose {
             Entitlements::for($tenant)->assertEnabled(Feature::DayClose);
             Gate::forUser($by)->authorize('create', DayClose::class);
@@ -72,7 +88,8 @@ final class CloseDay
      *
      * It is worked out from the figures alone: the day, the version, the expected and counted cash, the total of each
      * method, the count, and each member's cash and count keyed by user id, as JSON with every key sorted and every
-     * amount at two decimals. The members' names are left out: they are display data, a record of what the screen
+     * amount at four decimals, the precision the row keeps, so a change in any stored digit no longer matches. The
+     * members' names are left out: they are display data, a record of what the screen
      * showed, and the name of someone who has left the team is written in the language of whoever closed the day, so
      * the same day closed in English and in Arabic is signed the same. It can be worked out again from a stored row.
      *
@@ -115,15 +132,14 @@ final class CloseDay
             $errors['day'] = __('Only today and the seven days before it can be closed.');
         }
 
-        try {
-            $parsed = Money::parse($countedCash);
-            if (Money::isNegative($parsed)) {
-                $errors['counted_cash'] = __('The counted cash cannot be negative.');
-            } elseif (Money::decimals($parsed) > 2) {
-                $errors['counted_cash'] = __('The amount can have at most two decimals.');
-            }
-        } catch (InvalidArgumentException) {
-            $errors['counted_cash'] = __('Enter a valid amount.');
+        // Anything else (more than fourteen digits, an exponent, a space, a point with nothing on one side) is not an
+        // amount: refused here, never left for the database to refuse.
+        if (! preg_match(self::AMOUNT, $countedCash)) {
+            $errors['counted_cash'] = match (1) {
+                preg_match('/^-\d+(\.\d+)?$/', $countedCash) => __('The counted cash cannot be negative.'),
+                preg_match('/^\d{1,14}\.\d{3,}$/', $countedCash) => __('The amount can have at most two decimals.'),
+                default => __('Enter a valid amount.'),
+            };
         }
 
         if ($errors !== []) {
@@ -149,6 +165,11 @@ final class CloseDay
         // The names in `per_member` are kept as display data, a record of what the screen showed; the hash leaves them out.
         $totals = ['by_method' => $recorded['by_method'], 'count' => $recorded['count'], 'per_member' => $recorded['per_member']];
         $difference = Money::sub($counted, $expected, 2);
+        // The counted cash fits its column (checked above). On a day that only gave money back the difference is the
+        // count plus what went out, so a count near the limit could still be too long for the difference's column.
+        if (! preg_match(self::FITS, $difference)) {
+            throw ValidationException::withMessages(['counted_cash' => __('Enter a valid amount.')]);
+        }
 
         $close = (new DayClose)->forceFill([
             'day' => $day->date,
@@ -177,9 +198,10 @@ final class CloseDay
         return ValidationException::withMessages(['day' => __('This day is already closed.')]);
     }
 
+    /** [$value] at the four decimals a row keeps: 120.00 and 120.0000 are one figure, 120.0001 is another. */
     private static function amount(string $value): string
     {
-        return Money::add($value, '0', 2);
+        return Money::add($value, '0', Money::SCALE);
     }
 
     /**

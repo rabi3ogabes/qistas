@@ -47,9 +47,12 @@ final class RecordPayment
      * @param  ?CarbonInterface  $paidAt  when the money was received (default now; never in the future)
      * @param  ?string  $tag  one of Transaction::TAGS (an advance, a refund, an early-payment discount)
      * @param  ?string  $applyTo  the instalment to fill first (Win Plan PP6); the rest goes to the oldest
-     * @param  ?string  $batchId  the payment across contracts this line is part of (Win Plan PP6). RecordCustomerPayment
-     *                            put the whole payment to the after-close rule once, before writing anything, so its
-     *                            lines are not asked again (one change, one audit row)
+     * @param  ?string  $batchId  the payment across contracts this line is part of (Win Plan PP6). Only
+     *                            RecordCustomerPayment passes one, and only after it has put the whole payment to the
+     *                            after-close rule (DayCloseGuard) once, before writing anything: a line with a batch id
+     *                            is not asked again, so one payment makes one audit row. Another caller must not pass one.
+     *                            It cannot invent one either: the id is a foreign key to `payment_batches`, and
+     *                            RecordCustomerPayment is the only code that writes that table, after its guard
      *
      * @throws ValidationException naming the field at fault (`paid_at` when it is back-dated into a closed day and [$by]
      *                             is not an owner or a manager: see DayCloseGuard)
@@ -126,9 +129,6 @@ final class RecordPayment
             }
 
             return DB::transaction(function () use ($contract, $rebateType, $rebateValue, $expectedPayoff, $method, $idempotencyKey, $by, $note, $paidAt): Transaction|ContractAdjustment {
-                // A closed day is changed only by an owner or a manager (D10), and asked before anything is written.
-                DayCloseGuard::assertMayChange($contract->tenant, $paidAt, $by);
-
                 $locked = Contract::query()->whereKey($contract->id)->lockForUpdate()->firstOrFail();
                 if ($locked->status !== 'active' || $locked->isOpen()) {
                     throw ValidationException::withMessages(['contract' => $locked->status === 'settled'
@@ -149,6 +149,10 @@ final class RecordPayment
 
                 $transaction = null;
                 if (Money::isPositive($quote->payoff)) {
+                    // Money comes in: into a closed day it is an owner's or a manager's (D10), asked before anything is
+                    // written. A payoff of nothing brings no cash, so it changes no closed day and is not asked.
+                    DayCloseGuard::assertMayChange($contract->tenant, $paidAt, $by);
+
                     // Every late fee is paid in full: the rebate comes off the profit on instalments, never off a fee.
                     $allocations = $this->allocator->allocateWithFees($this->rows($installments), LateFees::rows($fees), $quote->payoff, $paidAt->format('Y-m-d'), feesFirst: true);
                     $transaction = $this->write($locked, 'payment', $quote->payoff, $method, $idempotencyKey, $by, $note, $paidAt, 'early_discount');

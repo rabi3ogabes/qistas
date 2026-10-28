@@ -18,7 +18,7 @@ use InvalidArgumentException;
  * The after-close rule (daily-habit wave A, H4, decision D10): once a day is closed, a change that touches it is an
  * owner's or a manager's to make, and it leaves an audit row. Nothing in the ledger is edited: the rule decides only who
  * may add the line. Every entry point that writes money asks it first, before any write (RecordPayment::handle and
- * ::settle, RecordCustomerPayment, VoidTransaction).
+ * ::settle, RecordCustomerPayment, VoidTransaction, and CreateContract for a down payment).
  *
  * What touches a closed day:
  * - a payment dated before the workspace's today (back-dated) on a day that is closed;
@@ -49,13 +49,16 @@ final class DayCloseGuard
     /**
      * Lets [$by] make the change, or refuses it, before anything is written.
      *
-     * @param  CarbonInterface  $moment  when the money was taken: the new payment's `paid_at`, or for a void, the `paid_at` of the payment voided
+     * @param  CarbonInterface  $moment  when the money was taken: the new payment's `paid_at` (the very instant its ledger
+     *                                   line will carry), or for a void, the `paid_at` of the payment voided
      * @param  string  $change  what is about to be written: self::PAYMENT (the default) or self::VOID
+     * @param  ?string  $field  the field a refusal names, when the person typed the date somewhere else (a contract's
+     *                          down payment is dated by its `start_date`); by default `paid_at` for a payment and
+     *                          `transaction` for a void
      *
-     * @throws ValidationException on `paid_at` (a payment) or `transaction` (a void) when the change touches a closed day
-     *                             and [$by] is not an owner or a manager
+     * @throws ValidationException on [$field] when the change touches a closed day and [$by] is not an owner or a manager
      */
-    public static function assertMayChange(Tenant $tenant, CarbonInterface $moment, ?User $by, string $change = self::PAYMENT): void
+    public static function assertMayChange(Tenant $tenant, CarbonInterface $moment, ?User $by, string $change = self::PAYMENT, ?string $field = null): void
     {
         if (! in_array($change, [self::PAYMENT, self::VOID], true)) {
             throw new InvalidArgumentException("[{$change}] is not a change the after-close rule knows.");
@@ -80,7 +83,7 @@ final class DayCloseGuard
 
         if (! ($by?->roleIn($tenant->id)?->canDelete() ?? false)) {
             throw ValidationException::withMessages([
-                $change === self::VOID ? 'transaction' : 'paid_at' => __('That day is closed. Ask the owner or a manager.'),
+                $field ?? ($change === self::VOID ? 'transaction' : 'paid_at') => __('That day is closed. Ask the owner or a manager.'),
             ]);
         }
 
