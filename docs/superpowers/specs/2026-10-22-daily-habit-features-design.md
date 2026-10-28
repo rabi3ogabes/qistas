@@ -189,7 +189,7 @@ periodic refresh runs at most every 30 minutes; Android may delay it, which the 
 **Safety.** A widget can be read on a locked screen, so by default it shows **counts and amounts, not names** (D7); with
 the app lock on it shows **counts only**; Settings can hide amounts. The snapshot is cleared on sign-out.
 
-**Switch.** `home_widget`, Toggle, group Core. **Proof.** Endpoint payload test (no names, no extra fields), the
+**Switch.** `home_widget`, Toggle, group Collecting. **Proof.** Endpoint payload test (no names, no extra fields), the
 privacy matrix, sign-out clears, `enabled=false` behaviour, snapshot encoder tests, a manual device checklist
 (install, resize, dark, Arabic, app lock, airplane mode, 24-hour freshness) because widgets cannot be fully tested
 without a phone.
@@ -201,8 +201,8 @@ without a phone.
 **Experience.** At the shop's closing time (default 20:00) a notification: *"Close today?"* The screen has three cards:
 1. **Cash.** *Expected* (cash payments recorded today, voids subtracted), a number pad for *Counted*, and the difference
    in a plain tone (balanced, short by, over by).
-2. **Transfers and cards.** Today's non-cash payments, each marked *has proof* or *add proof*, with duplicate
-   references flagged.
+2. **Transfers and cards.** Today's non-cash payments, each with its method, customer, amount and note. The *has proof*
+   marker, and the flag on duplicate references, arrive with H1 in wave B, once a payment proof can be attached.
 3. **Worth a look.** Voided payments, waived fees, contracts opened and cancelled, anything back-dated today.
 Then **Close the day**, a note field, and a summary the owner can share on WhatsApp: *"Al-Fares, 21 Oct: collected
 SAR 8,420 (cash 3,100, transfer 5,320), 14 payments, difference 0."* A closed day shows a quiet seal; history lists past
@@ -219,7 +219,7 @@ Sprint 3's collector hand-over will reconcile against. Endpoints: `GET /api/v1/d
 **Safety.** Closing needs a role that records payments; reopening needs owner or manager and is audited. The ledger is
 never edited.
 
-**Switch.** `day_close`, Toggle, group Core, Free. **Proof.** Expected-cash arithmetic including voids and reversals;
+**Switch.** `day_close`, Toggle, group Team, Free. **Proof.** Expected-cash arithmetic including voids and reversals;
 day boundaries in several time zones and around daylight-saving changes; one close per day; reopen versions; the
 after-close flag; per-member totals reconcile to the ledger; the summary reconciles; both languages.
 
@@ -413,6 +413,25 @@ mid-range phone.
   receipt is said so plainly.
 - **Rollout.** Dark, then Beta for the owner's own test workspace, then On for one friendly shop, then On for everyone, each
   step a click in `/admin/features`.
+
+### Plan deviations (wave A)
+
+Decisions made while writing the wave A plan, after reading the code. The groups in H3 and H4 above are already corrected
+(`Core` means always on with the switch locked, so no new feature can sit there). The rest:
+
+- **Foundations.** Each feature case is registered in the task that builds it, so no switch exists for an unbuilt feature.
+  The AI gateway and the `/receipt`, `/coach` and `/sale` deep links move to the wave B plan, and `FeatureUsage::hit()`
+  already does the instrumentation. Wave A's foundation is the workspace-day helper.
+- **Day close, card 2.** It lists non-cash payments (method, customer, amount, note); the *has proof* marker arrives
+  with H1 in wave B.
+- **Closing time.** Settings have no time type, so `day_close.closing_time` is a select of half-hour options, default 20:00.
+- **Widget refresh.** Wave A sends one silent push a day at each person's digest time, and refreshes on open, resume and
+  payment. A refresh after a payment on another device is not built (it needs a background handler and a silent push that
+  do not exist yet).
+- **Payday timing.** Wave A ships the pattern, the suggestion chip and the suggestions. Timing reminders for the day
+  before the real payday is the Coach's job, in the wave B Coach plan.
+- **Day close on the web.** The web workspace is a first-class surface, so wave A adds a small day-close page there as well
+  as the app.
 
 ## 9. Risks
 
