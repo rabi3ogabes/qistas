@@ -96,7 +96,9 @@ screens, so it reads what the app left on the phone and does what the open app d
 3. `GET /glance` (names only when the rules allow them), then the same `encodeGlance`, store write and redraw. If the
    person signed out while the answer was on its way the answer is dropped, and if they signed out while the widget was
    being written the widget is emptied again. (The isolate starts without `main()`, so the refresher loads the date
-   formats itself.)
+   formats itself.) One narrow gap remains: the app and the background isolate cannot lock each other, so a sign-out that
+   lands in the few milliseconds between the refresher's last check and the app's own clear can leave the last figures on
+   the home screen until they go stale (12 hours) or the next sign-in.
 4. No connection, or a server error: the widget keeps what it has. A 401 (the server no longer knows the token) empties the
    widget, as a sign-out would.
 
