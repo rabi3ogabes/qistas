@@ -1,9 +1,12 @@
 <?php
 
+use App\Actions\CloseDay;
 use App\Actions\RecordPayment;
+use App\Actions\ReopenDay;
 use App\Actions\VoidTransaction;
 use App\Domain\DayClose\SummaryText;
 use App\Entitlements\Feature;
+use App\Http\Requests\CloseDayRequest;
 use App\Models\DayClose;
 use App\Models\Tenant;
 use App\Models\User;
@@ -12,6 +15,7 @@ use App\Support\Format;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
+use Laravel\Sanctum\Sanctum;
 
 /*
 | Daily-habit wave A, H4 on the web workspace (ruling C7): the page at /app/day-close. It carries what the person typed
@@ -161,7 +165,41 @@ describe('today', function () {
         $data = json_decode(html_entity_decode($found[1]), true);
 
         expect($data['expected'])->toBe('100.00')->and($data['currency'])->toBe('SAR')
-            ->and($data['messages'])->toHaveKeys(['balanced', 'short', 'over']);
+            ->and($data['messages'])->toHaveKeys(['balanced', 'short', 'over', 'difference']);
+    });
+});
+
+describe('the counted-amount field', function () {
+    it('tells how an amount is written, under the field', function () {
+        dwWeb($this, $this->sara)->assertOk()
+            ->assertSee(__('Count the notes and coins in the till and enter the total.'))
+            ->assertSeeInOrder(['name="counted_cash"', __('Digits and one decimal point, for example 3100.50.')])
+            ->assertSee('aria-describedby="f-counted_cash-hint"', false);
+    });
+
+    it('keeps the difference for a screen reader in a region that is always there, told when the field changes', function () {
+        $html = (string) dwWeb($this, $this->sara)->assertOk()->getContent();
+
+        // What the eye sees changes with every key, and is not read out with each one...
+        expect($html)->toMatch('/<p class="dc-difference"[^>]*aria-hidden="true"/');
+        // ...the region that is read is rendered all the time, never shown or hidden by the script, and fed by `announced`...
+        preg_match('/<p[^>]*x-text="announced"[^>]*>/', $html, $region);
+        expect($region)->not->toBe([])
+            ->and($region[0])->toContain('role="status"')->toContain('aria-live="polite"')->not->toContain('x-show')->not->toContain('x-cloak');
+        // ...and the field tells it when it changes (is left), not on every key.
+        expect($html)->toMatch('/<input[^>]*name="counted_cash"[^>]*x-on:change="announce"/')
+            ->and($html)->not->toMatch('/<input[^>]*name="counted_cash"[^>]*x-on:input/');
+    });
+
+    it('limits the note and the reason by what the code that keeps them allows', function () {
+        closeTake($this->contract, '100.00', by: $this->sara);
+
+        dwWeb($this, $this->sara)->assertOk()->assertSee('name="note"', false)->assertSee('maxlength="'.CloseDayRequest::NOTE_MAX.'"', false);
+        dwSubmit($this, $this->sara, ['note' => str_repeat('n', CloseDayRequest::NOTE_MAX + 1)])->assertSessionHasErrors('note');
+        expect(dwCount($this->shop))->toBe(0);
+
+        dwSubmit($this, $this->sara, ['note' => str_repeat('n', CloseDayRequest::NOTE_MAX)])->assertSessionHasNoErrors();
+        dwWeb($this, $this->boss)->assertOk()->assertSee('name="reason"', false)->assertSee('maxlength="'.ReopenDay::MAX_REASON.'"', false);
     });
 });
 
@@ -391,7 +429,38 @@ describe('reopening', function () {
     });
 });
 
+describe('what people typed', function () {
+    it('escapes the note a day was closed with and the reason it was reopened for', function () {
+        closeTake($this->contract, '100.00', by: $this->sara);
+        $close = closeDay($this->shop, '2026-10-21', $this->sara, '100.00', '<script>alert("note")</script>');
+
+        dwWeb($this, $this->boss)->assertOk()
+            ->assertSee('&lt;script&gt;alert(&quot;note&quot;)&lt;/script&gt;', false)->assertDontSee('<script>alert("note")</script>', false);
+
+        reopenDay($close, '<script>alert("why")</script>', $this->boss);
+
+        dwWeb($this, $this->boss)->assertOk()
+            ->assertSee('&lt;script&gt;alert(&quot;why&quot;)&lt;/script&gt;', false)->assertDontSee('<script>alert("why")</script>', false);
+    });
+});
+
 describe('the history', function () {
+    it('shows each close under its own date', function () {
+        closeTake($this->contract, '100.00', by: $this->sara, at: '2026-10-20 09:00:00');
+        $earlier = closeDay($this->shop, '2026-10-20', $this->sara, '100.00');
+        $today = closeDay($this->shop, '2026-10-21', $this->sara, '0.00');
+        $html = (string) dwWeb($this, $this->boss)->assertOk()->getContent();
+
+        $row = function (DayClose $close) use ($html): string {
+            preg_match('/<tr data-history="'.$close->id.'">.*?<\/tr>/s', $html, $found);
+
+            return preg_replace('/\s+/', ' ', strip_tags($found[0] ?? '')) ?? '';
+        };
+
+        expect($row($earlier))->toContain('20 Oct 2026')->not->toContain('21 Oct 2026')
+            ->and($row($today))->toContain('21 Oct 2026')->not->toContain('20 Oct 2026');
+    });
+
     it('shows a closed day\'s history, the newest day first, with its status, difference and PDF', function () {
         closeTake($this->contract, '100.00', by: $this->sara, at: '2026-10-20 09:00:00');
         $earlier = closeDay($this->shop, '2026-10-20', $this->sara, '95.00');
@@ -457,6 +526,23 @@ describe('an earlier day', function () {
         expect(dwStored($this->shop, '2026-10-21')->status)->toBe('closed');
     });
 
+    it('takes the earliest day the action accepts, and turns back the day before it', function () {
+        $earliest = CarbonImmutable::parse('2026-10-21')->subDays(CloseDay::DAYS_BACK)->format('Y-m-d');
+        $before = CarbonImmutable::parse($earliest)->subDay()->format('Y-m-d');
+
+        // The page shows the earliest day (and offers it: that is the date picker's own limit), today too, and not the day before.
+        dwWeb($this, $this->boss, '?day='.$earliest)->assertOk()->assertSee('name="day" value="'.$earliest.'"', false)->assertSee('min="'.$earliest.'"', false);
+        dwWeb($this, $this->boss, '?day=2026-10-21')->assertOk();
+        dwWeb($this, $this->boss, '?day='.$before)->assertRedirect(route('app.day-close.show'));
+
+        // The action agrees with the page about where the window starts.
+        $this->actingAs($this->sara)->from(route('app.day-close.show'))->post(route('app.day-close.store'), ['counted_cash' => '0.00', 'day' => $before])
+            ->assertSessionHasErrors(['day' => __('Only today and the seven days before it can be closed.')]);
+        $this->actingAs($this->sara)->from(route('app.day-close.show'))->post(route('app.day-close.store'), ['counted_cash' => '0.00', 'day' => $earliest])
+            ->assertSessionHasNoErrors();
+        expect(dwStored($this->shop, $earliest)->status)->toBe('closed');
+    });
+
     it('goes back to today for a day that is not a day it can show', function (string $day) {
         dwWeb($this, $this->boss, '?day='.$day)->assertRedirect(route('app.day-close.show'));
     })->with([
@@ -514,6 +600,19 @@ describe('off', function () {
         $this->actingAs($this->boss)->post(route('app.day-close.store'), ['counted_cash' => '1.00', 'day' => '2026-10-20'])->assertRedirect()->assertSessionHas('error');
 
         expect(dwCount($this->shop))->toBe(1)->and(dwStored($this->shop)->status)->toBe('closed');
+    });
+
+    it('hides the API as well, which is what the feature says it does when it is off', function () {
+        closeTake($this->contract, '100.00', by: $this->sara);
+        $close = closeDay($this->shop, '2026-10-21', $this->sara, '100.00');
+        switchOff(Feature::DayClose);
+
+        Sanctum::actingAs($this->boss, ['app']);
+        $this->getJson('/api/v1/day-close')->assertForbidden();
+        $this->getJson('/api/v1/day-close/'.$close->id.'/summary.pdf')->assertForbidden();
+
+        // So the sentence the cockpit shows must not promise that closed days stay readable: they are kept, and come back.
+        expect(Feature::DayClose->offBehaviour())->not->toContain('readable')->toContain('hidden')->toContain('come back');
     });
 
     it('comes back with everything that was kept when it is switched on again', function () {

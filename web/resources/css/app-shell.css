@@ -681,8 +681,8 @@
     .dc-day-form { max-width: 18rem; }
     .empty-quiet { padding: 1.5rem 1.25rem; }
     .empty-quiet .empty-icon { width: 2.75rem; height: 2.75rem; }
-    .rows .row-sub { overflow-wrap: anywhere; }
-    .rows li[data-line="reversal"] .row-amount { color: var(--q-danger); }
+    .dc .rows .row-sub { overflow-wrap: anywhere; }
+    .dc .rows li[data-line="reversal"] .row-amount { color: var(--q-danger); }
     /* A quiet card on the dashboard while today is still to close. */
     .dc-nudge { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
     .dc-nudge p { margin: .125rem 0 0; }

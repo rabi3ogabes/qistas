@@ -69,7 +69,7 @@
                         <form method="POST" action="{{ route('app.day-close.reopen', $close) }}" class="form" novalidate>
                             @csrf
                             <p class="muted">{{ __('The close stays on record as it was signed. The day opens again so it can be corrected, then closed once more.') }}</p>
-                            <x-field name="reason" type="textarea" :label="__('Reason')" rows="2" maxlength="500" required
+                            <x-field name="reason" type="textarea" :label="__('Reason')" rows="2" maxlength="{{ $maxReason }}" required
                                      :hint="__('At least :min characters.', ['min' => $minReason])" />
                             <button class="btn btn-danger btn-sm">{{ __('Reopen the day') }}</button>
                         </form>
@@ -98,19 +98,23 @@
                             <p class="figure-note">{{ $isToday ? __('Nothing collected yet today.') : __('Nothing was collected on this day.') }}</p>
                         @endif
                     </div>
-                    <x-field name="counted_cash" :label="__('Counted cash')" inputmode="decimal" dir="ltr" autocomplete="off" required x-model="counted"
-                             :hint="__('Count the notes and coins in the till and enter the total.')" />
-                    <p class="dc-difference" data-tone="" x-bind:data-tone="tone" x-show="hasHint" x-cloak role="status" aria-live="polite">
+                    <p class="muted">{{ __('Count the notes and coins in the till and enter the total.') }}</p>
+                    <x-field name="counted_cash" :label="__('Counted cash')" inputmode="decimal" dir="ltr" autocomplete="off" required x-model="counted" x-on:change="announce"
+                             :hint="__('Digits and one decimal point, for example 3100.50.')" />
+                    {{-- What the eye sees follows every key. A screen reader would speak a phrase per digit, so it is not read out; it
+                         is told through the region below, which is always there and is filled once the field has been left. --}}
+                    <p class="dc-difference" data-tone="" x-bind:data-tone="tone" x-show="hasHint" x-cloak aria-hidden="true">
                         <span class="figure-label">{{ __('Difference') }}</span>
                         <strong x-text="hint"></strong>
                     </p>
+                    <p class="sr-only" role="status" aria-live="polite" aria-atomic="true" x-text="announced"></p>
                 </section>
 
                 @include('app.day-close._lists')
 
                 <section class="card card-pad stack" aria-labelledby="sign-title">
                     <h2 id="sign-title" class="card-title">{{ __('Sign off') }}</h2>
-                    <x-field name="note" type="textarea" :label="__('Note (optional)')" rows="2" maxlength="1000" />
+                    <x-field name="note" type="textarea" :label="__('Note (optional)')" rows="2" maxlength="{{ $maxNote }}" />
                     @error('day')<p class="alert alert-error" role="alert">{{ $message }}</p>@enderror
                     <button class="btn btn-lg btn-block">{{ __('Close the day') }}</button>
                     <p class="field-hint">{{ __('Closing keeps the figures as they are now. An owner or a manager can reopen the day.') }}</p>

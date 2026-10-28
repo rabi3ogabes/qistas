@@ -15,6 +15,9 @@ use Illuminate\Foundation\Http\FormRequest;
  */
 final class CloseDayRequest extends FormRequest
 {
+    /** The longest a note may be (the page's field is limited by this too, so the two cannot drift apart). */
+    public const NOTE_MAX = 1000;
+
     /** Anyone who records payments may close a day; asked before what was typed is looked at. */
     public function authorize(): bool
     {
@@ -26,7 +29,7 @@ final class CloseDayRequest extends FormRequest
     {
         return [
             'counted_cash' => ['required', 'string'],
-            'note' => ['nullable', 'string', 'max:1000'],
+            'note' => ['nullable', 'string', 'max:'.self::NOTE_MAX],
             'day' => ['nullable', 'date_format:Y-m-d'],
         ];
     }

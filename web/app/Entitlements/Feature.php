@@ -169,7 +169,7 @@ enum Feature: string
             self::PromissoryNote => __('The promissory note is no longer offered. Notes already printed stay valid on their verification page.'),
             self::LateFees => __('No new fees are charged. Fees already charged stay on their contracts and can still be paid or waived; each contract keeps the policy it was made with.'),
             self::HomeWidget => __('An installed widget shows “Open Qistas” and stops reading. Nothing is deleted.'),
-            self::DayClose => __('No new closes and no reminders. Days already closed, and their summaries, stay readable.'),
+            self::DayClose => __('No new closes and no reminders, and the page and the API are hidden. Closed days and their summaries are kept, and come back when it is switched on again.'),
         };
     }
 

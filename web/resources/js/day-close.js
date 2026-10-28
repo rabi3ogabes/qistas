@@ -11,7 +11,7 @@ const ARABIC_INDIC = '٠١٢٣٤٥٦٧٨٩';
 const EXTENDED_ARABIC_INDIC = '۰۱۲۳۴۵۶۷۸۹';
 
 // An amount typed on an Arabic or Urdu keyboard reads the way the server reads it (App\Support\Digits).
-export function ascii(value) {
+function ascii(value) {
     return String(value ?? '')
         .replace(/[٠-٩]/g, (d) => String(ARABIC_INDIC.indexOf(d)))
         .replace(/[۰-۹]/g, (d) => String(EXTENDED_ARABIC_INDIC.indexOf(d)))
@@ -21,7 +21,7 @@ export function ascii(value) {
 
 // Whole cents (a BigInt) of what a person typed when the server would accept it as an amount (at most fourteen digits before
 // the point and two after it, nothing else), and null when it would not: no hint is better than a wrong one.
-export function centsOfTyped(text) {
+function centsOfTyped(text) {
     const match = /^(\d{1,14})(?:\.(\d{1,2}))?$/.exec(ascii(text));
     if (match === null) return null;
 
@@ -29,7 +29,7 @@ export function centsOfTyped(text) {
 }
 
 // Whole cents of an amount the server sent as a decimal string, either side of zero.
-export function centsOfServer(text) {
+function centsOfServer(text) {
     const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(String(text ?? '').trim());
     if (match === null) return null;
     const cents = BigInt(match[2]) * 100n + BigInt((match[3] ?? '').padEnd(2, '0').slice(0, 2));
@@ -38,7 +38,7 @@ export function centsOfServer(text) {
 }
 
 // Whole cents as a decimal string without its sign: 500n is "5.00".
-export function decimalOf(cents) {
+function decimalOf(cents) {
     const whole = cents < 0n ? -cents : cents;
 
     return `${whole / 100n}.${String(whole % 100n).padStart(2, '0')}`;
@@ -47,6 +47,8 @@ export function decimalOf(cents) {
 export function dayCount() {
     return {
         counted: '',
+        // What a screen reader is told about the difference: set when the field changes (is left), never on every key.
+        announced: '',
         expected: null,
         currency: 'USD',
         locale: 'en-u-nu-latn',
@@ -84,6 +86,10 @@ export function dayCount() {
             if (difference === 0n) return this.messages.balanced;
 
             return (difference < 0n ? this.messages.short : this.messages.over).replace(':amount', this.money(difference));
+        },
+
+        announce() {
+            this.announced = this.hasHint ? `${this.messages.difference}: ${this.hint}` : '';
         },
 
         money(cents) {
@@ -139,11 +145,13 @@ export function copyText() {
         get idle() { return !this.copied; },
         get done() { return this.copied; },
         // What a screen reader hears once it is copied.
-        get announcement() { return this.copied ? (this.$el.dataset.copied ?? '') : ''; },
+        get announcement() { return this.copied ? (this.$root.dataset.copied ?? '') : ''; },
 
+        // `$el` is the element whose directive is running, and these run from the button and the live region inside the
+        // component, not from its root: only the root holds the sentence, so it is `$root` here (`init` alone may use `$el`).
         async copy() {
-            if (!(await write(this.$el.dataset.text ?? ''))) {
-                select(this.$el.querySelector('.dc-sentence'));
+            if (!(await write(this.$root.dataset.text ?? ''))) {
+                select(this.$root.querySelector('.dc-sentence'));
 
                 return;
             }

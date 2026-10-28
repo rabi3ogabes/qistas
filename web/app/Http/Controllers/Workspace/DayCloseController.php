@@ -90,6 +90,8 @@ final class DayCloseController
             'difference' => $signed === null ? null : $this->difference($signed->difference, $currency),
             'canReopen' => $signed !== null && $user->can('reopen', $signed),
             'minReason' => ReopenDay::MIN_REASON,
+            'maxReason' => ReopenDay::MAX_REASON,
+            'maxNote' => CloseDayRequest::NOTE_MAX,
             'history' => $history,
             'earliest' => CarbonImmutable::parse($today->date, 'UTC')->subDays(CloseDay::DAYS_BACK)->format('Y-m-d'),
             'latestDay' => $today->date,
@@ -100,6 +102,7 @@ final class DayCloseController
                 'locale' => app()->getLocale().'-u-nu-latn',
                 'initial' => (string) $request->old('counted_cash', ''),
                 'messages' => [
+                    'difference' => __('Difference'),
                     'balanced' => __('Balanced'),
                     'short' => __('Short by :amount'),
                     'over' => __('Over by :amount'),
