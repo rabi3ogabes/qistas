@@ -23,14 +23,15 @@ use LogicException;
  * @property string $expected_cash what was recorded in cash for the day
  * @property string $counted_cash what the person counted
  * @property string $difference counted less expected: short is negative, over is positive
- * @property array<string, mixed> $totals by_method, count and per_member, as DayTotals worked them out
+ * @property array<string, mixed> $totals by_method, count and per_member, as DayTotals worked them out; the names in
+ *                                        per_member are a record of what the screen showed (in the closer's language)
  * @property string|null $note
  * @property string|null $closed_by_user_id
  * @property Carbon $closed_at
  * @property string|null $reopened_by_user_id
  * @property Carbon|null $reopened_at
  * @property string|null $reopen_reason
- * @property string $snapshot_hash a SHA-256 of the day's figures when it was closed
+ * @property string $snapshot_hash a SHA-256 of the day's figures when it was closed, names left out (CloseDay::snapshotHash)
  */
 class DayClose extends Model
 {

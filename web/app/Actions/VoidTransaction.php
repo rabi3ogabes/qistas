@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Domain\DayClose\DayCloseGuard;
 use App\Domain\Investors\InvestorLedger;
 use App\Domain\LateFees\LateFees;
 use App\Domain\Ledger\ContractSettlement;
@@ -26,7 +27,10 @@ final class VoidTransaction
 {
     public function __construct(private readonly CurrentTenant $current, private readonly InvestorLedger $investors) {}
 
-    /** @throws ValidationException when the transaction cannot be voided */
+    /**
+     * @throws ValidationException when the transaction cannot be voided (on `transaction`, also when the payment's day or
+     *                             today is closed and [$by] is not an owner or a manager: see DayCloseGuard)
+     */
     public function handle(Transaction $transaction, ?string $reason = null, ?User $by = null): Transaction
     {
         return $this->current->use($transaction->tenant, fn () => DB::transaction(function () use ($transaction, $reason, $by): Transaction {
@@ -44,6 +48,12 @@ final class VoidTransaction
             // Once a contract is open, the instalments its earlier payments settled are history: they stay as paid.
             if ($contract->isOpen() && $original->type === 'payment' && TransactionAllocation::where('transaction_id', $original->id)->exists()) {
                 throw ValidationException::withMessages(['transaction' => __('This payment was made before the contract became open, so it stays as it is.')]);
+            }
+
+            // Voiding a payment touches the day it was taken and today: once either is closed, it is an owner's or a
+            // manager's to do (D10), asked before anything is written. A charge moves no cash, so no closed figure.
+            if ($original->type === 'payment') {
+                DayCloseGuard::assertMayChange($transaction->tenant, $original->paid_at, $by, DayCloseGuard::VOID);
             }
 
             $at = now();

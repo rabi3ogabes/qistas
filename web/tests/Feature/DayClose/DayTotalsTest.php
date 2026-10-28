@@ -2,26 +2,19 @@
 
 use App\Actions\CancelContract;
 use App\Actions\RecordCharge;
-use App\Actions\RecordPayment;
 use App\Actions\VoidTransaction;
 use App\Actions\WaiveLateFee;
-use App\Domain\DayClose\DayTotals;
 use App\Entitlements\Feature;
 use App\Entitlements\FeatureGroup;
 use App\Entitlements\PlatformState;
-use App\Models\Contract;
 use App\Models\Customer;
 use App\Models\DayClose;
 use App\Models\LateFee;
-use App\Models\Plan;
 use App\Models\Tenant;
-use App\Models\Transaction;
 use App\Models\User;
 use App\Settings\SettingsRegistry;
 use App\Settings\TenantSettings;
-use App\Support\WorkspaceDay;
 use App\Tenancy\CurrentTenant;
-use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -36,50 +29,9 @@ use Illuminate\Validation\ValidationException;
 | is midnight there: the 21st runs from 2026-10-20 21:00 UTC up to, not including, 2026-10-21 21:00 UTC.
 */
 
-/** A workspace on the Free plan whose clock is [$timezone]. */
-function closeShop(string $country = 'SA', string $timezone = 'Asia/Riyadh'): Tenant
-{
-    $tenant = Tenant::factory()->create(['country' => $country, 'timezone' => $timezone]);
-    $tenant->subscribeTo(Plan::where('key', 'free')->sole());
+// closeShop, closeStaff, closeContract, closeTake and closeTotals live in tests/Pest.php, shared by the day-close tests.
 
-    return $tenant;
-}
-
-/** Someone who takes payments for [$tenant], with a name the tests can look for. */
-function closeStaff(Tenant $tenant, string $name, string $role = 'collector'): User
-{
-    $user = User::factory()->create(['name' => $name]);
-    $tenant->users()->attach($user->id, ['role' => $role]);
-
-    return $user;
-}
-
-/**
- * A contract with room for many payments (ten instalments of 500.00) for a customer whose name the tests know. The
- * customer keeps a phone number and a national ID, so a test can prove neither ever reaches the totals.
- *
- * @param  array<string, mixed>  $overrides
- */
-function closeContract(Tenant $tenant, string $customer = 'Ahmad Ali', array $overrides = []): Contract
-{
-    $owner = customerIn($tenant, ['name' => $customer, 'phone' => '+966501234567', 'national_id' => '1098765432', 'email' => 'ahmad@example.test']);
-
-    return openContract($tenant, array_merge(['customer_id' => $owner->id, 'principal' => '5000.00', 'installment_count' => 10], $overrides));
-}
-
-/** Money taken on [$contract]: now, or at the UTC moment [$at] (a back-dated or earlier payment). */
-function closeTake(Contract $contract, string $amount, string $method = 'cash', ?User $by = null, ?string $at = null): Transaction
-{
-    return app(RecordPayment::class)->handle($contract, $amount, $method, by: $by, paidAt: $at === null ? null : CarbonImmutable::parse($at, 'UTC'));
-}
-
-/** The workspace's figures for the local day [$date]. */
-function closeTotals(Tenant $tenant, string $date = '2026-10-21'): array
-{
-    return DayTotals::for($tenant, WorkspaceDay::on($tenant, $date));
-}
-
-/** A day's close as a later task writes it: by trusted code, never from a request. */
+/** A day's close written straight to the table, by trusted code, for the tests of the row itself (CloseDay writes the real ones). */
 function closeRow(Tenant $tenant, User $by, array $overrides = []): DayClose
 {
     return asTenant($tenant, function () use ($by, $overrides): DayClose {

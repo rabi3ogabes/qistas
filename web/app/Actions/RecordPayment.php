@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Domain\DayClose\DayCloseGuard;
 use App\Domain\Investors\InvestorLedger;
 use App\Domain\LateFees\LateFees;
 use App\Domain\Ledger\ContractSettlement;
@@ -46,9 +47,12 @@ final class RecordPayment
      * @param  ?CarbonInterface  $paidAt  when the money was received (default now; never in the future)
      * @param  ?string  $tag  one of Transaction::TAGS (an advance, a refund, an early-payment discount)
      * @param  ?string  $applyTo  the instalment to fill first (Win Plan PP6); the rest goes to the oldest
-     * @param  ?string  $batchId  the payment across contracts this line is part of (Win Plan PP6)
+     * @param  ?string  $batchId  the payment across contracts this line is part of (Win Plan PP6). RecordCustomerPayment
+     *                            put the whole payment to the after-close rule once, before writing anything, so its
+     *                            lines are not asked again (one change, one audit row)
      *
-     * @throws ValidationException naming the field at fault
+     * @throws ValidationException naming the field at fault (`paid_at` when it is back-dated into a closed day and [$by]
+     *                             is not an owner or a manager: see DayCloseGuard)
      */
     public function handle(
         Contract $contract,
@@ -72,7 +76,14 @@ final class RecordPayment
             }
 
             try {
-                return DB::transaction(fn () => $this->record($contract, $amount, $method, $idempotencyKey, $by, $note, $paidAt, $tag, $applyTo, $batchId));
+                return DB::transaction(function () use ($contract, $amount, $method, $idempotencyKey, $by, $note, $paidAt, $tag, $applyTo, $batchId): Transaction {
+                    // A closed day is changed only by an owner or a manager (D10), and asked before anything is written.
+                    if ($batchId === null) {
+                        DayCloseGuard::assertMayChange($contract->tenant, $paidAt, $by);
+                    }
+
+                    return $this->record($contract, $amount, $method, $idempotencyKey, $by, $note, $paidAt, $tag, $applyTo, $batchId);
+                });
             } catch (UniqueConstraintViolationException $e) {
                 // Two requests with the same key arrived together and the other one won: answer with its result.
                 $existing = $idempotencyKey === null ? null : Transaction::where('idempotency_key', $idempotencyKey)->first();
@@ -88,7 +99,8 @@ final class RecordPayment
      * meanwhile it has changed, and nothing is written. Safe to retry with the same key.
      *
      * @throws QuoteChanged when [$expectedPayoff] is no longer the payoff
-     * @throws ValidationException when the contract cannot be settled early, or the rebate cannot be read
+     * @throws ValidationException when the contract cannot be settled early, or the rebate cannot be read, or on `paid_at`
+     *                             when it is back-dated into a closed day and [$by] is not an owner or a manager
      */
     public function settle(
         Contract $contract,
@@ -114,6 +126,9 @@ final class RecordPayment
             }
 
             return DB::transaction(function () use ($contract, $rebateType, $rebateValue, $expectedPayoff, $method, $idempotencyKey, $by, $note, $paidAt): Transaction|ContractAdjustment {
+                // A closed day is changed only by an owner or a manager (D10), and asked before anything is written.
+                DayCloseGuard::assertMayChange($contract->tenant, $paidAt, $by);
+
                 $locked = Contract::query()->whereKey($contract->id)->lockForUpdate()->firstOrFail();
                 if ($locked->status !== 'active' || $locked->isOpen()) {
                     throw ValidationException::withMessages(['contract' => $locked->status === 'settled'

@@ -1,11 +1,17 @@
 <?php
 
+use App\Actions\CloseDay;
 use App\Actions\CreateContract;
+use App\Actions\RecordPayment;
+use App\Actions\ReopenDay;
+use App\Domain\DayClose\DayTotals;
 use App\Entitlements\Feature;
 use App\Entitlements\FeatureControl;
 use App\Entitlements\PlatformState;
+use App\Models\AuditLog;
 use App\Models\Contract;
 use App\Models\Customer;
+use App\Models\DayClose;
 use App\Models\Installment;
 use App\Models\Plan;
 use App\Models\Tenant;
@@ -13,7 +19,9 @@ use App\Models\Transaction;
 use App\Models\TransactionAllocation;
 use App\Models\User;
 use App\Support\Money;
+use App\Support\WorkspaceDay;
 use App\Tenancy\CurrentTenant;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
@@ -194,4 +202,78 @@ function memberAs(string $role, Tenant $tenant): User
     $tenant->users()->attach($user->id, ['role' => $role]);
 
     return $user;
+}
+
+/*
+| End-of-day close (daily-habit wave A, H4): a workspace on its own clock, its team, a contract with room for many
+| payments, money taken on it, the day's figures and a close, shared by the tests in tests/Feature/DayClose.
+*/
+
+/** A workspace on the Free plan whose clock is [$timezone]. */
+function closeShop(string $country = 'SA', string $timezone = 'Asia/Riyadh'): Tenant
+{
+    $tenant = Tenant::factory()->create(['country' => $country, 'timezone' => $timezone]);
+    $tenant->subscribeTo(Plan::where('key', 'free')->sole());
+
+    return $tenant;
+}
+
+/** Someone who takes payments for [$tenant], with a name the tests can look for. */
+function closeStaff(Tenant $tenant, string $name, string $role = 'collector'): User
+{
+    $user = User::factory()->create(['name' => $name]);
+    $tenant->users()->attach($user->id, ['role' => $role]);
+
+    return $user;
+}
+
+/**
+ * A contract with room for many payments (ten instalments of 500.00) for a customer whose name the tests know. The
+ * customer keeps a phone number and a national ID, so a test can prove neither ever reaches the totals.
+ *
+ * @param  array<string, mixed>  $overrides
+ */
+function closeContract(Tenant $tenant, string $customer = 'Ahmad Ali', array $overrides = []): Contract
+{
+    $owner = customerIn($tenant, ['name' => $customer, 'phone' => '+966501234567', 'national_id' => '1098765432', 'email' => 'ahmad@example.test']);
+
+    return openContract($tenant, array_merge(['customer_id' => $owner->id, 'principal' => '5000.00', 'installment_count' => 10], $overrides));
+}
+
+/** Money taken on [$contract]: now, or at the UTC moment [$at] (a back-dated or earlier payment). */
+function closeTake(Contract $contract, string $amount, string $method = 'cash', ?User $by = null, ?string $at = null): Transaction
+{
+    return app(RecordPayment::class)->handle($contract, $amount, $method, by: $by, paidAt: $at === null ? null : CarbonImmutable::parse($at, 'UTC'));
+}
+
+/** The workspace's figures for the local day [$date]. */
+function closeTotals(Tenant $tenant, string $date = '2026-10-21'): array
+{
+    return DayTotals::for($tenant, WorkspaceDay::on($tenant, $date));
+}
+
+/** [$by] closes the local day [$date] of [$tenant], having counted [$counted] in the till. */
+function closeDay(Tenant $tenant, string $date, User $by, string $counted = '0.00', ?string $note = null): DayClose
+{
+    return app(CloseDay::class)->handle($tenant, WorkspaceDay::on($tenant, $date), $counted, $note, $by);
+}
+
+/** [$by] reopens [$close], giving [$reason]. */
+function reopenDay(DayClose $close, string $reason, User $by): DayClose
+{
+    return app(ReopenDay::class)->handle($close, $reason, $by);
+}
+
+/**
+ * The audit rows of the end-of-day close in the workspace [$tenantId] whose action is like [$action], oldest first (and,
+ * for one change that touched two days, in the order of the days): what, about which close, by whom, and the details.
+ *
+ * @return list<array{action: string, subject_id: ?string, user_id: ?string, changes: ?array<string, mixed>}>
+ */
+function closeAudits(string $tenantId, string $action = 'day_close.%'): array
+{
+    return AuditLog::query()->where('tenant_id', $tenantId)->where('action', 'like', $action)->get()
+        ->sortBy(fn (AuditLog $row) => [$row->created_at?->getTimestamp(), $row->changes['day'] ?? ''])->values()
+        ->map(fn (AuditLog $row) => ['action' => $row->action, 'subject_id' => $row->subject_id, 'user_id' => $row->user_id, 'changes' => $row->changes])
+        ->all();
 }
