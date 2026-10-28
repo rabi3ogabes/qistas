@@ -25,6 +25,8 @@ use App\Models\Tenant;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Support\Money;
+use App\Support\PaymentDate;
+use App\Support\WorkspaceDay;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Carbon;
@@ -63,7 +65,8 @@ final class CreateContract
             Entitlements::for($tenant)->assertCanCreate(Feature::ActiveContracts);
 
             $type = $data['type'] ?? 'scheduled';
-            $startDate = $data['start_date'] ?? today()->format('Y-m-d');
+            // No date means the workspace's today, not the server's: at 01:00 in Riyadh it is still yesterday in UTC.
+            $startDate = $data['start_date'] ?? WorkspaceDay::of($tenant)->date;
             if ($type === 'open') {
                 return $this->openAccount($tenant, $customer, $data, $startDate, $by);
             }
@@ -77,10 +80,13 @@ final class CreateContract
             $items = $data['items'] ?? [];
             $investor = $this->investor($tenant, $data['investor_id'] ?? null);
             $downPayment = $type === 'cash' ? '0' : Money::parse($data['down_payment'] ?? '0');
-            $downPaymentAt = Carbon::parse($startDate);
+            // Money in on the contract's start day, read on the workspace's calendar like any payment typed with a date:
+            // now when that day is today there, otherwise the last second of it (PaymentDate). The schedule keeps the
+            // start date as it is.
+            $downPaymentAt = PaymentDate::moment($tenant, $startDate);
 
-            // The down payment is money in, dated by the contract's start: into a closed day it is an owner's or a
-            // manager's (D10), asked before anything is written, at the very instant its ledger line will carry.
+            // Into a closed day it is an owner's or a manager's (D10), asked before anything is written, at the very
+            // instant its ledger line will carry.
             if (! Money::isZero($downPayment)) {
                 DayCloseGuard::assertMayChange($tenant, $downPaymentAt, $by, DayCloseGuard::PAYMENT, 'start_date');
             }

@@ -258,6 +258,21 @@ function closeDay(Tenant $tenant, string $date, User $by, string $counted = '0.0
     return app(CloseDay::class)->handle($tenant, WorkspaceDay::on($tenant, $date), $counted, $note, $by);
 }
 
+/**
+ * What the contract form sends for a sale of 1,200.00 to the customer of [$contract]: [$downPayment] down and four
+ * monthly instalments from 25 Nov, the contract dated [$start] (null sends no date, as an API client may).
+ *
+ * @return array<string, mixed>
+ */
+function saleOn(Contract $contract, ?string $start, string $downPayment = '200.00'): array
+{
+    return [
+        'customer_id' => $contract->customer_id, 'type' => 'scheduled', 'principal' => '1200.00', 'down_payment' => $downPayment,
+        'markup_type' => 'none', 'markup_value' => '0', 'installment_count' => 4, 'frequency' => 'monthly',
+        'first_due_date' => '2026-11-25',
+    ] + ($start === null ? [] : ['start_date' => $start]);
+}
+
 /** [$by] reopens [$close], giving [$reason]. */
 function reopenDay(DayClose $close, string $reason, User $by): DayClose
 {

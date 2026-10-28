@@ -51,16 +51,6 @@ function contractsAndLinesOf(Tenant $tenant): array
     return asTenant($tenant, fn () => [Contract::query()->count(), Transaction::query()->count()]);
 }
 
-/** A sale of 1,200.00 to the customer of [$contract], [$downPayment] down and four monthly instalments, the contract dated [$start]. */
-function saleOn(Contract $contract, string $start, string $downPayment = '200.00'): array
-{
-    return [
-        'customer_id' => $contract->customer_id, 'type' => 'scheduled', 'principal' => '1200.00', 'down_payment' => $downPayment,
-        'markup_type' => 'none', 'markup_value' => '0', 'installment_count' => 4, 'frequency' => 'monthly',
-        'start_date' => $start, 'first_due_date' => '2026-11-25',
-    ];
-}
-
 beforeEach(function () {
     $this->travelTo('2026-10-01 06:00:00');
     switchOn(Feature::DayClose);
@@ -308,8 +298,9 @@ test('an owner can open it, and an audit row is written', function () {
     $id = $this->postJson('/api/v1/contracts', saleOn($this->contract, '2026-10-19'))->assertCreated()->json('data.id');
 
     $downPayment = asTenant($this->shop, fn () => Transaction::query()->where('contract_id', $id)->sole());
+    // A day typed for a payment is the last second of that day on the workspace's clock (PaymentDate): 23:59:59 in Riyadh.
     expect($downPayment->type)->toBe('down_payment')
-        ->and($downPayment->paid_at->toDateTimeString())->toBe('2026-10-19 00:00:00')
+        ->and($downPayment->paid_at->toDateTimeString())->toBe('2026-10-19 20:59:59')
         ->and(closeAudits($this->shop->id, 'day_close.%after_close'))->toBe([[
             'action' => 'day_close.change_after_close', 'subject_id' => $this->closed->id, 'user_id' => $this->boss->id, 'changes' => ['day' => '2026-10-19', 'change' => 'payment'],
         ]]);

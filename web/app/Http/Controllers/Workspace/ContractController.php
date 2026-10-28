@@ -33,6 +33,7 @@ use App\Reports\ContractProgress;
 use App\Support\Files;
 use App\Support\Format;
 use App\Support\Money;
+use App\Support\WorkspaceDay;
 use App\Tenancy\CurrentTenant;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
@@ -88,7 +89,8 @@ final class ContractController
             'details' => Entitlements::for($this->current->get())->check(Feature::ContractItems)->enabled(),
             'products' => Product::query()->active()->orderByRaw('LOWER(name)')->get(['id', 'name', 'default_price', 'cost']),
             'currency' => $this->current->get()?->currency,
-            'today' => today()->format('Y-m-d'),
+            // The contract date offered: the workspace's today, not the server's (UTC).
+            'today' => WorkspaceDay::of($this->current->get())->date,
         ]);
     }
 
