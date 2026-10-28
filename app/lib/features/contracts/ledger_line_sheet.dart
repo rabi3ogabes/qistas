@@ -21,6 +21,8 @@ String tagLabel(BuildContext context, String tag) => switch (tag) {
       'refund' => context.t('Refund'),
       'early_discount' => context.t('Early-payment discount'),
       'unpaid' => context.t('Unpaid'),
+      // Written by an import on what was paid before the shop used Qistas; never one a person picks (lineTags).
+      'imported' => context.t('Paid before Qistas'),
       _ => tag,
     };
 

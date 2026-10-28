@@ -1,7 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 
-import 'package:flutter/material.dart' show TextButton;
+import 'package:flutter/material.dart' show Icons, OutlinedButton, Scaffold, Size, TextButton, TextSelection;
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:qistas/core/design/widgets.dart';
 
 import '../support/fake_api.dart';
@@ -79,6 +82,25 @@ void main() {
 
       final body = jsonDecode(server.requestsTo('POST /payments/t1/void').single.data as String) as Map<String, dynamic>;
       expect(body['reason'], 'Typed twice');
+    });
+
+    testWidgets('says why the server refused a void, not only that something was not valid', (tester) async {
+      // The phone still thinks this person is a manager; the server, which has the last word, says the day is closed.
+      final server = workspaceServer(routes: {
+        'POST /payments/t1/void': always(apiError(422, 'validation_failed', 'Some of the information is not valid.', extra: {
+          'fields': {'transaction': ['That day is closed. Ask the owner or a manager.']},
+        })),
+      });
+      await pumpApp(tester, server);
+
+      await tapText(tester, 'Contracts', last: true);
+      await tapText(tester, 'C-0007');
+      await tapText(tester, 'Void payment');
+      await tester.tap(find.widgetWithText(TextButton, 'Void payment').last);
+      await settle(tester);
+
+      expect(find.text('That day is closed. Ask the owner or a manager.'), findsOneWidget);
+      expect(find.text('Some of the information is not valid.'), findsNothing);
     });
 
     testWidgets('backing out of the void dialog sends nothing', (tester) async {
@@ -214,6 +236,67 @@ void main() {
 
       expect(find.text('You have reached your plan limit'), findsOneWidget);
       expect(find.byType(QButton), findsWidgets);
+    });
+
+    group('a contract date the server refuses', () {
+      const closed = 'That day is closed. Ask the owner or a manager.';
+      // What the server says in Arabic (web/lang/app/ar.json): the app shows the server's words as they come.
+      const closedArabic = 'هذا اليوم مغلق. اطلب ذلك من المالك أو أحد المديرين.';
+
+      FakeServer refusing(String message) => workspaceServer(routes: {
+            'POST /contracts': always(apiError(422, 'validation_failed', 'Some of the information is not valid.', extra: {
+              'fields': {'start_date': [message]},
+            })),
+          });
+
+      Finder contractDate() => find.ancestor(of: find.byIcon(Icons.calendar_today_outlined), matching: find.byType(OutlinedButton));
+
+      testWidgets('shows the reason under the contract date, with the banner above', (tester) async {
+        await pumpApp(tester, refusing(closed));
+        await tapText(tester, 'Contracts', last: true);
+        await tapText(tester, 'New contract');
+        await chooseCustomer(tester);
+        await typeInto(tester, 'Sale price (SAR)', '1200');
+        await typeInto(tester, 'Down payment (optional)', '200');
+        await tapButton(tester, 'Open contract');
+
+        expect(find.text('Check the highlighted fields and try again.'), findsOneWidget);
+        // Once, and right under the contract date: above the first instalment's date, not beside another field.
+        expect(find.text(closed), findsOneWidget);
+        final reason = tester.getRect(find.text(closed));
+        expect(reason.top, greaterThanOrEqualTo(tester.getRect(contractDate()).bottom));
+        expect(reason.bottom, lessThanOrEqualTo(tester.getRect(find.text('First instalment due')).top));
+        // The other fields say nothing.
+        expect(find.text('Choose who this contract is for.'), findsNothing);
+        expect(find.text('Enter a price greater than zero.'), findsNothing);
+      });
+
+      for (final language in ['en', 'ar']) {
+        testWidgets(language == 'ar' ? 'the reason wraps at 200% text in Arabic' : 'the reason wraps at 200% text in English', (tester) async {
+          final words = language == 'ar' ? jsonDecode(File('assets/i18n/ar.json').readAsStringSync()) as Map<String, dynamic> : <String, dynamic>{};
+          String word(String english) => (words[english] ?? english) as String;
+          final message = language == 'ar' ? closedArabic : closed;
+
+          await pumpApp(tester, refusing(message), language: language, size: const Size(360, 640), textScale: 2);
+          GoRouter.of(tester.element(find.byType(Scaffold).first)).go('/contracts/new?customer=c1');
+          await settle(tester);
+          // A cash sale: the contract date and its reason are drawn the same for every kind of sale, and a sale with a
+          // schedule adds the schedule preview, whose rows do not fit a 360 dp screen at 200% (a separate matter).
+          await tapText(tester, word('Cash sale'));
+          await typeInto(tester, word('Sale price (:currency)').replaceAll(':currency', 'SAR'), '1200');
+          await tapButton(tester, word('Open contract'));
+
+          expect(find.text(message), findsOneWidget);
+          await tester.ensureVisible(find.text(message));
+          await tester.pump();
+          final paragraph = tester.renderObject<RenderParagraph>(find.text(message));
+          final lines = {for (final box in paragraph.getBoxesForSelection(TextSelection(baseOffset: 0, extentOffset: message.length))) box.top.round()};
+          expect(lines.length, greaterThan(1), reason: 'the reason is written on several lines, not cut');
+          expect(tester.getRect(find.text(message)).left, greaterThanOrEqualTo(0));
+          expect(tester.getRect(find.text(message)).right, lessThanOrEqualTo(360));
+          expect(tester.takeException(), isNull);
+        });
+      }
     });
   });
 }

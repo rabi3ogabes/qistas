@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/material.dart' show TextButton;
 import 'package:flutter/widgets.dart' show ValueKey;
 import 'package:flutter_test/flutter_test.dart';
 
@@ -125,6 +126,36 @@ void main() {
     final sent = body(server, 'POST /contracts/k1/payments');
     expect(sent['amount'], '100.00');
     expect(sent['method'], 'cash');
+  });
+
+  testWidgets('says why the server refused to void a line, not only that something was not valid', (tester) async {
+    final server = await openTab(tester, routes: {
+      'POST /payments/t2/void': always(apiError(422, 'validation_failed', 'Some of the information is not valid.', extra: {
+        'fields': {'transaction': ['That day is closed. Ask the owner or a manager.']},
+      })),
+    });
+
+    await tapText(tester, 'Balance SAR 180.00');
+    await tester.tap(find.widgetWithText(TextButton, 'Void').last);
+    await settle(tester);
+
+    expect(server.calls('POST /payments/t2/void'), 1);
+    expect(find.text('That day is closed. Ask the owner or a manager.'), findsOneWidget);
+    expect(find.text('Some of the information is not valid.'), findsNothing);
+  });
+
+  testWidgets('names a balance an import brought in, in words', (tester) async {
+    await openTab(tester, routes: {
+      'GET /contracts/k1': always(json(200, {
+        'data': {
+          ...openContractJson(),
+          'transactions': [tabLine('t1', 'payment', '300.00', '-300.00', tag: 'imported')],
+        },
+      })),
+    });
+
+    expect(find.text('Paid before Qistas'), findsOneWidget);
+    expect(find.text('imported'), findsNothing);
   });
 
   testWidgets('turns a scheduled contract into an open one only after showing exactly what happens', (tester) async {

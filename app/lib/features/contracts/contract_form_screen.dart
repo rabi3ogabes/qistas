@@ -790,6 +790,9 @@ class _ContractFormScreenState extends ConsumerState<ContractFormScreen> {
                   Text(context.t('Contract date'), style: text.labelLarge),
                   const SizedBox(height: 8),
                   OutlinedButton.icon(onPressed: _saving ? null : _pickStart, icon: const Icon(Icons.calendar_today_outlined, size: 18), label: Text(formatMoment(_start, language))),
+                  // The server's reason for refusing the date, such as a down payment dated into a day that was closed.
+                  if (_error('start_date') != null)
+                    Padding(padding: const EdgeInsets.only(top: 6), child: Text(_error('start_date')!, style: text.bodySmall?.copyWith(color: c.danger))),
                   if (scheduled && !custom) ...[
                     const SizedBox(height: 16),
                     Text(context.t('First instalment due'), style: text.labelLarge),
