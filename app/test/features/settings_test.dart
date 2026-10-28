@@ -116,7 +116,7 @@ void main() {
 
     final help = group('help');
     await tester.scrollUntilVisible(help, 200, scrollable: find.descendant(of: find.byType(SingleChildScrollView), matching: find.byType(Scrollable)).first);
-    expect(find.descendant(of: help, matching: find.text('1.27.1')), findsOneWidget);
+    expect(find.descendant(of: help, matching: find.text('1.28.0')), findsOneWidget);
   });
 
   testWidgets('holds together in Arabic with the text at twice the size on a small phone', (tester) async {
