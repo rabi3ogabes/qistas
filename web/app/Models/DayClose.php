@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Tenancy\BelongsToTenant;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 use LogicException;
 
@@ -59,6 +60,26 @@ class DayClose extends Model
             }
         });
         static::deleting(fn () => throw new LogicException('A close is a signed record and cannot be deleted; reopen the day instead.'));
+    }
+
+    /**
+     * Who counted the cash and signed the day off; null once that person has left the team (the close stays as it was).
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function closedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'closed_by_user_id');
+    }
+
+    /**
+     * Who reopened the day, once it has been; null otherwise, and when that person has left the team.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function reopenedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reopened_by_user_id');
     }
 
     protected function casts(): array

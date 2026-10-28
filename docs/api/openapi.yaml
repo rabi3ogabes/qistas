@@ -33,7 +33,7 @@ info:
       answers with it (200 instead of 201). The same key with different content is a `validation_failed`.
     * **Adding once.** Every other add (`POST /customers`, `/contracts`, `/products`, `/tags`, `/investors`,
       `/investors/{id}/entries`, `/contracts/{id}/guarantors`, `/contracts/{id}/amendments`, `/support/tickets`,
-      `/team/invitations`, and changes to customers) also takes an `Idempotency-Key` (16 to 100 of the same characters).
+      `/team/invitations`, `/day-close`, and changes to customers) also takes an `Idempotency-Key` (16 to 100 of the same characters).
       A request repeated with the same key by the same person while the first is in flight, or within ten minutes of
       a success, is not run again: it answers with the first answer and the header `Idempotent-Replayed: true`. An
       answer that was not a success (a 422, a 402) lets the key go, so the corrected request can use it. A repeat that
@@ -53,6 +53,7 @@ tags:
   - name: Customers
   - name: Contracts
   - name: Payments
+  - name: Day close
   - name: Late fees
   - name: Paperwork
   - name: Import
@@ -935,6 +936,153 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "422": {$ref: "#/components/responses/ValidationFailed"}
+  /day-close/today:
+    get:
+      tags: [Day close]
+      summary: Today's cash to count, and today's close if there is one
+      description: |
+        What the end-of-day screen shows, on the workspace's own day. Behind the `day_close` feature (403
+        `feature_unavailable` while the platform has it off, 402 `feature_locked` when the plan lacks it); anyone in the
+        business may read it.
+
+        `expected_cash` is the cash recorded today (cash payments, less cash given back by voids). `by_method`, `count`,
+        `per_member` (each person's cash, keyed by user id), `non_cash` (every card, transfer, cheque and other line, each
+        with its customer's name and note) and `watch` (what is worth a look: voided payments, waived fees, back-dated
+        payments, contracts opened and cancelled) are the figures a close would keep. `closing_time` is the workspace's
+        setting (`day_close.closing_time`, by its own clock).
+
+        `close` is the day's latest close, when there is one: `closed` is true while it stands, and false once it has been
+        reopened (the reopened close is still shown, with `status` `reopened`). `can_close` is true when the person may
+        close the day (not a viewer) and it is not closed; `can_reopen` when it is closed and the person is an owner or a
+        manager.
+      responses:
+        "200":
+          description: Today.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/DayCloseToday"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "402": {$ref: "#/components/responses/PlanLimit"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+  /day-close:
+    get:
+      tags: [Day close]
+      summary: Every close, newest day first
+      description: |
+        Within a day the latest version comes first, so a day that was reopened and closed again lists both. Anyone in the
+        business may read it. Behind the `day_close` feature.
+      parameters:
+        - {$ref: "#/components/parameters/Page"}
+        - {$ref: "#/components/parameters/PerPage"}
+      responses:
+        "200":
+          description: A page of closes.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DayClosePage"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "402": {$ref: "#/components/responses/PlanLimit"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+    post:
+      tags: [Day close]
+      summary: Close a day
+      description: |
+        Sets the cash that was counted against what was recorded for the day, and keeps the day's figures as they were,
+        signed with a hash. Anyone who records payments may close (not a viewer: 403). `day` is the workspace's own
+        calendar day and is today when left out; it may be today or one of the seven days before it. A day is closed once:
+        a second close (a double tap, a second phone) is a 422 on `day`, and a day that was reopened is closed again as the
+        next version. Safe to retry with an `Idempotency-Key`: the retry answers with the first close.
+
+        `counted_cash` is an amount with at most two decimals, written as text (`"3100.00"`); the server never reads it as
+        a number. A mistake in it or in `day` is a 422 naming the field.
+      parameters:
+        - {$ref: "#/components/parameters/IdempotencyKey"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/DayCloseInput"}
+      responses:
+        "201":
+          description: The close, with the sentence to share.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/DayClose"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "402": {$ref: "#/components/responses/PlanLimit"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+  /day-close/{close}/reopen:
+    post:
+      tags: [Day close]
+      summary: Reopen a closed day
+      description: |
+        Owners and managers only (403 otherwise), with a reason of at least five characters. The close itself stays as it
+        was signed: only its `status` moves to `reopened`, and who reopened it, when and why are written beside it. The day
+        can then be closed again as the next version. Only a day's standing close can be reopened, once (422 on `day`).
+        Another workspace's close is a 404.
+      parameters:
+        - {name: close, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: {type: string, minLength: 5, maxLength: 500}
+      responses:
+        "200":
+          description: The close, now reopened.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/DayClose"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "402": {$ref: "#/components/responses/PlanLimit"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+  /day-close/{close}/summary.pdf:
+    get:
+      tags: [Day close]
+      summary: The close as a signed PDF
+      description: |
+        The day, who closed it, the cash expected, counted and the difference, the money by way of paying and by person,
+        and the card, transfer and other payments one by one: no customer's ID or phone. A reopened close says so. Like the
+        other documents it counts one unit of the plan's PDF allowance, the same document again within ten minutes does
+        not count twice, and its QR code opens `/verify/{code}`. Anyone in the business may have it. Behind the `day_close`
+        feature.
+      parameters:
+        - {name: close, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: "#/components/parameters/DocumentPaper"}
+        - {$ref: "#/components/parameters/DocumentText"}
+        - {$ref: "#/components/parameters/DocumentLanguage"}
+      responses:
+        "200":
+          description: The PDF. `X-Document-Code` carries the code its QR code opens at `/verify/{code}`.
+          headers:
+            X-Document-Code: {schema: {type: string}, description: The verification code printed on the document.}
+          content: {application/pdf: {schema: {type: string, format: binary}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "402": {$ref: "#/components/responses/PlanLimit"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+        "429": {$ref: "#/components/responses/RateLimited"}
   /late-fees/{fee}/waive:
     post:
       tags: [Late fees]
@@ -3842,6 +3990,108 @@ components:
         - type: object
           properties:
             data: {type: array, items: {$ref: "#/components/schemas/Transaction"}}
+    DayCloseInput:
+      type: object
+      required: [counted_cash]
+      properties:
+        counted_cash: {type: string, example: "3100.00", description: "The cash in the till: an amount with at most two decimals, not negative, written as text."}
+        note: {type: [string, "null"], maxLength: 1000}
+        day: {type: [string, "null"], format: date, description: "The workspace's own calendar day to close: today (the default) or one of the seven days before it."}
+    DayCloseFigures:
+      type: object
+      required: [by_method, count, per_member]
+      description: The day's figures, as they were when it was closed.
+      properties:
+        by_method: {type: object, additionalProperties: {$ref: "#/components/schemas/Money"}, description: "The net of each way of paying that had a line in the day (an empty object when none), cash first."}
+        count: {type: integer, description: Payments taken in the day that were not voided in it.}
+        per_member:
+          type: object
+          description: "The cash side of the day by the person who recorded each line, keyed by user id (`unknown` for someone who has since left the team); an empty object when there was none."
+          additionalProperties:
+            type: object
+            required: [name, cash, count]
+            properties:
+              name: {type: string}
+              cash: {$ref: "#/components/schemas/Money"}
+              count: {type: integer}
+    DayClose:
+      type: object
+      description: >-
+        One close of one day, as it was signed. A close is a record and is never edited: reopening a day moves its `status`
+        and writes who reopened it and why, and closing the day again writes the next `version`.
+      required: [id, day, version, status, expected_cash, counted_cash, difference, totals, note, closed_by, closed_at, reopened_by, reopened_at, reopen_reason, snapshot_hash, summary_text, summary_url]
+      properties:
+        id: {type: string, format: uuid}
+        day: {type: string, format: date, description: The workspace's own calendar day.}
+        version: {type: integer, minimum: 1}
+        status: {type: string, enum: [closed, reopened]}
+        expected_cash: {$ref: "#/components/schemas/Money", description: What was recorded in cash for the day.}
+        counted_cash: {$ref: "#/components/schemas/Money", description: What the person counted.}
+        difference: {$ref: "#/components/schemas/Money", description: Counted less expected. Negative is short, positive is over.}
+        totals: {$ref: "#/components/schemas/DayCloseFigures"}
+        note: {type: [string, "null"]}
+        closed_by: {type: [object, "null"], properties: {id: {type: string}, name: {type: string}}, description: Who closed it; null once that person has left the team.}
+        closed_at: {type: string, format: date-time}
+        reopened_by: {type: [object, "null"], properties: {id: {type: string}, name: {type: string}}}
+        reopened_at: {type: [string, "null"], format: date-time}
+        reopen_reason: {type: [string, "null"]}
+        snapshot_hash: {type: string, pattern: '^[0-9a-f]{64}$', description: A SHA-256 of the day's figures when it was closed.}
+        summary_text:
+          type: string
+          example: "Al-Fares, 21 Oct: collected SAR 8,420 (cash 3,100, other 5,320), 14 payments, difference 0."
+          description: >-
+            One sentence the person can share (on WhatsApp, say), in the language of the request: the shop, the day, what was
+            collected and how, how many payments, and whether the cash balanced (`difference 0`, `over by SAR 12.50` or
+            `short by SAR 12.50`). Show it as it is; never build it on the device.
+        summary_url: {type: string, format: uri, description: The signed PDF (GET, with the bearer token).}
+    DayClosePage:
+      allOf:
+        - {$ref: "#/components/schemas/Page"}
+        - type: object
+          properties:
+            data: {type: array, items: {$ref: "#/components/schemas/DayClose"}}
+    DayCloseToday:
+      type: object
+      required: [day, closing_time, closed, close, expected_cash, by_method, count, per_member, non_cash, watch, can_close, can_reopen]
+      properties:
+        day: {type: string, format: date, description: Today, on the workspace's own clock.}
+        closing_time: {type: string, example: "20:00", description: When the team is asked to close the day, by the workspace's own clock.}
+        closed: {type: boolean, description: True while a close of today stands.}
+        close: {oneOf: [{$ref: "#/components/schemas/DayClose"}, {type: "null"}], description: Today's latest close (a reopened one included), or null.}
+        expected_cash: {$ref: "#/components/schemas/Money", description: "Cash recorded today, less cash given back by voids; negative on a day that only gave money back."}
+        by_method: {type: object, additionalProperties: {$ref: "#/components/schemas/Money"}}
+        count: {type: integer}
+        per_member:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              name: {type: string}
+              cash: {$ref: "#/components/schemas/Money"}
+              count: {type: integer}
+        non_cash:
+          type: array
+          description: Every card, transfer, cheque and other line of the day, oldest first; a void is its own negative line.
+          items:
+            type: object
+            properties:
+              id: {type: string, format: uuid}
+              customer: {type: string}
+              amount: {$ref: "#/components/schemas/Money"}
+              method: {type: string}
+              note: {type: [string, "null"]}
+        watch:
+          type: array
+          description: What is worth a look today.
+          items:
+            type: object
+            properties:
+              kind: {type: string, enum: [void, waived_fee, back_dated, opened, cancelled]}
+              id: {type: string, format: uuid}
+              label: {type: string, description: The customer's name.}
+              amount: {type: [string, "null"], description: "What it concerned, always positive; null for an open account, which has no price."}
+        can_close: {type: boolean}
+        can_reopen: {type: boolean}
     Token:
       type: object
       properties:
