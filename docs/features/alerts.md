@@ -52,7 +52,10 @@ to re-read `/api/v1/glance` so the widget is fresh before the owner opens Qistas
 morning refresh; their widget updates when the app is opened or resumed.
 
 It also runs `qistas:send-day-close-reminders`: from each workspace's closing time (20:00 by default, a workspace tool)
-and for two hours, on the business's own clock, everyone who may close the day (not viewers) gets one reminder an
+and for up to two hours, on the business's own clock, everyone who may close the day (not viewers) gets one reminder an
 evening, only while the day is still open and has payments or something to look at, and only for workspaces that have
-the end-of-day close switched on. When someone who is not an owner closes a day with a cash difference, each owner is
-told once, right after the close is saved (not by the scheduler); both notices open `/day-close`.
+the end-of-day close switched on. The window ends at midnight, like the morning alerts' four hours: a closing time of
+22:30, 23:00 or 23:30 gets 90, 60 or 30 minutes, not two hours. A workspace that fails is logged and skipped, and the
+others still get theirs. When someone who is not an owner closes a day with a cash difference, each owner is told once,
+right after the close is saved (not by the scheduler); an owner in their quiet hours finds it in the inbox with no push.
+Both notices open `/day-close`.

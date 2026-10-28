@@ -1,6 +1,8 @@
 <?php
 
 use App\Entitlements\Feature;
+use App\Mail\MailSettings;
+use App\Mail\NoticeMail;
 use App\Models\AppNotification;
 use App\Models\DayClose;
 use App\Models\NotificationLogEntry;
@@ -11,6 +13,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Notifications\Alerts\DayCloseDifference;
 use App\Notifications\Alerts\DayCloseReminders;
+use App\Notifications\Alerts\Notifier;
 use App\Notifications\Catalog;
 use App\Notifications\Channels;
 use App\Notifications\Preferences;
@@ -22,6 +25,7 @@ use App\Support\InLanguage;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Laravel\Sanctum\Sanctum;
 use Tests\Support\RecordingPushSender;
 
@@ -275,6 +279,14 @@ describe('the evening reminder', function () {
         expect(remindAt('2026-10-21 20:45:00'))->toBe(4);
     });
 
+    it('gives a late closing time what is left of the evening, not a full two hours', function () {
+        TenantSettings::for($this->shop)->set('day_close.closing_time', '22:30', $this->boss);
+
+        // 22:30 plus two hours would be 00:30, but the window ends at midnight: ninety minutes.
+        expect(remindAt('2026-10-21 21:01:00'))->toBe(0)
+            ->and(remindAt('2026-10-21 20:59:00'))->toBe(4);
+    });
+
     it('tells a person who works in two workspaces in each of them', function () {
         [$second, $secondOwner] = dayCloseOtherShop();
         $second->users()->attach($this->sara->id, ['role' => 'collector']);
@@ -399,25 +411,56 @@ describe('the notice of a difference', function () {
         expect($this->push->sent)->toBe([]);
     });
 
-    it('respects an owner’s switch and quiet hours', function () {
-        $olga = closeStaff($this->shop, 'Olga Owner', 'owner');
-        $omar = closeStaff($this->shop, 'Omar Owner', 'owner');
-        dayClosePhone($olga, $this->shop, 'olga-phone');
-        dayClosePhone($omar, $this->shop, 'omar-phone');
-        asTenant($this->shop, function () use ($olga) {
-            Preferences::update($this->boss->id, ['day_close_difference' => ['enabled' => false]]);
-            Preferences::update($olga->id, ['quiet_hours' => ['enabled' => true, 'from' => '20:00', 'to' => '21:00']]);
-        });
+    it('respects an owner’s switch', function () {
+        asTenant($this->shop, fn () => Preferences::update($this->boss->id, ['day_close_difference' => ['enabled' => false]]));
 
-        // 20:20 in Riyadh: the boss switched this off and Olga is in her quiet hours; Omar changed nothing.
         $this->travelTo('2026-10-21 17:20:00');
         closeDay($this->shop, '2026-10-21', $this->sara, '90.00');
 
         expect($this->push->to('boss-phone'))->toBe([])
-            ->and($this->push->to('olga-phone'))->toBe([])
-            ->and($this->push->to('omar-phone'))->toHaveCount(1)
-            ->and(dayCloseInbox($this->boss, $this->shop, 'day_close_difference'))->toBe([])
-            ->and(dayCloseInbox($olga, $this->shop, 'day_close_difference'))->toBe([]);
+            ->and(dayCloseInbox($this->boss, $this->shop, 'day_close_difference'))->toBe([]);
+    });
+
+    it('keeps the notice in the inbox, without a push, for an owner in quiet hours', function () {
+        $olga = closeStaff($this->shop, 'Olga Owner', 'owner');
+        dayClosePhone($olga, $this->shop, 'olga-phone');
+        asTenant($this->shop, fn () => Preferences::update($olga->id, ['quiet_hours' => ['enabled' => true, 'from' => '20:00', 'to' => '21:00']]));
+
+        // 20:20 in Riyadh: Olga is in her quiet hours. Her phone stays quiet, but the fact is not hidden from her.
+        $this->travelTo('2026-10-21 17:20:00');
+        $close = closeDay($this->shop, '2026-10-21', $this->sara, '90.00');
+
+        $entries = dayCloseInbox($olga, $this->shop, 'day_close_difference');
+        expect($this->push->to('olga-phone'))->toBe([])
+            ->and($entries)->toHaveCount(1)
+            ->and($entries[0]->data)->toBe(['route' => '/day-close'])
+            ->and(dayClosePlain($entries[0]->body))->toBe('Sara Collector closed 21 October 2026 with a cash difference of -SAR 10.00.')
+            // The key is recorded, so the same close can never put a second entry there.
+            ->and(asTenant($this->shop, fn () => NotificationLogEntry::query()->where('user_id', $olga->id)->where('type', 'day_close_difference')->pluck('dedupe_key')->all()))
+            ->toBe(["day_close_difference:{$close->id}:{$olga->id}"])
+            ->and(app(DayCloseDifference::class)->tell($this->shop, $close, $this->sara))->toBe(0)
+            ->and(dayCloseInbox($olga, $this->shop, 'day_close_difference'))->toHaveCount(1)
+            ->and($this->push->to('olga-phone'))->toBe([]);
+    });
+
+    it('tells an owner who is not in quiet hours in the inbox and on the phone', function () {
+        $olga = closeStaff($this->shop, 'Olga Owner', 'owner');
+        $omar = closeStaff($this->shop, 'Omar Owner', 'owner');
+        dayClosePhone($olga, $this->shop, 'olga-phone');
+        dayClosePhone($omar, $this->shop, 'omar-phone');
+        // At 20:20 Olga's quiet hours have not begun, and Omar's span ends at 20:00.
+        asTenant($this->shop, function () use ($olga, $omar) {
+            Preferences::update($olga->id, ['quiet_hours' => ['enabled' => true, 'from' => '22:00', 'to' => '08:00']]);
+            Preferences::update($omar->id, ['quiet_hours' => ['enabled' => true, 'from' => '13:00', 'to' => '20:00']]);
+        });
+
+        $this->travelTo('2026-10-21 17:20:00');
+        closeDay($this->shop, '2026-10-21', $this->sara, '90.00');
+
+        foreach ([[$olga, 'olga-phone'], [$omar, 'omar-phone'], [$this->boss, 'boss-phone']] as [$owner, $phone]) {
+            expect(dayCloseInbox($owner, $this->shop, 'day_close_difference'))->toHaveCount(1, $phone)
+                ->and($this->push->to($phone))->toHaveCount(1, $phone);
+        }
     });
 
     it('is written in the owner’s language, with the amount in the workspace currency', function () {
@@ -530,20 +573,167 @@ describe('the two kinds', function () {
             ->and($kinds['day_close_reminder']['label'])->toBe(__('Evening reminder to close the day'));
     });
 
-    it('stay allowed for an admin who saved the grid before they existed', function () {
+    it('stay allowed in the app for an admin who saved the grid before they existed', function () {
         // The grid as it was saved by an earlier release: every kind then known, and not these two.
         $old = ['daily_digest' => ['push' => true], 'support_reply' => ['push' => true, 'email' => false, 'sms' => false]];
         (new PlatformSetting)->forceFill(['key' => Channels::KEY, 'value' => json_encode($old)])->save();
 
         $allowed = app(Channels::class)->allowed();
 
-        expect($allowed['day_close_reminder'])->toBe(['push' => true, 'email' => true, 'sms' => true])
-            ->and($allowed['day_close_difference'])->toBe(['push' => true, 'email' => true, 'sms' => true])
+        // A kind the grid has never seen takes the catalogue's own default: in the app, not by e-mail or text message.
+        expect($allowed['day_close_reminder'])->toBe(['push' => true, 'email' => false, 'sms' => false])
+            ->and($allowed['day_close_difference'])->toBe(['push' => true, 'email' => false, 'sms' => false])
             // What the admin did decide is kept, including a channel left out of a kind they did save.
             ->and($allowed['daily_digest'])->toBe(['push' => true, 'email' => false, 'sms' => false]);
 
         // And the reminder reaches the phone: the grid does not silence it.
         expect(remindAt('2026-10-21 17:00:00'))->toBe(4)
             ->and($this->push->to('sara-phone'))->toHaveCount(1);
+    });
+
+    it('keep e-mail and text messages off when an admin saved a grid with them off everywhere', function () {
+        // Every kind there was, in the app only.
+        $old = [];
+        foreach (['daily_digest', 'instalment_due', 'instalment_late', 'billing_renewal_due', 'billing_renewed', 'billing_payment_failed', 'billing_expired', 'support_reply'] as $kind) {
+            $old[$kind] = ['push' => true, 'email' => false, 'sms' => false];
+        }
+        (new PlatformSetting)->forceFill(['key' => Channels::KEY, 'value' => json_encode($old)])->save();
+
+        $allowed = app(Channels::class)->allowed();
+
+        foreach ($allowed as $kind => $channels) {
+            expect($channels['email'])->toBeFalse($kind)->and($channels['sms'])->toBeFalse($kind);
+        }
+        expect($allowed['day_close_reminder']['push'])->toBeTrue()
+            ->and($allowed['day_close_difference']['push'])->toBeTrue();
+    });
+
+    it('stay blocked where the admin saved a row that blocks them', function () {
+        $saved = ['day_close_reminder' => ['push' => false, 'email' => false, 'sms' => false], 'daily_digest' => ['push' => true, 'email' => false, 'sms' => false]];
+        (new PlatformSetting)->forceFill(['key' => Channels::KEY, 'value' => json_encode($saved)])->save();
+
+        expect(app(Channels::class)->allowed()['day_close_reminder'])->toBe(['push' => false, 'email' => false, 'sms' => false]);
+
+        // The reminder reaches neither the phone nor the inbox; the notice of a difference, a kind the admin never saw, still does.
+        remindAt('2026-10-21 17:00:00');
+        expect($this->push->sent)->toBe([])
+            ->and(dayCloseInbox($this->sara, $this->shop, 'day_close_reminder'))->toBe([]);
+
+        closeDay($this->shop, '2026-10-21', $this->sara, '90.00');
+        expect($this->push->to('boss-phone'))->toHaveCount(1);
+    });
+});
+
+describe('telling without interrupting', function () {
+    /** The workspace sends e-mail. */
+    function dayCloseMailReady(): void
+    {
+        app(MailSettings::class)->save(['host' => 'smtp.example.test', 'port' => 587, 'security' => 'starttls', 'username' => 'u', 'password' => 'p', 'from_address' => 'noreply@qistas.test', 'from_name' => 'Qistas'], null);
+    }
+
+    /** The cover of a notice told once, under [$key]. */
+    function dayCloseCover(string $key): array
+    {
+        return [['type' => 'day_close_difference', 'subject_type' => null, 'subject_id' => null, 'dedupe_key' => $key]];
+    }
+
+    it('keeps the inbox entry and the log line but sends no push, e-mail or text message', function () {
+        Mail::fake();
+        dayCloseMailReady();
+        asTenant($this->shop, fn () => Preferences::update($this->boss->id, ['day_close_difference' => ['channels' => ['push' => true, 'email' => true]]]));
+        $message = new PushMessage('day_close_difference', 'Title', 'Body', ['route' => '/day-close']);
+
+        asTenant($this->shop, fn () => app(Notifier::class)->notify($this->boss, $message, dayCloseCover('quiet:1'), interrupt: false));
+
+        $quiet = asTenant($this->shop, fn () => NotificationLogEntry::query()->where('dedupe_key', 'quiet:1')->first());
+        expect(dayCloseInbox($this->boss, $this->shop, 'day_close_difference'))->toHaveCount(1)
+            ->and($this->push->sent)->toBe([])
+            ->and([$quiet->channel, $quiet->status])->toBe(['push', 'sent']);
+        Mail::assertNothingQueued();
+
+        // The default is unchanged: the same notice, with nothing said about interrupting, goes everywhere.
+        asTenant($this->shop, fn () => app(Notifier::class)->notify($this->boss, $message, dayCloseCover('loud:1')));
+
+        expect(dayCloseInbox($this->boss, $this->shop, 'day_close_difference'))->toHaveCount(2)
+            ->and($this->push->to('boss-phone'))->toHaveCount(1)
+            ->and(asTenant($this->shop, fn () => NotificationLogEntry::query()->where('dedupe_key', 'loud:1')->value('channel')))->toBe('push,email');
+        Mail::assertQueued(NoticeMail::class, 1);
+    });
+
+    it('keeps nothing for a person who takes the kind by e-mail only', function () {
+        Mail::fake();
+        dayCloseMailReady();
+        asTenant($this->shop, fn () => Preferences::update($this->boss->id, ['day_close_difference' => ['channels' => ['push' => false, 'email' => true]]]));
+        $message = new PushMessage('day_close_difference', 'Title', 'Body', ['route' => '/day-close']);
+
+        asTenant($this->shop, fn () => app(Notifier::class)->notify($this->boss, $message, dayCloseCover('quiet:2'), interrupt: false));
+
+        // There is no inbox to put it in, and an e-mail is an interruption of its own.
+        expect(dayCloseInbox($this->boss, $this->shop, 'day_close_difference'))->toBe([])
+            ->and($this->push->sent)->toBe([])
+            ->and(asTenant($this->shop, fn () => NotificationLogEntry::query()->where('dedupe_key', 'quiet:2')->value('status')))->toBe('skipped');
+        Mail::assertNothingQueued();
+    });
+});
+
+describe('the notification page on the web', function () {
+    it('shows the notice of a difference to owners only, and the reminder only to people who may close', function () {
+        $difference = 'When a day is closed with a cash difference';
+        $reminder = 'Evening reminder to close the day';
+
+        $this->actingAs($this->boss)->get(route('app.settings.notifications'))->assertOk()->assertSee($difference)->assertSee($reminder);
+        foreach ([$this->mona, $this->sara, $this->abe] as $person) {
+            $this->actingAs($person)->get(route('app.settings.notifications'))->assertOk()->assertDontSee($difference)->assertSee($reminder);
+        }
+        $this->actingAs($this->vera)->get(route('app.settings.notifications'))->assertOk()
+            ->assertDontSee($difference)->assertDontSee($reminder)->assertSee('Support replies');
+    });
+
+    it('saves nothing for a kind it did not show', function () {
+        $this->actingAs($this->sara)->put(route('app.settings.notifications.update'), [
+            'kinds' => ['day_close_difference' => ['enabled' => '0'], 'day_close_reminder' => ['enabled' => '1']],
+        ])->assertRedirect();
+        $this->actingAs($this->vera)->put(route('app.settings.notifications.update'), [
+            'kinds' => ['day_close_reminder' => ['enabled' => '0']],
+        ])->assertRedirect();
+
+        // Left as they were: still on for the collector, and nothing changed for the viewer.
+        expect(asTenant($this->shop, fn () => Preferences::for($this->sara->id)['day_close_difference']['enabled']))->toBeTrue()
+            ->and(asTenant($this->shop, fn () => Preferences::for($this->vera->id)['day_close_reminder']['enabled']))->toBeTrue();
+    });
+});
+
+describe('the reminder command', function () {
+    it('carries on with the other workspaces when one of them fails', function () {
+        Log::spy();
+        [$broken] = dayCloseOtherShop();
+        [$healthy] = dayCloseOtherShop();
+        // The order the command takes the workspaces in: the one that fails is neither first nor last.
+        expect(Tenant::query()->where('status', 'active')->where('is_demo', false)->cursor()->pluck('id')->all())->toBe([$this->shop->id, $broken->id, $healthy->id]);
+
+        // Firebase's side blows up for one workspace's phone only (a sender that throws, as a broken one might).
+        app()->instance(PushSender::class, new class($this->push, $broken->id) implements PushSender
+        {
+            public function __construct(private readonly RecordingPushSender $inner, private readonly string $brokenTenant) {}
+
+            public function send(PushToken $token, PushMessage $message): bool
+            {
+                if (str_ends_with($token->token, $this->brokenTenant)) {
+                    throw new RuntimeException('Firebase refused the push for Ahmad Ali.');
+                }
+
+                return $this->inner->send($token, $message);
+            }
+        });
+
+        $this->travelTo('2026-10-21 17:00:00');
+        runDayCloseReminders();
+
+        expect($this->push->to('sara-phone'))->toHaveCount(1)
+            ->and($this->push->to('other-owner-phone-'.$healthy->id))->toHaveCount(1)
+            ->and($this->push->to('other-owner-phone-'.$broken->id))->toBe([]);
+        // The failure is in the log with the workspace and the kind of exception, and nothing a person could be recognised by.
+        Log::shouldHaveReceived('warning')->withArgs(fn (string $line, array $context = []) => $line === 'day close reminders failed'
+            && $context === ['tenant' => $broken->id, 'error' => RuntimeException::class])->once();
     });
 });

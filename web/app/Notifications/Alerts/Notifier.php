@@ -41,10 +41,17 @@ final class Notifier
 
     /**
      * @param  list<array{type: string, subject_type: ?string, subject_id: ?string, dedupe_key: string}>  $covers
+     * @param  bool  $interrupt  false keeps the notice without disturbing anyone (for a person in their quiet hours): the
+     *                           inbox entry is made and the log line is written, but nothing is pushed to a phone and no
+     *                           e-mail or text message is sent. A person who takes the kind outside the app only has no
+     *                           inbox to keep it in, so for them it goes nowhere.
      */
-    public function notify(User $user, PushMessage $message, array $covers): void
+    public function notify(User $user, PushMessage $message, array $covers, bool $interrupt = true): void
     {
         $channels = $this->channels->for($user, $message->type);
+        if (! $interrupt) {
+            $channels = array_values(array_intersect($channels, ['push']));
+        }
         $inApp = in_array('push', $channels, true);
 
         DB::transaction(function () use ($user, $message, $covers, $channels, $inApp): void {
@@ -65,7 +72,7 @@ final class Notifier
             }
         });
 
-        if ($inApp) {
+        if ($inApp && $interrupt) {
             foreach (PushToken::query()->where('user_id', $user->id)->whereNull('revoked_at')->get() as $token) {
                 $this->sender->send($token, $message);
             }

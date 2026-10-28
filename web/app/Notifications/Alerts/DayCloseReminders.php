@@ -17,10 +17,11 @@ use App\Tenancy\CurrentTenant;
 use Carbon\CarbonInterface;
 
 /**
- * The evening reminder to close the day (daily-habit wave A, H4): from the workspace's closing time, for two hours, on its
- * own clock, each person who may close the day is told once, while the day is still open and has payments in it or
- * something worth a look. A day with neither says nothing, and the skip is recorded as the morning summary records it.
- * The window never reaches past midnight: after it the day asked about is the next one.
+ * The evening reminder to close the day (daily-habit wave A, H4): from the workspace's closing time, for up to two hours,
+ * on its own clock, each person who may close the day is told once, while the day is still open and has payments in it
+ * or something worth a look. A day with neither says nothing, and the skip is recorded as the morning summary records it.
+ * The window never reaches past midnight (after it the day asked about is the next one), so a closing time of 22:30,
+ * 23:00 or 23:30 has 90, 60 or 30 minutes, as the morning alerts' four hours (Recipients::isTime) end at midnight too.
  */
 final class DayCloseReminders
 {

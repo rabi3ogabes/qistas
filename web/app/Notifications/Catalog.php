@@ -2,6 +2,8 @@
 
 namespace App\Notifications;
 
+use App\Tenancy\TenantRole;
+
 /**
  * Every kind of notice Qistas sends (Sprint 3 Task 1b), the message types each covers, and where it goes unless the person
  * or the admin says otherwise. A kind is what a person switches on or off; its channels are where it reaches them: in the
@@ -28,6 +30,21 @@ final class Catalog
         'billing_expired' => ['group' => 'billing', 'types' => ['billing.expired'], 'channels' => self::APP_AND_EMAIL],
         'support_reply' => ['group' => 'support', 'types' => ['support.reply'], 'channels' => self::APP_AND_EMAIL],
     ];
+
+    /**
+     * The kinds a person with [$role] in the workspace can choose about: the billing ones are the owners', so is the notice of
+     * a difference found at the close of a day, and the evening reminder is for whoever may close the day.
+     *
+     * @return array<string, array{group: string, types: list<string>, channels: array{push: bool, email: bool, sms: bool}}>
+     */
+    public static function forRole(?TenantRole $role): array
+    {
+        return array_filter(self::KINDS, fn (array $definition, string $kind): bool => match (true) {
+            $definition['group'] === 'billing', $kind === 'day_close_difference' => $role === TenantRole::Owner,
+            $kind === 'day_close_reminder' => $role?->canWrite() ?? false,
+            default => true,
+        }, ARRAY_FILTER_USE_BOTH);
+    }
 
     /** The kind a message type belongs to; null for a type no kind names (it goes to the app, as always). */
     public static function kindOf(string $type): ?string

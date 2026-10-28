@@ -18,9 +18,9 @@ use Throwable;
 
 /**
  * Tells the owners when someone else closes a day with a difference between the cash counted and the cash recorded
- * (daily-habit wave A, H4): each owner once for each close, in their own language, unless they switched the kind off or
- * are in their quiet hours. The message names the day, who closed it and the difference with its sign, and never a
- * customer. A close that nobody is told about is still a close: this never throws.
+ * (daily-habit wave A, H4): each owner once for each close, in their own language, unless they switched the kind off;
+ * in their quiet hours the notice waits in their inbox without a push. The message names the day, who closed it and the
+ * difference with its sign, and never a customer. A close that nobody is told about is still a close: this never throws.
  */
 final class DayCloseDifference
 {
@@ -69,17 +69,16 @@ final class DayCloseDifference
             }
 
             try {
-                // A close happens once, so an owner in their quiet hours is not told later: it is decided, and kept in the
-                // log, as skipped. The close, with its difference, is there for them to read.
-                if (Preferences::isQuiet($preferences[$owner->id], $local)) {
-                    $this->notifier->skip($owner, self::TYPE, $key);
-
-                    continue;
-                }
-
                 $message = InLanguage::run((string) ($owner->locale ?: 'en'), fn () => $this->message($tenant, $close, $closer));
                 // The notifier decides the channels, and with the owner's switch off it sends nothing and keeps the skip.
-                $this->notifier->notify($owner, $message, [['type' => self::TYPE, 'subject_type' => 'day_close', 'subject_id' => $close->id, 'dedupe_key' => $key]]);
+                // Quiet hours only keep a phone from ringing: a close happens once and nothing would tell the owner later,
+                // so the notice still waits in their inbox, and the key is recorded all the same.
+                $this->notifier->notify(
+                    $owner,
+                    $message,
+                    [['type' => self::TYPE, 'subject_type' => 'day_close', 'subject_id' => $close->id, 'dedupe_key' => $key]],
+                    interrupt: ! Preferences::isQuiet($preferences[$owner->id], $local),
+                );
                 $told++;
             } catch (Throwable $e) {
                 // One owner's failure never keeps the next one from being told.
