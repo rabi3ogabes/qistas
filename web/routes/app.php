@@ -11,6 +11,7 @@ use App\Http\Controllers\Workspace\CardCheckoutController;
 use App\Http\Controllers\Workspace\ContractController;
 use App\Http\Controllers\Workspace\CustomerController;
 use App\Http\Controllers\Workspace\DashboardController;
+use App\Http\Controllers\Workspace\DayCloseController;
 use App\Http\Controllers\Workspace\DocumentController;
 use App\Http\Controllers\Workspace\FileController;
 use App\Http\Controllers\Workspace\ImportController;
@@ -148,6 +149,14 @@ Route::post('contracts/{contract}/charges', [ContractController::class, 'charge'
 Route::post('contracts/{contract}/convert-to-open', [ContractController::class, 'convert'])->name('contracts.convert');
 
 Route::get('payments', [PaymentController::class, 'index'])->name('payments.index');
+// The end of the day (daily-habit wave A, H4): the cash counted against the cash recorded, signed off, with its summary.
+// The same actions as the API; with the feature off the page is the plain "not available" page and the forms go back.
+Route::middleware('feature:day_close')->group(function (): void {
+    Route::get('day-close', [DayCloseController::class, 'show'])->name('day-close.show');
+    Route::post('day-close', [DayCloseController::class, 'store'])->name('day-close.store');
+    Route::post('day-close/{close}/reopen', [DayCloseController::class, 'reopen'])->whereUuid('close')->name('day-close.reopen');
+    Route::get('day-close/{close}/summary.pdf', [DayCloseController::class, 'summary'])->whereUuid('close')->middleware('throttle:documents')->name('day-close.summary');
+});
 // Reports (Win Plan K8): the forecast, ageing and profit, and the same figures as a spreadsheet.
 Route::get('reports', [ReportController::class, 'index'])->name('reports');
 Route::get('reports/export', [ReportController::class, 'export'])->middleware('throttle:documents')->name('reports.export');

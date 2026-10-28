@@ -37,8 +37,8 @@ use InvalidArgumentException;
  */
 final class CloseDay
 {
-    /** Today and the seven days before it can be closed (the message names the seven). */
-    private const DAYS_BACK = 7;
+    /** Today and the seven days before it can be closed (the message names the seven; the web page offers the same days). */
+    public const DAYS_BACK = 7;
 
     /**
      * What every amount in the app looks like (MoneyRules, AmendmentPlanner): at most fourteen digits before the point,
