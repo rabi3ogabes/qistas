@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
+import '../../core/l10n/translations.dart';
 import '../../data/models.dart';
 import '../security/app_lock.dart';
 import 'glance_data.dart';
@@ -26,8 +27,9 @@ class GlanceService {
 
   final Ref _ref;
 
-  /// The last answer read, so a change of privacy or language can be drawn at once, without a connection.
-  GlanceData? _last;
+  /// The last answer read and the moment it was read, so a change of privacy or language can be drawn at once, without
+  /// a connection, and still say when the figures are from.
+  ({GlanceData data, DateTime at})? _last;
   Future<void>? _running;
   bool _again = false;
 
@@ -64,13 +66,28 @@ class GlanceService {
 
   /// A choice that changes how the widget is drawn changed (the app lock, a privacy switch, the language): draw the last
   /// answer again at once, so nothing stays on a home screen under the old rules even with no connection, then read
-  /// again for what the new rules need (the names, once they are allowed).
+  /// again for what the new rules need (the names, once they are allowed). The redraw says when the figures were read,
+  /// not now: a new language does not make old figures fresh.
   Future<void> restyle() async {
     if (!_supported) return;
 
     final last = _last;
-    if (last != null) await _safely(() => _draw(last, _epoch));
+    await _safely(last == null ? _hideStored : () => _draw(last.data, last.at, _epoch));
     await refresh();
+  }
+
+  /// A fresh process has no answer in memory, but the widget still holds the last one it was given, and that may carry
+  /// names or amounts the rules no longer allow (names switched off, the app lock turned on). Until a read can say more,
+  /// blank the rows that carry them and touch nothing else.
+  Future<void> _hideStored() async {
+    if (_ref.read(accountProvider) == null) return;
+
+    final namesShown = _ref.read(glancePrivacyProvider).namesShown(appLockOn: _ref.read(appLockProvider).active);
+    if (namesShown) return;
+
+    final store = _ref.read(glanceStoreProvider);
+    await store.write({for (final key in glanceSensitiveKeys) key: ''});
+    await store.redraw();
   }
 
   /// Signed out: the widget has nothing of the business left to show.
@@ -92,7 +109,7 @@ class GlanceService {
     if (!offersWidget(account)) {
       // The platform or the plan does not have it (any more): an installed widget must not keep its old figures. Once is
       // enough; there is nothing to ask the server.
-      if (_last?.enabled != false) await _draw(GlanceData.disabled(), epoch);
+      if (_last?.data.enabled != false) await _draw(GlanceData.disabled(), _ref.read(clockProvider)(), epoch);
 
       return;
     }
@@ -107,15 +124,16 @@ class GlanceService {
       return;
     }
 
-    await _draw(data, epoch);
+    await _draw(data, _ref.read(clockProvider)(), epoch);
   }
 
-  Future<void> _draw(GlanceData data, int epoch) async {
-    final words = await _ref.read(translationsProvider.future);
+  /// Hands the widget [data], read at [at].
+  Future<void> _draw(GlanceData data, DateTime at, int epoch) async {
+    final words = await _words();
     // Signed out while the answer or the words were on their way: the widget was emptied and stays empty.
     if (epoch != _epoch) return;
 
-    _last = data;
+    _last = (data: data, at: at);
     // The rules are read now, not when the question was asked: they may have changed since.
     final values = encodeGlance(
       data,
@@ -124,11 +142,20 @@ class GlanceService {
       language: words.language,
       rtl: words.isRtl,
       words: words,
-      now: _ref.read(clockProvider)(),
+      now: at,
     );
     final store = _ref.read(glanceStoreProvider);
     await store.write(values);
     await store.redraw();
+  }
+
+  /// The words of the app's language now. Asked for in the very moment the language changes (the listener that redraws the
+  /// widget runs inside that notification), the words provider can still hold the previous language's: ask once more.
+  Future<Translations> _words() async {
+    final language = _ref.read(localeProvider);
+    final words = await _ref.read(translationsProvider.future);
+
+    return words.language == language ? words : _ref.read(translationsProvider.future);
   }
 
   /// The widget is a courtesy: whatever goes wrong while keeping it fresh must never reach the screen that asked.

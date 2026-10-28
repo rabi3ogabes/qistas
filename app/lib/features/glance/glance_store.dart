@@ -24,17 +24,21 @@ class HomeWidgetStore implements GlanceStore {
 
   @override
   Future<void> write(Map<String, String> values) async {
-    for (final entry in values.entries) {
-      await _guard(() => HomeWidget.saveWidgetData<String>(entry.key, entry.value));
+    for (final key in _sensitiveFirst(values.keys)) {
+      await _guard(() => HomeWidget.saveWidgetData<String>(key, values[key]));
     }
   }
 
   @override
   Future<void> clear() async {
-    for (final key in glanceKeys) {
+    for (final key in _sensitiveFirst(glanceKeys)) {
       await _guard(() => HomeWidget.saveWidgetData<String>(key, null, deleteFile: false));
     }
   }
+
+  /// The keys that can carry amounts and names, then the rest: the widget is told one key at a time, and a write that is
+  /// cut short must have changed the rows that matter before the counts.
+  List<String> _sensitiveFirst(Iterable<String> keys) => [...keys.where(glanceSensitiveKeys.contains), ...keys.where((key) => !glanceSensitiveKeys.contains(key))];
 
   @override
   Future<void> redraw() => _guard(() => HomeWidget.updateWidget(androidName: provider));

@@ -260,10 +260,11 @@ class AuthController extends AsyncNotifier<AuthState> {
   }
 
   Future<void> _forget() async {
+    // The home-screen widget shows this business's figures, so it goes first: whatever stops the app after this line, the
+    // home screen is already empty.
+    await ref.read(glanceServiceProvider).clear();
     await ref.read(tokenStoreProvider).clear();
     await _prefs.remove(accountKey);
-    // The home-screen widget shows this business's figures: it must not outlive the sign-in.
-    await ref.read(glanceServiceProvider).clear();
   }
 
   /// What this phone is called in the list of signed-in devices.

@@ -33,7 +33,6 @@ class WidgetSettingsScreen extends ConsumerWidget {
     // The switches show what the widget will do, not only what was chosen: behind the app lock both read off.
     final amountsOn = privacy.amountsShown(appLockOn: lockOn);
     final namesOn = privacy.namesShown(appLockOn: lockOn);
-    final namesAvailable = !lockOn && privacy.showAmounts;
 
     return SectionScaffold(
       title: context.t('Home-screen widget'),
@@ -61,12 +60,12 @@ class WidgetSettingsScreen extends ConsumerWidget {
                   subtitle: Text(
                     lockOn
                         ? context.t('Names stay hidden while the app lock is on')
-                        : !privacy.showAmounts
+                        : !amountsOn
                             ? context.t('Names stay hidden while amounts are hidden')
                             : context.t('Anyone who sees your home screen could read them.'),
                   ),
                   value: namesOn,
-                  onChanged: namesAvailable ? (on) => _change(ref, (choices) => choices.setShowNames(on)) : null,
+                  onChanged: amountsOn ? (on) => _change(ref, (choices) => choices.setShowNames(on)) : null,
                 ),
               ],
             ),

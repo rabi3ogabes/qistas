@@ -6,13 +6,19 @@ class FakeGlanceStore implements GlanceStore {
   int clears = 0;
   int redraws = 0;
 
+  /// Runs when the widget is told to forget everything (a test looks at what else the app still holds at that moment).
+  Future<void> Function()? onClear;
+
   Map<String, String> get last => writes.last;
 
   @override
   Future<void> write(Map<String, String> values) async => writes.add(Map.of(values));
 
   @override
-  Future<void> clear() async => clears++;
+  Future<void> clear() async {
+    clears++;
+    await onClear?.call();
+  }
 
   @override
   Future<void> redraw() async => redraws++;

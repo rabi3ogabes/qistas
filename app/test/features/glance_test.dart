@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart' hide Route;
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -72,11 +73,13 @@ Map<String, String> encode(
 
 /// The app and the widget store without the screens: sign in from a token, then ask the service for things.
 class Rig {
-  Rig(this.container, this.store, this.server);
+  Rig(this.container, this.store, this.server, this.tokens, this.clock);
 
   final ProviderContainer container;
   final FakeGlanceStore store;
   final FakeServer server;
+  final MemoryTokenStore tokens;
+  final FakeClock clock;
 
   GlanceService get service => container.read(glanceServiceProvider);
 }
@@ -87,6 +90,8 @@ Future<Rig> rig({
   Map<String, Object> prefs = const {},
   DeviceAuth? deviceAuth,
 }) async {
+  final clock = FakeClock(moment);
+  final tokens = MemoryTokenStore('qst_test-token');
   SharedPreferences.setMockInitialValues({'language': 'en', ...prefs});
   final preferences = await SharedPreferences.getInstance();
   final server = workspaceServer(account: account ?? accountWithWidget(), routes: {
@@ -97,18 +102,18 @@ Future<Rig> rig({
   final store = FakeGlanceStore();
   final container = ProviderContainer(overrides: [
     sharedPreferencesProvider.overrideWithValue(preferences),
-    tokenStoreProvider.overrideWithValue(MemoryTokenStore('qst_test-token')),
+    tokenStoreProvider.overrideWithValue(tokens),
     httpAdapterProvider.overrideWithValue(server.adapter),
     deviceAuthProvider.overrideWithValue(deviceAuth ?? FakeDeviceAuth.unavailable()),
     glanceStoreProvider.overrideWithValue(store),
     glanceSupportedProvider.overrideWithValue(true),
-    clockProvider.overrideWithValue(() => moment),
+    clockProvider.overrideWithValue(clock.call),
     translationsProvider.overrideWith((ref) => Future.value(wordsFor(ref.watch(localeProvider)))),
   ]);
   addTearDown(container.dispose);
   await container.read(authProvider.future);
 
-  return Rig(container, store, server);
+  return Rig(container, store, server, tokens, clock);
 }
 
 List<Override> widgetOverrides(FakeGlanceStore store, {bool supported = true}) => [
@@ -420,28 +425,149 @@ void main() {
       );
       await r.service.refresh();
       expect(r.store.last['next_1'], 'Ahmad Salem · SAR 275.00 · Oct 7');
+      final readAt = (r.store.last['updated'], r.store.last['updated_epoch_ms']);
 
       r.server.offline = true;
+      r.clock.advance(const Duration(hours: 5));
       expect(await r.container.read(appLockProvider.notifier).turnOn('Confirm'), isTrue);
       await r.service.restyle();
 
+      expect(r.store.writes, hasLength(2));
       expect(r.store.last['due_line'], 'Due today: 3', reason: 'the counts stay');
       expect(r.store.last['amount_line'], '');
       expect(r.store.last['next_1'], '');
       expect(r.store.last.values.join(' '), allOf(isNot(contains('SAR')), isNot(contains('Ahmad'))));
+      expect((r.store.last['updated'], r.store.last['updated_epoch_ms']), readAt, reason: 'figures read at 09:05 are still from 09:05, not from the moment the lock was turned on');
+    });
+
+    test('blanks the stored rows after a cold start when the app lock turns on with no connection', () async {
+      // A new process: the widget on the home screen still holds the last answer (names, amounts); the service holds nothing.
+      final r = await rig(prefs: {GlancePrivacyController.namesKey: true}, deviceAuth: FakeDeviceAuth());
+      r.server.offline = true;
+      expect(await r.container.read(appLockProvider.notifier).turnOn('Confirm'), isTrue);
+
+      await r.service.restyle();
+
+      expect(r.store.writes, hasLength(1));
+      expect(r.store.last, {'amount_line': '', 'next_1': '', 'next_2': '', 'next_3': ''}, reason: 'only the rows that can carry amounts and names are touched');
+      expect(r.store.redraws, 1);
+    });
+
+    test('blanks the stored rows after a cold start when names are switched off with no connection', () async {
+      final r = await rig(prefs: {GlancePrivacyController.namesKey: true});
+      r.server.offline = true;
+      await r.container.read(glancePrivacyProvider.notifier).setShowNames(false);
+
+      await r.service.restyle();
+
+      expect(r.store.last, {'amount_line': '', 'next_1': '', 'next_2': '', 'next_3': ''});
+    });
+
+    test('leaves the stored rows alone after a cold start when the rules still allow all they can hold', () async {
+      final r = await rig(prefs: {GlancePrivacyController.namesKey: true});
+      r.server.offline = true;
+
+      await r.service.restyle();
+
+      expect(r.store.writes, isEmpty, reason: 'nothing to tighten: the widget keeps what it shows until a read can say more');
+    });
+
+    test('draws nothing after sign-out, whatever changes', () async {
+      final r = await rig();
+      await r.container.read(authProvider.notifier).signOut();
+
+      await r.service.restyle();
+
+      expect(r.store.writes, isEmpty);
+      expect(r.store.clears, 1);
+    });
+
+    test('empties the widget before the token and the account are forgotten', () async {
+      final r = await rig();
+      final held = <String?>[];
+      r.store.onClear = () async => held.add(await r.tokens.read());
+
+      await r.container.read(authProvider.notifier).signOut();
+
+      expect(held, ['qst_test-token'], reason: 'a process stopped in the middle must not leave figures on the home screen');
+      expect(await r.tokens.read(), isNull);
     });
 
     test('draws again in the new language when the app’s language changes', () async {
       final r = await rig();
       await r.service.refresh();
       expect(r.store.last['due_line'], 'Due today: 3');
+      final readAt = (r.store.last['updated'], r.store.last['updated_epoch_ms']);
 
       r.server.offline = true;
+      r.clock.advance(const Duration(hours: 5));
       await r.container.read(localeProvider.notifier).choose('fr');
       await r.service.restyle();
 
       expect(r.store.last['due_line'], wordsFor('fr').t('Due today: :count', {'count': 3}));
       expect(r.store.last['due_line'], isNot('Due today: 3'));
+      expect((r.store.last['updated'], r.store.last['updated_epoch_ms']), readAt, reason: 'a new language does not make old figures fresh');
+    });
+
+    test('stamps a read with the moment it was read', () async {
+      final r = await rig();
+      r.clock.advance(const Duration(hours: 2));
+
+      await r.service.refresh();
+
+      expect(r.store.last['updated'], '11:05');
+      expect(r.store.last['updated_epoch_ms'], '${r.clock.now.millisecondsSinceEpoch}');
+    });
+  });
+
+  group('the phone’s widget storage', () {
+    final calls = <MethodCall>[];
+    const channel = MethodChannel('home_widget');
+
+    setUp(() {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      calls.clear();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+        calls.add(call);
+
+        return true;
+      });
+    });
+
+    tearDown(() => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, null));
+
+    List<String> keysSaved() => [for (final call in calls) if (call.method == 'saveWidgetData') (call.arguments as Map)['id'] as String];
+
+    test('writes the rows that can carry amounts and names before the counts', () async {
+      await HomeWidgetStore().write(encode(glanceJson()));
+
+      expect(keysSaved().take(4), glanceSensitiveKeys, reason: 'an interrupted write must not leave old rows beside new counts');
+      expect(keysSaved(), unorderedEquals(glanceKeys));
+      expect(calls.every((call) => (call.arguments as Map)['data'] is String), isTrue, reason: 'all values are strings');
+    });
+
+    test('forgets the rows first, then the rest, by saving nothing under each key', () async {
+      await HomeWidgetStore().clear();
+
+      expect(keysSaved().take(4), glanceSensitiveKeys);
+      expect(keysSaved(), unorderedEquals(glanceKeys));
+      expect(calls.every((call) => (call.arguments as Map)['data'] == null), isTrue);
+    });
+
+    test('asks the widget’s Android class to draw', () async {
+      await HomeWidgetStore().redraw();
+
+      expect(calls.single.method, 'updateWidget');
+      expect((calls.single.arguments as Map)['android'], 'GlanceWidgetProvider');
+    });
+
+    test('never throws, whatever the platform says', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async => throw PlatformException(code: 'nope'));
+      final store = HomeWidgetStore();
+
+      await store.write(encode(glanceJson()));
+      await store.clear();
+      await store.redraw();
     });
   });
 
@@ -504,6 +630,23 @@ void main() {
       expect(store.last['amount_line'], '');
       expect(store.last['next_1'], '');
       expect(store.last.values.join(' '), isNot(contains('Ahmad')));
+    });
+
+    testWidgets('changing the app’s language draws the widget again in the new language, even with no connection', (tester) async {
+      final store = FakeGlanceStore();
+      final server = widgetServer();
+      await pumpApp(tester, server, overrides: widgetOverrides(store));
+      expect(store.last['due_line'], 'Due today: 3');
+      final writes = store.writes.length;
+
+      server.offline = true;
+      final container = ProviderScope.containerOf(tester.element(find.byType(QistasApp)));
+      await tester.runAsync(() => container.read(localeProvider.notifier).choose('fr'));
+      await settle(tester);
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+
+      expect(store.writes.length, greaterThan(writes));
+      expect(store.last['due_line'], wordsFor('fr').t('Due today: :count', {'count': 3}));
     });
 
     testWidgets('does nothing on a phone that cannot have the widget', (tester) async {

@@ -18,6 +18,10 @@ import 'glance_privacy.dart';
 /// only text is `due_line`: "Open Qistas to refresh".
 const List<String> glanceKeys = ['enabled', 'rtl', 'due_line', 'late_line', 'amount_line', 'next_1', 'next_2', 'next_3', 'updated', 'updated_epoch_ms'];
 
+/// The keys that can carry amounts or names. Written first and blanked first, so that whatever interrupts a write, the
+/// home screen is never left with old sensitive rows beside new counts.
+const List<String> glanceSensitiveKeys = ['amount_line', 'next_1', 'next_2', 'next_3'];
+
 /// How many instalments the widget lists.
 const int glanceRows = 3;
 
