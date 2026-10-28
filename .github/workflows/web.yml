@@ -1,14 +1,15 @@
 name: Web app
 
 # The Laravel app in web/: tests on SQLite and on a real PostgreSQL, code style, static analysis, and a build of the
-# production container image that is started and smoke-tested against a real PostgreSQL.
+# production container image that is started and smoke-tested against a real PostgreSQL. shared/ holds the vectors the
+# tests check the schedule and the payday rule against (the app is checked against the same ones), so it starts this too.
 
 on:
   push:
     branches: [main]
-    paths: ["web/**", "docker-compose.yml", "scripts/smoke-app.sh", "scripts/e2e-demo.sh", "scripts/connect-supabase.ps1", ".github/workflows/web.yml"]
+    paths: ["web/**", "shared/**", "docker-compose.yml", "scripts/smoke-app.sh", "scripts/e2e-demo.sh", "scripts/connect-supabase.ps1", ".github/workflows/web.yml"]
   pull_request:
-    paths: ["web/**", "docker-compose.yml", "scripts/smoke-app.sh", "scripts/e2e-demo.sh", "scripts/connect-supabase.ps1", ".github/workflows/web.yml"]
+    paths: ["web/**", "shared/**", "docker-compose.yml", "scripts/smoke-app.sh", "scripts/e2e-demo.sh", "scripts/connect-supabase.ps1", ".github/workflows/web.yml"]
   workflow_dispatch:
 
 permissions:
