@@ -49,7 +49,7 @@ final class MakeAdminCommand extends Command
         Audit::record('admin.role_granted', $user, ['role' => $role], userId: $user->id);
 
         $this->components->info("{$user->email} is now {$role}.");
-        $this->line('  The admin area needs two-factor sign-in: they turn it on under Security the first time they open /admin.');
+        $this->line('  They sign in to the admin area with their email and password alone: the admin team does not use two-factor.');
 
         return self::SUCCESS;
     }

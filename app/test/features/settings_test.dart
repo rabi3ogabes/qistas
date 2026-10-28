@@ -79,6 +79,25 @@ void main() {
     expect(find.descendant(of: row, matching: find.text('Off')), findsOneWidget);
   });
 
+  testWidgets('shows no two-step row to the admin team, who never use it', (tester) async {
+    final account = accountJson();
+    account['user'] = {...Map<String, dynamic>.from(account['user'] as Map), 'two_factor_available': false};
+    await pumpApp(tester, workspaceServer(account: account));
+    await openSettings(tester);
+
+    expect(find.byKey(const ValueKey('settings-two-step')), findsNothing);
+    expect(find.byKey(const ValueKey('settings-devices')), findsOneWidget, reason: 'the rest of the Security group stays');
+  });
+
+  testWidgets('keeps the two-step row when an older server does not say', (tester) async {
+    await pumpApp(tester, workspaceServer());
+    await openSettings(tester);
+
+    final row = find.byKey(const ValueKey('settings-two-step'));
+    await tester.scrollUntilVisible(row, 200, scrollable: find.descendant(of: find.byType(SingleChildScrollView), matching: find.byType(Scrollable)).first);
+    expect(row, findsOneWidget);
+  });
+
   testWidgets('asks before signing out, and Cancel keeps you signed in', (tester) async {
     await pumpApp(tester, workspaceServer());
     await openSettings(tester);
@@ -97,7 +116,7 @@ void main() {
 
     final help = group('help');
     await tester.scrollUntilVisible(help, 200, scrollable: find.descendant(of: find.byType(SingleChildScrollView), matching: find.byType(Scrollable)).first);
-    expect(find.descendant(of: help, matching: find.text('1.27.0')), findsOneWidget);
+    expect(find.descendant(of: help, matching: find.text('1.27.1')), findsOneWidget);
   });
 
   testWidgets('holds together in Arabic with the text at twice the size on a small phone', (tester) async {

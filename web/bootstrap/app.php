@@ -6,9 +6,9 @@ use App\Http\Middleware\EnsureAccountActive;
 use App\Http\Middleware\EnsureFeature;
 use App\Http\Middleware\EnsurePlatformAdmin;
 use App\Http\Middleware\ForceJsonResponse;
+use App\Http\Middleware\KeepStaffOutOfTwoFactor;
 use App\Http\Middleware\PreventDuplicateSubmissions;
 use App\Http\Middleware\ReadOnlyWhileDeleting;
-use App\Http\Middleware\RequireTwoFactorForAdmins;
 use App\Http\Middleware\ServerTiming;
 use App\Http\Middleware\SetApiLocale;
 use App\Http\Middleware\SetCurrentTenant;
@@ -35,7 +35,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 ->prefix('app')->name('app.')
                 ->group(base_path('routes/app.php'));
 
-            // The admin console: platform staff only (a 404 for everyone else), with a confirmed second factor.
+            // The admin console: platform staff only (a 404 for everyone else). It opens with the password alone.
             Route::middleware(['web', 'auth', 'admin'])
                 ->prefix('admin')->name('admin.')
                 ->group(base_path('routes/admin.php'));
@@ -57,7 +57,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prepend(ServerTiming::class);
 
         // After the session starts, so a remembered or saved language can be read.
-        $middleware->web(append: [SetLocale::class, PreventDuplicateSubmissions::class]);
+        $middleware->web(append: [SetLocale::class, PreventDuplicateSubmissions::class, KeepStaffOutOfTwoFactor::class]);
 
         // The API is stateless JSON: always JSON, and a language taken from the request itself.
         $middleware->api(prepend: [ForceJsonResponse::class, SetApiLocale::class]);
@@ -76,11 +76,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'once' => PreventDuplicateSubmissions::class,
         ]);
 
-        // Everything under /admin: signed-in, not suspended, platform admin (else 404), second factor confirmed.
+        // Everything under /admin: signed-in, not suspended, platform admin (else 404). No second factor: the team never uses one.
         $middleware->group('admin', [
             EnsureAccountActive::class,
             EnsurePlatformAdmin::class,
-            RequireTwoFactorForAdmins::class,
         ]);
 
         // The workspace must be known before route-model binding, or another workspace's ids would resolve.

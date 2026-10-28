@@ -64,6 +64,7 @@ class SettingsScreen extends ConsumerWidget {
     // Reports (Win Plan K8): shown on Free too, where the screen offers Pro; hidden while the platform has them off.
     final reports = (account?.seesReports ?? false) && !(account?.entitlement('advanced_reports').isPlatformOff ?? false);
     final twoStep = account?.twoFactor == true;
+    final showsTwoStep = account?.twoFactorAvailable ?? true;
     final appLock = ref.watch(appLockProvider);
     // The team page, once the platform has the team switched on (a plan without room still shows it, locked).
     final showsTeam = account?.shows('members') ?? false;
@@ -144,17 +145,19 @@ class SettingsScreen extends ConsumerWidget {
               title: context.t('Security'),
               child: Column(
                 children: [
-                  _Row(
-                    key: const ValueKey('settings-two-step'),
-                    icon: twoStep ? Icons.verified_user_outlined : Icons.shield_outlined,
-                    iconColor: twoStep ? c.positive : null,
-                    title: context.t('Two-step sign-in'),
-                    subtitle: context.t('Turn it on or off from your account on the website.'),
-                    value: twoStep ? context.t('On') : context.t('Off'),
-                    external: true,
-                    onTap: () => _open('/security'),
-                  ),
-                  const _Divider(),
+                  if (showsTwoStep) ...[
+                    _Row(
+                      key: const ValueKey('settings-two-step'),
+                      icon: twoStep ? Icons.verified_user_outlined : Icons.shield_outlined,
+                      iconColor: twoStep ? c.positive : null,
+                      title: context.t('Two-step sign-in'),
+                      subtitle: context.t('Turn it on or off from your account on the website.'),
+                      value: twoStep ? context.t('On') : context.t('Off'),
+                      external: true,
+                      onTap: () => _open('/security'),
+                    ),
+                    const _Divider(),
+                  ],
                   _Row(
                     key: const ValueKey('settings-devices'),
                     icon: Icons.devices_rounded,

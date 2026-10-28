@@ -2953,7 +2953,8 @@ components:
         photo: {type: string, nullable: true, description: "The profile photo as a data URI (data:image/jpeg;base64,...), or null."}
         member_since: {type: string, format: date, nullable: true}
         locale: {type: string}
-        two_factor: {type: boolean}
+        two_factor: {type: boolean, description: "Whether signing in needs a code from this person. Always false for the admin team."}
+        two_factor_available: {type: boolean, description: "False for the admin team, who never use two-factor; the app shows no setting for it. Business owners get true."}
     Tenant:
       type: object
       properties:

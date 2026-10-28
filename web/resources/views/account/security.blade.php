@@ -1,15 +1,13 @@
-<x-layouts.auth :title="__('Security')" :heading="__('Two-factor authentication')" :lead="__('A second step at sign-in keeps your business data safe even if your password leaks.')">
-    {{-- The way back: the console for the admin team (it opens without two-factor unless the team rule requires it). --}}
+<x-layouts.auth :title="__('Security')" :heading="$twoFactorAvailable ? __('Two-factor authentication') : __('Security')" :lead="$twoFactorAvailable ? __('A second step at sign-in keeps your business data safe even if your password leaks.') : __('The phones signed in with your account.')">
+    {{-- The way back: the console for the admin team, the dashboard for everyone else. --}}
     <p class="auth-back">
         <a class="link" href="{{ $user->isPlatformAdmin() ? route('admin.home') : route('app.dashboard') }}">
             <x-icon name="chevronLeft" :size="16" class="flip" /> {{ $user->isPlatformAdmin() ? __('Back to the admin area') : __('Back to your dashboard') }}
         </a>
     </p>
 
-    @if ($mustUseTwoFactor)
-        <x-alert type="warning" :message="__('Administrators must use two-factor authentication.')" />
-    @endif
-
+    {{-- Everything about two-factor is for business owners; the admin team is shown none of it. --}}
+    @if ($twoFactorAvailable)
     @if ($user->hasConfirmedTwoFactor())
         <p class="alert alert-status">{{ __('Two-factor authentication is on.') }}</p>
 
@@ -62,6 +60,7 @@
             @csrf
             <x-button>{{ __('Turn on two-factor authentication') }}</x-button>
         </form>
+    @endif
     @endif
 
     {{-- Win Plan PP16: the phones signed in with the app, when and where each was last seen; any one can be signed out. --}}

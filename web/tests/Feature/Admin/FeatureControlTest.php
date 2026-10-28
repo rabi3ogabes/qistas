@@ -245,14 +245,13 @@ describe('presets', function () {
 });
 
 describe('the admin endpoints', function () {
-    it('keep out guests, ordinary users and, while the team rule is on, staff who have not set up a second factor', function () {
-        requireTeamTwoFactor();
+    it('keep out guests and ordinary users, and let staff in without a second factor', function () {
         $this->get('/admin/features')->assertRedirect('/login');
 
         [$owner] = owner();
         $this->actingAs($owner)->getJson('/admin/features')->assertNotFound();
 
-        $this->actingAs(staffMember('super_admin', twoFactor: false))->get('/admin/features')->assertRedirect(route('security'));
+        $this->actingAs(staffMember('super_admin', twoFactor: false))->get('/admin/features')->assertOk();
     });
 
     it('let an admin look but not change, and a super admin do both', function () {
