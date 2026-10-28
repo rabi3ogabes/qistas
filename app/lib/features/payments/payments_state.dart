@@ -9,6 +9,7 @@ import '../../core/ui/paged.dart';
 import '../../core/ui/reason_dialog.dart';
 import '../../data/models.dart';
 import '../contracts/contracts_screen.dart';
+import '../customers/customer_account.dart';
 import '../customers/customer_detail_screen.dart';
 import '../dashboard/dashboard_screen.dart';
 
@@ -26,6 +27,7 @@ void refreshAfterMoney(WidgetRef ref, {String? contractId, String? customerId}) 
   ref.read(contractsListProvider.notifier).refresh();
   ref.invalidate(dashboardProvider);
   if (contractId != null) ref.invalidate(contractProvider(contractId));
+  if (contractId != null) ref.invalidate(contractAccountProvider(contractId));
   if (customerId != null) ref.invalidate(customerProvider(customerId));
 }
 

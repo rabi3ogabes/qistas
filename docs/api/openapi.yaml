@@ -714,6 +714,65 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "422": {$ref: "#/components/responses/ValidationFailed"}
+  /contracts/{contract}/account:
+    get:
+      tags: [Contracts]
+      summary: A contract's account, as the customer's screen shows it
+      description: >-
+        Every line in date order with what it added, what was paid and the running balance after it. A line of kind
+        `unpaid` is an instalment past its date and still owed; it carries the instalment and no balance. The totals
+        are the instalment amount, instalments paid and left (null for an open contract), paid, still owed and late.
+      parameters:
+        - {name: contract, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: The account.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      contract_id: {type: string, format: uuid}
+                      open: {type: boolean}
+                      takes_payments: {type: boolean}
+                      next_installment_id: {type: string, format: uuid, nullable: true}
+                      lines:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            kind: {type: string, enum: [sale, down_payment, payment, reversal, charge, charge_reversal, early_rebate, late_fee, late_fee_waived, cancelled, unpaid]}
+                            date: {type: string, format: date}
+                            added: {type: string, nullable: true, example: "300.00"}
+                            paid: {type: string, nullable: true, example: "100.00"}
+                            balance: {type: string, nullable: true, example: "200.00"}
+                            transaction_id: {type: string, format: uuid, nullable: true}
+                            method: {type: string, nullable: true}
+                            tag: {type: string, nullable: true, enum: [advance, refund, early_discount, unpaid]}
+                            note: {type: string, nullable: true}
+                            installment:
+                              type: object
+                              nullable: true
+                              properties:
+                                id: {type: string, format: uuid}
+                                number: {type: integer}
+                                due_date: {type: string, format: date}
+                                remaining: {type: string, example: "100.00"}
+                      totals:
+                        type: object
+                        properties:
+                          instalment: {type: string, nullable: true}
+                          paid_count: {type: integer, nullable: true}
+                          left_count: {type: integer, nullable: true}
+                          paid: {type: string}
+                          left: {type: string}
+                          late: {type: string}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
   /contracts/{contract}/charges:
     post:
       tags: [Contracts]

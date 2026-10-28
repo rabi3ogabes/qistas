@@ -333,6 +333,106 @@
     .archived-contracts summary { display: inline-flex; align-items: center; gap: .375rem; cursor: pointer; }
     .archived-list { display: grid; gap: .5rem; margin: .75rem 0 0; padding: 0; list-style: none; }
     .archived-only { margin: 0; padding: .875rem 1.25rem 0; }
+    .archived-list li { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+    .archived-list [aria-current="true"] { font-weight: 600; }
+
+    /* The customer's desk: the customer beside one contract's account, its lines, what is unpaid and the totals. */
+    /* One column that never grows past the page: a wide ledger scrolls inside its card instead. */
+    .desk-main { min-width: 0; grid-template-columns: minmax(0, 1fr); }
+    .desk-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+    .desk-actions form { display: contents; }
+    .desk-account { overflow: clip; }
+    .desk-account-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; }
+    .desk-account-head .link { display: inline-flex; align-items: center; gap: .25rem; font-size: .875rem; }
+    .contract-tabs { display: flex; gap: .5rem; margin: 0; padding: 0 1.25rem .25rem; list-style: none; overflow-x: auto; scrollbar-width: none; }
+    .contract-tabs li { display: flex; align-items: stretch; flex: none; }
+    .contract-tab {
+        display: grid; grid-template-columns: auto auto; align-items: center; gap: .125rem .625rem; min-width: 9.5rem;
+        padding: .625rem .875rem; border: 1px solid var(--q-line); border-start-start-radius: var(--q-r-md); border-end-start-radius: var(--q-r-md);
+        color: var(--q-ink); text-decoration: none; background: var(--q-surface);
+        transition: border-color .16s ease, background-color .16s ease;
+    }
+    .contract-tab:hover { border-color: color-mix(in srgb, var(--q-accent) 55%, var(--q-line)); }
+    .contract-tab[aria-current="true"] { border-color: var(--q-accent); background: color-mix(in srgb, var(--q-accent) 9%, var(--q-surface)); box-shadow: inset 0 -2px 0 var(--q-accent); }
+    .contract-tab-ref { font-weight: 600; }
+    .contract-tab .badge { justify-self: end; }
+    .contract-tab-owed { grid-column: 1 / -1; font-size: .8125rem; color: var(--q-ink-muted); }
+    .contract-tab-open {
+        display: grid; place-items: center; width: 2.25rem; color: var(--q-ink-muted);
+        border: 1px solid var(--q-line); border-inline-start: 0; border-start-end-radius: var(--q-r-md); border-end-end-radius: var(--q-r-md);
+    }
+    .contract-tab-open:hover { color: var(--q-accent-text); background: var(--q-surface-alt); }
+    [dir="rtl"] .contract-tab-open .i { transform: scaleX(-1); }
+    .desk-account-meta { display: flex; flex-wrap: wrap; gap: .25rem .875rem; margin: .5rem 0 0; padding: 0 1.25rem; font-size: .8125rem; color: var(--q-ink-muted); }
+
+    .pay-panel {
+        margin: 1rem 1.25rem 0; border: 1px solid color-mix(in srgb, var(--q-accent) 45%, var(--q-line)); border-radius: var(--q-r-lg);
+        background: color-mix(in srgb, var(--q-accent) 5%, var(--q-surface)); scroll-margin-top: 1.5rem;
+    }
+    .pay-panel-head { display: flex; align-items: center; gap: .5rem; padding: .875rem 1rem; font-weight: 600; cursor: pointer; list-style: none; }
+    .pay-panel-head::-webkit-details-marker { display: none; }
+    .pay-panel[open] .pay-panel-head { border-bottom: 1px solid color-mix(in srgb, var(--q-accent) 30%, var(--q-line)); }
+    .pay-form { padding: 1rem; }
+    @media (min-width: 720px) { .pay-form { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pay-form > .btn, .pay-form > .alert { grid-column: 1 / -1; justify-self: start; } }
+
+    .ledger { margin-top: 1rem; }
+    .ledger th, .ledger td { padding-inline: .75rem; }
+    .ledger th:first-child, .ledger td:first-child { padding-inline-start: 1.25rem; }
+    .ledger thead th { white-space: normal; }
+    .ledger .ledger-no { color: var(--q-ink-muted); }
+    .ledger .ledger-added { color: var(--q-accent-text); }
+    .ledger .ledger-paid { color: var(--q-positive); }
+    .ledger-unpaid td {
+        background: color-mix(in srgb, var(--q-danger) 7%, var(--q-surface));
+        box-shadow: inset 3px 0 0 var(--q-danger);
+    }
+    [dir="rtl"] .ledger-unpaid td { box-shadow: inset -3px 0 0 var(--q-danger); }
+    .ledger-unpaid-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; }
+    .ledger-unpaid-what { display: inline-flex; align-items: center; gap: .5rem; color: var(--q-danger); font-weight: 500; }
+    .ledger-pay {
+        display: inline-flex; align-items: center; min-height: 2.25rem; padding: .375rem .875rem; border-radius: 999px;
+        background: var(--q-danger); color: #fff; font-size: .875rem; font-weight: 600; text-decoration: none;
+    }
+    .ledger-pay:hover { background: color-mix(in srgb, var(--q-danger) 86%, #000); }
+    tr[data-line="cancelled"] .line-title, tr[data-line="late_fee"] .line-title { color: var(--q-danger); }
+    /* On a phone a line is two short rows, like a bank statement: what it was and its amount, then the day and the balance after it. */
+    @media (max-width: 639px) {
+        .ledger tbody tr[data-line] {
+            grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "details amount" "date balance";
+            gap: .125rem 1rem; padding: .75rem 1.25rem;
+        }
+        .ledger tbody tr[data-line] > td { grid-column: auto; padding: 0; border: 0; font-size: inherit; font-weight: inherit; }
+        .ledger tbody tr[data-line] > td::before { content: none; }
+        .ledger tbody tr[data-line] > .ledger-no, .ledger tbody tr[data-line] > td.num:empty { display: none; }
+        .ledger tbody tr[data-line] > .ledger-details { grid-area: details; }
+        .ledger tbody tr[data-line] > .ledger-added, .ledger tbody tr[data-line] > .ledger-paid { grid-area: amount; justify-items: end; font-weight: 600; }
+        .ledger tbody tr[data-line] > .ledger-date { grid-area: date; font-size: .8125rem; color: var(--q-ink-muted); }
+        .ledger tbody tr[data-line] > .ledger-balance { grid-area: balance; justify-items: end; font-size: .8125rem; color: var(--q-ink-muted); }
+        .ledger tbody tr[data-line] > .ledger-added::before { content: "+"; }
+        .ledger tbody tr[data-line] > .ledger-paid::before { content: "−"; }
+        .ledger tbody tr[data-line] > .ledger-added::before, .ledger tbody tr[data-line] > .ledger-paid::before { font-size: inherit; font-weight: inherit; color: inherit; line-height: inherit; }
+        .ledger .ledger-added, .ledger .ledger-paid { grid-auto-flow: column; gap: .125rem; }
+        .ledger-unpaid td { padding: .75rem 1.25rem; }
+    }
+
+    /* The totals stay in sight under the lines, above the phone's tab bar. */
+    .desk-totals {
+        position: sticky; bottom: calc(4.5rem + env(safe-area-inset-bottom)); z-index: 4;
+        display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin: 0;
+        border-top: 1px solid var(--q-line); background: var(--q-line);
+    }
+    @media (min-width: 1024px) { .desk-totals { bottom: 0; } }
+    .desk-totals > div { padding: .75rem 1rem; background: color-mix(in srgb, var(--q-surface) 96%, transparent); backdrop-filter: blur(8px); }
+    .desk-totals dt { font-size: .75rem; color: var(--q-ink-muted); letter-spacing: .01em; }
+    .desk-totals dd { margin: .125rem 0 0; font-size: clamp(.8125rem, 3.4vw, 1.0625rem); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .desk-totals [data-total="left"] dd { color: var(--q-ink); }
+    .desk-totals [data-tone="danger"] { background: color-mix(in srgb, var(--q-danger) 8%, var(--q-surface)); }
+    .desk-totals [data-tone="danger"] dd { color: var(--q-danger); }
+    @media (max-width: 639px) {
+        .desk-totals > div { padding: .5rem .625rem; }
+        .desk-totals dt { font-size: .6875rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .desk-totals dd { font-size: .8125rem; }
+    }
 
     /* Settle early, change the plan (Win Plan PP6). */
     .contract-actions { display: flex; flex-wrap: wrap; gap: .5rem; }

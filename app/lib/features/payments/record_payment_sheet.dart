@@ -37,19 +37,24 @@ IconData methodIcon(String method) => switch (method) {
 const List<String> paymentMethods = ['cash', 'bank_transfer', 'card', 'cheque', 'other'];
 
 /// Opens the sheet that takes a payment on [contract]. Returns the payment that was recorded, or null.
-Future<LedgerLine?> showRecordPaymentSheet(BuildContext context, Contract contract, {required String currency}) => showModalBottomSheet<LedgerLine>(
+///
+/// [forInstallment] is the instalment that was tapped (an unpaid line on the customer's screen): its amount is filled
+/// in, and it is paid first where the plan lets a payment choose.
+Future<LedgerLine?> showRecordPaymentSheet(BuildContext context, Contract contract, {required String currency, String? forInstallment}) =>
+    showModalBottomSheet<LedgerLine>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
-      builder: (context) => RecordPaymentSheet(contract: contract, currency: currency),
+      builder: (context) => RecordPaymentSheet(contract: contract, currency: currency, forInstallment: forInstallment),
     );
 
 class RecordPaymentSheet extends ConsumerStatefulWidget {
-  const RecordPaymentSheet({super.key, required this.contract, required this.currency});
+  const RecordPaymentSheet({super.key, required this.contract, required this.currency, this.forInstallment});
 
   final Contract contract;
   final String currency;
+  final String? forInstallment;
 
   @override
   ConsumerState<RecordPaymentSheet> createState() => _RecordPaymentSheetState();
@@ -75,7 +80,9 @@ class _RecordPaymentSheetState extends ConsumerState<RecordPaymentSheet> {
   @override
   void initState() {
     super.initState();
-    final suggestion = widget.contract.next?.remaining ?? widget.contract.owed;
+    final tapped = _open.where((i) => i.id == widget.forInstallment).firstOrNull;
+    if (tapped != null && canTargetPayments(ref.read(accountProvider))) _applyTo = tapped.id;
+    final suggestion = tapped?.remaining ?? widget.contract.next?.remaining ?? widget.contract.owed;
     _amount = TextEditingController(text: suggestion != null && suggestion.isPositive ? suggestion.toDecimalString() : '');
   }
 

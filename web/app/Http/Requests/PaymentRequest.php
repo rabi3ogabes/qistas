@@ -37,6 +37,8 @@ class PaymentRequest extends FormRequest
             'idempotency_key' => ['nullable', 'string', 'regex:/^[A-Za-z0-9_.:\-]{1,100}$/'],
             // The instalment to fill first (Win Plan PP6); RecordPayment checks it belongs to the contract.
             'apply_to' => ['nullable', 'uuid'],
+            // Taken on the customer's page: go back there, not to the contract's.
+            'return_to' => ['nullable', Rule::in(['customer'])],
             // The day typed in Hijri on the web form (Win Plan CT26).
             ...$this->hijriRules(['paid_at']),
         ];
