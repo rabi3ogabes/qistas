@@ -33,7 +33,9 @@ Each notice goes once: its log line has a unique key, so a rerun or a retried st
    channels from the catalogue until the admin saves the grid again.
 3. **The person chose it**: in the app (Settings, then Alert settings, "How notices reach you") or on the web (account
    menu, then Notifications). Owners see the billing kinds and the cash-difference notice; others do not. On the web the
-   evening reminder is shown only to people who may close the day (not viewers).
+   evening reminder is shown only to people who may close the day (not viewers). Neither end-of-day notice is offered, in
+   the app, on the web or in the API's `meta.kinds`, while the workspace does not have the end-of-day close (switched off,
+   or not in its plan); a choice made earlier is kept for when it comes back.
 
 ## Setting it up (owner)
 

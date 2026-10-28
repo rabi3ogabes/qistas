@@ -31,15 +31,31 @@ final class Catalog
         'support_reply' => ['group' => 'support', 'types' => ['support.reply'], 'channels' => self::APP_AND_EMAIL],
     ];
 
+    /** The kinds of the end-of-day close (Feature::DayClose), offered only while the workspace has it. */
+    public const DAY_CLOSE_KINDS = ['day_close_reminder', 'day_close_difference'];
+
     /**
-     * The kinds a person with [$role] in the workspace can choose about: the billing ones are the owners', so is the notice of
-     * a difference found at the close of a day, and the evening reminder is for whoever may close the day.
+     * Every kind a workspace can be offered: all of them, less the two of the end-of-day close when it does not have that
+     * feature ([$dayClose]: switched on for the platform and in its plan; the caller asks the entitlements, so this stays a
+     * plain list). A person's choices for a kind left out are kept as they are, for when it comes back.
      *
      * @return array<string, array{group: string, types: list<string>, channels: array{push: bool, email: bool, sms: bool}}>
      */
-    public static function forRole(?TenantRole $role): array
+    public static function offered(bool $dayClose): array
     {
-        return array_filter(self::KINDS, fn (array $definition, string $kind): bool => match (true) {
+        return $dayClose ? self::KINDS : array_diff_key(self::KINDS, array_flip(self::DAY_CLOSE_KINDS));
+    }
+
+    /**
+     * The kinds a person with [$role] in the workspace can choose about, among those it is offered ({@see offered()}): the
+     * billing ones are the owners', so is the notice of a difference found at the close of a day, and the evening reminder
+     * is for whoever may close the day.
+     *
+     * @return array<string, array{group: string, types: list<string>, channels: array{push: bool, email: bool, sms: bool}}>
+     */
+    public static function forRole(?TenantRole $role, bool $dayClose): array
+    {
+        return array_filter(self::offered($dayClose), fn (array $definition, string $kind): bool => match (true) {
             $definition['group'] === 'billing', $kind === 'day_close_difference' => $role === TenantRole::Owner,
             $kind === 'day_close_reminder' => $role?->canWrite() ?? false,
             default => true,

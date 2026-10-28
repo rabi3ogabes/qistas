@@ -48,7 +48,8 @@ The same ritual on the phone and on the website, on the same server rules.
 Switched off (for the platform, or because the plan lacks it):
 
 - **No new closes and no reminders**, and the page and the API are hidden: the menu item, the dashboard card and the Today row
-  disappear, the app hides the two notice kinds from its alert settings, and the API answers 403 `feature_unavailable`
+  disappear, the app's alert settings and the web's Notifications page no longer offer the two notice kinds (nor does the API's
+  `meta.kinds`), and the API answers 403 `feature_unavailable`
   (platform off) or 402 `feature_locked` (plan lacks it).
 - **Closed days and their summaries are kept**, and come back when it is switched on again. While it is off they cannot be
   opened through the page or the API.
@@ -80,8 +81,9 @@ All in `/admin/features`, on the **End-of-day close** card (only a super admin c
    Take the owner's own entry away with **Take away** if you want, and let the shop in.
 4. **On for everyone.** Choose **On**. Every workspace whose plan includes it has it.
 
-Going back is one click (**Off**). The cockpit asks for a reason only when its own use count says the feature is in use, and
-that count does not see day closes (see Known limits).
+Going back is one click (**Off**), or one step down (On to Beta). The card's "Used by N workspaces in the last 30 days" counts
+the workspaces that **really closed a day** in that time (a refused close, or a close while the feature is off, counts
+nothing); while N is above zero the cockpit asks for a reason before it switches the feature off or down.
 
 ## Settings
 
@@ -91,13 +93,16 @@ that count does not see day closes (see Known limits).
 | **Evening reminder to close the day** | Alert settings in the app (under "Close the day"); Notifications on the web | Each person, for themselves | On, in the app only |
 | **When a day is closed with a cash difference** | the same | Each owner, for themselves | On, in the app only |
 
-The reminder kind is shown to people who may close the day; the difference kind to owners only.
+The reminder kind is shown to people who may close the day; the difference kind to owners only. Neither is offered, in the
+app or on the web, while the feature is off for the workspace (switched off, or not in its plan); a choice made earlier is
+kept for when it comes back.
 
 ## Who can do what
 
 | | Owner | Manager | Accountant | Collector | Viewer |
 |---|---|---|---|---|---|
-| Read the day's figures and the history (API; the app) | yes | yes | yes | yes | yes, read-only in the app |
+| Read the day's figures and the history through the API (`GET /day-close/today`, `GET /day-close`) | yes | yes | yes | yes | yes |
+| Reach the screen in the app (the Today row, a tapped reminder) | yes | yes | yes | yes | no: no Today row and no reminder |
 | Open the web page | yes | yes | yes | yes | no (403, no menu item) |
 | Close a day | yes | yes | yes | yes | no |
 | Reopen a day, with a reason | yes | yes | no | no | no |
@@ -191,9 +196,11 @@ Names only; `docs/api/openapi.yaml` is the reference. All sit behind the `day_cl
 - **Payment dates on statements, exports and the contract page** are shown on the UTC calendar, so a payment taken between
   midnight and 03:00 in the Gulf can look a day earlier there. This predates the wave and is not changed by it; the close
   itself uses the workspace's own day.
-- **The cockpit's "Used by N workspaces in the last 30 days" does not count day closes** (only the widget's reads are counted
-  today), so the card reads "Not used" however many shops close their day. Count closes from the history or the
-  `day_close.closed` audit rows instead.
+- **A viewer cannot reach the close by normal navigation, but the data is open to them.** The web page refuses viewers (403)
+  and has no menu item for them; the app shows them no Today row and sends them no reminder. The JSON API (`GET
+  /day-close/today`, the history) and the summary PDF, though, follow the policy's *view* and answer every role of the
+  workspace, a viewer included, per-person cash and all (see Privacy). Limiting those to owners and managers is a one-line
+  policy change, the owner's decision.
 - **A shop that wants a hard lock** (no changes at all after a close) can have it added; today it is the owner-or-manager rule.
 
 ## What the owner must check on a phone
@@ -214,7 +221,8 @@ The close is tested end to end in code, but how it feels, and the pushes, need a
 6. **The rule.** As a collector, record a payment dated yesterday on a closed day: refused with "That day is closed. Ask the
    owner or a manager." As the owner, the same works. A payment dated today is accepted after the close.
 7. **Reopen.** As the owner, **Reopen this day** with a reason; close it again (version 2). A collector does not see Reopen.
-8. **A viewer.** Sees the figures, no pad and no Close.
+8. **A viewer.** Sign in as a viewer: Today has no close row, no reminder comes at the closing time, and `/app/day-close` on the
+   web answers "Forbidden" with no menu item. (The API and the PDF still answer a viewer: see Known limits.)
 9. **Arabic.** The seal, the pad (digits), the difference words and the history read right to left; do it once at the largest text size.
 10. **The PDF.** On the web, open the PDF of a close and scan its QR code: the verify page opens.
 11. **Switch it off** (cockpit): the row, the menu item and the reminders go; switch it on: your closes are still there.

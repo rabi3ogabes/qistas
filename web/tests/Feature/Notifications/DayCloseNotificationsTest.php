@@ -573,6 +573,19 @@ describe('the two kinds', function () {
             ->and($kinds['day_close_reminder']['label'])->toBe(__('Evening reminder to close the day'));
     });
 
+    it('are not offered by the app’s settings while the end-of-day close is off', function () {
+        switchOff(Feature::DayClose);
+        Sanctum::actingAs($this->boss, ['app']);
+
+        $response = $this->getJson('/api/v1/notifications/preferences')->assertOk();
+
+        $kinds = collect($response->json('meta.kinds'))->pluck('key');
+        expect($kinds)->not->toContain('day_close_reminder')->not->toContain('day_close_difference')
+            ->toContain('daily_digest')->toContain('support_reply')
+            // The person's choices are kept as they are, for when it is switched on again.
+            ->and($response->json('data.day_close_reminder.enabled'))->toBeTrue();
+    });
+
     it('stay allowed in the app for an admin who saved the grid before they existed', function () {
         // The grid as it was saved by an earlier release: every kind then known, and not these two.
         $old = ['daily_digest' => ['push' => true], 'support_reply' => ['push' => true, 'email' => false, 'sms' => false]];
@@ -687,6 +700,42 @@ describe('the notification page on the web', function () {
         }
         $this->actingAs($this->vera)->get(route('app.settings.notifications'))->assertOk()
             ->assertDontSee($difference)->assertDontSee($reminder)->assertSee('Support replies');
+    });
+
+    it('offers neither kind while the end-of-day close is off, to anyone', function (Closure $off) {
+        $off();
+        $difference = 'When a day is closed with a cash difference';
+        $reminder = 'Evening reminder to close the day';
+
+        foreach ([$this->boss, $this->mona, $this->abe, $this->sara, $this->vera] as $person) {
+            $this->actingAs($person)->get(route('app.settings.notifications'))->assertOk()
+                ->assertDontSee($difference)->assertDontSee($reminder)->assertSee('Support replies');
+        }
+        // The owner's own kinds are still there: only the switched-off feature's two have gone.
+        $this->actingAs($this->boss)->get(route('app.settings.notifications'))->assertSee('Before your plan ends');
+    })->with([
+        'switched off for the platform' => [fn () => switchOff(Feature::DayClose)],
+        'not in the plan' => [fn () => Plan::where('key', 'free')->sole()->setFeature(Feature::DayClose, false)],
+    ]);
+
+    it('saves nothing for either kind while the end-of-day close is off, and keeps the choice for when it is back', function () {
+        asTenant($this->shop, fn () => Preferences::update($this->boss->id, ['day_close_difference' => ['enabled' => false]]));
+        switchOff(Feature::DayClose);
+
+        $this->actingAs($this->boss)->put(route('app.settings.notifications.update'), [
+            'kinds' => ['day_close_difference' => ['enabled' => '1'], 'day_close_reminder' => ['enabled' => '0']],
+        ])->assertRedirect();
+        $this->actingAs($this->sara)->put(route('app.settings.notifications.update'), [
+            'kinds' => ['day_close_reminder' => ['enabled' => '0']],
+        ])->assertRedirect();
+
+        expect(asTenant($this->shop, fn () => Preferences::for($this->boss->id)))
+            ->day_close_difference->enabled->toBeFalse()
+            ->day_close_reminder->enabled->toBeTrue()
+            ->and(asTenant($this->shop, fn () => Preferences::for($this->sara->id)['day_close_reminder']['enabled']))->toBeTrue();
+
+        switchOn(Feature::DayClose);
+        $this->actingAs($this->boss)->get(route('app.settings.notifications'))->assertOk()->assertSee('When a day is closed with a cash difference');
     });
 
     it('saves nothing for a kind it did not show', function () {

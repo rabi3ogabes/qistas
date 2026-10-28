@@ -56,8 +56,10 @@ All in `/admin/features`, on the **Home-screen widget** card (only a super admin
 3. **On for one friendly shop.** There is no "on for one shop" button: it is **Beta** with that shop under Early access.
 4. **On for everyone.** Choose **On**.
 
-The cockpit's "Used by N workspaces in the last 30 days" counts reads of `GET /glance`, so it is the one switch of the three whose
-badge moves.
+The cockpit's "Used by N workspaces in the last 30 days" counts the workspaces whose widget **read its snapshot** (`GET /glance`
+answered with figures; a read while the feature is off answers `enabled: false` and counts nothing). The other two switches of
+wave A count their own primary action: a day really closed, a payday pattern really shown. While N is above zero the cockpit
+asks for a reason before it switches the feature off or down.
 
 ### Settings (on the phone)
 

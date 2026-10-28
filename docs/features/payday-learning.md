@@ -144,8 +144,10 @@ of the request; show them as sent. On the website the same words come from the s
   and the next night's does the work. What keeps an active customer current is the update after each payment or void.
 - **Two recomputes at once can finish out of order**; the next payment or the nightly run corrects it.
 - **A deleted customer's stored row can linger** until the next nightly run; nothing shows it.
-- **The cockpit's "Used by N workspaces in the last 30 days" does not count this feature** (only the widget's reads are counted
-  today), so its card reads "Not used". Use the customers' lines to see it working.
+- **The cockpit's "Used by N workspaces in the last 30 days" counts a pattern really shown**: a customer's page (in the app,
+  through the API, or on the web) opened while the feature is on and that customer has a pattern. A customer with no pattern,
+  or the feature off, counts nothing, so a shop where no customer has three months of payments yet reads "Not used". While N
+  is above zero the cockpit asks for a reason before it switches the feature off or down.
 - **The wording is a percent** ("Seen in 83% of recent months"), not "4 of the last 5 months" as the design sketched.
 
 ## What the owner must check on a phone

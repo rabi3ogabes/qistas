@@ -3189,6 +3189,7 @@ components:
       properties:
         kinds:
           type: array
+          description: "The kinds the workspace is offered: `day_close_reminder` and `day_close_difference` only while it has the `day_close` feature (the person's choices for them are kept meanwhile)."
           items: {type: object, properties: {key: {type: string}, group: {type: string, enum: [alerts, billing, support]}, label: {type: string}, description: {type: string}}}
         channels:
           type: object
