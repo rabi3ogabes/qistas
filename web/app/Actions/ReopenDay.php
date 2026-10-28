@@ -26,12 +26,15 @@ final class ReopenDay
     /** A reason shorter than this is not a reason. */
     public const MIN_REASON = 5;
 
+    /** The longest a reason may be: it is kept as the reopening's one line of why. */
+    public const MAX_REASON = 500;
+
     public function __construct(private readonly CurrentTenant $current) {}
 
     /**
      * @throws FeatureUnavailable|FeatureLocked when the workspace does not have the end-of-day close
      * @throws AuthorizationException when [$by] is not an owner or a manager of the close's workspace
-     * @throws ValidationException on `reason` (shorter than five characters) or `day` (the close is not the day's standing one)
+     * @throws ValidationException on `reason` (shorter than five characters, or longer than five hundred) or `day` (the close is not the day's standing one)
      */
     public function handle(DayClose $close, string $reason, User $by): DayClose
     {
@@ -44,6 +47,9 @@ final class ReopenDay
             $reason = trim($reason);
             if (mb_strlen($reason) < self::MIN_REASON) {
                 throw ValidationException::withMessages(['reason' => __('Give a reason of at least :min characters.', ['min' => self::MIN_REASON])]);
+            }
+            if (mb_strlen($reason) > self::MAX_REASON) {
+                throw ValidationException::withMessages(['reason' => __('Keep the reason to :max characters or fewer.', ['max' => self::MAX_REASON])]);
             }
 
             return DB::transaction(function () use ($tenant, $close, $reason, $by): DayClose {

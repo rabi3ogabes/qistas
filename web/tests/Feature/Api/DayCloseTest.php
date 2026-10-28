@@ -129,11 +129,38 @@ describe('today', function () {
             ->and(json_decode($body, true)['data']['expected_cash'])->toBe('0.00');
     });
 
+    it('keeps the figures of a close of an empty day as maps in what is sent', function () {
+        dcSignIn($this->sara);
+
+        // Read from the raw body: decoded to PHP, an empty `{}` and an empty `[]` look the same.
+        $closed = $this->postJson('/api/v1/day-close', ['counted_cash' => '0.00'])->assertCreated()->getContent();
+        $today = $this->getJson('/api/v1/day-close/today')->assertOk()->getContent();
+        $history = $this->getJson('/api/v1/day-close')->assertOk()->getContent();
+
+        foreach ([$closed, $history] as $body) {
+            expect($body)->toContain('"totals":{"by_method":{},"count":0,"per_member":{}}');
+        }
+        // The same close inside today's answer, and today's own figures.
+        expect($today)->toContain('"totals":{"by_method":{},"count":0,"per_member":{}}')->toContain('"by_method":{},"count":0,"per_member":{},"non_cash":[]');
+    });
+
     it('takes the closing time from the workspace setting', function () {
         TenantSettings::for($this->shop)->set('day_close.closing_time', '21:30', $this->boss);
 
         dcSignIn($this->sara);
         $this->getJson('/api/v1/day-close/today')->assertOk()->assertJsonPath('data.closing_time', '21:30');
+    });
+
+    it('does not offer to reopen a day that is reopened already, not even to an owner or a manager', function () {
+        $close = closeDay($this->shop, '2026-10-21', $this->sara, '0.00');
+        reopenDay($close, 'A late payment came in', $this->boss);
+
+        foreach ([$this->boss, $this->mona] as $who) {
+            dcSignIn($who);
+            $this->getJson('/api/v1/day-close/today')->assertOk()
+                ->assertJsonPath('data.close.status', 'reopened')->assertJsonPath('data.closed', false)
+                ->assertJsonPath('data.can_reopen', false)->assertJsonPath('data.can_close', true);
+        }
     });
 
     it('says who can close and who can reopen, and follows the day through a close and a reopening', function () {
@@ -304,7 +331,10 @@ describe('reopening', function () {
         dcSignIn($this->boss);
         $this->postJson("/api/v1/day-close/{$close->id}/reopen", [])->assertUnprocessable()->assertJsonStructure(['error' => ['fields' => ['reason']]]);
         $this->postJson("/api/v1/day-close/{$close->id}/reopen", ['reason' => 'late'])->assertUnprocessable()->assertJsonStructure(['error' => ['fields' => ['reason']]]);
-        $this->postJson("/api/v1/day-close/{$close->id}/reopen", ['reason' => str_repeat('x', 501)])->assertUnprocessable()->assertJsonStructure(['error' => ['fields' => ['reason']]]);
+        // The longest reason is the action's to say (so the web page cannot disagree with this), and says so in words.
+        $this->postJson("/api/v1/day-close/{$close->id}/reopen", ['reason' => str_repeat('x', 501)])->assertUnprocessable()
+            ->assertJsonPath('error.fields.reason', [__('Keep the reason to :max characters or fewer.', ['max' => 500])]);
+        expect($close->fresh()->status)->toBe('closed');
 
         $this->travelTo('2026-10-21 18:00:00');
         $data = $this->postJson("/api/v1/day-close/{$close->id}/reopen", ['reason' => 'A late payment came in'])->assertOk()->json('data');
@@ -521,6 +551,21 @@ describe('the summary PDF', function () {
         $this->get("/api/v1/day-close/{$second->id}/summary.pdf")->assertStatus(402)->assertJsonPath('error.code', 'limit_reached');
         // The one already made is free to make again.
         $this->get("/api/v1/day-close/{$first->id}/summary.pdf")->assertOk();
+    });
+
+    it('names the closer in the language of the document, not of the request, when that person has left the team', function () {
+        limitFreePlan(Feature::PdfStatements, null);
+        $close = closeDay($this->shop, '2026-10-21', $this->sara, '0.00');
+        DB::table('users')->where('id', $this->sara->id)->delete();
+        dcSignIn($this->boss);
+
+        // An English request for an Arabic document: the words come from the document's language.
+        $arabic = $this->get("/api/v1/day-close/{$close->id}/summary.pdf?language=ar", ['Accept-Language' => 'en'])->assertOk();
+        $english = $this->get("/api/v1/day-close/{$close->id}/summary.pdf?language=en", ['Accept-Language' => 'ar'])->assertOk();
+
+        $text = pdfText((string) $arabic->getContent());
+        expect(containsArabic($text, 'شخص لم يعد ضمن الفريق'))->toBeTrue()->and($text)->not->toContain('Someone no longer on the team')
+            ->and(pdfText((string) $english->getContent()))->toContain('Someone no longer on the team');
     });
 
     it('says what a reopened close is', function () {

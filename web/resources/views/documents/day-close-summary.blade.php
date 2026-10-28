@@ -28,7 +28,7 @@
     </tr></table>
 
     <table class="facts">
-        <tr><td class="label">{{ __('Closed by') }}</td><td><strong>{{ $closedBy }}</strong></td></tr>
+        <tr><td class="label">{{ __('Closed by') }}</td><td><strong>{{ $closedBy ?? __('Someone no longer on the team') }}</strong></td></tr>
         <tr><td class="label">{{ __('Closed at') }}</td><td>{{ Dates::day($closedAt) }}, {{ $closedAt->format('H:i') }}</td></tr>
         <tr><td class="label">{{ __('Expected cash') }}</td><td>{{ $money($expected) }}</td></tr>
         <tr><td class="label">{{ __('Counted cash') }}</td><td>{{ $money($counted) }}</td></tr>

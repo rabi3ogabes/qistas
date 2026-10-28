@@ -43,10 +43,9 @@ class DayCloseResource extends JsonResource
             'counted_cash' => $this->money($this->counted_cash),
             'difference' => $this->money($this->difference),
             'totals' => [
-                // Maps stay maps when they are empty: an app reads `{}`, never `[]`, for these.
-                'by_method' => $this->map(array_map(fn (string $amount): ?string => $this->money($amount), $totals['by_method'] ?? [])),
+                'by_method' => self::map(array_map(fn (string $amount): ?string => $this->money($amount), $totals['by_method'] ?? [])),
                 'count' => (int) ($totals['count'] ?? 0),
-                'per_member' => $this->map(array_map(fn (array $member): array => [
+                'per_member' => self::map(array_map(fn (array $member): array => [
                     'name' => $member['name'],
                     'cash' => $this->money($member['cash']),
                     'count' => (int) $member['count'],
@@ -75,10 +74,12 @@ class DayCloseResource extends JsonResource
     }
 
     /**
+     * A map for the JSON an app reads: an empty one is `{}`, which PHP would otherwise write as `[]`.
+     *
      * @param  array<array-key, mixed>  $map
      * @return array<array-key, mixed>|stdClass
      */
-    private function map(array $map): array|stdClass
+    public static function map(array $map): array|stdClass
     {
         return $map === [] ? new stdClass : $map;
     }

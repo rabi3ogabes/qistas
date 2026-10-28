@@ -49,7 +49,9 @@ final class DayCloseSummary implements Template
 
         return [
             'day' => CarbonImmutable::parse($close->day, 'UTC'),
-            'closedBy' => $close->closedBy->name ?? __('Someone no longer on the team'),
+            // Null once that person has left the team: the words for it are the view's, written in the document's language
+            // (this method runs before the renderer switches to it).
+            'closedBy' => $close->closedBy?->name,
             'closedAt' => $tenant->localTime($close->closed_at),
             'reopened' => $close->status === 'reopened',
             'expected' => Money::add($close->expected_cash, '0', 2),

@@ -22,7 +22,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
-use stdClass;
 
 /**
  * The end-of-day close (daily-habit wave A, H4): what today looks like, closing a day, reopening it, the history, and the
@@ -54,9 +53,9 @@ final class DayCloseController
             'close' => $latest === null ? null : (new DayCloseResource($latest))->resolve($request),
             'expected_cash' => $figures['expected_cash'],
             // Maps stay maps when they are empty: an app reads `{}`, never `[]`, for these.
-            'by_method' => $figures['by_method'] === [] ? new stdClass : $figures['by_method'],
+            'by_method' => DayCloseResource::map($figures['by_method']),
             'count' => $figures['count'],
-            'per_member' => $figures['per_member'] === [] ? new stdClass : $figures['per_member'],
+            'per_member' => DayCloseResource::map($figures['per_member']),
             'non_cash' => $figures['non_cash'],
             'watch' => $figures['watch'],
             'can_close' => ! $closed && $user->can('create', DayClose::class),
@@ -78,7 +77,8 @@ final class DayCloseController
     public function reopen(Request $request, DayClose $close, ReopenDay $reopenDay): DayCloseResource
     {
         Gate::authorize('reopen', $close);
-        $data = $request->validate(['reason' => ['required', 'string', 'min:'.ReopenDay::MIN_REASON, 'max:500']]);
+        // How long a reason may be is the action's to say (as it is for how short), so the web page cannot disagree.
+        $data = $request->validate(['reason' => ['required', 'string']]);
 
         return $this->show($reopenDay->handle($close, $data['reason'], $this->user($request)));
     }

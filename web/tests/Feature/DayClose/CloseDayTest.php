@@ -221,6 +221,19 @@ test('only an owner or manager may reopen, with a reason', function () {
         ->toBe(['day' => [__('Only a day that is closed can be reopened.')]]);
 });
 
+test('a reason is five to five hundred characters, however it is written', function () {
+    $close = closeDay($this->shop, '2026-10-21', $this->sara, '0.00');
+
+    // The longest a reason may be is the action's to say, as the shortest is: every caller gets the same answer.
+    expect(validationErrors(fn () => reopenDay($close, str_repeat('x', 501), $this->boss)))
+        ->toBe(['reason' => [__('Keep the reason to :max characters or fewer.', ['max' => 500])]])
+        ->and($close->fresh()->status)->toBe('closed');
+
+    // Counted in characters, not bytes, and after the ends are trimmed: five hundred letters of Arabic are allowed.
+    $reason = str_repeat('ع', 500);
+    expect(reopenDay($close, '  '.$reason.'  ', $this->boss)->fresh()->reopen_reason)->toBe($reason);
+});
+
 test('a reopened day can be closed again as version 2', function () {
     closeTake($this->contract, '100.00', by: $this->sara);
     $first = closeDay($this->shop, '2026-10-21', $this->sara, '100.00');
