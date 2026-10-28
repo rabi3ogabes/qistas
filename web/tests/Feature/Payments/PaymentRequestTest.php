@@ -1,7 +1,12 @@
 <?php
 
 use App\Http\Requests\PaymentRequest;
+use App\Models\Tenant;
+use App\Tenancy\CurrentTenant;
 use Illuminate\Support\Facades\Validator;
+
+// A date typed for a payment is read on a workspace's calendar, so there has to be a current workspace, as in a request.
+beforeEach(fn () => app(CurrentTenant::class)->set(Tenant::factory()->create()));
 
 function validatePayment(array $input): Illuminate\Validation\Validator
 {

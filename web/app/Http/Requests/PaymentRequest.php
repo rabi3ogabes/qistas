@@ -6,10 +6,12 @@ use App\Http\Requests\Concerns\MoneyRules;
 use App\Http\Requests\Concerns\ReadsHijriDates;
 use App\Models\Transaction;
 use App\Support\Digits;
+use App\Support\PaymentDate;
+use App\Tenancy\CurrentTenant;
 use Carbon\CarbonInterface;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
+use LogicException;
 
 /**
  * Validation and authorisation for recording a payment, shared by the web app and the API. How much may be
@@ -30,7 +32,7 @@ class PaymentRequest extends FormRequest
         return [
             'amount' => ['required', 'string', $this->amountRule(positive: true)],
             'method' => ['required', 'string', Rule::in(config('qistas.payment_methods'))],
-            'paid_at' => ['nullable', 'date', 'before_or_equal:now'],
+            'paid_at' => ['nullable', 'bail', 'date', PaymentDate::notInFuture()],
             'note' => ['nullable', 'string', 'max:1000'],
             'tag' => ['nullable', Rule::in(Transaction::TAGS)],
             // Makes a retry (a double click, a flaky connection) record one payment, not two.
@@ -43,8 +45,8 @@ class PaymentRequest extends FormRequest
     }
 
     /**
-     * When the money was received. A date on its own means that day: right now if it is today, otherwise the
-     * end of the day (so it never lands in the future). Null means now.
+     * When the money was received. A date on its own means that day on the workspace's calendar: right now if it is the
+     * workspace's today, otherwise the last second of that day (see PaymentDate). Null means now.
      */
     public function paidAt(): ?CarbonInterface
     {
@@ -54,13 +56,9 @@ class PaymentRequest extends FormRequest
             return null;
         }
 
-        $moment = Carbon::parse($value);
+        $tenant = app(CurrentTenant::class)->get() ?? throw new LogicException('A payment is dated on a workspace\'s calendar, and no workspace is current.');
 
-        if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
-            return $moment;
-        }
-
-        return $moment->isToday() ? now() : $moment->endOfDay();
+        return PaymentDate::moment($tenant, $value);
     }
 
     protected function prepareForValidation(): void
