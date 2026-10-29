@@ -17,7 +17,7 @@ beforeEach(function () {
     $this->travelTo('2026-03-10 12:00:00');
 });
 
-function paidOn(Contract $contract, string $amount, string $day): void
+function paidOnDesk(Contract $contract, string $amount, string $day): void
 {
     asTenant($contract->tenant, fn () => app(RecordPayment::class)->handle($contract, $amount, 'cash', paidAt: Carbon::parse($day.' 12:00:00')));
 }
@@ -31,7 +31,7 @@ describe('the account', function () {
     it('lists the contract line by line with what was added, what was paid and the balance after each', function () {
         [$user, $tenant] = owner(['currency' => 'SAR']);
         $contract = openContract($tenant);
-        paidOn($contract, '100.00', '2026-02-03');
+        paidOnDesk($contract, '100.00', '2026-02-03');
 
         $this->actingAs($user)->get(route('app.customers.show', $contract->customer_id))->assertOk()
             ->assertSee('data-ledger', false)
@@ -42,7 +42,7 @@ describe('the account', function () {
     it('shows the totals: monthly instalment, instalments paid and left, paid, left and late', function () {
         [$user, $tenant] = owner(['currency' => 'SAR']);
         $contract = openContract($tenant);
-        paidOn($contract, '100.00', '2026-02-03');
+        paidOnDesk($contract, '100.00', '2026-02-03');
 
         $this->actingAs($user)->get(route('app.customers.show', $contract->customer_id))->assertOk()
             ->assertSeeInOrder(['data-total="instalment"', Format::money('100.00', 'SAR')], false)
@@ -57,7 +57,7 @@ describe('the account', function () {
     it('marks an instalment that is due and unpaid, with a way to pay it from the page', function () {
         [$user, $tenant] = owner(['currency' => 'SAR']);
         $contract = openContract($tenant);
-        paidOn($contract, '100.00', '2026-02-03');
+        paidOnDesk($contract, '100.00', '2026-02-03');
         $march = instalmentNumbered($contract, 2);
         $april = instalmentNumbered($contract, 3);
 
@@ -71,7 +71,7 @@ describe('the account', function () {
     it('opens the payment form for the instalment that was tapped, with its amount filled in', function () {
         [$user, $tenant] = owner(['currency' => 'SAR']);
         $contract = openContract($tenant);
-        paidOn($contract, '40.00', '2026-02-03');
+        paidOnDesk($contract, '40.00', '2026-02-03');
         $february = instalmentNumbered($contract, 1);
 
         $this->actingAs($user)->get(route('app.customers.show', $contract->customer_id).'?contract='.$contract->id.'&pay='.$february->id)->assertOk()
@@ -149,7 +149,7 @@ describe('choosing the contract', function () {
     it('offers to archive a finished contract from the page', function () {
         [$user, $tenant] = owner();
         $contract = openContract($tenant);
-        paidOn($contract, '300.00', '2026-03-01');
+        paidOnDesk($contract, '300.00', '2026-03-01');
 
         $this->actingAs($user)->get(route('app.customers.show', $contract->customer_id))->assertOk()
             ->assertSee(route('app.contracts.archive', $contract), false);
@@ -170,7 +170,7 @@ describe('choosing the contract', function () {
     it('keeps archived contracts folded away until one is asked for', function () {
         [$user, $tenant] = owner();
         $contract = openContract($tenant);
-        paidOn($contract, '300.00', '2026-03-01');
+        paidOnDesk($contract, '300.00', '2026-03-01');
         asTenant($tenant, fn () => $contract->refresh()->forceFill(['archived_at' => now()])->save());
 
         $this->actingAs($user)->get(route('app.customers.show', $contract->customer_id))->assertOk()
