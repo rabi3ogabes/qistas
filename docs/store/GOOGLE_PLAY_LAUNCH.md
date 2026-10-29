@@ -12,8 +12,8 @@ current page before relying on it.
   produces **`qistas-app-<version>.aab`**, the file Google Play wants. Without the secrets it stays a debug-signed test
   build, as today.
 - In-app account deletion (Settings, then Security, then Delete my account) and the public page
-  <https://qistas-puce.vercel.app/account/delete>, both required by Google Play.
-- Privacy policy: <https://qistas-puce.vercel.app/privacy>. Terms: <https://qistas-puce.vercel.app/terms>.
+  <https://www.qistasme.com/account/delete>, both required by Google Play.
+- Privacy policy: <https://www.qistasme.com/privacy>. Terms: <https://www.qistasme.com/terms>.
 - The version code goes up by itself with every build (the GitHub run number).
 
 ## 1. Open a Google Play developer account
@@ -67,14 +67,14 @@ Then re-run the latest **Mobile app** workflow, or push any change to `app/`. Th
 
 | Form | What to answer |
 |---|---|
-| Privacy policy | `https://qistas-puce.vercel.app/privacy` (move it to your own domain later). |
+| Privacy policy | `https://www.qistasme.com/privacy`. |
 | App access | Some functions need a sign-in. Tell the reviewer: *“On the sign-in screen tap Try the demo, then Enter as admin; no credentials are needed.”* Keep the demo switch on (Vercel `QISTAS_DEMO_LOGIN=true`) while the app is under review. |
 | Ads | The app contains **no ads**. |
 | Content rating | Fill the questionnaire honestly: a business tool with no violence, gambling or user-to-user content. |
 | Target audience | 18 and over (it is for businesses). |
 | Financial features | Qistas does not lend money and is not a loan app: it is accounting software in which a business records its own instalment sales. Answer the questions that way. *Check* Google's current financial-services policy first. |
 | Data safety | See the next table. |
-| Account deletion | In the app (Settings, then Security, then Delete my account) and on the web at `https://qistas-puce.vercel.app/account/delete`. |
+| Account deletion | In the app (Settings, then Security, then Delete my account) and on the web at `https://www.qistasme.com/account/delete`. |
 
 ### Data safety answers (as the app works today, 12 October 2026)
 

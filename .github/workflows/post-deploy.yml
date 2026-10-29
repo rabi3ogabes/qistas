@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://qistas-puce.vercel.app' }}
+      PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://www.qistasme.com' }}
     steps:
       - uses: actions/checkout@v4
       - name: Public pages answer, guests are kept out of /app, assets load

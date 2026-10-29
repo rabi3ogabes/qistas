@@ -7,6 +7,7 @@ PostgreSQL (Supabase in production).
 | You want to… | Use |
 |---|---|
 | Look around on your own computer | [Option A: Docker](#option-a--your-computer-with-docker) |
+| See how the live site (https://www.qistasme.com) runs | [Option D: SixPanel](#option-d--production-on-sixpanel-wwwqistasmecom) |
 | Put it online at a public link | [Option B: Vercel + Supabase](#option-b--online-with-vercel-and-supabase) |
 | Develop or change it | [Option C: without Docker](#option-c--develop-without-docker) |
 
@@ -36,7 +37,8 @@ This setup uses a throw-away database password and a published demo login. **Nev
 
 Vercel runs the container; Supabase keeps the data. The repository's `vercel.json` already tells Vercel to build the
 app in `web/` as a container. Vercel's own deploy on every push is switched off (`"git": {"deploymentEnabled": false}`):
-the **Deploy** workflow (`.github/workflows/deploy.yml`) redeploys the live site (https://qistas-puce.vercel.app/)
+the **Deploy** workflow (`.github/workflows/deploy.yml`) redeploys the Vercel copy (https://qistas-puce.vercel.app/; the live
+site moved to SixPanel, see [Option D](#option-d--production-on-sixpanel-wwwqistasmecom))
 whenever a push to `main` changes `web/`, `vercel.json` or `.vercelignore`, by calling a Vercel Deploy Hook. It needs
 the repository secret `VERCEL_DEPLOY_HOOK` (Vercel project → Settings → Git → Deploy Hooks, branch `main`). To redeploy
 without a change, run the workflow by hand (Actions → Deploy → Run workflow).
@@ -161,6 +163,40 @@ The static brand prototype (intro, Theme Studio, brand system) is no longer serv
 belongs to the app. It stays in the repository (`brand/`, `index.html`): run it with `npm run dev`
 (<http://127.0.0.1:5274>). Its Vercel settings are kept in `vercel.static.json` and `.vercelignore.static` should it
 ever get a project of its own.
+
+---
+
+## Option D: production on SixPanel (www.qistasme.com)
+
+The live site, **https://www.qistasme.com** (`qistasme.com` redirects to it), runs on the Athar Qatar server, managed
+with SixPanel, as the PHP website **qistasme**. No container: nginx and PHP-FPM 8.5 serve `web/public`, and the data is
+in a **PostgreSQL 18** database on the same server (`site_qistasme_pg`, reachable from the server only). Cloudflare is in
+front; the panel passes each visitor's real address to the app, so rate limits work per person.
+
+**Deploys.** The website pulls `main` from GitHub. Because the Laravel app lives in `web/`, the panel's own Composer step
+does not apply; instead the website's **Commands after each deploy** do the build, as the site's own account:
+
+1. link `web/.env` to the panel-managed `.env` one folder up;
+2. `composer install --no-dev --optimize-autoloader`, then `npm ci` and `npm run build` (Node 26 is on the server);
+3. the first time only: copy the panel's PostgreSQL password into `DB_PASSWORD`, generate `APP_KEY`, create `CRON_SECRET`;
+4. `php artisan qistas:setup` (migrations, feature switches, row-level security), then rebuild the caches.
+
+Kept between deploys: `web/vendor`, `web/node_modules`, `web/public/build`, `web/storage`, `web/bootstrap/cache`. A
+deploy whose commands fail puts the previous version back.
+
+**Settings (the website's Environment page).** `APP_ENV=production`, `APP_DEBUG=false`, `APP_URL=https://www.qistasme.com`,
+`DB_CONNECTION=pgsql` with `DB_HOST=127.0.0.1`, `DB_PORT=5432`, `DB_DATABASE`/`DB_USERNAME=site_qistasme_pg`,
+`DB_SSLMODE=disable`, `SESSION_DRIVER=database`, `SESSION_SECURE_COOKIE=true`, `CACHE_STORE=database`,
+`QUEUE_CONNECTION=sync`, `LOG_CHANNEL=daily`, `QISTAS_GEO_HEADER=CF-IPCountry`, `QISTAS_DEMO_LOGIN=false`. Secrets
+(`APP_KEY`, `DB_PASSWORD`, `CRON_SECRET`) are made on the server and never leave it. Set the `MAIL_*` keys there to send
+real e-mail.
+
+**Scheduled work.** A cron job of the website, every five minutes, calls `/internal/cron` with the `CRON_SECRET` it reads
+from `.env`; check it with `php artisan qistas:cron-status`. The scheduler runs each task as its own process, so this
+website's PHP keeps `proc_open` allowed (the other process functions stay disabled).
+
+**MariaDB is not supported**: the migrations use PostgreSQL features (partial unique indexes, for example one main
+investor per business). The website's unused MariaDB database can be removed on its Database page.
 
 ---
 

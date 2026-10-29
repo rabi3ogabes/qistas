@@ -3,9 +3,9 @@
 *The just balance.* A premium instalment, lending and accounting platform for merchants and lenders, Arabic-first and
 available in Arabic, English, French, Spanish and Urdu.
 
-**Live:** https://qistas-puce.vercel.app/ — the real website with a sign-in to the dashboard, running on a Supabase (PostgreSQL) database. Create a free account, or sign in.
+**Live:** https://www.qistasme.com/ — the real website with a sign-in to the dashboard, on its own server (SixPanel) with a PostgreSQL database. Create a free account, or sign in. How it is hosted: [docs/DEPLOY.md](docs/DEPLOY.md#option-d--production-on-sixpanel-wwwqistasmecom).
 
-**Look around without signing up:** the sign-in page and the app have two demo buttons, *Enter as admin* (Pro plan, every feature) and *Enter as user* (Free plan, with its limits). Each press makes a throw-away account with sample data that is deleted after a few hours; it is never platform staff.
+**Look around without signing up:** where the demo is switched on (`QISTAS_DEMO_LOGIN=true`; it is off on the live site), the sign-in page and the app have two demo buttons, *Enter as admin* (Pro plan, every feature) and *Enter as user* (Free plan, with its limits). Each press makes a throw-away account with sample data that is deleted after a few hours; it is never platform staff.
 
 **The mobile app:** download the Android build from the [latest release](https://github.com/rabi3ogabes/qistas/releases/latest) (built by GitHub Actions from `app/`; see [app/README.md](app/README.md)). It uses the same account as the website.
 

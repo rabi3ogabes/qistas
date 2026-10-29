@@ -168,7 +168,7 @@ jobs:
             else
               echo "This is a test build signed with a debug key: if you already have an older one, uninstall it first."
             fi
-            echo "It talks to https://qistas-puce.vercel.app, so you sign in with the same account as on the website."
+            echo "It talks to https://www.qistasme.com, so you sign in with the same account as on the website."
             echo
             if [ -n "$PREVIOUS" ]; then echo "### What changed since ${PREVIOUS#app-v}"; else echo "### What is in this version"; fi
             git log --no-merges --pretty='- %s' "$RANGE" -- app/ | head -n 40

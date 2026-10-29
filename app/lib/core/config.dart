@@ -7,11 +7,11 @@ class AppConfig {
   /// The API every screen talks to.
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://qistas-puce.vercel.app/api/v1',
+    defaultValue: 'https://www.qistasme.com/api/v1',
   );
 
   /// Where Pro is bought: the website. (A store build uses the store's own billing instead.)
-  static const String webUrl = String.fromEnvironment('WEB_URL', defaultValue: 'https://qistas-puce.vercel.app');
+  static const String webUrl = String.fromEnvironment('WEB_URL', defaultValue: 'https://www.qistasme.com');
 
   /// Shown on the settings screen; the build sets it from pubspec (--dart-define=APP_VERSION=1.28.0).
   static const String appVersion = String.fromEnvironment('APP_VERSION', defaultValue: '1.28.0');

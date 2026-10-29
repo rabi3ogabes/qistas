@@ -13,7 +13,7 @@ schedule preview, which is a port of the server's generator and is checked again
   installation when asked. It is a test build signed with a debug key (uninstall an older one first).
 - **In a browser:** the web build is attached to every run of the *Mobile app* workflow
   (Actions → Mobile app → `qistas-app-web`).
-- It points at https://qistas-puce.vercel.app and signs in with the same email and password as the website.
+- It points at https://www.qistasme.com and signs in with the same email and password as the website.
 
 ## What it does for a business owner
 
@@ -44,7 +44,7 @@ The app is built around one question, "who do I need to deal with today?", and k
 
 ```sh
 flutter pub get
-flutter run                                   # against https://qistas-puce.vercel.app
+flutter run                                   # against https://www.qistasme.com
 flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8080/api/v1   # Android emulator to `docker compose up`
 flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:8080/api/v1
 ```
