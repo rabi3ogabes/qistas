@@ -31,6 +31,8 @@
         'frequency' => array_key_exists($frequency, $frequencies) ? $frequency : 'monthly',
         'firstDue' => old('first_due_date', today()->addMonthNoOverflow()->format('Y-m-d')),
         'customRows' => $customRows,
+        // Who is chosen (the form's own customer field is bound to it), so the suggestion below follows the choice.
+        'customerId' => (string) old('customer_id', $selected ?? ''),
     ];
     $config = [
         'url' => route('app.contracts.preview'),
@@ -42,6 +44,21 @@
         'labels' => ['date' => __('Due date'), 'amount' => __('Amount'), 'remove' => __('Remove this date'), 'item' => __('Item'), 'removeItem' => __('Remove this item'), 'useTotal' => __('Use the items’ total:')],
         'products' => $products->map(fn ($p) => ['id' => $p->id, 'name' => $p->name, 'price' => $p->default_price === null ? '' : Money::add($p->default_price, '0', 2), 'cost' => $p->cost === null ? '' : Money::add($p->cost, '0', 2)])->values()->all(),
     ];
+
+    // Payday learning (daily-habit wave A, H6): what each customer in the list usually pays on, and the words to suggest it
+    // in. Nothing is sent while the feature is off or nobody has a pattern yet. The names sit in the sentences as
+    // placeholders, filled in by the script, so one sentence serves every customer.
+    if ($payPatterns !== []) {
+        $config['today'] = $today;
+        $config['payPatterns'] = $payPatterns;
+        $config['messages'] += [
+            'says' => __(':name usually pays around day :day.'),
+            'saysEnd' => __(':name usually pays at the end of the month.'),
+            'ask' => __('Use :date?'),
+            'onPayday' => __('This date is already their payday.'),
+            'dateSet' => __('Date set to :date'),
+        ];
+    }
 @endphp
 <x-layouts.app :title="__('Open a contract')" section="contracts">
     <x-page-head :title="__('Open a contract')">
@@ -71,6 +88,12 @@
         <form class="planner" method="POST" action="{{ route('app.contracts.store') }}" novalidate
               x-data="contractPlanner" data-config="{{ json_encode($config) }}" :data-loading="isLoading">
             @csrf
+            @if ($payPatterns !== [])
+                {{-- What a screen reader is told about the payday suggestion: only when a customer is chosen, and after the button. The
+                     sentence under the date field changes with every key typed there, so it is not announced; this line is, and it is
+                     always drawn, never inside anything that shows and hides. --}}
+                <p class="sr-only" role="status" x-text="payAnnouncement"></p>
+            @endif
 
             <section class="card card-pad stack planner-fields" aria-label="{{ __('Contract details') }}">
                 <x-meter :label="__('Active contracts')" :entitlement="$usage" />
@@ -80,7 +103,7 @@
                 <div class="form form-grid">
                     <div class="field field-wide">
                         <label for="f-customer_id">{{ __('Customer') }}</label>
-                        <select id="f-customer_id" name="customer_id" required @error('customer_id') aria-invalid="true" aria-describedby="f-customer_id-error" @enderror>
+                        <select id="f-customer_id" name="customer_id" required x-model="customerId" @change="customerChanged" @error('customer_id') aria-invalid="true" aria-describedby="f-customer_id-error" @enderror>
                             <option value="">{{ __('Choose a customer') }}</option>
                             @foreach ($customers as $customer)
                                 <option value="{{ $customer->id }}" @selected(old('customer_id', $selected) === $customer->id)>{{ $customer->name }} · {{ $customer->phone }}</option>
@@ -223,7 +246,16 @@
                     <x-hijri-input for="start_date" />
 
                     <div class="contents" x-show="isScheduled && !isCustom">
-                        <x-field name="first_due_date" type="date" :label="__('First instalment due')" :value="$initial['firstDue']" required x-model="firstDue" x-bind:disabled="isCustom" @input="changed" />
+                        <div class="stack-sm">
+                            <x-field name="first_due_date" type="date" :label="__('First instalment due')" :value="$initial['firstDue']" required x-model="firstDue" x-ref="firstDueField" x-bind:disabled="isCustom" @input="changed" />
+                            @if ($payPatterns !== [])
+                                {{-- Payday learning: the date they usually pay on, offered and never applied. Only the button changes the field. --}}
+                                <div class="pay-suggest" data-pay-suggestion x-show="hasPaySuggestion" x-cloak>
+                                    <p class="pay-suggest-text" id="pay-suggest-text" x-text="paySuggestionText"></p>
+                                    <button type="button" class="btn btn-quiet btn-sm" x-show="canUsePaySuggestion" x-cloak @click="usePaySuggestion" aria-describedby="pay-suggest-text">{{ __('Use it') }}</button>
+                                </div>
+                            @endif
+                        </div>
                         <x-hijri-input for="first_due_date" />
                     </div>
 

@@ -11,6 +11,7 @@
         'receipt' => __('Receipt'),
         'contract_agreement' => __('Instalment contract'),
         'promissory_note' => __('Promissory note'),
+        'day_close' => __('Day summary'),
     ];
 @endphp
 <x-layouts.site :title="__('Check a document')" :path="'/verify'" :index="false">

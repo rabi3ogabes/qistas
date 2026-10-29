@@ -4,9 +4,11 @@ import 'dart:typed_data';
 import '../core/api/api_client.dart';
 import '../core/money.dart';
 import '../domain/schedule_generator.dart';
+import '../features/glance/glance_data.dart';
 import 'backups.dart';
 import 'billing.dart';
 import 'contract_account.dart';
+import 'day_close.dart';
 import 'documents.dart';
 import 'help.dart';
 import 'imports.dart';
@@ -119,6 +121,10 @@ class QistasApi {
   }
 
   Future<Dashboard> dashboard() async => Dashboard.fromJson(_data(await _client.get('/dashboard')));
+
+  /// Today's money in a glance, for the home-screen widget. [names] asks for each customer's name too; leave it off
+  /// unless the owner allowed names on the widget.
+  Future<GlanceData> glance({required bool names}) async => GlanceData.fromJson(_data(await _client.get('/glance', query: {'names': names ? 1 : 0})));
 
   /// How to reach the Qistas team (Win Plan PP17).
   Future<SupportInfo> supportInfo() async => SupportInfo.fromJson(_data(await _client.get('/support')));
@@ -604,6 +610,29 @@ class QistasApi {
 
     return Reports(forecast: CashForecast.fromJson(_data(forecast)), ageing: AgeingReport.fromJson(_data(ageing)), profit: ProfitReport.fromJson(_data(profit)));
   }
+
+  // ---------------------------------------------------------------- the end of the day (daily-habit wave A, H4)
+
+  /// Today's cash to count and today's close, on the workspace's own day. Behind the `day_close` feature.
+  Future<DayCloseToday> dayCloseToday() async => DayCloseToday.fromJson(_data(await _client.get('/day-close/today')));
+
+  /// Closes [day] (the workspace's own day the person was shown; today when null) with the cash that was counted. Pass the
+  /// SAME [idempotencyKey] when the same attempt is repeated: a retry after a lost answer returns the first close. A
+  /// mistake is a 422 naming `counted_cash`, `day` or `note`.
+  Future<DayCloseRecord> closeDay({required Money countedCash, required String idempotencyKey, String? note, String? day}) async =>
+      DayCloseRecord.fromJson(_data(await _client.post('/day-close', headers: {'Idempotency-Key': idempotencyKey}, body: {
+        'counted_cash': countedCash.toDecimalString(),
+        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+        'day': ?day,
+      })));
+
+  /// Opens a closed day again, with a reason (owners and managers). The server says how short a reason may not be (422 on `reason`).
+  Future<DayCloseRecord> reopenDay(String id, String reason) async =>
+      DayCloseRecord.fromJson(_data(await _client.post('/day-close/$id/reopen', body: {'reason': reason.trim()})));
+
+  /// Every close, newest day first; within a day the latest version comes first.
+  Future<Paged<DayCloseRecord>> dayCloseHistory({int page = 1}) async =>
+      Paged.fromJson(await _client.get('/day-close', query: {'page': page}), DayCloseRecord.fromJson);
 
   /// Forgives what a late fee still owes (Win Plan K4); owners and managers only, always with a reason.
   Future<LateFee> waiveLateFee(String id, {required String reason}) async =>

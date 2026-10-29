@@ -32,7 +32,10 @@ twice in the file (the later row is left out), or the plan's customer limit.
 - **With a plan** (a number of instalments or an instalment amount, and a first instalment's date): a scheduled
   contract for the total, monthly, from the first date given; what was already paid is **one payment dated on the
   import day** ("Paid before Qistas"), applied oldest first like any payment. Late fees are never charged for days before
-  the contract was made in Qistas.
+  the contract was made in Qistas. The line is tagged `imported`: it counts on the contract, in the reports and for the
+  investors like any payment, but not in the import day's end-of-day close (it never went through that day's till) nor in
+  the customer's payday pattern. Lines imported before app 1.28.0 carry no tag (the ledger is never rewritten), so for those
+  customers the lump still counts in that day's close and as a payday month.
 - **A balance alone:** an **open contract** with the balance as its opening line. This needs open contracts switched
   on; without them the row says to add the instalments.
 - **Paid in full:** the customer only.

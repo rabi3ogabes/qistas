@@ -48,7 +48,9 @@ Future<bool> voidPaymentFlow(BuildContext context, WidgetRef ref, LedgerLine pay
 
     return true;
   } on ApiException catch (e) {
-    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMessage(context, e))));
+    // The server names the payment as the reason (a day that is closed, a payment voided already): its words, not a
+    // general "not valid".
+    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.fieldError('transaction') ?? errorMessage(context, e))));
 
     return false;
   }

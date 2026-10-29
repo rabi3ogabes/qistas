@@ -1,8 +1,15 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:qistas/features/glance/glance_service.dart';
+import 'package:qistas/features/glance/glance_store.dart';
 
 import '../support/fake_api.dart';
 import '../support/fake_device_auth.dart';
+import '../support/fake_glance_store.dart';
 import '../support/harness.dart';
 import '../support/samples.dart';
 import '../support/visual.dart';
@@ -268,6 +275,86 @@ void main() {
     await snapshot(tester, 'payment-recorded');
   });
 
+  // The end of the day (daily-habit wave A, H4): the till being counted, balanced and short; the day closed; and Today's tile.
+  Future<void> typeCount(WidgetTester tester, String keys) async {
+    for (final key in keys.split('')) {
+      final pad = find.byKey(ValueKey(key == '.' ? 'pad-point' : 'pad-$key'));
+      await tester.ensureVisible(pad);
+      await tester.pump();
+      await tester.tap(pad);
+      await tester.pump();
+    }
+    // The button warms from disabled to ready over a moment: wait for it before taking the picture.
+    await settle(tester);
+  }
+
+  FakeServer dayCloseServer({bool closed = false, String difference = '0.00'}) => workspaceServer(account: accountWithDayClose(), routes: {
+        'GET /day-close/today': always(json(200, {
+          'data': dayCloseTodayJson(
+            closed: closed,
+            close: closed ? dayCloseJson(counted: difference == '0.00' ? '3100.00' : '3080.00', difference: difference, note: difference == '0.00' ? null : 'Two torn notes put aside') : null,
+            canClose: !closed,
+            canReopen: closed,
+          ),
+        })),
+        'POST /day-close': always(json(201, {'data': dayCloseJson()})),
+      });
+
+  for (final (name, language, keys, mode) in [
+    ('day-close-balanced', 'en', '3100', 'light'),
+    ('day-close-short', 'en', '3080.5', 'light'),
+    ('day-close-balanced-ar', 'ar', '3100', 'light'),
+    ('day-close-short-ar-dark', 'ar', '3080.5', 'dark'),
+  ]) {
+    picture(name, (tester) async {
+      await pumpApp(tester, dayCloseServer(), realFonts: true, size: const Size(390, 2150), language: language, preferences: {'theme_mode': mode});
+      await tester.tap(find.byKey(const ValueKey('day-close-tile')));
+      await settle(tester);
+      await typeCount(tester, keys);
+      await snapshot(tester, name);
+    });
+  }
+
+  for (final (name, language, difference, mode) in [
+    ('day-close-closed', 'en', '0.00', 'light'),
+    ('day-close-closed-short', 'en', '-20.00', 'light'),
+    ('day-close-closed-ar-dark', 'ar', '0.00', 'dark'),
+  ]) {
+    picture(name, (tester) async {
+      await pumpApp(tester, dayCloseServer(closed: true, difference: difference), realFonts: true, size: const Size(390, 1900), language: language, preferences: {'theme_mode': mode});
+      await tester.tap(find.byKey(const ValueKey('day-close-tile')));
+      await settle(tester);
+      await snapshot(tester, name);
+    });
+  }
+
+  picture('day-close-moment', (tester) async {
+    await pumpApp(tester, dayCloseServer(), realFonts: true, size: const Size(390, 900));
+    await tester.tap(find.byKey(const ValueKey('day-close-tile')));
+    await settle(tester);
+    await typeCount(tester, '3100');
+    await tester.tap(find.byKey(const ValueKey('close-day-button')));
+    await settle(tester);
+    await snapshot(tester, 'day-close-moment');
+  });
+
+  picture('day-close-moment-ar', (tester) async {
+    await pumpApp(tester, dayCloseServer(), realFonts: true, size: const Size(390, 900), language: 'ar');
+    await tester.tap(find.byKey(const ValueKey('day-close-tile')));
+    await settle(tester);
+    await typeCount(tester, '3100');
+    await tester.tap(find.byKey(const ValueKey('close-day-button')));
+    await settle(tester);
+    await snapshot(tester, 'day-close-moment-ar');
+  });
+
+  for (final (name, closed, language, hour) in [('dashboard-day-close-evening', false, 'en', 21), ('dashboard-day-close-morning-ar', false, 'ar', 9), ('dashboard-day-close-closed', true, 'en', 21)]) {
+    picture(name, (tester) async {
+      await pumpApp(tester, dayCloseServer(closed: closed), realFonts: true, size: const Size(390, 900), language: language, clock: FakeClock(DateTime(2026, 10, 21, hour)));
+      await snapshot(tester, name);
+    });
+  }
+
   // The app lock: what a locked Qistas shows, by day, by night and in Arabic; and its settings screen.
   for (final (name, language, mode) in [('app-lock', 'en', 'light'), ('app-lock-dark', 'en', 'dark'), ('app-lock-ar', 'ar', 'light')]) {
     picture(name, (tester) async {
@@ -283,4 +370,82 @@ void main() {
     await tapText(tester, 'App lock');
     await snapshot(tester, 'app-lock-settings');
   });
+
+  // The home-screen widget's settings: its two switches, and with the app lock on the reasons they cannot be changed.
+  for (final (name, language, mode, lock) in [('widget-settings', 'en', 'light', false), ('widget-settings-ar-dark-locked', 'ar', 'dark', true)]) {
+    picture(name, (tester) async {
+      await pumpApp(tester, workspaceServer(account: accountWithWidget()), realFonts: true, language: language, deviceAuth: FakeDeviceAuth(),
+          overrides: [glanceSupportedProvider.overrideWithValue(true), glanceStoreProvider.overrideWithValue(FakeGlanceStore())],
+          preferences: {'theme_mode': mode, if (lock) 'app_lock.enabled': true, 'glance.show_names': true});
+      await openSettings(tester);
+      await tapText(tester, language == 'en' ? 'Home-screen widget' : 'أداة الشاشة الرئيسية');
+      await snapshot(tester, name);
+    });
+  }
+  // Payday learning: the chip on a customer's page, and the offer of their usual payday under the first due date. The server writes
+  // the chip's words in the language of the request; the sentence under the date is the app's own.
+  for (final (name, language, label, basis, customerName) in [
+    ('payday-customer', 'en', 'Usually pays around day 27 of the month', 'Seen in 83% of recent months', 'Ahmad Salem'),
+    ('payday-customer-ar', 'ar', 'عادة ما يدفع حوالي يوم 27 من الشهر', 'لوحظ في 83% من الأشهر الأخيرة', 'أحمد سالم'),
+  ]) {
+    picture(name, (tester) async {
+      final server = workspaceServer(account: accountWithPayday(), routes: {
+        'GET /customers': always(json(200, pageJson([customerJson(name: customerName)], page: 1, last: 1, total: 1))),
+        'GET /customers/c1': always(json(200, {'data': {...customerJson(name: customerName), 'contracts': <Map<String, dynamic>>[contractJson()], 'pay_pattern': payPatternJson(label: label, basis: basis)}})),
+      });
+      await pumpApp(tester, server, realFonts: true, size: const Size(360, 900), language: language);
+      await tapText(tester, language == 'en' ? 'Customers' : 'العملاء', last: true);
+      await tapText(tester, customerName);
+      await snapshot(tester, name);
+    });
+  }
+
+  for (final (name, language, customerName) in [('payday-suggestion', 'en', 'Ahmad Salem Abdullah Al-Ghamdi'), ('payday-suggestion-ar', 'ar', 'أحمد سالم عبد الله الغامدي')]) {
+    picture(name, (tester) async {
+      final server = workspaceServer(account: accountWithPayday(), routes: {
+        'GET /customers': always(json(200, pageJson([customerJson(name: customerName)], page: 1, last: 1, total: 1))),
+        'GET /customers/c1': always(json(200, {'data': {...customerJson(name: customerName), 'contracts': <Map<String, dynamic>>[], 'pay_pattern': payPatternJson()}})),
+      });
+      await pumpApp(tester, server, realFonts: true, size: const Size(360, 1500), language: language);
+      await tapText(tester, language == 'en' ? 'Contracts' : 'العقود', last: true);
+      await tapText(tester, language == 'en' ? 'New contract' : 'عقد جديد');
+      await tapText(tester, language == 'en' ? 'Choose a customer' : 'اختر عميلًا');
+      await tapText(tester, customerName);
+      await snapshot(tester, name);
+    });
+  }
+  // The change-plan screen's "move one date": its date row and, under it, the offer of the customer's usual payday. At the normal
+  // text size, and at 200% in Arabic (where the date wraps beside its label instead of pushing it out).
+  for (final (name, language, scale, size, customerName) in [
+    ('change-plan-move', 'en', 1.0, const Size(360, 1000), 'Ahmad Salem'),
+    ('change-plan-move-ar-200', 'ar', 2.0, const Size(360, 2400), 'أحمد سالم الغامدي'),
+  ]) {
+    picture(name, (tester) async {
+      final account = accountWithPayday();
+      account['entitlements'] = {
+        ...Map<String, dynamic>.from(account['entitlements'] as Map),
+        'reschedule': {'type': 'toggle', 'enabled': true, 'status': 'on', 'limit': null, 'used': null, 'remaining': null, 'unlimited': false},
+      };
+      final contract = {
+        ...contractJson(),
+        'customer': {'id': 'c1', 'name': customerName},
+        'installments': [
+          installmentJson(1, state: 'paid', paid: '275.00', status: 'paid'),
+          {...installmentJson(2), 'due_date': '2026-12-07'},
+          {...installmentJson(3), 'due_date': '2027-01-07'},
+          {...installmentJson(4), 'due_date': '2027-02-07'},
+        ],
+      };
+      final server = workspaceServer(account: account, routes: {
+        'GET /contracts/k1': always(json(200, {'data': contract})),
+        'GET /customers/c1': always(json(200, {'data': {...customerJson(name: customerName), 'contracts': <Map<String, dynamic>>[], 'pay_pattern': payPatternJson()}})),
+      });
+      await pumpApp(tester, server, realFonts: true, size: size, language: language, textScale: scale, clock: FakeClock(DateTime(2026, 10, 14, 9)));
+      GoRouter.of(tester.element(find.byType(Scaffold).first)).go('/contracts/k1/plan');
+      await settle(tester);
+      final move = language == 'en' ? 'Move one date' : (jsonDecode(File('assets/i18n/ar.json').readAsStringSync()) as Map<String, dynamic>)['Move one date'] as String;
+      await tapText(tester, move);
+      await snapshot(tester, name);
+    });
+  }
 }

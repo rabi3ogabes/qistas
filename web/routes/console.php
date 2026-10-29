@@ -21,6 +21,15 @@ Schedule::command('qistas:export-workspaces')->hourly()->withoutOverlapping(30);
 Schedule::command('qistas:send-digests')->everyFiveMinutes()->withoutOverlapping(10);
 Schedule::command('qistas:instalment-alerts')->everyFiveMinutes()->withoutOverlapping(10);
 
+// The home-screen widget (daily-habit wave A, H3): one silent push a day at each person's summary time keeps it fresh.
+Schedule::command('qistas:send-glance-refresh')->everyFiveMinutes()->withoutOverlapping(10);
+
+// The evening reminder to close the day (daily-habit wave A, H4): from each workspace's closing time, for up to two hours (never past midnight), once a day per person.
+Schedule::command('qistas:send-day-close-reminders')->everyFiveMinutes()->withoutOverlapping(10);
+
+// Each customer's usual payday (daily-habit wave A, H6): worked out again every night for the workspaces that have it on; a payment or a void also updates it at once.
+Schedule::command('qistas:learn-paydays')->daily()->withoutOverlapping(30);
+
 // Late fees (Win Plan K4): each workspace soon after its own midnight, once a day; a missed run is caught up next time.
 Schedule::command('qistas:charge-late-fees')->everyFiveMinutes()->withoutOverlapping(10);
 

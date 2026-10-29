@@ -23,7 +23,7 @@ use LogicException;
  * @property string|null $note
  * @property string|null $idempotency_key
  * @property string|null $reverses_transaction_id
- * @property string|null $tag advance | refund | early_discount | unpaid
+ * @property string|null $tag advance | refund | early_discount | unpaid, or imported (written by an import only)
  */
 class Transaction extends Model
 {
@@ -37,8 +37,16 @@ class Transaction extends Model
     /** What an open contract's customer took, and the reversal of it: owed, never money in. */
     public const CHARGES = ['charge', 'charge_reversal'];
 
-    /** The words a line may carry. */
+    /** The words a line may carry, as a person chooses them. */
     public const TAGS = ['advance', 'refund', 'early_discount', 'unpaid'];
+
+    /**
+     * The tag an import writes on what a customer had paid before the shop used Qistas ("Paid before Qistas"). It is
+     * money taken in the past, never cash in any of the shop's days, so the end-of-day figures (DayTotals) and the payday
+     * pattern leave it out; it is still a payment everywhere else (what the customer owes, the reports, the investors).
+     * Not one of TAGS: no person can choose it, so no payment can be hidden from a day's close by tagging it.
+     */
+    public const IMPORTED = 'imported';
 
     protected static function booted(): void
     {

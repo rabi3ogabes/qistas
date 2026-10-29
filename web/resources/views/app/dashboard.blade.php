@@ -67,6 +67,16 @@
         </div>
     </section>
 
+    @if ($closeTheDay)
+        <section class="card card-pad dc-nudge" aria-labelledby="close-day-title">
+            <div>
+                <h2 id="close-day-title" class="card-title">{{ __('Close the day') }}</h2>
+                <p class="muted">{{ __('Count the till and sign off today. It takes about 30 seconds.') }}</p>
+            </div>
+            <a class="btn btn-sm" href="{{ route('app.day-close.show') }}">{{ __('Close the day') }}</a>
+        </section>
+    @endif
+
     <section class="card due" aria-labelledby="due-title">
         <div class="card-head">
             <h2 id="due-title">{{ __('Due today') }}</h2>

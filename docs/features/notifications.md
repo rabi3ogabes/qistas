@@ -11,6 +11,8 @@ kind and channel by channel, among what the admin allows and what is set up.
 | Morning summary | everyone who collects or keeps the books | at the time they choose | in the app |
 | On the due date | the same | an instalment falls due (off by default) | in the app |
 | When an instalment is late | the same | after the grace days, repeating daily, weekly or monthly | in the app |
+| Evening reminder to close the day | everyone who may close the day (not viewers) | from the workspace's closing time, for up to two hours and never past midnight, while the day is open and has payments or something to look at | in the app |
+| When a day is closed with a cash difference | owners | someone who is not an owner closed a day and the cash counted did not match (in quiet hours: in the inbox, with no push) | in the app |
 | Before your plan ends | owners | 7 days and 1 day before a plan that does not renew by itself ends (a bank transfer, or a store subscription they cancelled) | in the app and by e-mail |
 | When your plan renews | owners | Google Play renewed it, or the team confirmed a bank transfer | in the app and by e-mail |
 | When a payment fails | owners | Google Play could not take the payment (grace, on hold), or a transfer was not confirmed | in the app and by e-mail |
@@ -18,8 +20,8 @@ kind and channel by channel, among what the admin allows and what is set up.
 | Support replies | the person who wrote | the team answered | in the app and by e-mail |
 
 The morning summary and the instalment alerts also need their platform switches (**Morning summary**, **Instalment
-alerts and remind-all**) in `/admin/features`. Billing and support notices need no switch. Each notice goes once: its
-log line has a unique key, so a rerun or a retried store message never repeats it.
+alerts and remind-all**) in `/admin/features`; the two end-of-day notices need **End-of-day close**. Billing and support notices need no switch.
+Each notice goes once: its log line has a unique key, so a rerun or a retried store message never repeats it.
 
 ## Who decides what
 
@@ -27,9 +29,13 @@ log line has a unique key, so a rerun or a retried store message never repeats i
    key). E-mail: once the SMTP server is saved in `/admin/mail`, and only to a verified address. Text messages: once an
    SMS provider is chosen (none yet: the channel is not offered anywhere).
 2. **The admin allows it**, in `/admin/notifications`: a grid of every kind by every channel. Everything is allowed until
-   the admin changes it.
+   the admin saves the grid. After that, a kind the saved grid has never seen (one added later) takes its own default
+   channels from the catalogue until the admin saves the grid again.
 3. **The person chose it**: in the app (Settings, then Alert settings, "How notices reach you") or on the web (account
-   menu, then Notifications). Owners see the billing kinds; others do not.
+   menu, then Notifications). Owners see the billing kinds and the cash-difference notice; others do not. On the web the
+   evening reminder is shown only to people who may close the day (not viewers). Neither end-of-day notice is offered, in
+   the app, on the web or in the API's `meta.kinds`, while the workspace does not have the end-of-day close (switched off,
+   or not in its plan); a choice made earlier is kept for when it comes back.
 
 ## Setting it up (owner)
 

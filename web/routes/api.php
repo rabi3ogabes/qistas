@@ -12,10 +12,12 @@ use App\Http\Controllers\Api\V1\ContractPhotoController;
 use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\CustomerPaymentController;
 use App\Http\Controllers\Api\V1\DashboardController;
+use App\Http\Controllers\Api\V1\DayCloseController;
 use App\Http\Controllers\Api\V1\DemoController;
 use App\Http\Controllers\Api\V1\DeviceController;
 use App\Http\Controllers\Api\V1\DocumentController;
 use App\Http\Controllers\Api\V1\FileController;
+use App\Http\Controllers\Api\V1\GlanceController;
 use App\Http\Controllers\Api\V1\GuarantorController;
 use App\Http\Controllers\Api\V1\ImportController;
 use App\Http\Controllers\Api\V1\InvestorController;
@@ -77,6 +79,8 @@ Route::name('api.')->group(function (): void {
         Route::post('support/tickets', [SupportController::class, 'store'])->middleware(['throttle:10,60', 'once'])->name('support.tickets.store');
         Route::get('release-notes', ReleaseNoteController::class)->name('release-notes');
         Route::get('dashboard', DashboardController::class)->name('dashboard');
+        // The home-screen widget's snapshot. Not under feature:home_widget on purpose: an installed widget is told `enabled: false`.
+        Route::get('glance', GlanceController::class)->name('glance');
 
         Route::get('settings/tools', [ToolsController::class, 'index'])->name('settings.tools.index');
         Route::put('settings/tools/{key}', [ToolsController::class, 'update'])->name('settings.tools.update');
@@ -171,6 +175,15 @@ Route::name('api.')->group(function (): void {
         Route::post('contracts/{contract}/payments/preview', [PaymentController::class, 'preview'])->name('contracts.payments.preview');
         Route::post('contracts/{contract}/payments', [PaymentController::class, 'store'])->middleware('throttle:api-money')->name('contracts.payments.store');
         Route::post('payments/{transaction}/void', [PaymentController::class, 'void'])->middleware('throttle:api-money')->name('payments.void');
+        // The end of the day (daily-habit wave A, H4): the cash counted against the cash recorded, signed off, and its summary.
+        // Closing may carry an Idempotency-Key, so a retry after a lost answer gets the close back, not "already closed".
+        Route::middleware('feature:day_close')->group(function (): void {
+            Route::get('day-close/today', [DayCloseController::class, 'today'])->name('day-close.today');
+            Route::get('day-close', [DayCloseController::class, 'index'])->name('day-close.index');
+            Route::post('day-close', [DayCloseController::class, 'store'])->middleware(['throttle:api-money', 'once'])->name('day-close.store');
+            Route::post('day-close/{close}/reopen', [DayCloseController::class, 'reopen'])->whereUuid('close')->middleware('throttle:api-money')->name('day-close.reopen');
+            Route::get('day-close/{close}/summary.pdf', [DayCloseController::class, 'summary'])->whereUuid('close')->middleware('throttle:documents')->name('day-close.summary');
+        });
         // Late fees (Win Plan K4): listed with their contract; an owner or manager waives one with a reason.
         // Reports (Win Plan K8, RP14, RP15, CT27): Pro, for everyone but collectors.
         Route::get('reports/forecast', [ReportController::class, 'forecast'])->name('reports.forecast');

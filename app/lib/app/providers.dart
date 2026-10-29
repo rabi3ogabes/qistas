@@ -14,6 +14,7 @@ import '../core/push/push_service.dart';
 import '../core/storage/token_store.dart';
 import '../data/models.dart';
 import '../data/qistas_api.dart';
+import '../features/glance/glance_service.dart';
 
 /// Overridden in main() (and in tests) with the opened preferences.
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) => throw UnimplementedError('sharedPreferencesProvider must be overridden'));
@@ -36,13 +37,15 @@ class LocaleController extends Notifier<String> {
   static const String key = 'language';
 
   @override
-  String build() {
-    final saved = ref.read(sharedPreferencesProvider).getString(key);
+  String build() => resolve(ref.read(sharedPreferencesProvider), WidgetsBinding.instance.platformDispatcher.locale.languageCode);
+
+  /// The saved language, or else the phone's if the app speaks it, or English. The background refresh asks the same,
+  /// without Riverpod.
+  static String resolve(SharedPreferences prefs, String deviceLanguage) {
+    final saved = prefs.getString(key);
     if (saved != null && AppConfig.locales.contains(saved)) return saved;
 
-    final device = WidgetsBinding.instance.platformDispatcher.locale.languageCode;
-
-    return AppConfig.locales.contains(device) ? device : 'en';
+    return AppConfig.locales.contains(deviceLanguage) ? deviceLanguage : 'en';
   }
 
   Future<void> choose(String language) async {
@@ -247,8 +250,12 @@ class AuthController extends AsyncNotifier<AuthState> {
 
   Future<void> _remember(Account account) => _prefs.setString(accountKey, jsonEncode(account.toJson()));
 
-  Account? _cached() {
-    final raw = _prefs.getString(accountKey);
+  Account? _cached() => cachedAccount(_prefs);
+
+  /// The copy of the account kept on this phone, or null when there is none or it cannot be read. The background
+  /// refresh reads it too, without Riverpod.
+  static Account? cachedAccount(SharedPreferences prefs) {
+    final raw = prefs.getString(accountKey);
     if (raw == null) return null;
 
     try {
@@ -259,6 +266,9 @@ class AuthController extends AsyncNotifier<AuthState> {
   }
 
   Future<void> _forget() async {
+    // The home-screen widget shows this business's figures, so it goes first: whatever stops the app after this line, the
+    // home screen is already empty.
+    await ref.read(glanceServiceProvider).clear();
     await ref.read(tokenStoreProvider).clear();
     await _prefs.remove(accountKey);
   }

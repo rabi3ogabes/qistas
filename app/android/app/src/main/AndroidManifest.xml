@@ -9,6 +9,7 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"
+        android:supportsRtl="true"
         android:usesCleartextTraffic="false">
         <activity
             android:name=".MainActivity"
@@ -32,6 +33,32 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- The home-screen widget (daily-habit features, H3), in two sizes. The app stores what to show through the home_widget
+             plugin, and the plugin asks these two classes to draw it (HomeWidgetStore.providers in lib/features/glance). The
+             widget is offered for the home screen only (see res/xml/glance_*_info.xml), and nothing here is exported: the
+             phone's widget service reaches it as the system. Tapping it opens MainActivity through the plugin's launch intent. -->
+        <receiver
+            android:name=".GlanceWidgetProvider"
+            android:exported="false"
+            android:label="@string/glance_label_small">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/glance_small_info"/>
+        </receiver>
+        <receiver
+            android:name=".GlanceMediumWidgetProvider"
+            android:exported="false"
+            android:label="@string/glance_label_medium">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/glance_medium_info"/>
+        </receiver>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

@@ -17,6 +17,7 @@ import '../../core/l10n/translations.dart';
 import '../../data/models.dart';
 import '../billing/upgrade_sheet.dart';
 import '../customers/tags.dart';
+import '../glance/glance_service.dart';
 import '../investors/investors_screen.dart';
 import '../notifications/alerts.dart';
 import '../products/products_screen.dart';
@@ -76,6 +77,8 @@ class SettingsScreen extends ConsumerWidget {
     final tags = showsTags(account);
     // The business's own reminder wording (Win Plan PP9).
     final wording = remindsEveryone(account) && (account?.canManageSettings ?? false);
+    // The Android home-screen widget (daily-habit wave A, H3): offered once the platform and the plan have it, on a phone that can show it.
+    final homeWidget = ref.watch(glanceSupportedProvider) && offersWidget(account);
 
     return SectionScaffold(
       title: context.t('Settings'),
@@ -104,6 +107,10 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                   const _Divider(),
                   _AppearanceRow(mode: mode, onChanged: (value) => ref.read(themeModeProvider.notifier).choose(value)),
+                  if (homeWidget) ...[
+                    const _Divider(),
+                    _Row(key: const ValueKey('settings-widget'), icon: Icons.widgets_outlined, title: context.t('Home-screen widget'), onTap: () => context.push('/settings/widget')),
+                  ],
                 ],
               ),
             ),

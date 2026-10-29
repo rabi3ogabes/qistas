@@ -6,6 +6,7 @@ use App\Actions\CreateCustomer;
 use App\Actions\DeleteCustomer;
 use App\Entitlements\Entitlements;
 use App\Entitlements\Feature;
+use App\Entitlements\FeatureUsage;
 use App\Http\Requests\CustomerRequest;
 use App\Http\Resources\CustomerResource;
 use App\Models\Contract;
@@ -64,6 +65,17 @@ final class CustomerController
         $customer->setAttribute('owed', $figures['owed']);
         $customer->setAttribute('running_contracts', $figures['running']);
         $customer->setRelation('contracts', $contracts);
+
+        // The payday pattern is asked for here, on the customer's own page, and not in the list. With payday learning off
+        // it is neither read nor shown, though a row worked out earlier stays for when it is switched back on.
+        if (Entitlements::for($this->current->get())->check(Feature::PaydayLearning)->enabled()) {
+            $customer->load('payPattern');
+
+            // The cockpit's "used by" count: a pattern really shown to someone is this feature's primary action.
+            if ($customer->payPattern !== null) {
+                FeatureUsage::hit(Feature::PaydayLearning);
+            }
+        }
 
         return new CustomerResource($customer->load('tags'));
     }

@@ -10,9 +10,9 @@ use App\Http\Resources\TransactionResource;
 use App\Models\Customer;
 use App\Models\Transaction;
 use App\Support\Digits;
+use App\Support\PaymentDate;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
@@ -33,16 +33,13 @@ final class CustomerPaymentController
         $data = $request->validate([
             'amount' => $money,
             'method' => ['required', 'string', Rule::in(config('qistas.payment_methods'))],
-            'paid_at' => ['nullable', 'date', 'before_or_equal:now'],
+            'paid_at' => ['nullable', 'bail', 'date', PaymentDate::notInFuture($customer->tenant)],
             'note' => ['nullable', 'string', 'max:1000'],
             'split' => ['nullable', 'array', 'min:1', 'max:50'],
             'split.*.contract_id' => ['required', 'uuid', 'distinct'],
             'split.*.amount' => $money,
         ]);
-        $paidAt = isset($data['paid_at']) ? Carbon::parse($data['paid_at']) : null;
-        if ($paidAt !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $data['paid_at'])) {
-            $paidAt = $paidAt->isToday() ? now() : $paidAt->endOfDay();
-        }
+        $paidAt = isset($data['paid_at']) ? PaymentDate::moment($customer->tenant, $data['paid_at']) : null;
 
         $batch = $record->handle(
             $customer, $data['amount'], $data['method'], trim((string) $request->header('Idempotency-Key')) ?: null,

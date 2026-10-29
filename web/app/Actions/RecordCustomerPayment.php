@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Domain\DayClose\DayCloseGuard;
 use App\Domain\LateFees\LateFees;
 use App\Domain\Ledger\PaymentAllocator;
 use App\Models\Contract;
@@ -32,7 +33,8 @@ final class RecordCustomerPayment
     /**
      * @param  list<array{contract_id: string, amount: string}>|null  $split  chosen by hand; null pays the oldest due first
      *
-     * @throws ValidationException naming the field at fault
+     * @throws ValidationException naming the field at fault (`paid_at` when it is back-dated into a closed day and [$by]
+     *                             is not an owner or a manager: see DayCloseGuard)
      */
     public function handle(
         Customer $customer,
@@ -56,6 +58,10 @@ final class RecordCustomerPayment
             }
 
             return DB::transaction(function () use ($customer, $amount, $method, $idempotencyKey, $by, $note, $paidAt, $split): PaymentBatch {
+                // A closed day is changed only by an owner or a manager (D10): asked once for the whole payment, before
+                // anything is written; its lines (RecordPayment with the batch) are not asked again.
+                DayCloseGuard::assertMayChange($customer->tenant, $paidAt ?? now(), $by);
+
                 $portions = $split === null ? $this->oldestFirst($customer, $amount, $paidAt) : $this->byHand($customer, $amount, $split);
 
                 $batch = (new PaymentBatch)->forceFill([

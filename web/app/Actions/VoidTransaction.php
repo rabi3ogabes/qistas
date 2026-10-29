@@ -2,9 +2,11 @@
 
 namespace App\Actions;
 
+use App\Domain\DayClose\DayCloseGuard;
 use App\Domain\Investors\InvestorLedger;
 use App\Domain\LateFees\LateFees;
 use App\Domain\Ledger\ContractSettlement;
+use App\Domain\PayPattern\RecomputePayPattern;
 use App\Models\Contract;
 use App\Models\ContractAdjustment;
 use App\Models\Installment;
@@ -26,7 +28,10 @@ final class VoidTransaction
 {
     public function __construct(private readonly CurrentTenant $current, private readonly InvestorLedger $investors) {}
 
-    /** @throws ValidationException when the transaction cannot be voided */
+    /**
+     * @throws ValidationException when the transaction cannot be voided (on `transaction`, also when the payment's day or
+     *                             today is closed and [$by] is not an owner or a manager: see DayCloseGuard)
+     */
     public function handle(Transaction $transaction, ?string $reason = null, ?User $by = null): Transaction
     {
         return $this->current->use($transaction->tenant, fn () => DB::transaction(function () use ($transaction, $reason, $by): Transaction {
@@ -44,6 +49,12 @@ final class VoidTransaction
             // Once a contract is open, the instalments its earlier payments settled are history: they stay as paid.
             if ($contract->isOpen() && $original->type === 'payment' && TransactionAllocation::where('transaction_id', $original->id)->exists()) {
                 throw ValidationException::withMessages(['transaction' => __('This payment was made before the contract became open, so it stays as it is.')]);
+            }
+
+            // Voiding a payment touches the day it was taken and today: once either is closed, it is an owner's or a
+            // manager's to do (D10), asked before anything is written. A charge moves no cash, so no closed figure.
+            if ($original->type === 'payment') {
+                DayCloseGuard::assertMayChange($transaction->tenant, $original->paid_at, $by, DayCloseGuard::VOID);
             }
 
             $at = now();
@@ -97,6 +108,12 @@ final class VoidTransaction
             ContractSettlement::sync($contract, $at);
             // The investor gives back exactly what the payment had credited.
             $this->investors->reverse($reversal);
+
+            // A voided payment no longer tells when the customer paid: their payday pattern is worked out again once the
+            // reversal is committed. A failure there never reaches the void. A charge has no part in it.
+            if ($original->type === 'payment') {
+                RecomputePayPattern::afterCommit($transaction->tenant, $original->customer_id);
+            }
 
             return $reversal;
         }));

@@ -56,6 +56,13 @@
             @if ($customer->tags->isNotEmpty())
                 <p class="tag-list">@foreach ($customer->tags as $customerTag)<span class="tag-chip" data-colour="{{ $customerTag->colour }}">{{ $customerTag->name }}</span>@endforeach</p>
             @endif
+            @if ($payPattern)
+                {{-- The day of the month they usually pay on (payday learning), and how often that held. No date: it is a habit, not an appointment. --}}
+                <p class="pay-chip" data-pay-pattern>
+                    <x-icon name="calendar" :size="18" />
+                    <span><strong>{{ $payPattern['label'] }}</strong><small>{{ $payPattern['basis'] }}</small></span>
+                </p>
+            @endif
             <dl class="facts">
                 <div><dt>{{ __('Phone') }}</dt><dd class="money" dir="ltr">{{ $customer->phone }}</dd></div>
                 @if ($customer->phone_secondary)<div><dt>{{ __('Second phone') }}</dt><dd class="money" dir="ltr">{{ $customer->phone_secondary }}</dd></div>@endif

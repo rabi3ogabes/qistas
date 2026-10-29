@@ -28,14 +28,7 @@ final class FcmPushSender implements PushSender
         try {
             $response = Http::withToken(GoogleAccessToken::for($this->account, self::SCOPE))->acceptJson()->timeout(10)
                 ->post("https://fcm.googleapis.com/v1/projects/{$this->account['project_id']}/messages:send", [
-                    'message' => [
-                        'token' => $token->token,
-                        'notification' => ['title' => $message->title, 'body' => $message->body],
-                        'data' => ['type' => $message->type] + $message->data,
-                        'android' => ['priority' => 'high'],
-                        // An iPhone shows the banner silently unless the push names a sound.
-                        'apns' => ['payload' => ['aps' => ['sound' => 'default']]],
-                    ],
+                    'message' => $this->payload($token, $message),
                 ]);
         } catch (Throwable $e) {
             Log::warning('push failed', ['type' => $message->type, 'error' => $e::class]);
@@ -61,5 +54,26 @@ final class FcmPushSender implements PushSender
         Log::warning('push refused', ['type' => $message->type, 'status' => $response->status(), 'codes' => $codes]);
 
         return false;
+    }
+
+    /** @return array<string, mixed> */
+    private function payload(PushToken $token, PushMessage $message): array
+    {
+        $payload = [
+            'token' => $token->token,
+            'data' => ['type' => $message->type] + $message->data,
+            'android' => ['priority' => 'high'],
+        ];
+
+        if ($message->silent) {
+            // Data only, so no banner: the app wakes and reads the type. Apple wants priority 5 for a background push.
+            $payload['apns'] = ['headers' => ['apns-priority' => '5'], 'payload' => ['aps' => ['content-available' => 1]]];
+        } else {
+            $payload['notification'] = ['title' => $message->title, 'body' => $message->body];
+            // An iPhone shows the banner silently unless the push names a sound.
+            $payload['apns'] = ['payload' => ['aps' => ['sound' => 'default']]];
+        }
+
+        return $payload;
     }
 }

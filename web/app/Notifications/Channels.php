@@ -26,7 +26,10 @@ final class Channels
     }
 
     /**
-     * What the admin allows, kind by kind: everything, until they say otherwise.
+     * What the admin allows, kind by kind: everything, until they say otherwise. A grid the admin saved holds every kind
+     * there was at the time, so a kind it does not name at all is newer than the grid, and nothing has been said about it:
+     * it goes where the catalogue sends it by default, so a channel the admin switched off for every other kind is not
+     * switched back on for it.
      *
      * @return array<string, array{push: bool, email: bool, sms: bool}>
      */
@@ -35,8 +38,11 @@ final class Channels
         $stored = json_decode((string) PlatformSetting::query()->whereKey(self::KEY)->value('value'), true);
         $allowed = [];
         foreach (array_keys(Catalog::KINDS) as $kind) {
+            $said = is_array($stored) && is_array($stored[$kind] ?? null);
             foreach (Catalog::CHANNELS as $channel) {
-                $allowed[$kind][$channel] = is_array($stored) ? (bool) ($stored[$kind][$channel] ?? false) : true;
+                $allowed[$kind][$channel] = $said
+                    ? (bool) ($stored[$kind][$channel] ?? false)
+                    : (! is_array($stored) || Catalog::KINDS[$kind]['channels'][$channel]);
             }
         }
 

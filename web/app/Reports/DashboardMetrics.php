@@ -146,6 +146,16 @@ final class DashboardMetrics
         return $this->current->use($tenant, fn () => $this->lateRows($now, $limit));
     }
 
+    /**
+     * What falls due in the next seven days, soonest first: the briefing's "upcoming" rows, on their own and with a limit.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function comingList(Tenant $tenant, CarbonInterface $now, int $limit = self::LIST_LIMIT): array
+    {
+        return $this->current->use($tenant, fn () => $this->comingRows($now, $limit));
+    }
+
     /** @return list<array<string, string>> */
     private function dueToday(CarbonInterface $now, int $limit = self::DUE_TODAY_LIMIT): array
     {
@@ -219,14 +229,15 @@ final class DashboardMetrics
     }
 
     /** @return list<array<string, mixed>> what falls due in the next seven days, soonest first */
-    private function comingRows(CarbonInterface $now): array
+    private function comingRows(CarbonInterface $now, int $limit = self::LIST_LIMIT): array
     {
         return $this->openInstallments()
             ->whereDate('installments.due_date', '>', $now->toDateString())
             ->whereDate('installments.due_date', '<=', $now->copy()->addDays(7)->toDateString())
             ->orderBy('installments.due_date')
             ->orderByRaw('LOWER(customers.name)')
-            ->limit(self::LIST_LIMIT)
+            ->orderBy('contracts.number')
+            ->limit($limit)
             ->toBase()
             ->get(self::ROW_COLUMNS)
             ->map(fn (object $row): array => $this->row($row) + ['days_until' => $this->daysBetween($row->due_date, $now)])

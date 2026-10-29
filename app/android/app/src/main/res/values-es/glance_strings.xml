@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The home-screen widget's own words: its names in the widget list and the lines it can say without the app (nothing to
+         show yet, nothing recent to show). Everything else it draws comes already written, in the app's language, by the app. -->
+    <string name="glance_label_small">Qistas hoy</string>
+    <string name="glance_label_medium">Qistas hoy y lo próximo</string>
+    <string name="glance_description_small">Lo que vence hoy y lo que va atrasado, de un vistazo.</string>
+    <string name="glance_description_medium">Lo que vence hoy y lo que va atrasado, con las próximas cuotas.</string>
+    <string name="glance_open">Abre Qistas</string>
+    <string name="glance_open_to_refresh">Abre Qistas para actualizar</string>
+    <string name="glance_updated_at">Actualizado a las %1$s</string>
+</resources>

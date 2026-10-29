@@ -20,10 +20,10 @@ use App\Reports\ContractProgress;
 use App\Support\Format;
 use App\Support\Hijri;
 use App\Support\Money;
+use App\Support\PaymentDate;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -182,11 +182,11 @@ final class PlanChangeController
                 ? $fail(__('Write the Hijri date as day/month/year, for example 13/08/1447.')) : null],
             'amount' => ['required', 'string', 'regex:/^\d{1,14}(\.\d{1,2})?$/', 'not_regex:/^0+(\.0+)?$/'],
             'method' => ['required', Rule::in(config('qistas.payment_methods'))],
-            'paid_at' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
+            'paid_at' => ['nullable', 'bail', 'date_format:Y-m-d', PaymentDate::notInFuture($customer->tenant)],
             'note' => ['nullable', 'string', 'max:1000'],
             'idempotency_key' => ['nullable', 'string', 'regex:/^[A-Za-z0-9_.:\-]{1,100}$/'],
         ]);
-        $paidAt = isset($data['paid_at']) ? (Carbon::parse($data['paid_at'])->isToday() ? now() : Carbon::parse($data['paid_at'])->endOfDay()) : null;
+        $paidAt = isset($data['paid_at']) ? PaymentDate::moment($customer->tenant, $data['paid_at']) : null;
 
         $batch = $record->handle($customer, $data['amount'], $data['method'], $data['idempotency_key'] ?? null, $request->user(), $data['note'] ?? null, $paidAt);
 

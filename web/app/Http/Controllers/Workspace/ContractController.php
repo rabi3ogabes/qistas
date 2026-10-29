@@ -13,6 +13,7 @@ use App\Domain\Investors\MainInvestor;
 use App\Domain\LateFees\LateFeePolicy;
 use App\Domain\Ledger\LedgerLines;
 use App\Domain\Ledger\OpenAccount;
+use App\Domain\PayPattern\PayPattern;
 use App\Entitlements\Entitlements;
 use App\Entitlements\Feature;
 use App\Http\ApiException;
@@ -22,6 +23,7 @@ use App\Http\Requests\ContractRequest;
 use App\Models\Contract;
 use App\Models\ContractConversion;
 use App\Models\Customer;
+use App\Models\CustomerPayPattern;
 use App\Models\Guarantor;
 use App\Models\Installment;
 use App\Models\Investor;
@@ -33,6 +35,7 @@ use App\Reports\ContractProgress;
 use App\Support\Files;
 use App\Support\Format;
 use App\Support\Money;
+use App\Support\WorkspaceDay;
 use App\Tenancy\CurrentTenant;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
@@ -88,8 +91,44 @@ final class ContractController
             'details' => Entitlements::for($this->current->get())->check(Feature::ContractItems)->enabled(),
             'products' => Product::query()->active()->orderByRaw('LOWER(name)')->get(['id', 'name', 'default_price', 'cost']),
             'currency' => $this->current->get()?->currency,
-            'today' => today()->format('Y-m-d'),
+            // The contract date offered: the workspace's today, not the server's (UTC).
+            'today' => WorkspaceDay::of($this->current->get())->date,
+            // The day each of those customers usually pays on, for the suggestion under the first due date.
+            'payPatterns' => $this->payPatterns($customers),
         ]);
+    }
+
+    /**
+     * What payday learning knows about the customers in the form's list (daily-habit wave A, H6), by customer id: the day
+     * they usually pay on, whether that means the end of the month, and their name as the list shows it (a name is not
+     * "the first word": "عبد الله", "Mr. Ahmad", "Mobile Zone"). Read in one query for all of them, and empty while the
+     * feature is off or when nobody has a pattern yet, so the form then carries nothing.
+     *
+     * @param  Collection<int, Customer>  $customers
+     * @return array<string, array{day: int, end_of_month: bool, name: string}>
+     */
+    private function payPatterns(Collection $customers): array
+    {
+        if ($customers->isEmpty() || ! Entitlements::for($this->current->get())->check(Feature::PaydayLearning)->enabled()) {
+            return [];
+        }
+
+        // One query for the customers in this form's own list, and no others.
+        $stored = CustomerPayPattern::query()->whereIn('customer_id', $customers->modelKeys())->get(['customer_id', 'day'])->keyBy('customer_id');
+
+        $patterns = [];
+        foreach ($customers as $customer) {
+            $pattern = $stored->get($customer->id);
+            if ($pattern !== null) {
+                $patterns[$customer->id] = [
+                    'day' => $pattern->day,
+                    'end_of_month' => $pattern->day === PayPattern::END_OF_MONTH,
+                    'name' => $customer->name,
+                ];
+            }
+        }
+
+        return $patterns;
     }
 
     /**

@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Entitlements\Entitlements;
+use App\Entitlements\Feature;
 use App\Models\AppNotification;
 use App\Notifications\Catalog;
 use App\Notifications\Channels;
 use App\Notifications\Preferences;
+use App\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -66,8 +69,9 @@ final class NotificationController
     }
 
     /**
-     * What the person can choose among (Sprint 3 Task 1b): each kind with its name and group in their language, each
-     * channel with whether it is set up (e-mail also needs their verified address), and what the admin allows.
+     * What the person can choose among (Sprint 3 Task 1b): each kind with its name and group in their language (none of a
+     * feature the workspace does not have: the two of the end-of-day close while it is off; the app sorts the rest by
+     * role), each channel with whether it is set up (e-mail also needs their verified address), and what the admin allows.
      *
      * @return array<string, mixed>
      */
@@ -75,11 +79,13 @@ final class NotificationController
     {
         $available = $channels->available();
         $available['email'] = $available['email'] && (bool) $request->user()?->hasVerifiedEmail();
+        $tenant = app(CurrentTenant::class)->get();
+        $offered = Catalog::offered($tenant !== null && Entitlements::for($tenant)->check(Feature::DayClose)->enabled());
 
         return [
             'kinds' => array_map(fn (string $kind) => [
                 'key' => $kind, 'group' => Catalog::KINDS[$kind]['group'], 'label' => Catalog::label($kind), 'description' => Catalog::description($kind),
-            ], array_keys(Catalog::KINDS)),
+            ], array_keys($offered)),
             'channels' => array_map(fn (string $channel) => ['available' => $available[$channel], 'label' => Catalog::channel($channel)], array_combine(Catalog::CHANNELS, Catalog::CHANNELS)),
             'allowed' => $channels->allowed(),
         ];

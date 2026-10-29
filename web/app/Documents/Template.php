@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Model;
  */
 interface Template
 {
-    /** customer_statement | contract_statement | transactions_report | investor_report | receipt */
+    /** customer_statement | contract_statement | transactions_report | investor_report | receipt | contract_agreement | promissory_note | day_close */
     public function kind(): string;
 
     /** The record the document is about, if it is about one. */

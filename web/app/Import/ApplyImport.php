@@ -10,6 +10,7 @@ use App\Entitlements\Feature;
 use App\Models\Customer;
 use App\Models\Import;
 use App\Models\Tenant;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Support\Audit;
 use App\Support\Money;
@@ -105,8 +106,10 @@ final class ApplyImport
             'notes' => $plan['item'],
         ], $by);
 
+        // Tagged as imported: it pays the instalments like any payment, and stays out of the import day's close (it never
+        // went through that day's till) and out of the customer's payday pattern.
         if (Money::isPositive($plan['paid'])) {
-            $this->payments->handle($contract, $plan['paid'], 'other', by: $by, note: __('Paid before Qistas'), paidAt: now());
+            $this->payments->handle($contract, $plan['paid'], 'other', by: $by, note: __('Paid before Qistas'), paidAt: now(), tag: Transaction::IMPORTED);
         }
     }
 }

@@ -13,7 +13,10 @@ import '../../core/ui/day_picker.dart';
 import '../../core/ui/errors.dart';
 import '../../data/models.dart';
 import '../../data/plan_changes.dart';
+import '../customers/customer_detail_screen.dart';
+import '../customers/payday_suggestion.dart';
 import '../payments/payments_state.dart';
+import '../security/app_lock.dart' show clockProvider;
 import 'contracts_screen.dart';
 
 /// Change the plan (Win Plan PP6): a new count or amount for what is left, a skipped month, or a moved date. The old
@@ -79,7 +82,7 @@ class _ChangePlanScreenState extends ConsumerState<ChangePlanScreen> {
   }
 
   Future<void> _pickDate(String current, ValueChanged<String> chosen) async {
-    final now = DateTime.now();
+    final now = ref.read(clockProvider)();
     final picked = await pickDay(context, initial: DateTime.tryParse(current) ?? now, first: DateTime(now.year, now.month, now.day), last: DateTime(now.year + 50), language: ref.read(localeProvider));
     if (picked != null) {
       chosen(isoDay(picked));
@@ -158,7 +161,8 @@ class _ChangePlanScreenState extends ConsumerState<ChangePlanScreen> {
     final c = context.qc;
     final text = Theme.of(context).textTheme;
     final language = ref.watch(localeProvider);
-    final currency = ref.watch(accountProvider)?.currency ?? '';
+    final account = ref.watch(accountProvider);
+    final currency = account?.currency ?? '';
     final untouched = _untouched(contract);
     final preview = _preview;
 
@@ -166,6 +170,13 @@ class _ChangePlanScreenState extends ConsumerState<ChangePlanScreen> {
       return QEmpty(icon: Icons.event_busy_outlined, title: context.t('Every instalment has been paid towards; there is nothing left to change.'), message: '');
     }
     final chosen = untouched.firstWhere((i) => i.id == _installmentId, orElse: () => untouched.first);
+    // Payday learning: when the customer usually pays, from their own page. Nothing is asked for while the feature is off, or
+    // where there is no date field to offer it under.
+    final customerId = contract.customerId;
+    final payer = _type == 'move' && customerId != null && offersPaydaySuggestion(account) ? ref.watch(customerProvider(customerId)).valueOrNull : null;
+    final payPattern = payer?.payPattern;
+    final moveTo = _newDate ?? chosen.dueDate;
+    final now = ref.watch(clockProvider)();
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -210,7 +221,8 @@ class _ChangePlanScreenState extends ConsumerState<ChangePlanScreen> {
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   initialValue: chosen.id,
-                  items: [for (final i in untouched) DropdownMenuItem(value: i.id, child: Text('${formatDay(i.dueDate, language)}, ${i.amount.format(currency)}'))],
+                  isExpanded: true,
+                  items: [for (final i in untouched) DropdownMenuItem(value: i.id, child: Text('${formatDay(i.dueDate, language)}, ${i.amount.format(currency)}', maxLines: 1, overflow: TextOverflow.ellipsis))],
                   onChanged: _busy
                       ? null
                       : (id) {
@@ -225,6 +237,22 @@ class _ChangePlanScreenState extends ConsumerState<ChangePlanScreen> {
                     value: formatDay(_newDate ?? chosen.dueDate, language),
                     onTap: _busy ? null : () => _pickDate(_newDate ?? chosen.dueDate, (d) => setState(() => _newDate = d)),
                   ),
+                  // Offered, never applied: only the button inside changes the date.
+                  if (payer != null && payPattern != null) ...[
+                    const SizedBox(height: 10),
+                    PaydaySuggestion(
+                      name: payer.name,
+                      pattern: payPattern,
+                      from: DateTime.tryParse(moveTo),
+                      notBefore: DateTime(now.year, now.month, now.day),
+                      onUse: _busy
+                          ? null
+                          : (day) {
+                              setState(() => _newDate = isoDay(day));
+                              _edited();
+                            },
+                    ),
+                  ],
                 ],
               ],
               if (_problem != null) ...[const SizedBox(height: 14), QNotice(_problem!, icon: Icons.error_outline)],
@@ -266,13 +294,21 @@ class _DateRow extends StatelessWidget {
   Widget build(BuildContext context) => QCard(
         onTap: onTap,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            Icon(Icons.event_outlined, color: context.qc.inkMuted),
-            const SizedBox(width: 12),
-            Expanded(child: Text(label, style: Theme.of(context).textTheme.bodyMedium)),
-            Text(value, style: Theme.of(context).textTheme.titleSmall),
-          ],
+        // The date takes the room it needs, up to a little over half the row, and the label the rest. (Two flexible children would
+        // each be given half, and the label would wrap at the normal text size; with the date capped, it wraps instead of
+        // overflowing at large sizes.)
+        child: LayoutBuilder(
+          builder: (context, constraints) => Row(
+            children: [
+              Icon(Icons.event_outlined, color: context.qc.inkMuted),
+              const SizedBox(width: 12),
+              Expanded(child: Text(label, style: Theme.of(context).textTheme.bodyMedium)),
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: constraints.maxWidth * 0.55),
+                child: Text(value, style: Theme.of(context).textTheme.titleSmall, textAlign: TextAlign.end),
+              ),
+            ],
+          ),
         ),
       );
 }

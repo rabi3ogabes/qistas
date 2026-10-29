@@ -58,7 +58,8 @@ class OpenAccountBody extends ConsumerWidget {
       await ref.read(apiProvider).voidPayment(line.id, reason: reason);
       refreshAfterMoney(ref, contractId: contract.id, customerId: contract.customerId);
     } on ApiException catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMessage(context, e))));
+      // The server's reason, when it names the line (a day that is closed, a line voided already).
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.fieldError('transaction') ?? errorMessage(context, e))));
     }
   }
 

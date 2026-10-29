@@ -68,6 +68,10 @@ final class FieldNames
             'rebate_value' => __('Discount'),
             'occurred_on' => __('Date'),
 
+            // The end of the day.
+            'counted_cash' => __('Counted cash'),
+            'day' => __('Day'),
+
             // Products, tags, investors.
             'default_price' => __('Price'),
             'cost' => __('What it costs you'),

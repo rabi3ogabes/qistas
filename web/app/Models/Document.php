@@ -14,7 +14,7 @@ use Illuminate\Support\Carbon;
  *
  * @property string $id
  * @property string $tenant_id
- * @property string $kind customer_statement | contract_statement | transactions_report | investor_report | receipt
+ * @property string $kind customer_statement | contract_statement | transactions_report | investor_report | receipt | contract_agreement | promissory_note | day_close
  * @property string|null $subject_type
  * @property string|null $subject_id
  * @property string $params_hash

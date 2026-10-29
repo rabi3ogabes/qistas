@@ -33,7 +33,7 @@ info:
       answers with it (200 instead of 201). The same key with different content is a `validation_failed`.
     * **Adding once.** Every other add (`POST /customers`, `/contracts`, `/products`, `/tags`, `/investors`,
       `/investors/{id}/entries`, `/contracts/{id}/guarantors`, `/contracts/{id}/amendments`, `/support/tickets`,
-      `/team/invitations`, and changes to customers) also takes an `Idempotency-Key` (16 to 100 of the same characters).
+      `/team/invitations`, `/day-close`, and changes to customers) also takes an `Idempotency-Key` (16 to 100 of the same characters).
       A request repeated with the same key by the same person while the first is in flight, or within ten minutes of
       a success, is not run again: it answers with the first answer and the header `Idempotent-Replayed: true`. An
       answer that was not a success (a 422, a 402) lets the key go, so the corrected request can use it. A repeat that
@@ -53,6 +53,7 @@ tags:
   - name: Customers
   - name: Contracts
   - name: Payments
+  - name: Day close
   - name: Late fees
   - name: Paperwork
   - name: Import
@@ -517,6 +518,39 @@ paths:
                 properties:
                   data: {$ref: "#/components/schemas/Dashboard"}
         "401": {$ref: "#/components/responses/Unauthenticated"}
+  /glance:
+    get:
+      tags: [Dashboard]
+      summary: Today's money in a glance, for the phone's home-screen widget
+      description: |
+        What the Android home-screen widget reads. Unlike other feature-gated endpoints it never answers 402 or 403: when the
+        `home_widget` feature is not enabled for the workspace (the platform has it off, or the plan lacks it) it answers
+        `200` with `{"data": {"enabled": false}}` and nothing else, so an installed widget shows "Open Qistas" instead of
+        a failure.
+        Otherwise `enabled` is true, and the counts and amounts are exactly those of the morning summary, on the
+        workspace's own day: `due_count` and `due_amount` are the instalments due today or inside their grace days, and
+        `late_count` and `late_amount` those past it. `next` is the first three of those due today (oldest first) and then
+        those coming up in the next seven days; each shows what is still owed. A customer's `name` is included only with
+        `names=1`; a phone number or national ID never is. Every successful read counts one use of the feature.
+        Any role of the workspace may read it, a viewer included, and it covers the whole workspace. The server does not decide
+        who sees names (anyone signed in can ask, and can already read them on the dashboard): the app asks for them only when
+        the phone's own rules allow, and draws counts alone when the app lock is on.
+      parameters:
+        - {name: names, in: query, schema: {type: integer, enum: [0, 1], default: 0}, description: "1 to include each customer's name in `next`; left out otherwise."}
+      responses:
+        "200":
+          description: "The snapshot, or only `enabled: false` when the feature is not enabled for the workspace."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    oneOf:
+                      - {$ref: "#/components/schemas/Glance"}
+                      - {$ref: "#/components/schemas/GlanceOff"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
   /customers:
     get:
       tags: [Customers]
@@ -561,6 +595,9 @@ paths:
     get:
       tags: [Customers]
       summary: One customer with their contracts
+      description: >-
+        The only call that carries `pay_pattern`, and only while payday learning is on for the workspace (see the Customer
+        schema).
       responses:
         "200":
           description: The customer.
@@ -796,7 +833,7 @@ paths:
                 amount: {$ref: "#/components/schemas/Money"}
                 tag: {type: string, enum: [advance, refund, early_discount, unpaid]}
                 note: {type: string, maxLength: 1000}
-                charged_at: {type: string, description: "A date or a moment, never in the future."}
+                charged_at: {type: string, description: "A date or a moment, never in the future. A moment with an offset or Z is that instant; one without an offset is read as UTC."}
                 idempotency_key: {type: string}
       responses:
         "200":
@@ -964,6 +1001,161 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "422": {$ref: "#/components/responses/ValidationFailed"}
+  /day-close/today:
+    get:
+      tags: [Day close]
+      summary: Today's cash to count, and today's close if there is one
+      description: |
+        What the end-of-day screen shows, on the workspace's own day. Behind the `day_close` feature (403
+        `feature_unavailable` while the platform has it off, 402 `feature_locked` when the plan lacks it); anyone in the
+        business may read it.
+
+        `expected_cash` is the cash recorded today (cash payments, less cash given back by voids). `by_method`, `count`,
+        `per_member` (each person's cash, keyed by user id), `non_cash` (every card, transfer, cheque and other line, each
+        with its customer's name and note) and `watch` (what is worth a look: voided payments, waived fees, back-dated
+        payments, contracts opened and cancelled) are the figures a close would keep. What an import brought in as paid
+        before Qistas (lines tagged `imported`, and a void of one) is in none of them: it never went through a till.
+        `closing_time` is the workspace's setting (`day_close.closing_time`, by its own clock). `per_member` names each
+        person who took cash and how much, and every role that may read the day sees it (a collector and a viewer
+        included).
+
+        `close` is the day's latest close, when there is one: `closed` is true while it stands, and false once it has been
+        reopened (the reopened close is still shown, with `status` `reopened`). `can_close` is true when the person may
+        close the day (not a viewer) and it is not closed; `can_reopen` when it is closed and the person is an owner or a
+        manager.
+      responses:
+        "200":
+          description: Today.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/DayCloseToday"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "402": {$ref: "#/components/responses/PlanLimit"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+  /day-close:
+    get:
+      tags: [Day close]
+      summary: Every close, newest day first
+      description: |
+        Within a day the latest version comes first, so a day that was reopened and closed again lists both. Anyone in the
+        business may read it. Behind the `day_close` feature (403 `feature_unavailable` while the platform has it off, 402
+        `feature_locked` when the plan lacks it).
+      parameters:
+        - {$ref: "#/components/parameters/Page"}
+        - {$ref: "#/components/parameters/PerPage"}
+      responses:
+        "200":
+          description: A page of closes.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DayClosePage"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "402": {$ref: "#/components/responses/PlanLimit"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+    post:
+      tags: [Day close]
+      summary: Close a day
+      description: |
+        Sets the cash that was counted against what was recorded for the day, and keeps the day's figures as they were,
+        signed with a hash. Anyone who records payments may close (not a viewer: 403). `day` is the workspace's own
+        calendar day and is today when left out; it may be today or one of the seven days before it. A day is closed once:
+        a second close (a double tap, a second phone) is a 422 on `day`, and a day that was reopened is closed again as the
+        next version. Safe to retry with an `Idempotency-Key`: the retry answers with the first close.
+
+        `counted_cash` is an amount with at most two decimals, written as text (`"3100.00"`); the server never reads it as
+        a number. A mistake in it or in `day` is a 422 naming the field. Behind the `day_close` feature (403
+        `feature_unavailable` while the platform has it off, 402 `feature_locked` when the plan lacks it; tell them apart from a
+        viewer's 403 by `code`). When someone who is not an owner closes with a difference, the owners are told.
+      parameters:
+        - {$ref: "#/components/parameters/IdempotencyKey"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/DayCloseInput"}
+      responses:
+        "201":
+          description: The close, with the sentence to share.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/DayClose"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "402": {$ref: "#/components/responses/PlanLimit"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+  /day-close/{close}/reopen:
+    post:
+      tags: [Day close]
+      summary: Reopen a closed day
+      description: |
+        Owners and managers only (403 otherwise), with a reason of at least five characters. The close itself stays as it
+        was signed: only its `status` moves to `reopened`, and who reopened it, when and why are written beside it. The day
+        can then be closed again as the next version. Only a day's standing close can be reopened, once (422 on `day`).
+        Another workspace's close is a 404. Behind the `day_close` feature (403 `feature_unavailable` while the platform has
+        it off, 402 `feature_locked` when the plan lacks it).
+      parameters:
+        - {name: close, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: {type: string, minLength: 5, maxLength: 500}
+      responses:
+        "200":
+          description: The close, now reopened.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/DayClose"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "402": {$ref: "#/components/responses/PlanLimit"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+  /day-close/{close}/summary.pdf:
+    get:
+      tags: [Day close]
+      summary: The close as a signed PDF
+      description: |
+        The day, who closed it, the cash expected, counted and the difference, the money by way of paying and by person,
+        and the card, transfer and other payments one by one: no customer's ID or phone. A reopened close says so. Like the
+        other documents it counts one unit of the plan's PDF allowance, the same document again within ten minutes does
+        not count twice, and its QR code opens `/verify/{code}`. Anyone in the business may have it, a viewer included (it holds
+        each person's cash for the day). Behind the `day_close` feature (403 `feature_unavailable` while the platform has it
+        off, 402 `feature_locked` when the plan lacks it; 402 `limit_reached` when the month's PDF allowance is used up).
+      parameters:
+        - {name: close, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: "#/components/parameters/DocumentPaper"}
+        - {$ref: "#/components/parameters/DocumentText"}
+        - {$ref: "#/components/parameters/DocumentLanguage"}
+      responses:
+        "200":
+          description: The PDF. `X-Document-Code` carries the code its QR code opens at `/verify/{code}`.
+          headers:
+            X-Document-Code: {schema: {type: string}, description: The verification code printed on the document.}
+          content: {application/pdf: {schema: {type: string, format: binary}}}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "402": {$ref: "#/components/responses/PlanLimit"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+        "429": {$ref: "#/components/responses/RateLimited"}
   /late-fees/{fee}/waive:
     post:
       tags: [Late fees]
@@ -2632,7 +2824,7 @@ paths:
                 rebate_value: {type: string}
                 payoff: {$ref: "#/components/schemas/Money"}
                 method: {type: string, enum: [cash, bank_transfer, card, cheque, other]}
-                paid_at: {type: string}
+                paid_at: {type: string, description: "A date or a moment, never in the future. A date alone means that day on the workspace's calendar; a moment with an offset or Z is that instant, and one without an offset is read as UTC."}
                 note: {type: string, maxLength: 500}
       responses:
         "201":
@@ -2724,7 +2916,7 @@ paths:
               properties:
                 amount: {$ref: "#/components/schemas/Money"}
                 method: {type: string, enum: [cash, bank_transfer, card, cheque, other]}
-                paid_at: {type: string}
+                paid_at: {type: string, description: "A date or a moment, never in the future. A date alone means that day on the workspace's calendar; a moment with an offset or Z is that instant, and one without an offset is read as UTC."}
                 note: {type: string, maxLength: 1000}
                 split:
                   type: array
@@ -3036,6 +3228,8 @@ components:
         daily_digest: {type: object, properties: {enabled: {type: boolean}, time: {type: string, pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$", default: "09:00"}, channels: {$ref: "#/components/schemas/NotificationChannels"}}}
         instalment_due: {type: object, properties: {enabled: {type: boolean, default: false}, channels: {$ref: "#/components/schemas/NotificationChannels"}}}
         instalment_late: {type: object, properties: {enabled: {type: boolean, default: true}, repeat: {type: string, enum: [daily, weekly, monthly], default: weekly}, channels: {$ref: "#/components/schemas/NotificationChannels"}}}
+        day_close_reminder: {type: object, description: "The evening reminder to close the day: from the workspace's closing time, for up to two hours and never past midnight, to everyone who may close.", properties: {enabled: {type: boolean, default: true}, channels: {$ref: "#/components/schemas/NotificationChannels"}}}
+        day_close_difference: {type: object, description: "Owners only: someone else closed a day and the cash counted did not match.", properties: {enabled: {type: boolean, default: true}, channels: {$ref: "#/components/schemas/NotificationChannels"}}}
         billing_renewal_due: {type: object, description: "Seven days and one day before a plan that does not renew by itself ends.", properties: {enabled: {type: boolean, default: true}, channels: {$ref: "#/components/schemas/NotificationChannels"}}}
         billing_renewed: {type: object, description: "A store renewal, or a bank transfer the team confirmed.", properties: {enabled: {type: boolean, default: true}, channels: {$ref: "#/components/schemas/NotificationChannels"}}}
         billing_payment_failed: {type: object, description: "The store could not take a payment, or a transfer was not confirmed.", properties: {enabled: {type: boolean, default: true}, channels: {$ref: "#/components/schemas/NotificationChannels"}}}
@@ -3054,6 +3248,7 @@ components:
       properties:
         kinds:
           type: array
+          description: "The kinds the workspace is offered: `day_close_reminder` and `day_close_difference` only while it has the `day_close` feature (the person's choices for them are kept meanwhile)."
           items: {type: object, properties: {key: {type: string}, group: {type: string, enum: [alerts, billing, support]}, label: {type: string}, description: {type: string}}}
         channels:
           type: object
@@ -3355,6 +3550,35 @@ components:
             properties:
               date: {type: string, format: date}
               amount: {$ref: "#/components/schemas/Money"}
+    Glance:
+      type: object
+      required: [enabled, currency, due_count, due_amount, late_count, late_amount, next, generated_at]
+      properties:
+        enabled: {type: boolean, enum: [true]}
+        currency: {type: string, example: SAR}
+        due_count: {type: integer, description: Instalments due today, or due already and still inside their grace days.}
+        due_amount: {$ref: "#/components/schemas/Money"}
+        late_count: {type: integer, description: Instalments past their last day of grace.}
+        late_amount: {$ref: "#/components/schemas/Money"}
+        next:
+          type: array
+          maxItems: 3
+          description: The first three of those due today (oldest first), then those coming up in the next seven days (soonest first).
+          items:
+            type: object
+            required: [reference, amount, due_on]
+            properties:
+              reference: {type: string, example: C-0042, description: The contract's number.}
+              amount: {$ref: "#/components/schemas/Money", description: What is still owed on the instalment.}
+              due_on: {type: string, format: date}
+              name: {type: string, description: The customer's name. Only when the request passed `names=1`.}
+        generated_at: {type: string, format: date-time, description: When the snapshot was made.}
+    GlanceOff:
+      type: object
+      required: [enabled]
+      description: The whole answer when the home-screen widget feature is not enabled for the workspace.
+      properties:
+        enabled: {type: boolean, enum: [false]}
     DueInstallment:
       type: object
       properties:
@@ -3399,6 +3623,39 @@ components:
         owed: {$ref: "#/components/schemas/Money"}
         running_contracts: {type: integer}
         contracts: {type: array, items: {$ref: "#/components/schemas/Contract"}}
+        pay_pattern:
+          oneOf: [{$ref: "#/components/schemas/PayPattern"}, {type: "null"}]
+          description: >-
+            The day of the month this customer usually pays on, worked out from their payments. It is on the customer's own
+            page (`GET /customers/{customer}`) and nowhere else: never in the list, and not in what adding, changing or
+            pinning a customer answers. It is there only while the `payday_learning` feature is on for the workspace (the
+            platform switch and the plan); with it off the key is left out altogether, and a pattern worked out earlier is
+            kept for when it is switched back on. With the feature on, `null` means there is not enough to say yet.
+    PayPattern:
+      type: object
+      description: >-
+        When a customer usually pays, for a chip next to their name ("Usually pays around day 27 of the month") and for
+        suggesting contract dates. It is worked out from the first payment of each of their last months with payments, on
+        monthly contracts, and is a hint: nothing changes by itself because of it. `label` and `basis` are written by the
+        server in the language of the request; show them as sent and never build the wording from the figures.
+      required: [day, spread, months, within, confidence, end_of_month, label, basis]
+      properties:
+        day: {type: integer, minimum: 1, maximum: 28, description: "The usual day of the month. 28 also stands for the 29th to the 31st (see `end_of_month`); suggest dates from it, clamped to the length of the month."}
+        spread: {type: integer, minimum: 0, maximum: 27, description: "How far apart the days run, in days: the middle half of the months fall within this many days of each other."}
+        months: {type: integer, minimum: 3, maximum: 12, description: How many months it was worked out from.}
+        within: {type: integer, minimum: 0, maximum: 100, description: The percent of those months paid within three days of `day`.}
+        confidence: {type: string, enum: [high, medium], description: "high is four months or more that agree closely; medium is a looser pattern, or one from only three months."}
+        end_of_month: {type: boolean, description: True when `day` is 28, that is the customer pays at the end of the month whatever its length.}
+        label:
+          type: string
+          example: "Usually pays around day 27 of the month"
+          description: >-
+            One line in the language of the request: "Usually pays around day 27 of the month", or "Usually pays at the end of
+            the month" when `end_of_month` is true.
+        basis:
+          type: string
+          example: "Seen in 83% of recent months"
+          description: A second, smaller line saying how sure it is (`within` as a percent of the recent months), in the language of the request.
     CustomerPage:
       allOf:
         - {$ref: "#/components/schemas/Page"}
@@ -3773,7 +4030,7 @@ components:
       properties:
         amount: {$ref: "#/components/schemas/Money"}
         method: {type: string, enum: [cash, bank_transfer, card, cheque, other]}
-        paid_at: {type: string, description: "A date or a moment, never in the future. A date alone means that day."}
+        paid_at: {type: string, description: "A date or a moment, never in the future. A date alone means that day on the workspace's calendar; a moment with an offset or Z is that instant, and one without an offset is read as UTC."}
         note: {type: string, maxLength: 1000}
         tag: {type: string, enum: [advance, refund, early_discount, unpaid]}
         idempotency_key: {type: string, description: "The Idempotency-Key header may be used instead."}
@@ -3801,7 +4058,7 @@ components:
       properties:
         id: {type: string, format: uuid}
         type: {type: string, enum: [payment, down_payment, reversal, charge, charge_reversal]}
-        tag: {type: [string, "null"], enum: [advance, refund, early_discount, unpaid, null]}
+        tag: {type: [string, "null"], enum: [advance, refund, early_discount, unpaid, imported, null], description: "`imported` marks what an import brought in as paid before Qistas; only the import writes it, a request may not send it."}
         balance_after: {type: string, description: "On an open contract's ledger: the balance once this line was written."}
         recorded_by: {type: [object, "null"], properties: {id: {type: string}, name: {type: string}}, description: Who wrote the line; null for lines the system wrote.}
         recorded_at: {type: string, format: date-time, description: When the line was written (paid_at is when the money moved).}
@@ -3842,6 +4099,111 @@ components:
         - type: object
           properties:
             data: {type: array, items: {$ref: "#/components/schemas/Transaction"}}
+    DayCloseInput:
+      type: object
+      required: [counted_cash]
+      properties:
+        counted_cash: {type: string, example: "3100.00", description: "The cash in the till: an amount with at most two decimals, not negative, written as text."}
+        note: {type: [string, "null"], maxLength: 1000}
+        day: {type: [string, "null"], format: date, description: "The workspace's own calendar day to close: today (the default) or one of the seven days before it."}
+    DayCloseFigures:
+      type: object
+      required: [by_method, count, per_member]
+      description: The day's figures, as they were when it was closed.
+      properties:
+        by_method: {type: object, additionalProperties: {$ref: "#/components/schemas/Money"}, description: "The net of each way of paying that had a line in the day (an empty object when none), cash first."}
+        count: {type: integer, description: "Payments taken in the day that were not voided in it: a payment across a customer's contracts is one, until all of its lines are voided."}
+        per_member:
+          type: object
+          description: "The cash side of the day by the person who recorded each line, keyed by user id (`unknown` for someone who has since left the team); an empty object when there was none."
+          additionalProperties:
+            type: object
+            required: [name, cash, count]
+            properties:
+              name: {type: string}
+              cash: {$ref: "#/components/schemas/Money"}
+              count: {type: integer}
+    DayClose:
+      type: object
+      description: >-
+        One close of one day, as it was signed. A close is a record and is never edited: reopening a day moves its `status`
+        and writes who reopened it and why, and closing the day again writes the next `version`.
+      required: [id, day, version, status, expected_cash, counted_cash, difference, totals, note, closed_by, closed_at, reopened_by, reopened_at, reopen_reason, snapshot_hash, summary_text, summary_url]
+      properties:
+        id: {type: string, format: uuid}
+        day: {type: string, format: date, description: The workspace's own calendar day.}
+        version: {type: integer, minimum: 1}
+        status: {type: string, enum: [closed, reopened]}
+        expected_cash: {$ref: "#/components/schemas/Money", description: What was recorded in cash for the day.}
+        counted_cash: {$ref: "#/components/schemas/Money", description: What the person counted.}
+        difference: {$ref: "#/components/schemas/Money", description: Counted less expected. Negative is short, positive is over.}
+        totals: {$ref: "#/components/schemas/DayCloseFigures"}
+        note: {type: [string, "null"]}
+        closed_by: {type: [object, "null"], properties: {id: {type: string}, name: {type: string}}, description: Who closed it; null once that person has left the team.}
+        closed_at: {type: string, format: date-time}
+        reopened_by: {type: [object, "null"], properties: {id: {type: string}, name: {type: string}}}
+        reopened_at: {type: [string, "null"], format: date-time}
+        reopen_reason: {type: [string, "null"]}
+        snapshot_hash: {type: string, pattern: '^[0-9a-f]{64}$', description: A SHA-256 of the day's figures when it was closed.}
+        summary_text:
+          type: string
+          example: "Al-Fares, 21 Oct: collected SAR 8,420 (cash 3,100, other 5,320), 14 payments, difference 0."
+          description: >-
+            One sentence the person can share (on WhatsApp, say), in the language of the request: the shop, the day, what was
+            collected and how, how many payments, and whether the cash balanced (`difference 0`, `over by SAR 12.50` or
+            `short by SAR 12.50`). Show it as it is; never build it on the device.
+        summary_url: {type: string, format: uri, description: The signed PDF (GET, with the bearer token).}
+    DayClosePage:
+      allOf:
+        - {$ref: "#/components/schemas/Page"}
+        - type: object
+          properties:
+            data: {type: array, items: {$ref: "#/components/schemas/DayClose"}}
+    DayCloseToday:
+      type: object
+      required: [day, closing_time, closed, close, expected_cash, by_method, count, per_member, non_cash, watch, can_close, can_reopen]
+      properties:
+        day: {type: string, format: date, description: Today, on the workspace's own clock.}
+        closing_time: {type: string, example: "20:00", description: When the team is asked to close the day, by the workspace's own clock.}
+        closed: {type: boolean, description: True while a close of today stands.}
+        close: {oneOf: [{$ref: "#/components/schemas/DayClose"}, {type: "null"}], description: Today's latest close (a reopened one included), or null.}
+        expected_cash: {$ref: "#/components/schemas/Money", description: "Cash recorded today, less cash given back by voids; negative on a day that only gave money back."}
+        by_method: {type: object, additionalProperties: {$ref: "#/components/schemas/Money"}}
+        count: {type: integer}
+        per_member:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              name: {type: string}
+              cash: {$ref: "#/components/schemas/Money"}
+              count: {type: integer}
+        non_cash:
+          type: array
+          description: Every card, transfer, cheque and other line of the day, oldest first; a void is its own negative line.
+          items:
+            type: object
+            properties:
+              id: {type: string, format: uuid}
+              customer: {type: string}
+              amount: {$ref: "#/components/schemas/Money"}
+              method: {type: string}
+              note: {type: [string, "null"]}
+        watch:
+          type: array
+          description: >-
+            What is worth a look today. When more than ten contracts were opened in the day (an import), they are one
+            `opened` line: its `label` says how many ("300 contracts opened"), its `id` is the first of them and its
+            `amount` the sum of their prices.
+          items:
+            type: object
+            properties:
+              kind: {type: string, enum: [void, waived_fee, back_dated, opened, cancelled]}
+              id: {type: string, format: uuid}
+              label: {type: string, description: "The customer's name, or how many contracts were opened for a line that stands for many."}
+              amount: {type: [string, "null"], description: "What it concerned, always positive; null for an open account, which has no price."}
+        can_close: {type: boolean}
+        can_reopen: {type: boolean}
     Token:
       type: object
       properties:

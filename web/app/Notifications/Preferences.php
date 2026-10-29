@@ -9,7 +9,7 @@ use Illuminate\Validation\Rule;
 /**
  * Each person's notice choices in a workspace (Win Plan PP9, Sprint 3 Task 1b), with the defaults for anything they never
  * changed: the summary at nine, late alerts weekly, due-date alerts off (the summary already says who pays today), no
- * quiet hours, and every billing and support notice on. Each kind also says where it goes (`channels`: in the app, by
+ * quiet hours, and every billing, support and end-of-day notice on. Each kind also says where it goes (`channels`: in the app, by
  * e-mail, by text message; see Catalog and Channels).
  *
  * Reads and writes happen in the workspace in context (CurrentTenant), like every tenant-owned record.
@@ -20,6 +20,8 @@ final class Preferences
         'daily_digest' => ['enabled' => true, 'time' => '09:00', 'channels' => Catalog::KINDS['daily_digest']['channels']],
         'instalment_due' => ['enabled' => false, 'channels' => Catalog::KINDS['instalment_due']['channels']],
         'instalment_late' => ['enabled' => true, 'repeat' => 'weekly', 'channels' => Catalog::KINDS['instalment_late']['channels']],
+        'day_close_reminder' => ['enabled' => true, 'channels' => Catalog::KINDS['day_close_reminder']['channels']],
+        'day_close_difference' => ['enabled' => true, 'channels' => Catalog::KINDS['day_close_difference']['channels']],
         'billing_renewal_due' => ['enabled' => true, 'channels' => Catalog::KINDS['billing_renewal_due']['channels']],
         'billing_renewed' => ['enabled' => true, 'channels' => Catalog::KINDS['billing_renewed']['channels']],
         'billing_payment_failed' => ['enabled' => true, 'channels' => Catalog::KINDS['billing_payment_failed']['channels']],

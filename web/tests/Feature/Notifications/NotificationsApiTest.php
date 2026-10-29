@@ -71,6 +71,8 @@ describe('preferences', function () {
             'daily_digest' => ['enabled' => true, 'time' => '09:00', 'channels' => $app],
             'instalment_due' => ['enabled' => false, 'channels' => $app],
             'instalment_late' => ['enabled' => true, 'repeat' => 'weekly', 'channels' => $app],
+            'day_close_reminder' => ['enabled' => true, 'channels' => $app],
+            'day_close_difference' => ['enabled' => true, 'channels' => $app],
             'billing_renewal_due' => ['enabled' => true, 'channels' => $appAndEmail],
             'billing_renewed' => ['enabled' => true, 'channels' => $appAndEmail],
             'billing_payment_failed' => ['enabled' => true, 'channels' => $appAndEmail],

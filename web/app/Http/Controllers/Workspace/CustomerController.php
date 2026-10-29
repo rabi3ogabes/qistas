@@ -6,9 +6,11 @@ use App\Actions\CreateCustomer;
 use App\Actions\DeleteCustomer;
 use App\Domain\Ledger\ContractAccount;
 use App\Domain\Ledger\Statement;
+use App\Domain\PayPattern\PayPatternWords;
 use App\Entitlements\Entitlement;
 use App\Entitlements\Entitlements;
 use App\Entitlements\Feature;
+use App\Entitlements\FeatureUsage;
 use App\Http\Requests\CustomerRequest;
 use App\Models\Contract;
 use App\Models\Customer;
@@ -85,8 +87,17 @@ final class CustomerController
         $canPay = $account !== null && $account->takesPayments() && Gate::allows('create', Transaction::class);
         $features = Entitlements::for($this->current->get());
 
+        // The day they usually pay on (daily-habit wave A, H6), while payday learning is on. A pattern worked out earlier
+        // stays in the database when it is off, and is not read or shown.
+        $pattern = $features->check(Feature::PaydayLearning)->enabled() ? $customer->payPattern : null;
+        if ($pattern !== null) {
+            // The cockpit's "used by" count: a pattern really shown to someone is this feature's primary action.
+            FeatureUsage::hit(Feature::PaydayLearning);
+        }
+
         return view('app.customers.show', [
             'customer' => $customer->load('tags'),
+            'payPattern' => $pattern === null ? null : ['label' => PayPatternWords::label($pattern->day), 'basis' => PayPatternWords::basis($pattern->within)],
             'contracts' => $contracts,
             'owed' => array_map(fn (array $s) => $s['owed'], $standing),
             'overdue' => array_map(fn (array $s) => $s['overdue'], $standing),

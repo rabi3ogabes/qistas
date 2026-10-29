@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The small home-screen widget in the phone's widget list (GlanceWidgetProvider). It lives on the home screen only: it
+     is never offered for a locked screen, where anyone could read it. The phone asks for a redraw about every half hour
+     (Android may delay it); the time on the widget is the honest signal of how fresh it is. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/glance_description_small"
+    android:initialLayout="@layout/glance_small"
+    android:minHeight="110dp"
+    android:minResizeHeight="110dp"
+    android:minResizeWidth="110dp"
+    android:minWidth="110dp"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellHeight="2"
+    android:targetCellWidth="2"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />

@@ -113,6 +113,21 @@ describe('an open contract', function () {
         expect(balanceOf($contract))->toBe('120.00');
     });
 
+    it('stores a charge typed with an offset at the instant it names', function (string $typed, string $stored) {
+        [, $tenant] = apiOwner();
+        $contract = openAccount($tenant);
+
+        $id = $this->postJson("/api/v1/contracts/{$contract->id}/charges", ['amount' => '10.00', 'charged_at' => $typed])->assertCreated()->json('data.id');
+
+        // The database keeps a moment's digits: written as they were typed, -14:00 would land on another day.
+        expect(asTenant($tenant, fn () => Transaction::query()->findOrFail($id)->paid_at->format('Y-m-d H:i:s')))->toBe($stored);
+    })->with([
+        'Riyadh' => ['2026-10-06T22:30:00+03:00', '2026-10-06 19:30:00'],
+        'fourteen hours behind' => ['2026-10-06T12:00:00-14:00', '2026-10-07 02:00:00'],
+        'UTC, written Z' => ['2026-10-06T23:15:00Z', '2026-10-06 23:15:00'],
+        'no offset (read as UTC)' => ['2026-10-06 23:15:00', '2026-10-06 23:15:00'],
+    ]);
+
     it('stores the tag of a line and refuses one it does not know', function () {
         [, $tenant] = apiOwner();
         $contract = openAccount($tenant);
@@ -190,6 +205,17 @@ describe('becoming open', function () {
             ->and(app(DashboardMetrics::class)->for($tenant)['overdue'])->toBe('0.00')
             ->and(app(DashboardMetrics::class)->for($tenant)['outstanding'])->toBe('300.00')
             ->and(balanceOf($contract))->toBe('300.00');
+    });
+
+    it('names a balance an import brought in, in words, once the contract is open', function () {
+        [$user, $tenant] = owner();
+        $contract = openContract($tenant);
+        app(RecordPayment::class)->handle($contract, '100.00', 'other', tag: Transaction::IMPORTED);
+        app(ConvertToOpen::class)->handle($contract);
+
+        $this->actingAs($user)->get(route('app.contracts.show', $contract))->assertOk()
+            ->assertSee('<span class="badge">Paid before Qistas</span>', false)
+            ->assertDontSee('<span class="badge">imported</span>', false);
     });
 
     it('will not void a payment made before the contract became open', function () {

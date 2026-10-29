@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The home-screen widget wears the app's own brand tokens (QistasColors in lib/core/design/tokens.dart): ivory and
+         navy ink with gold, here the light set. values-night has the dark set. A business's own theme from the admin
+         site does not reach the widget; it is always Qistas. -->
+    <color name="glance_surface">#F7F3EA</color>
+    <color name="glance_line">#E3DCCB</color>
+    <color name="glance_ink">#0B1F44</color>
+    <color name="glance_muted">#4F5B76</color>
+    <!-- Gold that is dark enough to read as text on ivory (QistasColors.accentText). -->
+    <color name="glance_gold">#7F6126</color>
+</resources>

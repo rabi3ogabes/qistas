@@ -9,7 +9,10 @@
 - **Instalment alerts**: on an instalment's due date (off by default, since the summary already says who pays today)
   and, once its grace days are over, again every day, week (the default) or month, until it is paid. Several in one
   morning arrive as one alert that names the customers.
-- **Quiet hours**: nothing arrives in them; it waits until they end.
+- **Quiet hours**: nothing arrives in them; it waits until they end. One exception: the notice that a day was closed with
+  a cash difference is a one-time event, so an owner in their quiet hours gets it in the inbox with no push, e-mail or
+  SMS (an owner who has switched the in-app channel off and takes it by e-mail only gets nothing then; the difference is
+  still shown on the day-close page).
 - **Inbox**: every alert is kept in the app (the bell on the dashboard), pushes or not.
 - **Remind everyone**: a checklist of who pays today (or who is late). "Next" opens WhatsApp with the message
   written; coming back ticks the customer off. On the web it is under the dashboard's "Due today".
@@ -25,6 +28,10 @@ Collectors, accountants, managers and owners get alerts; viewers do not.
 
 Both ship off. Switch them on in `/admin/features` when you are ready. Each person's choices and the wording are
 kept while a switch is off.
+
+Three daily-habit switches add scheduled work and notices of their own: `home_widget` ([home-widget.md](home-widget.md)),
+`day_close` ([day-close.md](day-close.md)) and `payday_learning` ([payday-learning.md](payday-learning.md)); their jobs are
+listed under "How it runs" below.
 
 ## Turning pushes on (owner)
 
@@ -45,3 +52,23 @@ Never paste either file into a chat or commit it to the repository.
 The scheduler (the GitHub workflow that calls `/internal/cron` every five minutes) runs `qistas:send-digests` and
 `qistas:instalment-alerts`. Each alert is logged under a unique key (`notification_log.dedupe_key`), so running them
 again never sends the same thing twice. A phone Firebase reports gone is forgotten.
+
+It also runs `qistas:send-glance-refresh`, which sends one silent push a day (no notification, no inbox entry) to each
+person's phones from their digest time (and for up to four hours after it, on the workspace's clock), only for workspaces
+that have the home-screen widget switched on. It ignores the person's morning-summary switch and quiet hours. It tells the app
+to re-read `/api/v1/glance` so the widget is fresh before the owner opens Qistas. People with the viewer role get no
+morning refresh; their widget updates when the app is opened or resumed.
+
+It also runs `qistas:send-day-close-reminders`: from each workspace's closing time (20:00 by default, a workspace tool)
+and for up to two hours, on the business's own clock, everyone who may close the day (not viewers) gets one reminder an
+evening, only while the day is still open and has payments or something to look at, and only for workspaces that have
+the end-of-day close switched on. The window ends at midnight, like the morning alerts' four hours: a closing time of
+22:30, 23:00 or 23:30 gets 90, 60 or 30 minutes, not two hours. A workspace that fails is logged and skipped, and the
+others still get theirs. When someone who is not an owner closes a day with a cash difference, each owner is told once,
+right after the close is saved (not by the scheduler); an owner in their quiet hours finds it in the inbox with no push.
+Both notices open `/day-close`.
+
+It also runs `qistas:learn-paydays` once a day at midnight server time (UTC), which works out again the day of the month
+each customer really pays on (a payment or a void also updates it right away), only for workspaces that have payday
+learning switched on. A workspace
+that fails is logged and skipped, and the others are still worked out.

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../core/money.dart';
+import '../domain/payday.dart';
 import 'late_fees.dart';
 import 'paperwork.dart';
 import 'plan_changes.dart';
@@ -642,6 +643,7 @@ class Customer {
     this.job,
     this.pinned = false,
     this.tags = const [],
+    this.payPattern,
   });
 
   factory Customer.fromJson(Map<String, dynamic> json) => Customer(
@@ -659,6 +661,7 @@ class Customer {
         job: _text(json['job']),
         pinned: json['pinned'] == true,
         tags: _list(json['tags']).map(CustomerTag.fromJson).toList(),
+        payPattern: PayPattern.fromJson(json['pay_pattern']),
       );
 
   final String id;
@@ -681,6 +684,11 @@ class Customer {
   /// Kept at the top of every list (Win Plan PP12).
   final bool pinned;
   final List<CustomerTag> tags;
+
+  /// When they usually pay (daily-habit wave A, H6). The key is on the customer's own page only (`GET /customers/{id}`) and
+  /// only while payday learning is on: the lists, and the answers to adding, changing and pinning, leave it out. So null here
+  /// means "not said", never "none": read it from the page, and never clear a pattern already read because an answer lacked it.
+  final PayPattern? payPattern;
 }
 
 /// A label that groups customers, such as "Shop 2" or "Government staff" (Win Plan PP12).

@@ -16,6 +16,8 @@ import '../features/customers/customer_form_screen.dart';
 import '../features/customers/customers_screen.dart';
 import '../features/customers/tags.dart';
 import '../features/dashboard/dashboard_screen.dart';
+import '../features/day_close/day_close_history_screen.dart';
+import '../features/day_close/day_close_screen.dart';
 import '../features/help/help_screen.dart';
 import '../features/import/import_screen.dart';
 import '../features/intro/onboarding_screen.dart';
@@ -40,6 +42,7 @@ import '../features/settings/devices_screen.dart';
 import '../features/settings/profile_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/settings/tools_screen.dart';
+import '../features/settings/widget_settings_screen.dart';
 import '../features/team/team_screen.dart';
 import 'providers.dart';
 import 'shell.dart';
@@ -94,6 +97,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/app-lock', builder: (_, _) => const AppLockSettingsScreen()),
       GoRoute(path: '/delete-account', builder: (_, _) => const DeleteAccountScreen()),
       GoRoute(path: '/team', builder: (_, _) => const TeamScreen()),
+      // The end of the day (daily-habit wave A, H4): a tapped evening reminder lands here.
+      GoRoute(
+        path: '/day-close',
+        builder: (_, _) => const DayCloseScreen(),
+        routes: [GoRoute(path: 'history', builder: (_, _) => const DayCloseHistoryScreen())],
+      ),
       GoRoute(path: '/devices', builder: (_, _) => const DevicesScreen()),
       GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),
       GoRoute(path: '/products', builder: (_, _) => const ProductsScreen()),
@@ -101,6 +110,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/settings/backups', builder: (_, _) => const BackupsScreen()),
       GoRoute(path: '/settings/activity', builder: (_, _) => const ActivityLogScreen()),
       GoRoute(path: '/settings/tags', builder: (_, _) => const TagsScreen()),
+      GoRoute(path: '/settings/widget', builder: (_, _) => const WidgetSettingsScreen()),
       // Alerts and reminders (Win Plan PP9).
       GoRoute(path: '/inbox', builder: (_, _) => const InboxScreen()),
       GoRoute(path: '/settings/alerts', builder: (_, _) => const AlertSettingsScreen()),

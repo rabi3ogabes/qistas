@@ -317,6 +317,18 @@
     @media (hover: hover) and (pointer: fine) { a.tag-chip:not([aria-current="true"]):hover { border-color: var(--tag); } }
     .tag-chip-sm { padding: .0625rem .5rem; font-size: .75rem; }
     .tag-list { display: flex; flex-wrap: wrap; gap: .25rem; margin: 0; }
+
+    /* ---------- The day they usually pay on (payday learning) ---------- */
+    .pay-chip {
+        display: flex; align-items: flex-start; gap: .625rem; justify-self: start; max-inline-size: 100%; margin: 0; padding: .5rem .875rem;
+        border-radius: var(--q-r-md); background: var(--q-surface-alt); color: var(--q-ink); font-size: .875rem; line-height: 1.35;
+    }
+    .pay-chip .i { flex: none; margin-block-start: .0625rem; color: var(--q-accent-text); }
+    .pay-chip strong { display: block; font-weight: 600; }
+    .pay-chip small { display: block; color: var(--q-ink-muted); font-size: .8125rem; }
+    .pay-suggest { display: flex; flex-wrap: wrap; align-items: center; gap: .375rem .75rem; padding: .625rem .875rem; border-radius: var(--q-r-md); background: var(--q-surface-alt); }
+    /* A customer's name can be long, and a business's has no spaces to break at: it wraps anywhere rather than push the page wider. */
+    .pay-suggest-text { flex: 1 1 14rem; min-inline-size: 0; margin: 0; font-size: .875rem; line-height: 1.4; color: var(--q-ink); overflow-wrap: anywhere; }
     .customer-cell { display: grid; gap: .25rem; justify-items: start; }
     .i.pin-mark { display: inline-block; margin-inline-end: .25rem; color: var(--q-accent-text); vertical-align: -2px; }
     .tag-pick { display: flex; flex-wrap: wrap; gap: .5rem; }
@@ -758,4 +770,45 @@
         [dir="rtl"] .import-rows tr[data-state="problem"] { box-shadow: inset -3px 0 0 var(--q-danger); }
     }
     .import-problems { margin: .375rem 0 0; padding: 0; list-style: none; display: grid; gap: .25rem; font-size: .8125rem; color: var(--q-danger); }
+
+    /* The end of the day (daily-habit wave A, H4): one calm column, the cash to count first, the seal once it is signed. */
+    .dc { max-width: 46rem; }
+    .dc-expected .figure-value { font-size: clamp(1.75rem, 6vw, 2.5rem); }
+    /* The live difference is a hint under the counted field; its tone is the same one the closed day and the history use. */
+    .dc-difference { display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem .75rem; margin: 0; padding: .75rem 1rem; border-radius: var(--q-r-md); background: var(--q-surface-alt); }
+    .dc-difference strong { font-size: 1.0625rem; }
+    .dc-difference[data-tone="ok"] strong, .dc-tone[data-tone="ok"] { color: var(--q-positive); }
+    .dc-difference[data-tone="bad"] strong, .dc-tone[data-tone="bad"] { color: var(--q-danger); }
+    .dc-difference[data-tone="warn"] strong, .dc-tone[data-tone="warn"] { color: var(--q-warning); }
+    .dc-tone { font-weight: 600; }
+    @media (min-width: 640px) { .dc-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .dc-why { display: block; margin-top: .25rem; font-size: .875rem; overflow-wrap: anywhere; }
+    /* The sentence a day is shared as: one tap selects all of it, so it can be copied even when the button cannot. */
+    .dc-sentence {
+        margin: 0; padding: .875rem 1rem; border-radius: var(--q-r-md); background: var(--q-tint-sand);
+        border-inline-start: 3px solid var(--q-accent); font-size: 1.0625rem; line-height: 1.5; overflow-wrap: anywhere;
+        user-select: all; -webkit-user-select: all;
+    }
+    .dc-copy-label { display: inline-flex; align-items: center; gap: .5rem; }
+    .dc-day-form { max-width: 18rem; }
+    .empty-quiet { padding: 1.5rem 1.25rem; }
+    .empty-quiet .empty-icon { width: 2.75rem; height: 2.75rem; }
+    .dc .rows .row-sub { overflow-wrap: anywhere; }
+    .dc .rows li[data-line="reversal"] .row-amount { color: var(--q-danger); }
+    /* A quiet card on the dashboard while today is still to close. */
+    .dc-nudge { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+    .dc-nudge p { margin: .125rem 0 0; }
+
+    /* The seal of a closed day: a double ring in the brand's gold, drawn once and then still. */
+    .seal {
+        display: inline-grid; place-items: center; align-content: center; gap: .125rem; flex: none;
+        inline-size: 4.75rem; block-size: 4.75rem; border-radius: 50%;
+        border: 1.5px solid var(--q-accent); background: var(--q-tint-sand); color: var(--q-accent-text);
+        box-shadow: inset 0 0 0 4px var(--q-surface), inset 0 0 0 5px color-mix(in srgb, var(--q-accent) 55%, transparent);
+        animation: q-seal-in var(--q-t-slow) var(--q-ease-out) both;
+    }
+    .seal-word { font-size: .625rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; line-height: 1; }
+    /* Letter-spacing would pull the joined letters of Arabic and Urdu apart. */
+    [dir="rtl"] .seal-word { font-size: .75rem; letter-spacing: 0; text-transform: none; }
+    @keyframes q-seal-in { from { opacity: 0; transform: scale(.82) rotate(-6deg); } }
 }

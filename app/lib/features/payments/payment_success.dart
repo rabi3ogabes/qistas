@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -10,6 +12,7 @@ import '../../core/l10n/translations.dart';
 import '../../core/money.dart';
 import '../../data/models.dart';
 import '../documents/document_options_sheet.dart';
+import '../glance/glance_service.dart';
 import '../reminders/reminders.dart';
 
 
@@ -33,6 +36,13 @@ class PaymentSuccessSheet extends ConsumerStatefulWidget {
 
 class _PaymentSuccessSheetState extends ConsumerState<PaymentSuccessSheet> {
   bool _sending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Money just came in: the home-screen widget's figures are out of date.
+    unawaited(ref.read(glanceServiceProvider).refresh());
+  }
 
   Money? get _remaining => widget.payment.contractOwed;
 

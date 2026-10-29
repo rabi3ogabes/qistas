@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,11 +16,22 @@ import '../../core/ui/errors.dart';
 import '../../data/models.dart';
 import '../appearance/welcome_banner.dart';
 import '../billing/upgrade_sheet.dart';
+import '../day_close/day_close_screen.dart' show DaySeal;
+import '../day_close/day_close_state.dart';
+import '../glance/glance_service.dart';
 import '../notifications/alerts.dart';
 import '../reminders/reminders.dart';
+import '../security/app_lock.dart' show clockProvider;
 import '../settings/delete_account_screen.dart';
 
-final dashboardProvider = FutureProvider.autoDispose<Dashboard>((ref) => ref.watch(apiProvider).dashboard());
+final dashboardProvider = FutureProvider.autoDispose<Dashboard>((ref) async {
+  final glance = ref.read(glanceServiceProvider);
+  final board = await ref.watch(apiProvider).dashboard();
+  // The home-screen widget shows the same day: whenever the dashboard has fresh figures, so does the widget.
+  unawaited(glance.refresh());
+
+  return board;
+});
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -160,6 +173,8 @@ class _Body extends ConsumerWidget {
       children: [
         Reveal(order: order++, child: _Hero(data: data)),
         if (!started) Reveal(order: order++, child: const Padding(padding: EdgeInsets.only(top: 18), child: _GettingStarted())),
+        // The end of the day (daily-habit wave A, H4): only where the feature is on and the person may close the day.
+        if (offersDayClose(account)) Reveal(order: order++, child: const Padding(padding: EdgeInsets.only(top: 14), child: _DayCloseTile())),
         if (data.needsYou.isNotEmpty) Reveal(order: order++, child: _NeedsYou(data: data, language: language, account: account)),
         Reveal(order: order++, child: _Month(data: data, showsReports: (account?.seesReports ?? false) && !(account?.entitlement('advanced_reports').isPlatformOff ?? false))),
         if (data.upcoming.isNotEmpty) Reveal(order: order++, child: _ComingUp(data: data)),
@@ -215,6 +230,78 @@ class _Hero extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// "Close the day": one quiet row under the day's figure. After the closing time it warms to gold, so the evening ritual is
+/// noticed without being shouted; once the day is closed it shows the seal. The closing time and whether the day is closed
+/// come from the server, and are asked for only while this tile is on screen (which it is only where the feature is on).
+class _DayCloseTile extends ConsumerWidget {
+  const _DayCloseTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = context.qc;
+    final text = Theme.of(context).textTheme;
+    final today = ref.watch(dayCloseTileProvider).valueOrNull;
+    final closed = today?.closed ?? false;
+    final warm = today != null && !closed && pastClosingTime(ref.watch(clockProvider)(), today.closingTime);
+    final subtitle = closed
+        ? context.t('The day is closed.')
+        : today == null
+            ? context.t('Count the till and sign off the day.')
+            : warm
+                ? context.t('It is past :time. Count the till and close the day.', {'time': today.closingTime})
+                : context.t('Closing time is :time.', {'time': today.closingTime});
+    final radius = BorderRadius.circular(QistasMetrics.radiusLg);
+
+    return DecoratedBox(
+      key: const ValueKey('day-close-tile'),
+      decoration: BoxDecoration(
+        color: warm ? c.tintSand : c.surface,
+        borderRadius: radius,
+        border: Border.all(color: warm ? c.accent : c.line.withValues(alpha: 0.75)),
+        boxShadow: [BoxShadow(color: c.ink.withValues(alpha: 0.05), blurRadius: 20, offset: const Offset(0, 8))],
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          borderRadius: radius,
+          onTap: () => context.push('/day-close'),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 64),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  closed
+                      ? const DaySeal(size: 44)
+                      : Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(color: warm ? c.accent.withValues(alpha: 0.2) : c.surfaceAlt, shape: BoxShape.circle),
+                          child: Icon(Icons.event_available_outlined, color: c.accentText, size: 22),
+                        ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(context.t('Close the day'), style: text.titleSmall),
+                        const SizedBox(height: 2),
+                        Text(subtitle, style: text.bodySmall?.copyWith(color: warm ? c.accentText : c.inkMuted)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(context.isRtl ? Icons.chevron_left : Icons.chevron_right, color: c.inkMuted),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
