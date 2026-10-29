@@ -11,6 +11,7 @@ use App\Actions\RecordCharge;
 use App\Actions\RecordPayment;
 use App\Domain\Contracts\SerialCheck;
 use App\Domain\LateFees\LateFees;
+use App\Domain\Ledger\ContractAccount;
 use App\Domain\Ledger\LedgerLines;
 use App\Domain\Ledger\OpenAccount;
 use App\Domain\Schedule\ScheduleGenerator;
@@ -21,6 +22,7 @@ use App\Entitlements\Feature;
 use App\Http\Requests\CancelContractRequest;
 use App\Http\Requests\ChargeRequest;
 use App\Http\Requests\ContractRequest;
+use App\Http\Resources\ContractAccountResource;
 use App\Http\Resources\ContractResource;
 use App\Http\Resources\TransactionResource;
 use App\Models\Contract;
@@ -74,6 +76,14 @@ final class ContractController
         Gate::authorize('view', $contract);
 
         return $this->one($contract);
+    }
+
+    /** The contract's account line by line with a running balance, what is unpaid and late, and the totals. */
+    public function account(Contract $contract): ContractAccountResource
+    {
+        Gate::authorize('view', $contract);
+
+        return new ContractAccountResource(ContractAccount::of($contract));
     }
 
     /** Puts a settled or cancelled contract away (Win Plan PP12), or brings it back. */

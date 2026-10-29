@@ -160,6 +160,8 @@ Route::name('api.')->group(function (): void {
         Route::post('contracts/preview', SchedulePreviewController::class)->name('contracts.preview');
         Route::apiResource('contracts', ContractController::class)->only(['index', 'store', 'show'])->middleware('once');
         Route::post('contracts/{contract}/cancel', [ContractController::class, 'cancel'])->name('contracts.cancel');
+        // The customer's screen: one contract's account with a running balance, what is unpaid, and the totals.
+        Route::get('contracts/{contract}/account', [ContractController::class, 'account'])->whereUuid('contract')->name('contracts.account');
         // Open contracts (Win Plan PP4): "they took" lines, and turning a scheduled or cash contract into an open one.
         Route::post('contracts/{contract}/charges', [ContractController::class, 'charge'])->middleware('throttle:api-money')->name('contracts.charges.store');
         Route::post('contracts/{contract}/convert-to-open', [ContractController::class, 'convert'])->name('contracts.convert');

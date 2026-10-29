@@ -6,6 +6,7 @@ import '../core/money.dart';
 import '../domain/schedule_generator.dart';
 import 'backups.dart';
 import 'billing.dart';
+import 'contract_account.dart';
 import 'documents.dart';
 import 'help.dart';
 import 'imports.dart';
@@ -410,6 +411,9 @@ class QistasApi {
       );
 
   Future<Contract> contract(String id) async => Contract.fromJson(_data(await _client.get('/contracts/$id')));
+
+  /// The contract's account for the customer's screen: its lines with a running balance, what is unpaid, the totals.
+  Future<ContractAccount> contractAccount(String id) async => ContractAccount.fromJson(_data(await _client.get('/contracts/$id/account')));
 
   // Bringing a shop's books in (Win Plan K9): a trial run, the columns chosen again, one confirm.
 

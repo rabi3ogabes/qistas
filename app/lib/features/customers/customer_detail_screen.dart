@@ -19,6 +19,7 @@ import '../contracts/plan_access.dart';
 import '../documents/document_options_sheet.dart';
 import '../payments/customer_payment_sheet.dart';
 import '../reminders/reminders.dart';
+import 'customer_account.dart';
 import 'customers_screen.dart';
 import 'tags.dart';
 
@@ -35,8 +36,12 @@ class CustomerDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final customer = ref.watch(customerProvider(id));
     final account = ref.watch(accountProvider);
+    final chosen = customer.hasValue ? chosenContract(customer.requireValue, ref.watch(chosenContractProvider(id))) : null;
+    // Where the chosen contract stands stays in sight under the screen.
+    final totals = chosen == null ? null : ref.watch(contractAccountProvider(chosen.id)).valueOrNull?.totals;
 
     return Scaffold(
+      bottomNavigationBar: totals == null ? null : AccountTotalsBar(totals: totals, currency: account?.currency ?? ''),
       appBar: AppBar(
         title: Text(customer.valueOrNull?.name ?? context.t('Customer')),
         actions: [
@@ -63,12 +68,13 @@ class CustomerDetailScreen extends ConsumerWidget {
         data: (data) => RefreshIndicator(
           onRefresh: () async {
             ref.invalidate(customerProvider(id));
+            if (chosen != null) ref.invalidate(contractAccountProvider(chosen.id));
             await ref.read(customerProvider(id).future);
           },
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
-            child: ContentColumn(padding: EdgeInsets.zero, child: _Body(customer: data, account: account)),
+            child: ContentColumn(padding: EdgeInsets.zero, child: _Body(customer: data, account: account, chosen: chosen)),
           ),
         ),
       ),
@@ -93,10 +99,13 @@ class CustomerDetailScreen extends ConsumerWidget {
 }
 
 class _Body extends ConsumerWidget {
-  const _Body({required this.customer, required this.account});
+  const _Body({required this.customer, required this.account, required this.chosen});
 
   final Customer customer;
   final Account? account;
+
+  /// The contract whose account the screen shows; null when the customer has none.
+  final Contract? chosen;
 
   Future<void> _openContract(BuildContext context, WidgetRef ref) async {
     await addContract(context, ref, customerId: customer.id);
@@ -217,14 +226,15 @@ class _Body extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               QSectionTitle(
-                context.t('Contracts'),
+                context.t('Transactions'),
                 trailing: account?.canWrite == false ? null : TextButton.icon(onPressed: () => _openContract(context, ref), icon: const Icon(Icons.add), label: Text(context.t('Open a contract'))),
               ),
               if (customer.contracts.isEmpty)
                 QCard(child: Text(context.t('Open a contract to set up this customer’s instalment plan.'), style: text.bodyMedium?.copyWith(color: c.inkMuted)))
-              else
-                for (final contract in current)
-                  Padding(padding: const EdgeInsets.only(bottom: 10), child: ContractRow(contract: contract, currency: currency, language: language)),
+              else if (chosen != null) ...[
+                CustomerAccountSection(customer: customer, chosen: chosen!, account: account),
+                const SizedBox(height: 12),
+              ],
               // One payment across their contracts (Win Plan PP6), once two or more are running.
               if (canTargetPayments(account) && (account?.canWrite ?? false) && current.where((k) => k.isRunning && !k.isOpen).length > 1) ...[
                 const SizedBox(height: 4),

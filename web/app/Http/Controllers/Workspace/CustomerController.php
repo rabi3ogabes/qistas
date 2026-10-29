@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Workspace;
 
 use App\Actions\CreateCustomer;
 use App\Actions\DeleteCustomer;
+use App\Domain\Ledger\ContractAccount;
+use App\Domain\Ledger\Statement;
 use App\Entitlements\Entitlement;
 use App\Entitlements\Entitlements;
 use App\Entitlements\Feature;
@@ -13,6 +15,7 @@ use App\Models\Customer;
 use App\Models\Tag;
 use App\Models\Transaction;
 use App\Reports\CustomerBalances;
+use App\Support\Money;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -65,22 +68,59 @@ final class CustomerController
         return redirect()->route('app.customers.show', $customer)->with('status', __('Customer added.'));
     }
 
-    public function show(Customer $customer, CustomerBalances $balances): View
+    /**
+     * The customer and one contract's account on one page: its lines with a running balance, what is unpaid and late
+     * with a way to pay it, and the totals. ?contract= picks the contract; ?pay= opens the payment form, for an
+     * instalment by its id or for the next one due.
+     */
+    public function show(Request $request, Customer $customer): View
     {
         Gate::authorize('view', $customer);
 
-        $contracts = Contract::query()->where('customer_id', $customer->id)->orderByDesc('number')->get();
+        $contracts = Contract::query()->where('customer_id', $customer->id)->with(['installments', 'investor'])->orderByDesc('number')->get();
+        $standing = Statement::owedAndOverdue($contracts);
+        $chosen = $this->chosenContract($contracts, $standing, $request->query('contract'));
+        $account = $chosen === null ? null : ContractAccount::of($chosen);
+        $pay = is_string($request->query('pay')) && $request->query('pay') !== '' ? (string) $request->query('pay') : null;
+        $canPay = $account !== null && $account->takesPayments() && Gate::allows('create', Transaction::class);
+        $features = Entitlements::for($this->current->get());
 
         return view('app.customers.show', [
             'customer' => $customer->load('tags'),
             'contracts' => $contracts,
-            'owed' => $balances->forContracts($contracts->pluck('id')->all()),
+            'owed' => array_map(fn (array $s) => $s['owed'], $standing),
+            'overdue' => array_map(fn (array $s) => $s['overdue'], $standing),
+            'chosen' => $chosen,
+            'account' => $account,
+            'canPay' => $canPay,
+            'payOpen' => $canPay && ($pay !== null || session()->hasOldInput('return_to')),
+            'payFor' => $canPay ? ($account->openInstallment($pay) ?? $account->next) : null,
+            'canTarget' => $features->check(Feature::PaymentTargeting)->enabled(),
+            'canArchive' => $chosen !== null && $chosen->archived_at === null && in_array($chosen->status, ['settled', 'cancelled'], true) && Gate::allows('archive', $chosen),
             'currency' => $this->current->get()?->currency,
             // One payment across their contracts (Win Plan PP6), once two or more are running.
             'canPayAcross' => $contracts->where('status', 'active')->where('type', '!=', 'open')->count() > 1
                 && Gate::allows('create', Transaction::class)
-                && Entitlements::for($this->current->get())->check(Feature::PaymentTargeting)->enabled(),
+                && $features->check(Feature::PaymentTargeting)->enabled(),
         ]);
+    }
+
+    /**
+     * The contract asked for if it is this customer's; otherwise the one that needs attention: late, then running,
+     * then the newest. An archived contract stays folded away until it is asked for.
+     *
+     * @param  Collection<int, Contract>  $contracts  newest first
+     * @param  array<string, array{owed: string, overdue: string}>  $standing
+     */
+    private function chosenContract(Collection $contracts, array $standing, mixed $asked): ?Contract
+    {
+        if (is_string($asked) && ($picked = $contracts->firstWhere('id', $asked)) !== null) {
+            return $picked;
+        }
+
+        return $contracts->whereNull('archived_at')
+            ->sortBy(fn (Contract $c) => [Money::isPositive($standing[$c->id]['overdue']) ? 0 : 1, $c->status === 'active' ? 0 : 1, -$c->number])
+            ->first();
     }
 
     public function edit(Customer $customer): View

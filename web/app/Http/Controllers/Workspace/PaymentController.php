@@ -53,8 +53,11 @@ final class PaymentController
             $request->user(), $data['note'] ?? null, $request->paidAt(), $data['tag'] ?? null, $data['apply_to'] ?? null,
         );
 
-        return redirect()->route('app.contracts.show', $contract)
-            ->with('status', __('Payment of :amount recorded.', ['amount' => Format::money($payment->amount, $this->current->get()->currency)]));
+        $back = ($data['return_to'] ?? null) === 'customer' && $contract->customer()->exists()
+            ? redirect()->route('app.customers.show', [$contract->customer_id, 'contract' => $contract->id])
+            : redirect()->route('app.contracts.show', $contract);
+
+        return $back->with('status', __('Payment of :amount recorded.', ['amount' => Format::money($payment->amount, $this->current->get()->currency)]));
     }
 
     public function void(VoidPaymentRequest $request, Transaction $transaction, VoidTransaction $void): RedirectResponse
