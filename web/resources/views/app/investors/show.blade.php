@@ -94,6 +94,39 @@
                 </section>
             @endif
 
+            {{-- Where the money is: the capital at work split between what waits in the wallet and what customers still hold. --}}
+            @php
+                $atWork = Money::add(Money::isPositive($summary['wallet']) ? $summary['wallet'] : '0', Money::isPositive($summary['out_in_contracts']) ? $summary['out_in_contracts'] : '0', 2);
+                $outShare = Money::isPositive($atWork) && Money::isPositive($summary['out_in_contracts']) ? (float) $summary['out_in_contracts'] / (float) $atWork : 0.0;
+                $ring = 2 * M_PI * 48;
+            @endphp
+            <section class="card card-pad stack" aria-labelledby="money-split-title">
+                <h2 id="money-split-title" class="card-title">{{ __('Where the money is') }}</h2>
+                @if (Money::isPositive($atWork))
+                    <div class="money-split">
+                        <svg class="money-ring" viewBox="0 0 120 120" role="img"
+                             aria-label="{{ __(':out out in contracts and :wallet in the wallet, :total at work.', ['out' => Format::money(Money::isPositive($summary['out_in_contracts']) ? $summary['out_in_contracts'] : '0', $currency), 'wallet' => Format::money(Money::isPositive($summary['wallet']) ? $summary['wallet'] : '0', $currency), 'total' => Format::money($atWork, $currency)]) }}">
+                            <circle class="money-ring-track" cx="60" cy="60" r="48" />
+                            <circle class="money-ring-wallet" cx="60" cy="60" r="48" stroke-dasharray="{{ round($ring * (1 - $outShare), 2) }} {{ round($ring, 2) }}" stroke-dashoffset="{{ round(-$ring * $outShare, 2) }}" />
+                            @if ($outShare > 0)
+                                <circle class="money-ring-out" cx="60" cy="60" r="48" stroke-dasharray="{{ round($ring * $outShare, 2) }} {{ round($ring, 2) }}" />
+                            @endif
+                        </svg>
+                        <div class="money-ring-centre" aria-hidden="true">
+                            <span class="money-ring-label">{{ __('At work') }}</span>
+                            <span class="money-ring-total money">{{ Format::money($atWork, $currency, 0) }}</span>
+                        </div>
+                        <dl class="money-split-legend">
+                            <div data-part="out"><dt>{{ __('Out in contracts') }}</dt><dd class="money">{{ Format::money(Money::isPositive($summary['out_in_contracts']) ? $summary['out_in_contracts'] : '0', $currency) }} <span class="muted">{{ round($outShare * 100) }}%</span></dd></div>
+                            <div data-part="wallet"><dt>{{ __('In the wallet') }}</dt><dd class="money">{{ Format::money(Money::isPositive($summary['wallet']) ? $summary['wallet'] : '0', $currency) }} <span class="muted">{{ 100 - round($outShare * 100) }}%</span></dd></div>
+                            <div data-part="profit"><dt>{{ __('Profit earned') }}</dt><dd class="money">{{ Format::money($summary['profit_earned'], $currency) }}</dd></div>
+                        </dl>
+                    </div>
+                @else
+                    <p class="muted">{{ __('Nothing at work yet. Record the money put in, or fund a contract, to see where it is.') }}</p>
+                @endif
+            </section>
+
             <section class="card card-pad stack" aria-labelledby="chart-title">
                 <h2 id="chart-title" class="card-title">{{ __('Profit, month by month') }}</h2>
                 <ol class="profit-bars" aria-describedby="chart-title">

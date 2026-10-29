@@ -446,6 +446,64 @@
         .desk-totals dd { font-size: .8125rem; }
     }
 
+    /* The book at a glance, over the customer list: four figures, the late one in red when there is any. */
+    .book-totals {
+        display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 0 0 .75rem; overflow: hidden;
+        background: var(--q-line);
+    }
+    @media (min-width: 760px) { .book-totals { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+    .book-totals > div { padding: .875rem 1.125rem; background: var(--q-surface); }
+    .book-totals dt { font-size: .75rem; color: var(--q-ink-muted); letter-spacing: .01em; }
+    .book-totals dd { margin: .25rem 0 0; font-size: clamp(1rem, 2.4vw, 1.25rem); font-weight: 600; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .book-totals [data-tone="danger"] { background: color-mix(in srgb, var(--q-danger) 7%, var(--q-surface)); }
+    .book-totals [data-tone="danger"] dd { color: var(--q-danger); }
+
+    /* A row's quick actions: reach the customer, take their money. Quiet until the row is pointed at. */
+    .customer-quick { white-space: nowrap; text-align: end; width: 1%; }
+    .customer-quick .icon-btn {
+        display: inline-grid; place-items: center; width: 2.25rem; height: 2.25rem; margin-inline-start: .125rem;
+        border-radius: 999px; color: var(--q-ink-muted); text-decoration: none;
+        transition: background-color var(--q-t-fast) var(--q-ease-out), color var(--q-t-fast) var(--q-ease-out);
+    }
+    .customer-quick .icon-btn:hover, .customer-quick .icon-btn:focus-visible { background: var(--q-surface-alt); color: var(--q-ink); }
+    .customer-quick .icon-btn-pay { color: var(--q-accent-text); }
+    .customer-quick .icon-btn-spacer { visibility: hidden; }
+    .customer-quick .icon-btn-pay:hover, .customer-quick .icon-btn-pay:focus-visible { background: color-mix(in srgb, var(--q-accent) 18%, var(--q-surface)); color: var(--q-accent-text); }
+    @media (max-width: 639px) {
+        .table-stack td.customer-quick { display: flex; gap: .5rem; justify-content: flex-start; width: auto; }
+        .customer-quick .icon-btn { width: 2.75rem; height: 2.75rem; border: 1px solid var(--q-line); margin: 0; }
+        .customer-quick .icon-btn-spacer { display: none; }
+    }
+
+    /* Where an investor's money is: a ring of what customers still hold against what waits in the wallet. */
+    .money-split { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr); grid-template-areas: "ring legend"; align-items: center; gap: 1.5rem; }
+    .money-ring, .money-ring-centre { grid-area: ring; }
+    .money-ring { width: 9.5rem; height: 9.5rem; transform: rotate(-90deg); }
+    [dir="rtl"] .money-ring { transform: rotate(-90deg) scaleY(-1); }
+    .money-ring circle { fill: none; stroke-width: 13; }
+    .money-ring-track { stroke: var(--q-surface-alt); }
+    .money-ring-out { stroke: var(--q-primary); stroke-linecap: round; }
+    .money-ring-wallet { stroke: var(--q-accent); }
+    .money-ring-centre { display: grid; place-content: center; text-align: center; pointer-events: none; }
+    .money-ring-label { font-size: .6875rem; color: var(--q-ink-muted); letter-spacing: .04em; text-transform: uppercase; }
+    [lang="ar"] .money-ring-label, [lang="ur"] .money-ring-label { letter-spacing: 0; text-transform: none; font-size: .75rem; }
+    .money-ring-total { font-size: 1.0625rem; font-weight: 700; }
+    .money-split-legend { grid-area: legend; display: grid; gap: .75rem; margin: 0; }
+    .money-split-legend > div { display: grid; grid-template-columns: .75rem minmax(0, 1fr); column-gap: .625rem; align-items: baseline; }
+    .money-split-legend > div::before { content: ""; grid-row: span 2; width: .75rem; height: .75rem; border-radius: 3px; align-self: center; background: var(--q-line); }
+    .money-split-legend [data-part="out"]::before { background: var(--q-primary); }
+    .money-split-legend [data-part="wallet"]::before { background: var(--q-accent); }
+    .money-split-legend [data-part="profit"]::before { background: var(--q-positive); border-radius: 50%; }
+    .money-split-legend dt { font-size: .8125rem; color: var(--q-ink-muted); }
+    .money-split-legend dd { margin: 0; font-weight: 600; }
+    @media (max-width: 479px) {
+        .money-split { grid-template-columns: 1fr; grid-template-areas: "ring" "legend"; justify-items: center; }
+        .money-split-legend { justify-self: stretch; }
+    }
+    @media (prefers-reduced-motion: no-preference) {
+        .money-ring-out, .money-ring-wallet { transition: stroke-dasharray .6s var(--q-ease-out), stroke-dashoffset .6s var(--q-ease-out); }
+    }
+
     /* Settle early, change the plan (Win Plan PP6). */
     .contract-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
     .settle-payoff { margin: 0; font-size: clamp(2rem, 5vw, 2.75rem); font-weight: 700; letter-spacing: -.01em; line-height: 1.1; }

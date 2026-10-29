@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -16,6 +17,8 @@ import '../../core/ui/paged.dart';
 import '../../data/models.dart';
 import '../billing/upgrade_sheet.dart';
 import '../common/add_flows.dart';
+import '../dashboard/dashboard_screen.dart';
+import 'customer_quick_actions.dart';
 import 'tags.dart';
 
 /// Where the order the customers were last sorted in is kept, so the list opens the way the shop works.
@@ -82,34 +85,17 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
     _debounce = Timer(const Duration(milliseconds: 300), () => ref.read(customersListProvider.notifier).search(value));
   }
 
-  /// Pin or unpin, from a long press on the row.
+  /// Everything a row can do, from a long press: call, WhatsApp, take a payment, open, pin.
   Future<void> _actions(Customer customer) async {
-    final pin = !customer.pinned;
-    final chosen = await showModalBottomSheet<bool>(
-      context: context,
-      showDragHandle: true,
-      useSafeArea: true,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-              child: Text(customer.name, style: Theme.of(context).textTheme.titleMedium, maxLines: 1, overflow: TextOverflow.ellipsis),
-            ),
-            ListTile(
-              leading: Icon(pin ? Icons.push_pin_outlined : Icons.push_pin_rounded),
-              title: Text(pin ? context.t('Pin to the top') : context.t('Unpin')),
-              onTap: () => Navigator.of(context).pop(true),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-    if (chosen != true || !mounted) return;
+    final canWrite = ref.read(accountProvider)?.canWrite ?? false;
+    final chosen = await showQuickActionsSheet(context, customer, canWrite: canWrite);
+    if (chosen == null || !mounted) return;
+    await runQuickAction(context, ref, customer, chosen, onPin: () => _pin(customer));
+  }
 
+  /// Pin or unpin.
+  Future<void> _pin(Customer customer) async {
+    final pin = !customer.pinned;
     try {
       await ref.read(apiProvider).pinCustomer(customer.id, pinned: pin);
       unawaited(ref.read(customersListProvider.notifier).refresh());
@@ -169,6 +155,10 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
     final tagsOn = showsTags(account);
     final tags = tagsOn ? ref.watch(customerTagsProvider).valueOrNull ?? const <CustomerTag>[] : const <CustomerTag>[];
     final canWrite = account?.canWrite ?? false;
+    final board = ref.watch(dashboardProvider).valueOrNull;
+    // Every customer in the business, not just the ones a search finds.
+    final int listed = ref.watch(customersListProvider.select((state) => state.total));
+    final int bookSize = customers?.used ?? (searching || list.tag != null ? 0 : listed);
 
     return SectionScaffold(
       title: context.t('Customers'),
@@ -253,6 +243,9 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                   padding: const EdgeInsets.only(top: 12),
                   child: QMeter(label: context.t('Customers'), used: customers.used ?? 0, limit: customers.limit, figures: usageFigures(context, customers)),
                 ),
+              // The whole book at a glance, the same figures as the dashboard, whatever the search narrows the list to.
+              if (board != null && bookSize > 0)
+                Padding(padding: const EdgeInsets.only(top: 12), child: BookTotals(customers: bookSize, board: board, currency: account?.currency ?? board.currency)),
             ],
           ),
         ),
@@ -266,12 +259,28 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                 message: context.t('Add the people you sell to on instalments. Contracts and payments belong to a customer.'),
                 action: account?.canWrite == false ? null : QButton(label: context.t('Add your first customer'), expand: false, onPressed: () => addCustomer(context, ref)),
               ),
-        itemBuilder: (context, customer) => _CustomerRow(
-          customer: customer,
-          currency: account?.currency ?? '',
-          showTags: tagsOn,
-          onLongPress: canWrite ? () => _actions(customer) : null,
-        ),
+        itemBuilder: (context, customer) {
+          final hasPhone = customer.phone.trim().isNotEmpty;
+          final canPay = canWrite && (customer.runningContracts ?? 0) > 0;
+
+          return SwipeActions(
+            id: customer.id,
+            onCall: hasPhone ? () => runQuickAction(context, ref, customer, CustomerQuickAction.call, onPin: () {}) : null,
+            onPay: canPay ? () => runQuickAction(context, ref, customer, CustomerQuickAction.pay, onPin: () {}) : null,
+            child: Semantics(
+              customSemanticsActions: {
+                if (hasPhone) CustomSemanticsAction(label: context.t('Call')): () => runQuickAction(context, ref, customer, CustomerQuickAction.call, onPin: () {}),
+                if (canPay) CustomSemanticsAction(label: context.t('Record a payment')): () => runQuickAction(context, ref, customer, CustomerQuickAction.pay, onPin: () {}),
+              },
+              child: _CustomerRow(
+                customer: customer,
+                currency: account?.currency ?? '',
+                showTags: tagsOn,
+                onLongPress: () => _actions(customer),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

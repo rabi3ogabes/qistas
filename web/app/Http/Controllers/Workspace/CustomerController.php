@@ -17,6 +17,7 @@ use App\Models\Customer;
 use App\Models\Tag;
 use App\Models\Transaction;
 use App\Reports\CustomerBalances;
+use App\Reports\DashboardMetrics;
 use App\Support\Money;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\RedirectResponse;
@@ -30,9 +31,10 @@ final class CustomerController
 {
     public function __construct(private readonly CurrentTenant $current) {}
 
-    public function index(Request $request, CustomerBalances $balances): View
+    public function index(Request $request, CustomerBalances $balances, DashboardMetrics $metrics): View
     {
         Gate::authorize('viewAny', Customer::class);
+        $total = Customer::query()->count();
 
         $term = trim((string) $request->query('q', ''));
         $sort = in_array($request->query('sort'), Customer::SORTS, true) ? (string) $request->query('sort') : 'name';
@@ -51,7 +53,11 @@ final class CustomerController
             'tag' => $tag,
             'balances' => $balances->forCustomers($customers->pluck('id')->all()),
             'term' => $term,
-            'total' => Customer::query()->count(),
+            'total' => $total,
+            // The whole book at a glance, over the list (whatever the search or tag narrows it to).
+            'totals' => $total > 0 ? $metrics->customerTotals($this->current->get()) : null,
+            // Each row's "Record payment" opens the customer's page with the payment form ready.
+            'canPay' => Gate::allows('create', Transaction::class),
             'currency' => $this->current->get()?->currency,
         ]);
     }

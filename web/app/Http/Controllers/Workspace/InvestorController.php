@@ -33,10 +33,15 @@ final class InvestorController
         $tenant = $this->tenant();
         MainInvestor::for($tenant);
 
-        $investors = Investor::query()->orderByDesc('is_main')->orderByRaw('archived_at is not null')->orderByRaw('LOWER(name)')->get();
+        $all = Investor::query()->orderByDesc('is_main')->orderByRaw('archived_at is not null')->orderByRaw('LOWER(name)')->get();
+        // A short list, searched where it is shown so the business's own capital is found by the name the reader sees.
+        $term = trim((string) $request->query('q', ''));
+        $investors = $all->filter(fn (Investor $investor) => $investor->matches($term))->values();
 
         return view('app.investors.index', [
             'investors' => $investors->map(fn (Investor $investor) => ['model' => $investor, 'summary' => InvestorSummary::for($investor)]),
+            'count' => $all->count(),
+            'term' => $term,
             'entitlement' => Entitlements::for($tenant)->check(Feature::Investors),
             'currency' => $tenant->currency,
         ]);

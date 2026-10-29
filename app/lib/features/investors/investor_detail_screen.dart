@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 
 import '../../app/providers.dart';
 import '../../core/api/api_exception.dart';
@@ -69,6 +69,8 @@ class InvestorDetailScreen extends ConsumerWidget {
                       },
                     ),
                   ],
+                  QSectionTitle(context.t('Where the money is')),
+                  QCard(child: MoneySplit(summary: detail.investor.summary, currency: account?.currency ?? detail.investor.currency)),
                   QSectionTitle(context.t('Profit, month by month')),
                   QCard(child: _ProfitBars(months: detail.profitByMonth, currency: account?.currency ?? detail.investor.currency)),
                   QSectionTitle(context.t('Contracts they fund')),
@@ -376,4 +378,141 @@ class _EntryRow extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Where an investor's money is: a ring of what customers still hold against what waits in the wallet, the money at
+/// work in its middle, and profit earned beside it. A wallet below zero counts as nothing in the ring.
+class MoneySplit extends StatelessWidget {
+  const MoneySplit({super.key, required this.summary, required this.currency});
+
+  final InvestorSummary summary;
+  final String currency;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.qc;
+    final text = Theme.of(context).textTheme;
+    final out = summary.outInContracts.isPositive ? summary.outInContracts : Money.zero;
+    final wallet = summary.wallet.isPositive ? summary.wallet : Money.zero;
+    final atWork = out + wallet;
+
+    if (!atWork.isPositive) {
+      return Text(context.t('Nothing at work yet. Record the money put in, or fund a contract, to see where it is.'), style: text.bodyMedium?.copyWith(color: c.inkMuted));
+    }
+
+    final share = out.cents.toDouble() / atWork.cents.toDouble();
+    final outPercent = (share * 100).round();
+    Widget row(Color colour, String label, Money amount, String? percent, {bool round = false}) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 12,
+                height: 12,
+                margin: const EdgeInsets.only(top: 3),
+                decoration: BoxDecoration(color: colour, borderRadius: BorderRadius.circular(round ? 6 : 3)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label, style: text.bodySmall?.copyWith(color: c.inkMuted)),
+                    Text.rich(
+                      TextSpan(children: [
+                        TextSpan(text: amount.format(currency), style: text.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                        if (percent != null) TextSpan(text: '  $percent', style: text.bodySmall?.copyWith(color: c.inkMuted)),
+                      ]),
+                      textDirection: TextDirection.ltr,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+
+    return Semantics(
+      container: true,
+      label: context.t(':out out in contracts and :wallet in the wallet, :total at work.', {'out': out.format(currency), 'wallet': wallet.format(currency), 'total': atWork.format(currency)}),
+      child: ExcludeSemantics(
+        child: Row(
+          children: [
+            SizedBox(
+              width: 132,
+              height: 132,
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: share),
+                duration: MediaQuery.of(context).disableAnimations ? Duration.zero : const Duration(milliseconds: 700),
+                curve: Curves.easeOutCubic,
+                builder: (context, value, _) => CustomPaint(
+                  painter: _RingPainter(share: value, out: c.primary, wallet: c.accent, track: c.surfaceAlt),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(context.t('At work'), style: text.labelSmall?.copyWith(color: c.inkMuted)),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 18),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              '${currency.isEmpty ? '' : '$currency '}${NumberFormat.decimalPattern('en').format((atWork.cents ~/ BigInt.from(100)).toInt())}',
+                              style: text.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                              textDirection: TextDirection.ltr,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 18),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  row(c.primary, context.t('Out in contracts'), out, '$outPercent%'),
+                  row(c.accent, context.t('In the wallet'), wallet, '${100 - outPercent}%'),
+                  row(c.positive, context.t('Profit earned'), summary.profitEarned, null, round: true),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RingPainter extends CustomPainter {
+  const _RingPainter({required this.share, required this.out, required this.wallet, required this.track});
+
+  /// 0 to 1: the part of the money at work that customers still hold.
+  final double share;
+  final Color out;
+  final Color wallet;
+  final Color track;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const stroke = 14.0;
+    final rect = Rect.fromCircle(center: size.center(Offset.zero), radius: size.shortestSide / 2 - stroke / 2);
+    Paint pen(Color colour) => Paint()
+      ..color = colour
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke;
+    const start = -3.141592653589793 / 2;
+    const full = 2 * 3.141592653589793;
+
+    canvas.drawArc(rect, 0, full, false, pen(track));
+    canvas.drawArc(rect, start + full * share, full * (1 - share), false, pen(wallet));
+    if (share > 0) canvas.drawArc(rect, start, full * share, false, pen(out)..strokeCap = StrokeCap.round);
+  }
+
+  @override
+  bool shouldRepaint(_RingPainter old) => old.share != share || old.out != out || old.wallet != wallet || old.track != track;
 }

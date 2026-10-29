@@ -179,6 +179,23 @@ final class DashboardMetrics
     }
 
     /**
+     * The totals under the customer list: what this month's instalments come to, what is still owed and what of it is
+     * late. The same definitions as the dashboard, so the two never disagree.
+     *
+     * @return array{due_this_month: string, outstanding: string, overdue: string}
+     */
+    public function customerTotals(Tenant $tenant, ?CarbonInterface $now = null): array
+    {
+        $now ??= now();
+
+        return $this->current->use($tenant, fn () => [
+            'due_this_month' => $this->expectedInMonth($now),
+            'outstanding' => $this->outstanding(),
+            'overdue' => $this->overdue($now),
+        ]);
+    }
+
+    /**
      * What an app needs to start the day well, beyond the headline figures: who is late (oldest first) and who is
      * about to be, how this month compares with last, and the last two weeks of takings for a small chart.
      *

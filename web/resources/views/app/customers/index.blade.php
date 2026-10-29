@@ -1,6 +1,7 @@
 @php
     use App\Entitlements\Feature;
     use App\Support\Format;
+    use App\Support\Money;
 
     $sorts = ['name' => __('Name'), 'balance' => __('What they owe'), 'next_due' => __('Next due date'), 'activity' => __('Last activity')];
     // The list as it is now, so a filter keeps the others.
@@ -55,6 +56,16 @@
         @endif
     @endif
 
+    @if ($totals !== null)
+        {{-- The book at a glance: always the whole of it, whatever the search or tag narrows the list to. --}}
+        <dl class="card book-totals" aria-label="{{ __('All your customers at a glance') }}">
+            <div data-total="customers"><dt>{{ __('Customers') }}</dt><dd class="money">{{ $total }}</dd></div>
+            <div data-total="due-this-month"><dt>{{ __('Instalments this month') }}</dt><dd class="money">{{ Format::money($totals['due_this_month'], $currency) }}</dd></div>
+            <div data-total="outstanding"><dt>{{ __('Still owed') }}</dt><dd class="money">{{ Format::money($totals['outstanding'], $currency) }}</dd></div>
+            <div data-total="overdue" {!! Money::isPositive($totals['overdue']) ? 'data-tone="danger"' : '' !!}><dt>{{ __('Late') }}</dt><dd class="money">{{ Format::money($totals['overdue'], $currency) }}</dd></div>
+        </dl>
+    @endif
+
     <section class="card">
         @if ($customers->isEmpty())
             <div class="empty">
@@ -80,6 +91,7 @@
                             <th scope="col">{{ __('Phone') }}</th>
                             <th scope="col" class="num">{{ __('Running contracts') }}</th>
                             <th scope="col" class="num">{{ __('Owes') }}</th>
+                            <th scope="col"><span class="sr-only">{{ __('Quick actions') }}</span></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -98,6 +110,19 @@
                                 <td data-label="{{ __('Phone') }}"><span class="money" dir="ltr">{{ $customer->phone }}</span></td>
                                 <td data-label="{{ __('Running contracts') }}" class="num money">{{ $balances[$customer->id]['running'] }}</td>
                                 <td data-label="{{ __('Owes') }}" class="num money">{{ Format::money($balances[$customer->id]['owed'], $currency) }}</td>
+                                <td class="customer-quick">
+                                    {{-- The two things done most from the list, one tap each: reach them, take their money. --}}
+                                    <a class="icon-btn" href="{{ $customer->telUrl() }}" title="{{ __('Call') }}" aria-label="{{ __('Call :name', ['name' => $customer->name]) }}"><x-icon name="smartphone" :size="18" /></a>
+                                    @if ($whatsapp = $customer->whatsappUrl())
+                                        <a class="icon-btn" href="{{ $whatsapp }}" target="_blank" rel="noopener" title="{{ __('WhatsApp') }}" aria-label="{{ __('WhatsApp :name', ['name' => $customer->name]) }}"><x-icon name="message" :size="18" /></a>
+                                    @endif
+                                    @if ($canPay && $balances[$customer->id]['running'] > 0)
+                                        <a class="icon-btn icon-btn-pay" href="{{ route('app.customers.show', [$customer, 'pay' => 'next']) }}#pay" title="{{ __('Record a payment') }}" aria-label="{{ __('Record a payment from :name', ['name' => $customer->name]) }}"><x-icon name="wallet" :size="18" /></a>
+                                    @elseif ($canPay)
+                                        {{-- Keeps the buttons in their columns down the list. --}}
+                                        <span class="icon-btn icon-btn-spacer" aria-hidden="true"></span>
+                                    @endif
+                                </td>
                             </tr>
                         @endforeach
                     </tbody>

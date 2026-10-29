@@ -5,7 +5,7 @@
     use App\Support\Money;
 
     $full = ! $entitlement->unlimited() && $entitlement->remaining() === 0;
-    $onlyMain = $investors->count() === 1;
+    $onlyMain = $count === 1;
 @endphp
 <x-layouts.app :title="__('Investors')" section="investors">
     <x-page-head :title="__('Investors')" :subtitle="__('Who funds your contracts, and what each one has earned as customers pay.')">
@@ -17,6 +17,28 @@
             @endif
         @endcan
     </x-page-head>
+
+    @if ($count > 1)
+        <div class="list-tools">
+            <form class="search" method="GET" action="{{ route('app.investors.index') }}" role="search">
+                <label class="sr-only" for="q">{{ __('Search investors') }}</label>
+                <x-icon name="search" :size="20" />
+                <input id="q" type="search" name="q" value="{{ $term }}" placeholder="{{ __('Search by name or commercial registration') }}" autocomplete="off" enterkeyhint="search">
+                @if ($term !== '')<a class="btn btn-ghost btn-sm" href="{{ route('app.investors.index') }}">{{ __('Clear') }}</a>@endif
+            </form>
+        </div>
+    @endif
+
+    @if ($investors->isEmpty())
+        <section class="card">
+            <div class="empty">
+                <span class="empty-icon"><x-icon name="search" :size="24" /></span>
+                <h3>{{ __('No investors match “:term”', ['term' => $term]) }}</h3>
+                <p>{{ __('Check the spelling, or try part of their commercial registration.') }}</p>
+                <a class="btn btn-quiet" href="{{ route('app.investors.index') }}">{{ __('Clear search') }}</a>
+            </div>
+        </section>
+    @endif
 
     <div class="investor-grid">
         @foreach ($investors as ['model' => $investor, 'summary' => $summary])
@@ -56,7 +78,7 @@
             </a>
         @endforeach
 
-        @if ($onlyMain)
+        @if ($onlyMain && $term === '')
             @can('create', Investor::class)
                 <section class="card card-pad investor-invite">
                     <span class="empty-icon"><x-icon name="users" :size="22" /></span>

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Domain\Investors\MainInvestor;
+use App\Support\Digits;
 use App\Tenancy\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -60,5 +62,25 @@ class Investor extends Model
     public function isArchived(): bool
     {
         return $this->archived_at !== null;
+    }
+
+    /**
+     * Whether a search finds this investor: part of the name as the list shows it ("Own capital" in the reader's
+     * language for the business), the name as stored, or the commercial registration, whatever the case or digits.
+     */
+    public function matches(string $term): bool
+    {
+        $term = mb_strtolower(trim(Digits::toAscii($term)));
+        if ($term === '') {
+            return true;
+        }
+
+        foreach ([MainInvestor::displayName($this), $this->name, (string) $this->commercial_registration] as $text) {
+            if (str_contains(mb_strtolower(Digits::toAscii($text)), $term)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

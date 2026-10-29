@@ -8,6 +8,7 @@ import '../../core/api/api_exception.dart';
 import '../../core/design/luxe.dart';
 import '../../core/design/tokens.dart';
 import '../../core/design/widgets.dart';
+import '../../core/l10n/formats.dart';
 import '../../core/l10n/translations.dart';
 import '../../core/ui/errors.dart';
 import '../../data/investors.dart';
@@ -45,8 +46,29 @@ String entryLabel(BuildContext context, InvestorEntry entry) => switch (entry.ty
     };
 
 /// Win Plan PP3: who funds the business, each with the money in their wallet and what they have earned as customers pay.
-class InvestorsScreen extends ConsumerWidget {
+/// Whether a search finds an investor: part of the name or the commercial registration, whatever the case or digits.
+bool investorMatches(Investor investor, String query) {
+  final term = westernDigits(query.trim()).toLowerCase();
+  if (term.isEmpty) return true;
+
+  return [investor.name, investor.commercialRegistration ?? ''].any((text) => westernDigits(text).toLowerCase().contains(term));
+}
+
+class InvestorsScreen extends ConsumerStatefulWidget {
   const InvestorsScreen({super.key});
+
+  @override
+  ConsumerState<InvestorsScreen> createState() => _InvestorsScreenState();
+}
+
+class _InvestorsScreenState extends ConsumerState<InvestorsScreen> {
+  final _search = TextEditingController();
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
 
   Future<void> _add(BuildContext context, InvestorsPage page) async {
     if (page.isFull) {
@@ -60,7 +82,7 @@ class InvestorsScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final page = ref.watch(investorsProvider);
 
     return SectionScaffold(
@@ -73,22 +95,54 @@ class InvestorsScreen extends ConsumerWidget {
       body: page.when(
         loading: () => const Padding(padding: EdgeInsets.all(16), child: QSkeletonList(rows: 3)),
         error: (error, _) => QErrorView(message: errorMessage(context, error), retryLabel: context.t('Try again'), onRetry: () => ref.invalidate(investorsProvider)),
-        data: (page) => RefreshIndicator(
-          onRefresh: () => ref.refresh(investorsProvider.future),
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
-            children: [
-              Text(context.t('Who funds your contracts, and what each one has earned as customers pay.'), style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: context.qc.inkMuted)),
-              const SizedBox(height: 16),
-              for (final (index, investor) in page.investors.indexed)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Reveal(order: index, child: _InvestorCard(investor: investor)),
-                ),
-              if (page.investors.length == 1 && page.canManage) _PartnersInvite(onAdd: () => _add(context, page)),
-            ],
-          ),
-        ),
+        data: (page) {
+          final query = _search.text;
+          final shown = [for (final investor in page.investors) if (investorMatches(investor, query)) investor];
+
+          return RefreshIndicator(
+            onRefresh: () => ref.refresh(investorsProvider.future),
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
+              children: [
+                Text(context.t('Who funds your contracts, and what each one has earned as customers pay.'), style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: context.qc.inkMuted)),
+                const SizedBox(height: 16),
+                // Nothing to look for with the business's own capital alone.
+                if (page.investors.length > 1) ...[
+                  TextField(
+                    key: const ValueKey('investor-search'),
+                    controller: _search,
+                    onChanged: (_) => setState(() {}),
+                    textInputAction: TextInputAction.search,
+                    decoration: InputDecoration(
+                      hintText: context.t('Search by name or commercial registration'),
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: query.isEmpty
+                          ? null
+                          : IconButton(
+                              tooltip: context.t('Clear'),
+                              icon: const Icon(Icons.close),
+                              onPressed: () => setState(_search.clear),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                if (shown.isEmpty)
+                  QEmpty(
+                    icon: Icons.search_off,
+                    title: context.t('No investors match “:term”', {'term': query.trim()}),
+                    message: context.t('Check the spelling, or try part of their commercial registration.'),
+                  ),
+                for (final (index, investor) in shown.indexed)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Reveal(order: index, child: _InvestorCard(investor: investor)),
+                  ),
+                if (page.investors.length == 1 && page.canManage) _PartnersInvite(onAdd: () => _add(context, page)),
+              ],
+            ),
+          );
+        },
       ),
     );
   }

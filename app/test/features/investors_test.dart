@@ -17,6 +17,12 @@ Future<void> openInvestors(WidgetTester tester) async {
   await settle(tester);
 }
 
+/// Scrolls the investor's page until [target] is on screen.
+Future<void> scrollTo(WidgetTester tester, Finder target) async {
+  await tester.dragUntilVisible(target, find.byType(ListView).last, const Offset(0, -250));
+  await settle(tester);
+}
+
 void main() {
   testWidgets('lists each investor with the money in their wallet and what they have earned', (tester) async {
     await pumpApp(tester, workspaceServer(account: accountWithInvestors(), routes: {'GET /investors': always(json(200, {'data': investorsJson()}))}));
@@ -42,9 +48,13 @@ void main() {
     await openInvestors(tester);
     await tapText(tester, 'Own capital');
 
+    expect(find.text('Where the money is'), findsOneWidget);
     expect(find.text('Profit, month by month'), findsOneWidget);
+    // The contracts and the money lines sit further down the page.
+    await scrollTo(tester, find.text('Contracts they fund'));
     expect(find.text('C-0007'), findsWidgets);
     expect(find.text('Ahmad Salem'), findsOneWidget);
+    await scrollTo(tester, find.text('Profit from a payment'));
     expect(find.text('Opening cash'), findsOneWidget);
     expect(find.text('Profit from a payment'), findsOneWidget);
   });
@@ -80,6 +90,7 @@ void main() {
     await openInvestors(tester);
     await tapText(tester, 'Own capital');
 
+    await scrollTo(tester, find.text('Opening cash'));
     await tapText(tester, 'Opening cash');
     expect(server.calls('POST /investor-entries/e1/reverse'), 0);
     await tapText(tester, 'Reverse this entry', last: true);
