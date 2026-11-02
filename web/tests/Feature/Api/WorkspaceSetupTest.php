@@ -55,17 +55,18 @@ function workspaceSetupWithContract(Tenant $tenant): void
 }
 
 /**
- * A payment and nothing else: the contract it was taken on is removed underneath it, the way a hard delete by hand or
- * by an old clean-up could leave it. The lock is about money, so a transaction alone must hold it.
+ * A payment and nothing else: the contract it was taken on now belongs to another workspace, the way a contract moved
+ * by hand or by an old clean-up could leave the money behind. The lock is about money, so a transaction alone must hold
+ * it. A plain UPDATE of the contract's workspace (the ledger's foreign keys are simple, with no composite key and no
+ * trigger on them), so it behaves the same on SQLite and on PostgreSQL.
  */
 function workspaceSetupOnlyATransaction(Tenant $tenant, User $by): void
 {
     $contract = openContract($tenant);
     app(RecordPayment::class)->handle($contract, '50.00', 'cash', by: $by);
 
-    // Deferred until the end of the test's own transaction, which is rolled back and never checked.
-    DB::statement('PRAGMA defer_foreign_keys = ON');
-    DB::table('contracts')->where('tenant_id', $tenant->id)->delete();
+    $elsewhere = Tenant::factory()->create();
+    DB::table('contracts')->where('id', $contract->id)->update(['tenant_id' => $elsewhere->id]);
 
     expect(DB::table('contracts')->where('tenant_id', $tenant->id)->count())->toBe(0)
         ->and(DB::table('transactions')->where('tenant_id', $tenant->id)->count())->toBe(1);
@@ -120,13 +121,38 @@ describe('the owner confirms', function () {
         expect(workspaceSetupAudits($tenant)->sole()->changes)->toBe(['name' => 'Al-Fares Electronics', 'country' => 'QA', 'currency' => 'QAR', 'timezone' => 'Asia/Qatar']);
     });
 
-    it('lets an already confirmed workspace be renamed without losing the day it was confirmed', function () {
+    it('lets a confirmed workspace be renamed without losing the day it was confirmed, and records each save', function () {
+        [, $tenant] = workspaceSetupOwner(['name' => 'Business of Layla']);
+        $this->travelTo('2026-11-02 09:30:00');
+        workspaceSetupSend(['name' => 'Al-Fares Electronics'])->assertOk();
+
+        $this->travelTo('2026-11-05 14:00:00');
+        workspaceSetupSend(['name' => 'Al-Fares Trading'])->assertOk()->assertJsonPath('data.tenant.name', 'Al-Fares Trading');
+
+        expect($tenant->fresh()->name)->toBe('Al-Fares Trading')
+            ->and($tenant->fresh()->setup_confirmed_at->format('Y-m-d H:i:s'))->toBe('2026-11-02 09:30:00');
+        $audits = workspaceSetupAudits($tenant)->sortBy('created_at')->values();
+        expect($audits)->toHaveCount(2)
+            ->and($audits[0]->changes['name'])->toBe('Al-Fares Electronics')
+            ->and($audits[1]->changes)->toBe(['name' => 'Al-Fares Trading', 'country' => 'SA', 'currency' => 'SAR', 'timezone' => 'Asia/Riyadh']);
+    });
+
+    it('renames a workspace that was confirmed long before the card existed', function () {
         [, $tenant] = apiOwner(['name' => 'Old Name', 'setup_confirmed_at' => '2026-03-04 09:15:00']);
 
         workspaceSetupSend(['name' => 'New Name'])->assertOk();
 
         expect($tenant->fresh()->name)->toBe('New Name')
             ->and($tenant->fresh()->setup_confirmed_at->format('Y-m-d H:i:s'))->toBe('2026-03-04 09:15:00');
+    });
+
+    it('keeps a name that looks like markup as the text it is', function () {
+        [, $tenant] = workspaceSetupOwner();
+
+        workspaceSetupSend(['name' => '<b>x</b>'])->assertOk()->assertJsonPath('data.tenant.name', '<b>x</b>');
+
+        expect($tenant->fresh()->name)->toBe('<b>x</b>')
+            ->and(workspaceSetupAudits($tenant)->sole()->changes['name'])->toBe('<b>x</b>');
     });
 
     it('takes nothing but the name and the place from the request', function () {
@@ -169,10 +195,20 @@ describe('the place changes while no contract or transaction exists', function (
     })->with([
         'a zone from the table' => ['QA', null, 'QAR', 'Asia/Qatar'],
         'lower case' => ['ae', null, 'AED', 'Asia/Dubai'],
-        'the zone sent' => ['US', 'America/Chicago', 'USD', 'America/Chicago'],
+        'a different zone sent' => ['US', 'America/Chicago', 'USD', 'America/Chicago'],
+        'the old zone resent' => ['US', 'Asia/Riyadh', 'USD', 'America/New_York'],
         'a euro country' => ['FR', null, 'EUR', 'Europe/Paris'],
         'a country with a zone of its own' => ['AE', 'Asia/Muscat', 'AED', 'Asia/Muscat'],
     ]);
+
+    it('does not keep the old zone for a new country when the screen resends it, even one the workspace only inherits from its country', function () {
+        [, $tenant] = workspaceSetupOwner(['timezone' => null]);
+
+        workspaceSetupSend(['name' => 'Al-Fares Electronics', 'country' => 'AE', 'timezone' => 'Asia/Riyadh'])->assertOk()
+            ->assertJsonPath('data.tenant.setup.timezone', 'Asia/Dubai');
+
+        expect(workspaceSetupState($tenant))->toMatchArray(['country' => 'AE', 'currency' => 'AED', 'timezone' => 'Asia/Dubai']);
+    });
 
     it('changes only the time zone when the country is the same', function () {
         [, $tenant] = workspaceSetupOwner();

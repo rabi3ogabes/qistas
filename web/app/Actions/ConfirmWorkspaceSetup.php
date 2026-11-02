@@ -51,13 +51,15 @@ final class ConfirmWorkspaceSetup
             ]));
         }
 
-        // What the owner's choice of place changes, worked out before anything is written.
+        // What the owner's choice of place changes, worked out before anything is written. A zone sent that is the one the
+        // workspace already has is not a choice (a screen resends what it was given): with a new country it must not keep
+        // the old country's zone, so only a zone that differs from the current one is honoured.
         $place = [];
         if ($countryChanges) {
             $place = [
                 'country' => $country,
                 'currency' => config("qistas.countries.{$country}", config('qistas.currency_default')),
-                'timezone' => SignupPlace::timezone($country, $zone, null),
+                'timezone' => SignupPlace::timezone($country, $zoneChanges ? $zone : null, null),
                 'country_source' => 'chosen',
             ];
         } elseif ($zoneChanges) {

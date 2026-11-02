@@ -28,6 +28,7 @@ final class WorkspaceSetupRequired extends RuntimeException implements ShouldntR
     public function render(Request $request): JsonResponse|RedirectResponse
     {
         if ($request->is('api/*')) {
+            // ApiErrors answers every API request; the fallback only satisfies its nullable return type.
             return ApiErrors::render(new ApiException(self::CODE, $this->getMessage(), 409), $request)
                 ?? response()->json(['error' => ['code' => self::CODE, 'message' => $this->getMessage()]], 409);
         }
