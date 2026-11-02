@@ -9,6 +9,8 @@ use App\Actions\Fortify\ResetUserPassword;
 use App\Actions\Fortify\UpdateUserPassword;
 use App\Actions\Fortify\UpdateUserProfileInformation;
 use App\Http\Responses\NeutralPasswordResetLinkResponse;
+use App\Http\Responses\RecordsRegistration;
+use App\Http\Responses\RecordsSignIn;
 use App\Http\Responses\RemembersTrustedDevice;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -16,6 +18,8 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Laravel\Fortify\Contracts\FailedPasswordResetLinkRequestResponse;
+use Laravel\Fortify\Contracts\LoginResponse;
+use Laravel\Fortify\Contracts\RegisterResponse;
 use Laravel\Fortify\Contracts\SuccessfulPasswordResetLinkRequestResponse;
 use Laravel\Fortify\Contracts\TwoFactorConfirmedResponse;
 use Laravel\Fortify\Contracts\TwoFactorLoginResponse;
@@ -28,9 +32,13 @@ class FortifyServiceProvider extends ServiceProvider
         // One answer for "known email" and "unknown email" alike: the form must not reveal who has an account.
         $this->app->bind(SuccessfulPasswordResetLinkRequestResponse::class, NeutralPasswordResetLinkResponse::class);
         $this->app->bind(FailedPasswordResetLinkRequestResponse::class, NeutralPasswordResetLinkResponse::class);
-        // A correct code can also remember the browser ("Don't ask again on this device").
+        // A correct code can also remember the browser ("Don't ask again on this device"), and completes a sign-in.
         $this->app->bind(TwoFactorLoginResponse::class, RemembersTrustedDevice::class);
         $this->app->bind(TwoFactorConfirmedResponse::class, RemembersTrustedDevice::class);
+        // One sign-in record per real sign-in and sign-up (App\Auth\SignInLog): written from these answers, not from
+        // Laravel's login event, which also fires when a remember-me cookie restores a session.
+        $this->app->bind(LoginResponse::class, RecordsSignIn::class);
+        $this->app->bind(RegisterResponse::class, RecordsRegistration::class);
     }
 
     public function boot(): void

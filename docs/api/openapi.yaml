@@ -207,6 +207,10 @@ paths:
         Wrong e-mail and wrong password are indistinguishable (`invalid_credentials`). An account with two-factor
         authentication answers `two_factor_required` (422) until a `code` from the authenticator app, or a
         `recovery_code`, is sent along. Five failed attempts per minute for one e-mail and address are allowed.
+
+        Each completed sign-in (and each sign-up) is added to the person's sign-in history with the device the app
+        reports (`device`, `timezone`, `utc_offset`); so is a wrong password for an existing account, at most once a
+        minute per address. None of this changes the answer.
       security: []
       requestBody:
         required: true
@@ -3128,6 +3132,7 @@ components:
         terms: {type: boolean, const: true}
         locale: {type: string, enum: [en, ar, fr, es, ur]}
         device_name: {type: string, maxLength: 100, example: Pixel 9}
+        device: {$ref: "#/components/schemas/DeviceHint"}
     LoginRequest:
       type: object
       required: [email, password]
@@ -3137,6 +3142,19 @@ components:
         device_name: {type: string, maxLength: 100}
         code: {type: string, description: The 6-digit code from the authenticator app.}
         recovery_code: {type: string}
+        device: {$ref: "#/components/schemas/DeviceHint"}
+        timezone: {type: string, maxLength: 64, example: Asia/Riyadh, description: "Optional IANA zone name of the device, for the sign-in record's proxy check. Anything that is not text is ignored, never an error."}
+        utc_offset: {type: integer, minimum: -840, maximum: 840, example: 180, description: "Optional. The device's offset from UTC in minutes, east positive; read when no `timezone` is sent. Anything that is not a whole number is ignored, never an error."}
+    DeviceHint:
+      type: object
+      description: |
+        What the phone app reports about itself at sign-in and sign-up, kept in the person's sign-in history as reported
+        (it decides nothing). Every field is optional, and a value of the wrong type is ignored, never an error.
+      properties:
+        type: {type: string, enum: [mobile, tablet], description: "The device class; used instead of the user agent's guess. Any other value is ignored."}
+        os: {type: string, maxLength: 64, example: android}
+        model: {type: string, maxLength: 100, example: SM-X200}
+        app_version: {type: string, maxLength: 16, example: 1.29.0}
     Session:
       type: object
       properties:
