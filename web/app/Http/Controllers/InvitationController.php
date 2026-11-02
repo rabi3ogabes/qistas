@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\Fortify\PasswordValidationRules;
 use App\Actions\Team\AcceptInvitation;
+use App\Auth\SignInLog;
 use App\Http\ApiException;
 use App\Models\User;
 use App\Support\Audit;
@@ -43,7 +44,7 @@ final class InvitationController
         return redirect()->route('app.dashboard')->with('status', __('Welcome to :name.', ['name' => $tenant->name]));
     }
 
-    public function register(Request $request, string $token, AcceptInvitation $accept): RedirectResponse
+    public function register(Request $request, string $token, AcceptInvitation $accept, SignInLog $signIns): RedirectResponse
     {
         abort_if(AcceptInvitation::find($token) === null, 410);
 
@@ -72,6 +73,8 @@ final class InvitationController
         event(new Registered($user));
         Auth::login($user);
         $request->session()->regenerate();
+        // A sign-up, and the new person is signed in: one line of their sign-in history (written after the answer).
+        $signIns->success($user, $request);
 
         return redirect()->route('app.dashboard');
     }

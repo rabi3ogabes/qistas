@@ -23,8 +23,10 @@
                     <p class="field-hint">{{ __('You keep any business you already belong to.') }}</p>
                 @else
                     <h2>{{ __('New to Qistas? Make your login') }}</h2>
-                    <form method="post" action="{{ route('invitation.register', ['token' => $token]) }}" class="form" novalidate>
+                    <form method="post" action="{{ route('invitation.register', ['token' => $token]) }}" class="form" data-timezone novalidate>
                         @csrf
+                        {{-- Filled by resources/js/timezone.js with the browser's own zone (read when the sign-up is recorded). --}}
+                        <input type="hidden" name="timezone" value="">
                         <x-field name="name" :label="__('Your name')" autocomplete="name" required />
                         <x-field name="email" type="email" :label="__('Email')" autocomplete="email" required />
                         <x-field name="password" type="password" :label="__('Password')" autocomplete="new-password" required />

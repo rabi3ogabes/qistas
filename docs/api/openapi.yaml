@@ -182,6 +182,9 @@ paths:
     post:
       tags: [Account]
       summary: Open a free account and sign in on this device
+      description: |
+        Each sign-up is added to the person's sign-in history like a sign-in, with the device the app reports
+        (`device`, `timezone`, `utc_offset`). That does not change the answer.
       security: []
       requestBody:
         required: true

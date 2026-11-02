@@ -1,6 +1,8 @@
 <x-layouts.auth :title="__('Two-factor authentication')" :heading="__('Confirm it is you')" :lead="__('Enter the 6-digit code from your authenticator app.')">
-    <form method="POST" action="{{ route('two-factor.login.store') }}" class="form" novalidate>
+    <form method="POST" action="{{ route('two-factor.login.store') }}" class="form" data-timezone novalidate>
         @csrf
+        {{-- Filled by resources/js/timezone.js with the browser's own zone (read when the sign-in is recorded). --}}
+        <input type="hidden" name="timezone" value="">
         <x-field name="code" :label="__('Authentication code')" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" required autofocus />
         @include('auth._remember-device')
         <x-button>{{ __('Continue') }}</x-button>
@@ -8,8 +10,9 @@
 
     <details class="auth-alt" @if ($errors->has('recovery_code')) open @endif>
         <summary>{{ __('Lost your phone? Use a recovery code') }}</summary>
-        <form method="POST" action="{{ route('two-factor.login.store') }}" class="form" novalidate>
+        <form method="POST" action="{{ route('two-factor.login.store') }}" class="form" data-timezone novalidate>
             @csrf
+            <input type="hidden" name="timezone" value="">
             <x-field name="recovery_code" :label="__('Recovery code')" autocomplete="off" autocapitalize="none" spellcheck="false" required />
             @include('auth._remember-device')
             <x-button variant="quiet">{{ __('Use recovery code') }}</x-button>

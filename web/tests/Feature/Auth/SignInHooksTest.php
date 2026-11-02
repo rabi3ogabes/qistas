@@ -1,22 +1,35 @@
 <?php
 
+use App\Actions\Auth\AuthenticateUser;
+use App\Actions\Team\InviteMember;
 use App\Auth\SignInRecorder;
 use App\Auth\TrustedDevice;
+use App\Entitlements\Feature;
 use App\Models\AuditLog;
+use App\Models\Plan;
 use App\Models\SignInEvent;
 use App\Models\User;
+use Illuminate\Contracts\Hashing\Hasher;
 use Illuminate\Database\QueryException;
+use Illuminate\Foundation\Http\Events\RequestHandled;
+use Illuminate\Hashing\HashManager;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Exceptions;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Testing\TestResponse;
 use PragmaRX\Google2FA\Google2FA;
 
 /*
 | The moments a sign-in record is written (plan deviation D4): one `success` per real sign-in or sign-up, on the website
-| and in the phone app's API; none when a remember-me cookie brings a person back, none per request; one `failed` for a
-| wrong password on an account that exists, at most once a minute per address. What a row holds is tested in
-| SignInRecorderTest; this file tests when one is written, and that a record that cannot be written locks nobody out.
+| (the sign-up form and an invitation link) and in the phone app's API; none when a remember-me cookie brings a person
+| back, none per request; one `failed` for a wrong password on an account that exists, at most once a minute per address.
+| Every row is written after the answer is ready, so a known and an unknown e-mail cost the same before the answer. What
+| a row holds is tested in SignInRecorderTest; this file tests when one is written, and that a record that cannot be
+| written locks nobody out.
 */
 
 const SIGN_IN_HOOKS_IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
@@ -86,6 +99,99 @@ function signInHooksRows(): array
     return SignInEvent::query()->orderBy('created_at')->get()
         ->map(fn (SignInEvent $row) => "{$row->outcome}/{$row->channel}/{$row->method}")
         ->all();
+}
+
+/** The path of an invitation link into a Pro business, made by its owner (the Members feature on, as the admin does). */
+function signInHooksInvitationPath(): string
+{
+    switchOn(Feature::Members);
+    [$owner, $tenant] = owner(['name' => 'Al-Fares Electronics']);
+    $tenant->subscribeTo(Plan::where('key', 'pro')->sole());
+
+    return (string) parse_url(app(InviteMember::class)->handle($tenant, $owner, 'collector')['url'], PHP_URL_PATH);
+}
+
+/** @return array<string, mixed> the invitation page's sign-up form */
+function signInHooksInvitationSignUp(): array
+{
+    return [
+        'name' => 'Omar Khalil', 'email' => 'omar@example.com', 'password' => TEST_PASSWORD,
+        'password_confirmation' => TEST_PASSWORD, 'terms' => '1', 'timezone' => 'Europe/Paris',
+    ];
+}
+
+/**
+ * The forms of a page that post to $action, each as its HTML.
+ *
+ * @return list<string>
+ */
+function signInHooksFormsPostingTo(string $html, string $action): array
+{
+    preg_match_all('#<form\b[^>]*>.*?</form>#s', $html, $forms);
+
+    return array_values(array_filter($forms[0], fn (string $form) => str_contains($form, 'action="'.$action.'"')));
+}
+
+/**
+ * A PHP process starting afresh, as each request does under FPM and FrankenPHP's classic mode: every static of the
+ * password check is back to its default (nothing it remembered in memory survives).
+ */
+function signInHooksNewProcess(): void
+{
+    foreach ((new ReflectionClass(AuthenticateUser::class))->getProperties(ReflectionProperty::IS_STATIC) as $property) {
+        $property->setValue(null, $property->getDefaultValue());
+    }
+}
+
+/**
+ * The real hasher behind a counter of what is asked of it: hashes made and hashes checked.
+ *
+ * @return object{made: int, checked: int}
+ */
+function signInHooksCountingHasher(): object
+{
+    $counting = new class(app('hash')) implements Hasher
+    {
+        public int $made = 0;
+
+        public int $checked = 0;
+
+        public function __construct(private readonly HashManager $hashes) {}
+
+        public function info($hashedValue)
+        {
+            return $this->hashes->info($hashedValue);
+        }
+
+        public function make($value, array $options = [])
+        {
+            $this->made++;
+
+            return $this->hashes->make($value, $options);
+        }
+
+        public function check($value, $hashedValue, array $options = [])
+        {
+            $this->checked++;
+
+            return $this->hashes->check($value, $hashedValue, $options);
+        }
+
+        public function needsRehash($hashedValue, array $options = [])
+        {
+            return $this->hashes->needsRehash($hashedValue, $options);
+        }
+
+        /** @param  array<int, mixed>  $parameters */
+        public function __call(string $method, array $parameters): mixed
+        {
+            return $this->hashes->{$method}(...$parameters);
+        }
+    };
+
+    Hash::swap($counting);
+
+    return $counting;
 }
 
 /** How often the broken recorder's problem was reported (other reports, such as a refused sign-in's, do not count). */
@@ -223,6 +329,30 @@ describe('two-step sign-in on the website', function () {
         expect($user->fresh()->hasConfirmedTwoFactor())->toBeTrue()
             ->and(signInHooksRows())->toBe([]);
     });
+
+    it('reads the time zone the code page posts, so a two-step sign-in can show a mismatch too', function () {
+        [$user, $secret] = signInHooksTwoFactorOwner();
+        signInHooksWebLogin($user);
+
+        $this->post('/two-factor-challenge', ['code' => app(Google2FA::class)->getCurrentOtp($secret), 'timezone' => 'Europe/Paris'])
+            ->assertRedirect(config('fortify.home'));
+
+        expect(SignInEvent::query()->sole()->only(['proxy', 'proxy_signals']))
+            ->toBe(['proxy' => 'possible', 'proxy_signals' => ['timezone_country_mismatch']]);
+    });
+
+    it('has the hidden time zone field in both forms of the code page, the code and the recovery code', function () {
+        [$user] = signInHooksTwoFactorOwner();
+        signInHooksWebLogin($user);
+
+        $forms = signInHooksFormsPostingTo($this->get(route('two-factor.login'))->assertOk()->getContent(), route('two-factor.login.store'));
+
+        expect($forms)->toHaveCount(2)
+            ->and(str_contains($forms[0], 'name="code"') && str_contains($forms[1], 'name="recovery_code"'))->toBeTrue();
+        foreach ($forms as $form) {
+            expect($form)->toMatch('/\A<form\b[^>]*\sdata-timezone[\s>]/')->toContain('<input type="hidden" name="timezone" value="">');
+        }
+    });
 });
 
 describe('signing up on the website', function () {
@@ -234,6 +364,31 @@ describe('signing up on the website', function () {
         expect(signInHooksRows())->toBe(['success/web/password'])
             ->and(SignInEvent::query()->sole()->only(['user_id', 'device_type', 'ip', 'proxy']))
             ->toBe(['user_id' => $user->id, 'device_type' => 'mobile', 'ip' => SIGN_IN_HOOKS_IP, 'proxy' => 'not_detected']);
+    });
+});
+
+describe('signing up through an invitation link', function () {
+    it('writes one success, with the time zone the page posts', function () {
+        $path = signInHooksInvitationPath();
+
+        $this->post($path.'/register', signInHooksInvitationSignUp())->assertRedirect('/app');
+
+        $omar = User::where('email', 'omar@example.com')->sole();
+        $this->assertAuthenticatedAs($omar);
+        expect(signInHooksRows())->toBe(['success/web/password'])
+            ->and(SignInEvent::query()->sole()->only(['user_id', 'device_type', 'ip', 'proxy', 'proxy_signals']))->toBe([
+                'user_id' => $omar->id, 'device_type' => 'mobile', 'ip' => SIGN_IN_HOOKS_IP,
+                'proxy' => 'possible', 'proxy_signals' => ['timezone_country_mismatch'],
+            ]);
+    });
+
+    it('has the hidden time zone field in its sign-up form', function () {
+        $path = signInHooksInvitationPath();
+
+        $forms = signInHooksFormsPostingTo($this->get($path)->assertOk()->getContent(), url($path.'/register'));
+
+        expect($forms)->toHaveCount(1)
+            ->and($forms[0])->toMatch('/\A<form\b[^>]*\sdata-timezone[\s>]/')->toContain('<input type="hidden" name="timezone" value="">');
     });
 });
 
@@ -356,6 +511,87 @@ describe('the phone app', function () {
     });
 });
 
+describe('what the answer costs', function () {
+    it('writes the record only once the answer is ready, even when the answer is an error', function (string $channel, bool $wrong) {
+        [$user] = makeAccount();
+        $rowsWhenAnswered = null;
+        Event::listen(RequestHandled::class, function () use (&$rowsWhenAnswered) {
+            $rowsWhenAnswered = SignInEvent::query()->count();
+        });
+
+        $password = $wrong ? SIGN_IN_HOOKS_WRONG : TEST_PASSWORD;
+        $channel === 'web' ? signInHooksWebLogin($user, $password) : signInHooksAppLogin($user->email, $password);
+
+        expect($rowsWhenAnswered)->toBe(0)
+            ->and(signInHooksRows())->toBe([($wrong ? 'failed' : 'success')."/{$channel}/password"]);
+    })->with([
+        'a sign-in on the website' => ['web', false],
+        'a wrong password on the website' => ['web', true],
+        'a sign-in in the app' => ['app', false],
+        'a wrong password in the app, answered 401' => ['app', true],
+    ]);
+
+    it('checks an unknown e-mail against a decoy made once, not per request: one hash check, as for a wrong password', function () {
+        [$user] = makeAccount();
+        $hasher = signInHooksCountingHasher();
+
+        /** @return array{0: int, 1: int} the hashes made and checked by one sign-in, in a process of its own */
+        $attempt = function (string $email) use ($hasher): array {
+            signInHooksNewProcess();
+            $hasher->made = $hasher->checked = 0;
+            $this->post('/login', ['email' => $email, 'password' => SIGN_IN_HOOKS_WRONG, 'timezone' => 'Asia/Riyadh'])
+                ->assertSessionHasErrors(['email' => __('auth.failed')]);
+
+            return [$hasher->made, $hasher->checked];
+        };
+
+        $attempt('nobody@example.com'); // the very first one makes the decoy
+
+        expect($attempt('nobody@example.com'))->toBe([0, 1])
+            ->and($attempt('someone.else@example.com'))->toBe([0, 1])
+            ->and($attempt($user->email))->toBe([0, 1]);
+    });
+
+    it('makes the decoy with the configured cost, and a new one when the cost changes', function () {
+        $rounds = (int) config('hashing.bcrypt.rounds');
+        $unknown = fn () => app(AuthenticateUser::class)(Request::create('/login', 'POST', ['email' => 'nobody@example.com', 'password' => SIGN_IN_HOOKS_WRONG]));
+
+        signInHooksNewProcess();
+        $unknown();
+        $first = (string) Cache::get("auth.decoy-hash:bcrypt:{$rounds}");
+
+        config(['hashing.bcrypt.rounds' => $rounds + 1]);
+        Hash::forgetDrivers();
+        signInHooksNewProcess();
+        $unknown();
+        $second = (string) Cache::get('auth.decoy-hash:bcrypt:'.($rounds + 1));
+
+        expect(config('hashing.driver'))->toBe('bcrypt')
+            ->and($rounds)->toBeGreaterThan(3)
+            ->and(password_get_info($first)['options']['cost'] ?? null)->toBe($rounds)
+            ->and(password_get_info($second)['options']['cost'] ?? null)->toBe($rounds + 1);
+    });
+
+    it('still answers an unknown e-mail when the cache cannot keep the decoy: it makes one on the spot', function () {
+        signInHooksNewProcess();
+        Exceptions::fake();
+        Cache::shouldReceive('rememberForever')->andThrow(new RuntimeException('The cache is down.'));
+
+        $user = app(AuthenticateUser::class)(Request::create('/login', 'POST', ['email' => 'nobody@example.com', 'password' => SIGN_IN_HOOKS_WRONG]));
+
+        expect($user)->toBeNull();
+        Exceptions::assertReported(fn (RuntimeException $e) => $e->getMessage() === 'The cache is down.');
+    });
+
+    it('never checks against a cached decoy that is no password hash: one is made on the spot', function () {
+        signInHooksNewProcess();
+        Cache::forever('auth.decoy-hash:bcrypt:'.(int) config('hashing.bcrypt.rounds'), 'damaged entry');
+
+        $this->post('/login', ['email' => 'nobody@example.com', 'password' => SIGN_IN_HOOKS_WRONG])
+            ->assertSessionHasErrors(['email' => __('auth.failed')]);
+    });
+});
+
 describe('a record that cannot be written', function () {
     beforeEach(function () {
         Exceptions::fake();
@@ -386,6 +622,15 @@ describe('a record that cannot be written', function () {
         $this->post('/register', signInHooksWebSignUp())->assertRedirect(config('fortify.home'));
 
         $this->assertAuthenticatedAs(User::where('email', 'layla@example.com')->sole());
+        expect(signInHooksStoreDownReports())->toBe(1);
+    });
+
+    it('never stops a sign-up through an invitation link', function () {
+        $path = signInHooksInvitationPath();
+
+        $this->post($path.'/register', signInHooksInvitationSignUp())->assertRedirect('/app');
+
+        $this->assertAuthenticatedAs(User::where('email', 'omar@example.com')->sole());
         expect(signInHooksStoreDownReports())->toBe(1);
     });
 
