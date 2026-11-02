@@ -65,7 +65,7 @@ Route::name('api.')->group(function (): void {
         Route::post('auth/logout-all', [AuthController::class, 'logoutAll'])->name('auth.logout-all');
 
         Route::get('me', MeController::class)->name('me');
-        // The person's own recent sign-ins (go-live basics): the last 20, newest first, never anyone else's.
+        // The person's own recent sign-ins (go-live basics): up to 20, newest first, at most 5 of them wrong passwords, never anyone else's.
         Route::get('account/sign-ins', SignInsController::class)->name('account.sign-ins');
         // Your profile: details, password and photo.
         Route::put('me', [ProfileController::class, 'update'])->middleware('throttle:20,1')->name('me.update');
