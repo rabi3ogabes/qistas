@@ -6,7 +6,6 @@ use App\Http\Controllers\Admin\AppearanceEventController;
 use App\Http\Controllers\Admin\BillingController;
 use App\Http\Controllers\Admin\BusinessController;
 use App\Http\Controllers\Admin\CardSettingsController;
-use App\Http\Controllers\Admin\DemoAccountsController;
 use App\Http\Controllers\Admin\FeaturesController;
 use App\Http\Controllers\Admin\HomeController;
 use App\Http\Controllers\Admin\MailController;
@@ -27,8 +26,6 @@ Route::prefix('test')->name('test.')->controller(TestWorkspaceController::class)
     Route::post('/leave', 'leave')->name('leave');
     Route::post('/plan', 'plan')->name('plan');
 });
-
-Route::post('/demo/prune', [DemoAccountsController::class, 'prune'])->name('demo.prune');
 
 // Every real business, its owner and plan; a super admin puts one on another plan (with a reason, audited).
 Route::prefix('businesses')->name('businesses.')->controller(BusinessController::class)->group(function () {

@@ -1,12 +1,10 @@
 <?php
 
-use App\Models\AuditLog;
 use App\Models\Customer;
 use App\Models\Plan;
-use App\Models\Tenant;
 use App\Models\User;
 use App\Reports\PlatformOverview;
-use App\Sandbox\DemoAccess;
+use App\Sandbox\SampleBusiness;
 use App\Sandbox\TestWorkspace;
 
 /** Platform staff who has finished the second-factor set-up the admin area asks for. */
@@ -17,6 +15,17 @@ function overviewAdmin(): User
         'two_factor_secret' => encrypt('JBSWY3DPEHPK3PXP'),
         'two_factor_confirmed_at' => now(),
     ]);
+}
+
+/** An account the old public demo left behind (until qistas:purge-demo removes it): sample data in a demo workspace. */
+function overviewLeftoverDemo(): User
+{
+    [$user, $tenant] = owner(['is_demo' => true]);
+    $user->forceFill(['demo_expires_at' => now()->addHours(12)])->save();
+    $tenant->forceFill(['owner_user_id' => $user->id])->save();
+    app(SampleBusiness::class)->populate($tenant, $user);
+
+    return $user;
 }
 
 describe('the platform at a glance', function () {
@@ -35,16 +44,14 @@ describe('the platform at a glance', function () {
         owner();
         owner();
         overviewAdmin();
-        config(['qistas.demo_login.enabled' => true]);
-        app(DemoAccess::class)->start('user');
+        overviewLeftoverDemo();
 
         expect(app(PlatformOverview::class)->figures()['people'])->toBe(2);
     });
 
     it('leaves demo workspaces and the admin’s test workspace out of every count', function () {
         owner();
-        config(['qistas.demo_login.enabled' => true]);
-        app(DemoAccess::class)->start('admin');
+        overviewLeftoverDemo();
         app(TestWorkspace::class)->open(overviewAdmin());
 
         $figures = app(PlatformOverview::class)->figures();
@@ -120,15 +127,8 @@ describe('is everything set up?', function () {
         expect(collect(app(PlatformOverview::class)->health())->firstWhere('key', 'environment')['status'])->toBe('ok');
     });
 
-    it('says whether the demo is on, and how full it is', function () {
-        config(['qistas.demo_login.enabled' => false, 'qistas.demo' => false]);
-        expect(collect(app(PlatformOverview::class)->health())->firstWhere('key', 'demo')['status'])->toBe('off');
-
-        config(['qistas.demo_login.enabled' => true]);
-        app(DemoAccess::class)->start('user');
-        $demo = collect(app(PlatformOverview::class)->health())->firstWhere('key', 'demo');
-
-        expect($demo['status'])->toBe('ok')->and($demo['detail'])->toContain('1 of 300');
+    it('checks the database, e-mail, the environment and scheduled work, and nothing about a demo', function () {
+        expect(collect(app(PlatformOverview::class)->health())->pluck('key')->all())->toBe(['database', 'mail', 'environment', 'cron']);
     });
 });
 
@@ -155,31 +155,5 @@ describe('the page', function () {
 
     it('is in the reader’s language and direction', function () {
         $this->actingAs(overviewAdmin())->get('/admin?lang=ar')->assertOk()->assertSee('dir="rtl"', false);
-    });
-
-    it('clears expired demo accounts on request and says how many', function () {
-        config(['qistas.demo_login.enabled' => true]);
-        $demo = app(DemoAccess::class);
-        $demo->start('user')->forceFill(['demo_expires_at' => now()->subHour()])->save();
-        $demo->start('admin')->forceFill(['demo_expires_at' => now()->subMinute()])->save();
-        $live = $demo->start('user');
-        $admin = overviewAdmin();
-
-        $this->actingAs($admin)->post('/admin/demo/prune')->assertRedirect(route('admin.home'))->assertSessionHas('status');
-
-        expect(User::find($live->id))->not->toBeNull()
-            ->and(User::query()->whereNotNull('demo_expires_at')->count())->toBe(1)
-            ->and(Tenant::where('is_demo', true)->count())->toBe(1)
-            ->and(AuditLog::where('action', 'admin.demo_pruned')->where('user_id', $admin->id)->exists())->toBeTrue();
-    });
-
-    it('keeps the clear button for staff alone', function () {
-        [$owner] = owner();
-
-        $this->actingAs($owner)->post('/admin/demo/prune')->assertNotFound();
-    });
-
-    it('asks a visitor who is not signed in to sign in first', function () {
-        $this->post('/admin/demo/prune')->assertRedirect('/login');
     });
 });

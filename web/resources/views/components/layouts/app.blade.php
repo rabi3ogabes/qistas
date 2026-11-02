@@ -27,9 +27,6 @@
     @if ($tenant->is_test && $user->isPlatformAdmin())
         <x-test-banner />
     @endif
-    @if ($tenant->is_demo && $user->demo_expires_at !== null)
-        <x-demo-account-banner />
-    @endif
     <x-logo-defs />
     <a class="sr-only" href="#main">{{ __('Skip to content') }}</a>
 
@@ -65,7 +62,7 @@
                 <details class="menu menu-up">
                     <summary class="user-chip">
                         <x-avatar :user="$user" />
-                        <span class="user-lines"><span class="user-name" dir="auto">{{ $user->name }}</span><span class="user-mail">{{ $user->demo_expires_at !== null ? __('Demo account') : $user->email }}</span></span>
+                        <span class="user-lines"><span class="user-name" dir="auto">{{ $user->name }}</span><span class="user-mail">{{ $user->email }}</span></span>
                         <x-icon name="chevronDown" :size="16" />
                     </summary>
                     <div class="menu-panel" role="menu">

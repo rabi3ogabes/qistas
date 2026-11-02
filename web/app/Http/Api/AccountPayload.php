@@ -55,8 +55,6 @@ final class AccountPayload
             'role' => $user->roleIn($tenant->id)?->value,
             // An admin's sandbox: the app marks it so nobody mistakes sample data for a customer's books.
             'is_test' => $tenant->is_test,
-            // A throw-away workspace made by a demo button: the app says so and offers a real account.
-            'is_demo' => $tenant->is_demo,
             // The business wants every phone to unlock Qistas (fingerprint, face or PIN) before showing its books.
             'require_app_lock' => $tenant->require_app_lock,
             // Hijri dates (Win Plan CT26): off, beside the Gregorian date, or first.

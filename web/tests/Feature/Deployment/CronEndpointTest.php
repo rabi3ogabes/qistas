@@ -108,10 +108,10 @@ describe('what a call does', function () {
         expect($ran)->toBe(1);
     });
 
-    it('registers the demo clean-up with the scheduler', function () {
+    it('registers the scheduled work with the scheduler', function () {
         $commands = collect(app(Schedule::class)->events())->map(fn ($event) => (string) $event->command);
 
-        expect($commands->contains(fn ($command) => str_contains($command, 'qistas:prune-demo')))->toBeTrue();
+        expect($commands->contains(fn ($command) => str_contains($command, 'qistas:purge-deleted-accounts')))->toBeTrue();
     });
 
     it('works through work waiting on the database queue, in the right workspace', function () {

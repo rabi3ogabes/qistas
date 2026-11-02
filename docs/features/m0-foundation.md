@@ -78,7 +78,7 @@ waiting on the `database` queue, until a time cap (`CRON_MAX_SECONDS`, 50). It r
   under 15 minutes old, a warning when it has gone quiet or failed.
 - The caller is the **Scheduler** workflow on GitHub (`.github/workflows/cron.yml`, every five minutes). It does nothing
   until the repository secrets `CRON_URL` and `CRON_SECRET` exist. `vercel.json` is untouched.
-- Scheduled today: `qistas:prune-demo` every 15 minutes.
+- Scheduled at the time: `qistas:prune-demo` every 15 minutes (removed with the public demo in go-live basics, 2026-11).
 - **Workspace time zone.** Each workspace has `tenants.timezone` (an IANA name such as `Asia/Riyadh`), chosen from its country
   when it is made (`config('qistas.timezones')`, UTC for a country the product does not know). `Tenant::localTimezone()`
   answers for older workspaces too (their country's zone, UTC at worst, and never a name that is not a real zone), and

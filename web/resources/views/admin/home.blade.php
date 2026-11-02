@@ -139,12 +139,6 @@
                         </p>
                         <p class="health-detail">{{ $check['detail'] }}</p>
                     </div>
-                    @if ($check['key'] === 'demo' && $check['status'] === 'ok')
-                        <form method="POST" action="{{ route('admin.demo.prune') }}">
-                            @csrf
-                            <x-button variant="quiet" class="btn-sm">{{ __('Clear expired demos') }}</x-button>
-                        </form>
-                    @endif
                 </li>
             @endforeach
         </ul>

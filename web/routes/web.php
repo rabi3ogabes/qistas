@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\BrandAssetController;
-use App\Http\Controllers\DemoLoginController;
 use App\Http\Controllers\DocumentVerificationController;
 use App\Http\Controllers\ExportFileController;
 use App\Http\Controllers\FileBlobController;
@@ -70,10 +69,6 @@ Route::withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, Pr
 Route::get('/manifest.webmanifest', ManifestController::class)->name('manifest');
 
 Route::post('/schedule-preview', SchedulePreviewController::class)->middleware('throttle:schedule-preview')->name('schedule.preview');
-
-// "Try the demo" (off unless config qistas.demo_login.enabled): a throw-away account per press, rate limited.
-Route::post('/demo/{persona}', [DemoLoginController::class, 'start'])->whereIn('persona', ['admin', 'user'])->middleware(['guest', 'throttle:demo'])->name('demo.start');
-Route::post('/demo-leave', [DemoLoginController::class, 'leave'])->middleware('auth')->name('demo.leave');
 
 Route::view('/account/suspended', 'account.suspended')->name('account.suspended');
 

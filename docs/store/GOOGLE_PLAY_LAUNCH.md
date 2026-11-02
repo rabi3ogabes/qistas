@@ -68,7 +68,7 @@ Then re-run the latest **Mobile app** workflow, or push any change to `app/`. Th
 | Form | What to answer |
 |---|---|
 | Privacy policy | `https://www.qistasme.com/privacy`. |
-| App access | Some functions need a sign-in. Tell the reviewer: *“On the sign-in screen tap Try the demo, then Enter as admin; no credentials are needed.”* Keep the demo switch on (Vercel `QISTAS_DEMO_LOGIN=true`) while the app is under review. |
+| App access | Some functions need a sign-in. There is no public demo any more: make an ordinary account for the reviewer on the live site, add a few customers and a contract so there is something to see, and give its e-mail and password in this form only (never in the repository). |
 | Ads | The app contains **no ads**. |
 | Content rating | Fill the questionnaire honestly: a business tool with no violence, gambling or user-to-user content. |
 | Target audience | 18 and over (it is for businesses). |
@@ -131,8 +131,7 @@ $env:QISTAS_SCREENSHOTS = "../docs/store/screenshots"; flutter test test/visual/
 - [ ] The switches you want at launch are on in `/admin/features`, and the listing's waiting lines for them are added
       to `docs/store/listing/*.md`; the screenshots are drawn again if the screens changed.
 - [ ] The Data safety form matches the table above for the switches that are on.
-- [ ] The demo switch (Vercel `QISTAS_DEMO_LOGIN=true`) is on for the review, and the App access answer says how to use
-      it.
+- [ ] The reviewer's account signs in on the live site, and the App access answer gives its e-mail and password.
 - [ ] A support e-mail and the privacy policy link are filled in the store listing's contact details.
 - [ ] "What's new" for the release, at most 500 characters in each language.
 - [ ] The release is the newest `qistas-app-<version>.aab`, signed with the upload key.

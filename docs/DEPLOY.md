@@ -115,8 +115,6 @@ Everything else has a safe default (production mode, secure cookies, trusted pro
 | `MAIL_MAILER`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_ADDRESS` | `log` | Send real e-mail (verification, password reset). Until set, e-mails are written to the log only. |
 | `AUTO_MIGRATE` | `true` | Bring the database up to date on every start. Set `false` to run `php artisan migrate --force` yourself. |
 | `TRUSTED_PROXIES` | `*` | Which proxies' `X-Forwarded-*` headers are believed. `*` is right behind Vercel. |
-| `QISTAS_DEMO_LOGIN` | `false` | `true` adds "Enter as admin" (Pro, every feature) and "Enter as user" (Free, with its limits) buttons to the sign-in page and the app. Each press makes a **throw-away account** with its own workspace and sample data; it is never platform staff, and is deleted when it expires. Set it to `false` to switch the demo off at any time. |
-| `QISTAS_DEMO_HOURS`, `QISTAS_DEMO_PER_HOUR`, `QISTAS_DEMO_MAX` | `12`, `8`, `300` | How long a demo account lasts, how many demos one address may start per hour, and how many demo accounts may exist at once. |
 | `BILLING_GATEWAY` | `fake` | `fake` shows a pretend checkout; `stripe` needs `STRIPE_SECRET` and `STRIPE_WEBHOOK_SECRET`. |
 | `QISTAS_DEFAULT_CURRENCY` | `USD` | Currency for new workspaces whose country is not recognised. |
 | `CRON_SECRET` | none | Switches on scheduled work (see below). Any long random string. With none, `/internal/cron` answers 503 and nothing runs. |
@@ -187,7 +185,8 @@ deploy whose commands fail puts the previous version back.
 **Settings (the website's Environment page).** `APP_ENV=production`, `APP_DEBUG=false`, `APP_URL=https://www.qistasme.com`,
 `DB_CONNECTION=pgsql` with `DB_HOST=127.0.0.1`, `DB_PORT=5432`, `DB_DATABASE`/`DB_USERNAME=site_qistasme_pg`,
 `DB_SSLMODE=disable`, `SESSION_DRIVER=database`, `SESSION_SECURE_COOKIE=true`, `CACHE_STORE=database`,
-`QUEUE_CONNECTION=sync`, `LOG_CHANNEL=daily`, `QISTAS_GEO_HEADER=CF-IPCountry`, `QISTAS_DEMO_LOGIN=false`. Secrets
+`QUEUE_CONNECTION=sync`, `LOG_CHANNEL=daily`, `QISTAS_GEO_HEADER=CF-IPCountry`. (`QISTAS_DEMO_LOGIN` is no longer read:
+the public demo was removed; the line can be deleted from the Environment page.) Secrets
 (`APP_KEY`, `DB_PASSWORD`, `CRON_SECRET`) are made on the server and never leave it. Set the `MAIL_*` keys there to send
 real e-mail.
 
@@ -225,5 +224,6 @@ and builds and starts the production container.
 * Billing through Stripe is not connected yet: `BILLING_GATEWAY=fake` shows a pretend checkout.
 * The Android app is a test build signed with a debug key (see `app/README.md`); store releases need a release key.
 * The admin overview (`/admin`) counts workspaces, plans, people and new sign-ups (never customer data), and shows
-  whether the database, e-mail and demo settings are in order. It is where an admin opens a test workspace, enters the
-  demo, and clears expired demo accounts.
+  whether the database, e-mail, the environment and scheduled work are in order. It is where an admin opens a test
+  workspace. The public demo ("Try the demo") was removed before going live; accounts it left behind are listed and,
+  with the owner's yes, removed by `php artisan qistas:purge-demo`.

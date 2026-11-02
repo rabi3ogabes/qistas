@@ -13,7 +13,6 @@ use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\CustomerPaymentController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\DayCloseController;
-use App\Http\Controllers\Api\V1\DemoController;
 use App\Http\Controllers\Api\V1\DeviceController;
 use App\Http\Controllers\Api\V1\DocumentController;
 use App\Http\Controllers\Api\V1\FileController;
@@ -55,8 +54,6 @@ use Illuminate\Support\Facades\Route;
 Route::name('api.')->group(function (): void {
     Route::get('plans', [PlanController::class, 'index'])->middleware('throttle:api-public')->name('plans');
     Route::get('appearance', AppearanceController::class)->middleware('throttle:api-public')->name('appearance');
-    Route::get('demo', [DemoController::class, 'index'])->middleware('throttle:api-public')->name('demo');
-    Route::post('demo/{persona}', [DemoController::class, 'start'])->whereIn('persona', ['admin', 'user'])->middleware('throttle:api-demo')->name('demo.start');
     Route::post('auth/register', [AuthController::class, 'register'])->middleware('throttle:api-register')->name('auth.register');
     Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttle:api-login')->name('auth.login');
 

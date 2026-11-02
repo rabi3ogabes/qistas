@@ -76,8 +76,9 @@ sends it to TestFlight; the build appears in App Store Connect once Apple has pr
 - [ ] **App Privacy** (the "nutrition label"): the same answers as Google Play's Data safety form
       (`docs/store/GOOGLE_PLAY_LAUNCH.md`): no tracking, nothing used for ads, data linked to the user for app
       functionality.
-- [ ] **Sign-in for the reviewer**: the demo switch on (Vercel `QISTAS_DEMO_LOGIN=true`) and the review notes saying
-      *"On the sign-in screen tap Try the demo, then Enter as admin; no credentials are needed."*
+- [ ] **Sign-in for the reviewer**: there is no public demo any more. Make an ordinary account for the reviewer on the
+      live site (with a few customers and a contract) and give its e-mail and password in App Store Connect's review
+      information only, never in the repository.
 - [ ] **Account deletion** inside the app: already there (Settings, then Security, then Delete my account), as Apple
       requires.
 - [ ] **Screenshots**: Apple wants 6.9-inch iPhone pictures (1320 × 2868 or 1290 × 2796). The Play pictures in

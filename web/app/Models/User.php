@@ -24,7 +24,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Sanctum\HasApiTokens;
 
 /**
- * @property Carbon|null $demo_expires_at when a demo account is deleted; null for every real account
+ * @property Carbon|null $demo_expires_at set only on accounts the old public demo made (App\Sandbox\DemoCleanup finds them); null for every real account
  * @property string|null $phone the person's own phone, set on their profile
  * @property Carbon|null $trusted_devices_reset_at the last "forget trusted devices"; browsers remembered before ask again
  */

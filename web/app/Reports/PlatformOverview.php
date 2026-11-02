@@ -5,7 +5,6 @@ namespace App\Reports;
 use App\Mail\MailSettings;
 use App\Models\CronRun;
 use App\Models\Subscription;
-use App\Sandbox\DemoAccess;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -13,8 +12,8 @@ use Illuminate\Support\Facades\DB;
  * signed up lately, and whether the things a live site depends on are set up.
  *
  * This is platform-admin code, so it reads across every workspace on purpose; it only COUNTS. It never returns a
- * workspace's names, customers or money. Throw-away demo accounts, an admin's test workspace and platform staff are
- * left out of every figure, so the numbers are the real business.
+ * workspace's names, customers or money. Accounts left by the old throw-away demo (until `qistas:purge-demo` removes
+ * them), an admin's test workspace and platform staff are left out of every figure, so the numbers are the real business.
  */
 final class PlatformOverview
 {
@@ -108,18 +107,6 @@ final class PlatformOverview
             'detail' => $production && $debug
                 ? __('Debug mode is on in production. Turn APP_DEBUG off.')
                 : __('Running in :env mode.', ['env' => (string) config('app.env')]),
-        ];
-
-        $demo = DemoAccess::enabled();
-        $accounts = (int) DB::table('users')->whereNotNull('demo_expires_at')->count();
-        $expired = (int) DB::table('users')->whereNotNull('demo_expires_at')->where('demo_expires_at', '<', now())->count();
-        $checks[] = [
-            'key' => 'demo',
-            'status' => $demo ? 'ok' : 'off',
-            'title' => __('Demo sign-in'),
-            'detail' => $demo
-                ? __(':count of :max demo accounts in use (:expired expired and waiting to be cleared).', ['count' => $accounts, 'max' => (int) config('qistas.demo_login.max_accounts'), 'expired' => $expired])
-                : __('Off. The sign-in page has no demo buttons.'),
         ];
 
         $checks[] = $this->cronCheck();
