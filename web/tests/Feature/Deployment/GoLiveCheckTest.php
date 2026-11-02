@@ -11,9 +11,11 @@ use App\Models\User;
 use App\Sandbox\TestWorkspace;
 use App\Support\GoLiveCheck;
 use Database\Seeders\DemoSeeder;
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
@@ -91,6 +93,9 @@ function goLiveBreak(string $what): void
         'url-http' => config(['app.url' => 'http://qistas.example']),
         'cookie-not-secure' => config(['session.secure' => false]),
         'cookie-unset' => config(['session.secure' => null]),
+        'cookie-one' => config(['session.secure' => '1']),
+        'cookie-on' => config(['session.secure' => 'on']),
+        'cookie-zero' => config(['session.secure' => '0']),
         'demo-mode-on' => config(['qistas.demo' => true]),
         'demo-account' => goLiveDemoAccount(),
         'lookalike' => User::factory()->create(['email' => 'layla@demo.qistas.test']),
@@ -100,6 +105,9 @@ function goLiveBreak(string $what): void
         'mail-null' => config(['mail.server_mailer' => 'null', 'mail.default' => 'null']),
         'mail-unset' => config(['mail.server_mailer' => null, 'mail.default' => 'log']),
         'mail-no-from' => config(['mail.from.address' => '']),
+        'mail-undefined' => config(['mail.server_mailer' => 'smpt', 'mail.default' => 'smpt']),
+        'mail-dsn' => config(['mail.server_mailer' => 'smtp://mailer:s3cret-zqx@mail.zqx-host.example:587', 'mail.default' => 'smtp://mailer:s3cret-zqx@mail.zqx-host.example:587']),
+        'mail-ses' => config(['mail.server_mailer' => 'ses', 'mail.default' => 'ses']),
         'cron-none' => CronRun::query()->delete(),
         'cron-old' => CronRun::query()->update(['started_at' => now()->subMinutes(16)]),
         'cron-failed' => CronRun::query()->update(['outcome' => 'failed']),
@@ -107,6 +115,9 @@ function goLiveBreak(string $what): void
         'card-fake' => goLiveCardOn(fake: true),
         'card-unconfigured' => goLiveCardOn(),
         'card-test-keys' => goLiveCardOn(keys: 'test'),
+        'card-no-publishable' => goLiveCardOn(keys: 'live', publishable: false),
+        'card-no-webhook' => goLiveCardOn(keys: 'live', webhook: false),
+        'card-mixed-keys' => goLiveCardOn(keys: 'live', publishableMode: 'test'),
         'no-admin' => User::query()->update(['platform_role' => null]),
         'suspended-admin' => User::query()->update(['status' => 'suspended']),
         'plain-admin' => User::query()->update(['platform_role' => 'admin']),
@@ -117,8 +128,11 @@ function goLiveBreak(string $what): void
     };
 }
 
-/** Pro by card switched on, with the fake gateway, with no Stripe keys, or with a pair of Stripe keys of this mode. */
-function goLiveCardOn(bool $fake = false, ?string $keys = null): void
+/**
+ * Pro by card switched on, with the fake gateway, with no Stripe keys, or with Stripe keys of this mode: the secret key,
+ * the publishable key (of [$publishableMode] when that differs) and the webhook signing secret, each left out on request.
+ */
+function goLiveCardOn(bool $fake = false, ?string $keys = null, bool $publishable = true, bool $webhook = true, ?string $publishableMode = null): void
 {
     switchOn(Feature::CardBilling);
 
@@ -127,7 +141,11 @@ function goLiveCardOn(bool $fake = false, ?string $keys = null): void
     }
 
     if ($keys !== null) {
-        config(['qistas.billing.stripe.secret' => "sk_{$keys}_abcdef123456", 'qistas.billing.stripe.publishable' => "pk_{$keys}_abcdef123456"]);
+        config([
+            'qistas.billing.stripe.secret' => "sk_{$keys}_abcdef123456",
+            'qistas.billing.stripe.publishable' => $publishable ? 'pk_'.($publishableMode ?? $keys).'_abcdef123456' : null,
+            'qistas.billing.stripe.webhook_secret' => $webhook ? 'whsec_abcdef123456' : null,
+        ]);
     }
 }
 
@@ -172,6 +190,7 @@ describe('the results', function () {
 
     it('turns a check that cannot run into a failure, without a word of what went wrong inside', function () {
         // The saved mail password was written under another APP_KEY: reading it throws, as a real fault would.
+        Exceptions::fake();
         config(['mail.server_mailer' => null]);
         PlatformSetting::query()->forceCreate(['key' => MailSettings::KEY, 'value' => json_encode([
             'host' => 'smtp.zqx-host.example', 'port' => 587, 'password' => 'zqx-not-encrypted', 'from_address' => 'hello@qistas.example',
@@ -184,11 +203,14 @@ describe('the results', function () {
             ->and($results['env']['status'])->toBe('pass')
             ->and($results['cron']['status'])->toBe('pass')
             ->and($results)->toHaveCount(count(GO_LIVE_KEYS));
+
+        // The reason goes to the log through the exception handler, not to the screen.
+        Exceptions::assertReported(DecryptException::class);
     });
 });
 
 describe('what each check looks at', function () {
-    it('changes only its own check', function (string $what, string $key, string $status, string $mention) {
+    it('changes only its own check', function (string $what, string $key, string $status, string $mention, string $never = '') {
         goLiveBreak($what);
 
         $results = collect(GoLiveCheck::run())->keyBy('key');
@@ -196,12 +218,20 @@ describe('what each check looks at', function () {
         expect($results[$key]['status'])->toBe($status)
             ->and($results[$key]['detail'])->toContain($mention)
             ->and($results->pluck('status', 'key')->except($key)->all())->toBe(Arr::except(goLiveBaseline(), $key));
+
+        // What was typed into a setting is never repeated back.
+        if ($never !== '') {
+            expect(json_encode($results->all()))->not->toContain($never);
+        }
     })->with([
         'APP_ENV is not production' => ['env-local', 'env', 'fail', 'APP_ENV'],
         'debug is on' => ['debug-on', 'debug', 'fail', 'APP_DEBUG'],
         'APP_URL is not https' => ['url-http', 'url', 'fail', 'https://'],
         'the session cookie is not secure' => ['cookie-not-secure', 'url', 'warn', 'SESSION_SECURE_COOKIE'],
         'the session cookie setting is missing' => ['cookie-unset', 'url', 'warn', 'SESSION_SECURE_COOKIE'],
+        'the session cookie setting is written as 1' => ['cookie-one', 'url', 'pass', 'cookie is secure'],
+        'the session cookie setting is written as on' => ['cookie-on', 'url', 'pass', 'cookie is secure'],
+        'the session cookie setting is written as 0' => ['cookie-zero', 'url', 'warn', 'SESSION_SECURE_COOKIE'],
         'the built-in demo mode is on' => ['demo-mode-on', 'demo', 'fail', 'QISTAS_DEMO'],
         'an old demo account exists' => ['demo-account', 'demo-data', 'fail', 'php artisan qistas:purge-demo'],
         'an account at the demo domain that the old demo did not make' => ['lookalike', 'demo-domain', 'warn', '1 account'],
@@ -211,6 +241,9 @@ describe('what each check looks at', function () {
         'the mailer is null' => ['mail-null', 'mail', 'fail', 'MAIL_MAILER'],
         'no mailer is chosen anywhere' => ['mail-unset', 'mail', 'fail', 'MAIL_MAILER'],
         'the from address is empty' => ['mail-no-from', 'mail', 'fail', 'MAIL_FROM_ADDRESS'],
+        'the mailer is misspelt' => ['mail-undefined', 'mail', 'fail', 'MAIL_MAILER', 'smpt'],
+        'the mailer is a connection string with a password' => ['mail-dsn', 'mail', 'fail', 'MAIL_MAILER', 'zqx'],
+        'the mailer is another defined one' => ['mail-ses', 'mail', 'pass', 'ses'],
         'the scheduler never ran' => ['cron-none', 'cron', 'warn', 'CRON_SECRET'],
         'the scheduler last ran 16 minutes ago' => ['cron-old', 'cron', 'fail', 'php artisan qistas:cron-status'],
         'the scheduler last run failed' => ['cron-failed', 'cron', 'warn', 'php artisan qistas:cron-status'],
@@ -218,6 +251,9 @@ describe('what each check looks at', function () {
         'card billing is on with the fake gateway' => ['card-fake', 'billing', 'warn', 'fake gateway'],
         'card billing is on with no Stripe keys' => ['card-unconfigured', 'billing', 'warn', 'no Stripe keys'],
         'card billing is on with Stripe test keys' => ['card-test-keys', 'billing', 'warn', 'test keys'],
+        'card billing is on with no publishable key' => ['card-no-publishable', 'billing', 'warn', 'the publishable key', 'abcdef123456'],
+        'card billing is on with no webhook signing secret' => ['card-no-webhook', 'billing', 'warn', 'the webhook signing secret', 'abcdef123456'],
+        'card billing is on with keys of two modes' => ['card-mixed-keys', 'billing', 'warn', 'same mode as the secret key', 'abcdef123456'],
         'there is no super admin' => ['no-admin', 'admin', 'fail', 'php artisan qistas:make-admin'],
         'the only super admin is suspended' => ['suspended-admin', 'admin', 'fail', 'php artisan qistas:make-admin'],
         'the only admin is not a super admin' => ['plain-admin', 'admin', 'fail', 'php artisan qistas:make-admin'],
@@ -340,7 +376,7 @@ describe('e-mail', function () {
 
         expect($result['status'])->toBe('pass')
             ->and($result['detail'])->toContain('admin E-mail page')
-            ->and($result['detail'])->not->toContain('hidden-host')->not->toContain('Zx81')->not->toContain('zqx-mailer');
+            ->and($result['detail'])->not->toContain('zqx-host')->not->toContain('Zx81')->not->toContain('zqx-mailer');
     });
 
     it('fails when the saved server has no from address', function () {
@@ -358,6 +394,25 @@ describe('e-mail', function () {
         $result = goLiveResult('mail');
 
         expect($result['status'])->toBe('pass')->and($result['detail'])->toContain('server environment');
+    });
+
+    it('fails for a mailer that is not defined even when an SMTP server is saved, and prints nothing of what was typed', function () {
+        goLiveSavedServer();
+        $typed = 'smtp://mailer:s3cret-zqx@mail.zqx-host.example:587'; // a connection string pasted into MAIL_MAILER
+        config(['mail.server_mailer' => $typed, 'mail.default' => $typed]);
+
+        $exit = Artisan::call('qistas:go-live-check');
+
+        expect(goLiveResult('mail')['status'])->toBe('fail')
+            ->and($exit)->toBe(1)
+            ->and(Artisan::output())->toMatch('/FAIL\s+E-mail can be sent/')->not->toContain('zqx')->not->toContain('s3cret');
+    });
+
+    it('passes for another mailer the application defines, naming it', function () {
+        config(['mail.server_mailer' => 'ses', 'mail.default' => 'ses']);
+
+        expect(goLiveResult('mail'))->toMatchArray(['status' => 'pass'])
+            ->and(goLiveResult('mail')['detail'])->toContain('through ses');
     });
 
     it('fails when the from address is not an address', function () {
@@ -490,7 +545,7 @@ describe('the command', function () {
         $this->artisan('qistas:go-live-check')->assertExitCode(0);
     });
 
-    it('changes nothing', function () {
+    it('changes no data: no table gains or loses a row', function () {
         goLiveDemoAccount();
         app(TestWorkspace::class)->open(User::where('email', 'owner@qistas.example')->sole());
         goLiveBreak('lookalike');

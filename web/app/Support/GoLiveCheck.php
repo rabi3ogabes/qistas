@@ -23,8 +23,9 @@ use Throwable;
  * What the owner must see before real customers come (`qistas:go-live-check`, go-live basics 6.3): sixteen checks, each
  * pass, warn or fail with one plain line saying what to do next.
  *
- * It only reads. The one thing it does that looks like a write is asking the application itself for the terms and
- * privacy pages (through the HTTP kernel, so no network), and that is done with the session kept in memory.
+ * It changes no data. The one thing it does that looks like a write is asking the application itself for the terms and
+ * privacy pages (through the HTTP kernel, so no network), done with the session kept in memory; rendering them can warm a
+ * cache entry, and nothing else is stored.
  *
  * It never shows a secret, a customer's address or the value of a setting: a setting is named, not quoted, and a check
  * that cannot run says so without saying why (the reason may carry a connection string).
@@ -77,7 +78,9 @@ final class GoLiveCheck
             try {
                 [$status, $detail] = $check();
             } catch (Throwable $e) {
-                // Not the message: it can carry a connection string. The log has the whole story where it was logged.
+                // The output says which kind of fault and never its message (it can carry a connection string); the
+                // whole story goes to the application's log through the exception handler.
+                report($e);
                 [$status, $detail] = ['fail', 'This check could not run ('.class_basename($e).'). Fix what it could not reach, then run it again.'];
             }
 
@@ -108,7 +111,8 @@ final class GoLiveCheck
             return ['fail', 'APP_URL does not start with https://. Set it to the https address of the site.'];
         }
 
-        if (config('session.secure') !== true) {
+        // As the framework reads the setting: true, 1, on and yes all mean secure.
+        if (filter_var(config('session.secure'), FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) !== true) {
             return ['warn', 'The session cookie is not marked secure. Set SESSION_SECURE_COOKIE=true.'];
         }
 
@@ -171,6 +175,10 @@ final class GoLiveCheck
      * environment wins; otherwise the SMTP server saved in the admin E-mail page (the database); otherwise the
      * configured default, which is the log unless MAIL_MAILER says otherwise.
      *
+     * The mailer has to be one the application defines (a key of `mail.mailers`): a misspelt MAIL_MAILER passes every
+     * other test and then fails on the first e-mail. What was typed is never printed, only a name that is defined (a
+     * value like that can be a connection string with a password in it).
+     *
      * @return Outcome
      */
     private function mail(): array
@@ -184,7 +192,8 @@ final class GoLiveCheck
             $where = 'the SMTP server saved in the admin E-mail page';
             $fix = 'Fill in the From address in the admin E-mail page.';
         } else {
-            $mailer = (string) config('mail.default');
+            $chosen = config('mail.default');
+            $mailer = is_string($chosen) ? $chosen : '';
             $from = (string) config('mail.from.address');
             $where = 'the server environment';
             $fix = 'Set MAIL_FROM_ADDRESS.';
@@ -192,6 +201,10 @@ final class GoLiveCheck
 
         if (in_array($mailer, ['', 'log', 'array', 'null'], true)) {
             return ['fail', 'E-mail only goes to the log. Save the SMTP server in the admin E-mail page, or set MAIL_MAILER.'];
+        }
+
+        if (! array_key_exists($mailer, (array) config('mail.mailers'))) {
+            return ['fail', 'MAIL_MAILER names a mailer this app does not have, so every e-mail would fail. Check its spelling (smtp is the usual one).'];
         }
 
         if (filter_var(trim($from), FILTER_VALIDATE_EMAIL) === false) {
@@ -264,11 +277,49 @@ final class GoLiveCheck
             return ['warn', "Card billing is on but no Stripe keys are saved. {$fix}"];
         }
 
+        $missing = $this->missingCardKeys($settings);
+
+        if ($missing !== []) {
+            return ['warn', 'Card billing is on but Stripe is not fully connected. Missing: '.implode(', ', $missing).'. Connect it in the admin Billing page.'];
+        }
+
         if ($settings->mode() === 'test') {
             return ['warn', 'Card billing is on with Stripe test keys, so no real card is charged. Save the live keys when ready.'];
         }
 
         return ['pass', 'Card billing is on and uses the live Stripe gateway.'];
+    }
+
+    /**
+     * What a Stripe connection still lacks beyond the secret key, by name only (never a key itself).
+     *
+     * @return list<string>
+     */
+    private function missingCardKeys(CardSettings $settings): array
+    {
+        if ($settings->ready()) {
+            return [];
+        }
+
+        $missing = [];
+        $mode = $settings->mode();
+        $publishable = $settings->publishableKey();
+
+        if ($mode === null) {
+            $missing[] = 'a valid secret key';
+        }
+
+        if ($publishable === null) {
+            $missing[] = 'the publishable key';
+        } elseif ($mode !== null && ! str_starts_with($publishable, "pk_{$mode}_")) {
+            $missing[] = 'a publishable key of the same mode as the secret key';
+        }
+
+        if ($settings->webhookSecret() === null) {
+            $missing[] = 'the webhook signing secret';
+        }
+
+        return $missing;
     }
 
     /** @return Outcome */

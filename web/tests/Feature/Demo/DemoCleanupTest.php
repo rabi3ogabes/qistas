@@ -570,6 +570,53 @@ describe('the purge', function () {
             ->and(User::find($stays->id))->not->toBeNull();
     });
 
+    it('records each removal on its own, as counts only', function () {
+        cleanupDemoAccount('First');
+        cleanupDemoAccount('Second');
+        $cleanup = app(DemoCleanup::class);
+
+        $cleanup->purge($cleanup->plan());
+
+        expect(AuditLog::where('action', 'demo.purged')->get()->pluck('changes')->all())
+            ->toBe([['accounts' => 1, 'workspaces' => 1, 'test_workspaces' => 0], ['accounts' => 1, 'workspaces' => 1, 'test_workspaces' => 0]]);
+    });
+
+    it('records the removal of a staff test workspace on its own', function () {
+        $admin = User::factory()->create(['platform_role' => 'super_admin']);
+        app(TestWorkspace::class)->open($admin);
+        $cleanup = app(DemoCleanup::class);
+
+        $cleanup->purge($cleanup->plan(includeTest: true));
+
+        expect(AuditLog::where('action', 'demo.purged')->sole()->changes)->toBe(['accounts' => 0, 'workspaces' => 0, 'test_workspaces' => 1]);
+    });
+
+    it('keeps the record of an account already removed when the next one fails half way', function () {
+        $first = User::factory()->create(['email' => 'demo-a@demo.qistas.test', 'demo_expires_at' => now()->addHours(12)]);
+        $firstShop = cleanupOwnedWorkspace($first, 'First Shop', ['is_demo' => true]);
+        $second = User::factory()->create(['email' => 'demo-b@demo.qistas.test', 'demo_expires_at' => now()->addHours(12)]);
+        $secondShop = cleanupOwnedWorkspace($second, 'Second Shop', ['is_demo' => true]);
+        $cleanup = app(DemoCleanup::class);
+        $plan = $cleanup->plan();
+        expect(cleanupPlannedUsers($plan))->toBe([$first->id, $second->id]);
+
+        // Any fault inside the second account's removal would do: here its lookup throws, as the removal starts.
+        $armed = true;
+        User::retrieved(function (User $user) use ($second, &$armed): void {
+            if ($armed && $user->id === $second->id) {
+                throw new RuntimeException('forced');
+            }
+        });
+
+        expect(fn () => $cleanup->purgeAndReport($plan))->toThrow(RuntimeException::class, 'forced');
+        $armed = false;
+
+        expect(User::find($first->id))->toBeNull()->and(Tenant::find($firstShop->id))->toBeNull()
+            ->and(User::find($second->id))->not->toBeNull()->and(Tenant::find($secondShop->id))->not->toBeNull()
+            // The removal that committed is on record; the one that did not is not.
+            ->and(AuditLog::where('action', 'demo.purged')->sole()->changes)->toBe(['accounts' => 1, 'workspaces' => 1, 'test_workspaces' => 0]);
+    });
+
     it('locks the workspaces an account owns before it looks at who belongs to them', function () {
         cleanupDemoAccount();
         $cleanup = app(DemoCleanup::class);

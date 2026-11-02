@@ -58,7 +58,7 @@ final class PurgeDemoCommand extends Command
                 }
 
                 if ($account['workspaces'] === []) {
-                    $this->components->twoColumnDetail('workspace', 'none of its own');
+                    $this->components->twoColumnDetail('owns no workspace', 'its login and membership will be removed; the business and its records are kept');
                 }
             }
         }
@@ -101,7 +101,11 @@ final class PurgeDemoCommand extends Command
         $this->newLine();
 
         if ($report['accounts'] === [] && $report['test_workspaces'] === 0) {
-            $this->components->info('Nothing to remove.');
+            $this->components->info(match (true) {
+                $plan['accounts'] !== [] => 'Nothing was removed: every listed account changed since the list was made.',
+                $includeTest && $plan['test_workspaces'] !== [] => 'Nothing was removed: every listed staff test workspace changed since the list was made.',
+                default => 'Nothing to remove.',
+            });
         }
 
         if ($report['accounts'] !== []) {
@@ -115,6 +119,17 @@ final class PurgeDemoCommand extends Command
 
         if ($report['test_workspaces'] > 0) {
             $this->components->info(sprintf('Removed %d staff test %s.', $report['test_workspaces'], $report['test_workspaces'] === 1 ? 'workspace' : 'workspaces'));
+        }
+
+        // Listed a moment ago and left alone by the check made again just before removing (someone joined, or it changed).
+        $left = array_diff(array_column($plan['accounts'], 'email'), $report['accounts']);
+
+        if ($left !== []) {
+            $this->newLine();
+
+            foreach ($left as $email) {
+                $this->components->twoColumnDetail('<options=bold>'.$this->clean($email).'</>', 'left alone: it changed since the list was made');
+            }
         }
 
         $this->heldBack($plan['held_back'], 'Accounts held back, left alone');

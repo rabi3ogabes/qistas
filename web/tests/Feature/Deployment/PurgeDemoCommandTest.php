@@ -59,6 +59,21 @@ function purgeDemoRun(array $options = []): string
     return Artisan::output();
 }
 
+/**
+ * A real person joins [$shop] at the moment the removal looks [$demo] up again: after the command has made its list and
+ * before the account is taken away (the list reads the account once, the removal reads it a second time).
+ */
+function purgeDemoRealPersonJoinsWhenRemovalLooksAt(User $demo, Tenant $shop): void
+{
+    $lookups = 0;
+
+    User::retrieved(function (User $user) use ($demo, $shop, &$lookups): void {
+        if ($user->id === $demo->id && ++$lookups === 2) {
+            memberAs('collector', $shop);
+        }
+    });
+}
+
 /** Every table's row count, to show that a run changed nothing. */
 function purgeDemoRowCounts(): array
 {
@@ -137,6 +152,20 @@ describe('without --confirm', function () {
         expect($output)->toContain($held->email)->toContain('Nothing to remove')->not->toContain('--confirm');
     });
 
+    it('says plainly that a demo account which only belongs to someone else’s business loses its login and keeps that business', function () {
+        $real = User::factory()->create();
+        $shop = purgeDemoWorkspace($real, 'Real Shop');
+        $demo = User::factory()->create(['email' => 'demo-member@demo.qistas.test', 'demo_expires_at' => now()->addHours(12)]);
+        $shop->users()->attach($demo->id, ['role' => 'collector']);
+
+        $output = purgeDemoRun();
+
+        expect($output)->toContain('demo-member@demo.qistas.test')
+            ->toContain('its login and membership will be removed; the business and its records are kept')
+            ->not->toContain('none of its own')
+            ->and(Tenant::find($shop->id))->not->toBeNull();
+    });
+
     it('prints a business name as plain text, never as console formatting', function () {
         [$demo, $shop] = purgeDemoAccount("<fg=red>Evil</> \e[2J Shop");
 
@@ -182,13 +211,40 @@ describe('with --confirm', function () {
         expect(purgeDemoRun(['--confirm' => true]))->toContain('Removed 1 demo account and 1 workspace.');
     });
 
-    it('records the removal as counts only', function () {
+    it('records each removal as counts only', function () {
         purgeDemoAccount();
         purgeDemoAccount();
 
         purgeDemoRun(['--confirm' => true]);
 
-        expect(AuditLog::where('action', 'demo.purged')->sole()->changes)->toBe(['accounts' => 2, 'workspaces' => 2, 'test_workspaces' => 0]);
+        $rows = AuditLog::where('action', 'demo.purged')->get();
+        expect($rows)->toHaveCount(2)
+            ->and($rows->pluck('changes')->all())->toBe([['accounts' => 1, 'workspaces' => 1, 'test_workspaces' => 0], ['accounts' => 1, 'workspaces' => 1, 'test_workspaces' => 0]]);
+    });
+
+    it('names an account the list had but the check before removing left alone, and says so when that is all of them', function () {
+        [$demo, $shop] = purgeDemoAccount('Joined Just Now');
+        purgeDemoRealPersonJoinsWhenRemovalLooksAt($demo, $shop);
+
+        $output = purgeDemoRun(['--confirm' => true]);
+
+        expect($output)->toContain('Nothing was removed: every listed account changed since the list was made.')
+            ->not->toContain('Nothing to remove')->not->toContain('Removed')
+            ->and($output)->toContain($demo->email)->toContain('left alone: it changed since the list was made')
+            ->and(User::find($demo->id))->not->toBeNull()->and(Tenant::find($shop->id))->not->toBeNull()
+            ->and(AuditLog::where('action', 'demo.purged')->count())->toBe(0);
+    });
+
+    it('removes the others and names only the account it left alone', function () {
+        [$gone, $goneShop] = purgeDemoAccount('Goes');
+        [$kept, $keptShop] = purgeDemoAccount('Joined Just Now');
+        purgeDemoRealPersonJoinsWhenRemovalLooksAt($kept, $keptShop);
+
+        $output = purgeDemoRun(['--confirm' => true]);
+
+        expect($output)->toContain('Removed 1 demo account and 1 workspace.')->not->toContain('Nothing was removed')
+            ->and($output)->toMatch('/'.preg_quote($kept->email, '/').'\W+left alone: it changed since the list was made/')
+            ->and(User::find($gone->id))->toBeNull()->and(User::find($kept->id))->not->toBeNull();
     });
 
     it('works the list out again at that moment, so what changed since the dry run is respected', function () {
@@ -236,7 +292,8 @@ describe('with --confirm', function () {
         expect($exit)->toBe(0)
             ->and($second)->toContain('Nothing to remove')->not->toContain('Removed')
             ->and(purgeDemoRowCounts())->toBe($before)
-            ->and(AuditLog::where('action', 'demo.purged')->count())->toBe(1);
+            // One record for each of the two removals of the first run, none for the second run.
+            ->and(AuditLog::where('action', 'demo.purged')->count())->toBe(2);
     });
 
     it('leaves the go-live check with no old demo accounts', function () {

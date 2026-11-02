@@ -117,6 +117,9 @@ final class DemoCleanup
      * The same purge, saying what really went: the addresses of the accounts removed (not of those the plan listed and
      * a re-check then left alone), how many workspaces went with them, and how many staff test workspaces.
      *
+     * Each removal records itself (`demo.purged`, counts only) in the transaction that makes it, so a removal that
+     * committed always has its row, even if a later account in the same run throws and the run stops there.
+     *
      * @param  Plan  $plan
      * @return Report
      */
@@ -140,10 +143,6 @@ final class DemoCleanup
             foreach ($plan['test_workspaces'] as $workspace) {
                 $tests += $this->purgeTestWorkspace($workspace['id']) ? 1 : 0;
             }
-        }
-
-        if ($emails !== [] || $tests > 0) {
-            Audit::record('demo.purged', changes: ['accounts' => count($emails), 'workspaces' => $workspaces, 'test_workspaces' => $tests]);
         }
 
         return ['accounts' => $emails, 'workspaces' => $workspaces, 'test_workspaces' => $tests];
@@ -258,6 +257,7 @@ final class DemoCleanup
             $email = (string) $user->email;
             $owned->each(fn (Tenant $tenant) => $this->deleteWorkspace($tenant));
             PurgeDeletedAccounts::eraseUser($user);
+            Audit::record('demo.purged', changes: ['accounts' => 1, 'workspaces' => $owned->count(), 'test_workspaces' => 0]);
 
             return ['email' => $email, 'workspaces' => $owned->pluck('id')->all()];
         });
@@ -284,6 +284,7 @@ final class DemoCleanup
             }
 
             $this->deleteWorkspace($tenant);
+            Audit::record('demo.purged', changes: ['accounts' => 0, 'workspaces' => 0, 'test_workspaces' => 1]);
 
             return true;
         });

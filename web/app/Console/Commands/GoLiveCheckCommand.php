@@ -7,14 +7,14 @@ use Illuminate\Console\Command;
 
 /**
  * "Is this site ready for real customers?" for the owner, on the server. One line per check: the word PASS, WARN or FAIL
- * (colour only helps), the title, and what it found with what to do next. Exits with 1 when any check fails. It
- * changes nothing.
+ * (colour only helps), the title, and what it found with what to do next. Exits with 1 when any check fails. It changes
+ * no data (rendering the two public pages for the `legal` check can warm a cache entry, nothing else).
  */
 final class GoLiveCheckCommand extends Command
 {
     protected $signature = 'qistas:go-live-check';
 
-    protected $description = 'Check that the site is ready for real customers (reads only, changes nothing)';
+    protected $description = 'Check that the site is ready for real customers (reads only, changes no data)';
 
     public function handle(): int
     {
