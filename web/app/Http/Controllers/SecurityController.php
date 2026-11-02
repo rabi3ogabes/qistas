@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Auth\SignInPresenter;
 use App\Auth\TrustedDevice;
+use App\Models\SignInEvent;
 use App\Support\Audit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,8 +22,8 @@ final class SecurityController
             'trustedUntil' => $devices->trustedUntil($request, $request->user()),
             // The phones signed in with the app (Win Plan PP16); API tokens for other software are not sign-ins.
             'devices' => $request->user()->tokens()->where('abilities', 'like', '%"app"%')->orderByDesc('last_used_at')->orderByDesc('created_at')->get(),
-            // The person's own sign-in history (go-live basics): the last 20, written on the clock of the business they work in.
-            'signIns' => $request->user()->signInEvents()->limit(SignInPresenter::PERSON_LIMIT)->get(),
+            // The person's own latest sign-ins (go-live basics; at most 5 of the 20 are wrong passwords), on the clock of the business they work in.
+            'signIns' => SignInEvent::recentFor($request->user()),
             'signInZone' => $request->user()->primaryTenant()?->localTimezone() ?? 'UTC',
         ]);
     }

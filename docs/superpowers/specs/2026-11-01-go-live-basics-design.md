@@ -359,6 +359,7 @@ Found while reading the code to write the plan (2026-11-02). Where they differ f
   `timezone`), then the language region, then the default: a language is a weak sign of where a person is (a Saudi
   browser in en-US), the device's zone a strong one. A zone that names no place (`UTC`) is ignored for both the country
   and the workspace's time zone; the phone app sends only `utc_offset`, so its path is unchanged.
+- **D10.** The person's and staff lists show at most 5 (staff 3) newest wrong-password rows and fill the rest with successful sign-ins, so a flood of guesses cannot hide a real sign-in.
 
 ## 11. Risks and honest limits
 

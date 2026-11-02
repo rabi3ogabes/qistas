@@ -89,7 +89,7 @@
         @endif
     </section>
 
-    {{-- The last 20 sign-ins to this account (go-live basics): what signed in, from which country, whether a proxy shows, and when. --}}
+    {{-- The latest sign-ins to this account (go-live basics; SignInEvent::recentFor): what signed in, from which country, whether a proxy shows, and when. --}}
     <section class="devices" aria-labelledby="sign-ins-title">
         <h2 id="sign-ins-title" class="devices-title">{{ __('Recent sign-ins') }}</h2>
         @if ($signIns->isEmpty())

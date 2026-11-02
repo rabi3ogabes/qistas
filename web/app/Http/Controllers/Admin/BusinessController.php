@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Actions\Admin\ChangePlan;
-use App\Auth\SignInPresenter;
 use App\Billing\Card\CardManagement;
 use App\Billing\Card\CardRefused;
 use App\Billing\Card\CardUnavailable;
@@ -16,11 +15,10 @@ use App\Models\SignInEvent;
 use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\Audit;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection as Rows;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
@@ -58,7 +56,7 @@ final class BusinessController
         return view('admin.businesses.index', ['businesses' => $businesses, 'plans' => $plans, 'freePlan' => Plan::default(), 'term' => (string) $request->query('q', ''), 'planKey' => $planKey]);
     }
 
-    public function show(Tenant $tenant): View
+    public function show(Request $request, Tenant $tenant): View
     {
         abort_if($tenant->is_demo || $tenant->is_test, 404);
 
@@ -74,13 +72,24 @@ final class BusinessController
             ->orderBy('tenant_users.created_at')->orderBy('users.name')
             ->get();
 
+        // Each person's latest sign-ins, one query for all of them (SignInEvent::recent). The records belong to the people,
+        // not to the business, so they are read by these ids and only here, for platform staff.
+        $signIns = SignInEvent::recent($people->modelKeys(), SignInEvent::STAFF_LIMIT, SignInEvent::STAFF_FAILED_CAP);
+
+        // Staff reading members' addresses is a security-relevant action: once per page view, with numbers only.
+        if ($signIns->isNotEmpty()) {
+            Audit::record('admin.sign_ins_viewed', $tenant, ['people' => $signIns->count(), 'rows' => $signIns->sum(fn ($rows) => $rows->count())], $tenant->id, $request->user()->id);
+        }
+
         return view('admin.businesses.show', [
             'tenant' => $tenant->load(['owner', 'subscription.plan']),
             'plan' => $tenant->currentPlan(),
             'subscription' => $tenant->subscription,
             'members' => $people->count(),
             'people' => $people,
-            'signIns' => $this->recentSignIns($people),
+            'signIns' => $signIns,
+            'signInShown' => SignInEvent::STAFF_LIMIT,
+            'signInFailedCap' => SignInEvent::STAFF_FAILED_CAP,
             // Staff are in no business's time zone, so the exact times are on the business's own clock (the title names the zone).
             'signInZone' => $tenant->localTimezone(),
             'usage' => $usage,
@@ -122,39 +131,6 @@ final class BusinessController
         return redirect()->route('admin.businesses.show', $tenant)->with('status', $when === 'now'
             ? __('The card subscription is cancelled and the unused time refunded. :business is on :plan.', ['business' => $tenant->name, 'plan' => Plan::default()->name])
             : __('The card subscription ends on :date and will not renew.', ['date' => $subscription->current_period_end?->translatedFormat('j M Y')]));
-    }
-
-    /**
-     * The last SignInPresenter::STAFF_LIMIT sign-ins of each of these people, newest first, grouped by person, in ONE
-     * query however many people there are. The records belong to the people, not to the business, so this is the one
-     * place that reads them across people, and only for these ids.
-     *
-     * ROW_NUMBER() OVER (PARTITION BY ...) numbers each person's rows from the newest, and the outer query keeps the
-     * first ten: standard SQL that SQLite (tests) and PostgreSQL (live) both run, with no per-person query and no limit
-     * applied to the whole set. The `(user_id, created_at)` index serves the inner filter and sort; the rows ranked are
-     * these people's, which the 90 days of retention keep small.
-     *
-     * @param  Collection<int, User>  $people
-     * @return Rows<array-key, Rows<int, SignInEvent>>
-     */
-    private function recentSignIns(Collection $people): Rows
-    {
-        if ($people->isEmpty()) {
-            return new Rows;
-        }
-
-        $ranked = SignInEvent::query()
-            ->select('sign_in_events.*')
-            ->selectRaw('ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY created_at DESC, id DESC) AS recency')
-            ->whereIn('user_id', $people->modelKeys());
-
-        return SignInEvent::query()
-            ->fromSub($ranked, 'ranked')
-            ->where('recency', '<=', SignInPresenter::STAFF_LIMIT)
-            ->orderBy('user_id')->orderBy('recency')
-            ->get()
-            ->toBase()
-            ->groupBy('user_id');
     }
 
     /** @return Builder<Tenant> */

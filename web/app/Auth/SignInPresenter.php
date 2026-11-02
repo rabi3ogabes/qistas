@@ -20,23 +20,24 @@ use DateTimeZone;
  */
 final class SignInPresenter
 {
-    /** How many of their own sign-ins a person is shown (the API and the security page). */
-    public const PERSON_LIMIT = 20;
-
-    /** How many of each member's sign-ins platform staff are shown on the business page. */
-    public const STAFF_LIMIT = 10;
-
     /** What separates the parts of a line. Not a comma, so it reads the same in every language. */
     private const JOIN = ' · ';
 
+    /** @var array<string, int>|null the names of the time zones PHP knows, as keys (built once, not for each row) */
+    private static ?array $zones = null;
+
+    /** @var array<string, string> a zone's name as people say it, by language and zone (built once for each, not for each row) */
+    private static array $zoneNames = [];
+
     /**
-     * @param  string  $zone  the IANA time zone the exact time is written in (an unknown name falls back to UTC)
-     * @return array{failed: bool, device: string, verdict: string, level: 'quiet'|'noted', hint: ?string, ago: string, exact: string, iso: string, ip: string}
+     * @param  string  $zone  the IANA time zone the exact time and the day are written in (an unknown name falls back to UTC)
+     * @return array{failed: bool, device: string, verdict: string, level: 'quiet'|'noted', hint: ?string, ago: string, day: ?string, exact: string, iso: string, ip: string}
      */
     public static function present(SignInEvent $event, string $zone = 'UTC'): array
     {
-        $zone = in_array($zone, DateTimeZone::listIdentifiers(), true) ? $zone : 'UTC';
+        $zone = self::zone($zone);
         $moment = CarbonImmutable::instance($event->created_at);
+        $local = $moment->setTimezone($zone);
 
         return [
             'failed' => $event->outcome === 'failed',
@@ -45,10 +46,26 @@ final class SignInPresenter
             'level' => in_array($event->proxy, ['possible', 'detected'], true) ? 'noted' : 'quiet',
             'hint' => self::hint($event),
             'ago' => $moment->diffForHumans(),
-            'exact' => $moment->setTimezone($zone)->translatedFormat('j M Y, H:i').' ('.Countries::timeZoneName($zone).')',
+            // "5 days ago" is vague; from the second day on, the day is printed beside it (the exact time stays in the title).
+            'day' => $moment->lessThan(CarbonImmutable::now()->subDay()) ? $local->translatedFormat('j M Y') : null,
+            'exact' => $local->translatedFormat('j M Y, H:i').' ('.self::zoneName($zone).')',
             'iso' => $moment->toIso8601String(),
             'ip' => $event->ip,
         ];
+    }
+
+    /** [$name] if PHP knows it as a time zone, else UTC. */
+    private static function zone(string $name): string
+    {
+        self::$zones ??= array_flip(DateTimeZone::listIdentifiers());
+
+        return isset(self::$zones[$name]) ? $name : 'UTC';
+    }
+
+    /** "Saudi Arabia Time" for Asia/Riyadh, in the language of the page. Only known zones come here, so the memo stays small. */
+    private static function zoneName(string $zone): string
+    {
+        return self::$zoneNames[app()->getLocale().'|'.$zone] ??= Countries::timeZoneName($zone);
     }
 
     /**

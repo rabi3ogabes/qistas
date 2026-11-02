@@ -352,14 +352,18 @@ paths:
   /account/sign-ins:
     get:
       tags: [Account]
-      summary: Your recent sign-ins
+      summary: Your latest sign-ins
       description: |
-        The last 20 times someone signed in to the signed-in person's account, or typed its password wrongly, newest first.
-        Only the person's own, and the same list the website shows on its Security page. A row is written for a real
-        sign-in or sign-up (website or phone app), never for a session restored by "remember me", and for a wrong password
-        at most once a minute per address. Rows are removed after 90 days. `proxy` is a best-effort reading of free
-        signals: say "not detected", "possible" or "detected", never "certain", and show `proxy_signals` only as plain
-        words, not as the raw names. The user agent is stored for support and is not sent.
+        The signed-in person's latest sign-ins to their own account, newest first, up to 20: **at most the 5 newest
+        wrong-password attempts (`outcome` `failed`), and successful sign-ins fill the rest.** Anyone who knows an e-mail
+        address can make wrong-password rows, so they are capped, and a flood of guesses cannot push a real sign-in off
+        the list. So it is not simply the last 20 events: wrong-password attempts beyond the 5 newest are left out even
+        when they are newer than a successful sign-in that is shown. It is the same list the website shows on its
+        Security page, and only the person's own. A row is written for a real sign-in or sign-up (website or phone app), never for a session
+        restored by "remember me", and for a wrong password at most once a minute per address. Rows are removed after 90
+        days. `proxy` is a best-effort reading of free signals: say "not detected", "possible" or "detected", never
+        "certain", and show `proxy_signals` only as plain words, not as the raw names. The user agent is stored for
+        support and is not sent.
       responses:
         "200":
           description: The sign-ins, newest first; an empty list when there are none.

@@ -12,6 +12,10 @@
         <span class="signin-verdict" data-level="{{ $row['level'] }}">{{ $row['verdict'] }}</span>
         <span aria-hidden="true">·</span>
         <time datetime="{{ $row['iso'] }}" title="{{ $row['exact'] }}">{{ $row['ago'] }}</time>
+        @if ($row['day'])
+            <span aria-hidden="true">·</span>
+            <span class="signin-day">{{ $row['day'] }}</span>
+        @endif
         @if ($staff)
             <span aria-hidden="true">·</span>
             <bdi class="signin-ip" dir="ltr">{{ $row['ip'] }}</bdi>

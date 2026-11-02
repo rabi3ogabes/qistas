@@ -165,7 +165,7 @@
                 @if ($signIns->isEmpty())
                     <p class="field-hint">{{ __('No sign-ins are recorded for the people in this business yet.') }}</p>
                 @else
-                    <p class="field-hint">{{ __('The last :count for each person, newest first.', ['count' => \App\Auth\SignInPresenter::STAFF_LIMIT]) }}</p>
+                    <p class="field-hint">{{ __('Up to :count for each person, newest first. At most :failed of them are wrong-password attempts.', ['count' => $signInShown, 'failed' => $signInFailedCap]) }}</p>
                     @foreach ($people as $person)
                         @php($events = $signIns->get($person->id))
                         <div class="signin-member">
