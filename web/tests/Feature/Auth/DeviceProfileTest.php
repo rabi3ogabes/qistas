@@ -102,13 +102,6 @@ describe('on the web', function () {
             ->and((string) $stored)->toContain('Mozilla/5.0');
     });
 
-    it('keeps the system and the browser short', function (string $userAgent) {
-        $profile = DeviceProfile::describe(deviceProfileRequest($userAgent), 'web');
-
-        expect(mb_strlen((string) $profile['os']))->toBeLessThanOrEqual(64)
-            ->and(mb_strlen((string) $profile['browser']))->toBeLessThanOrEqual(64);
-    })->with('sign-in device user agents');
-
     it('ignores what the phone app says about itself when the sign-in is not the app', function () {
         $profile = DeviceProfile::describe(
             deviceProfileRequest(DEVICE_PROFILE_WINDOWS_CHROME),

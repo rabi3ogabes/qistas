@@ -150,6 +150,14 @@ describe('a successful sign-in', function () {
             ->and(SignInEvent::query()->count())->toBe(0);
     });
 
+    it('refuses a method that is not a short lower-case word', function (string $method) {
+        expect(fn () => $this->recorder->success($this->user, signInRecorderRequest(), $method))
+            ->toThrow(InvalidArgumentException::class)
+            ->and(fn () => $this->recorder->failed($this->user, signInRecorderRequest(), $method))
+            ->toThrow(InvalidArgumentException::class)
+            ->and(SignInEvent::query()->count())->toBe(0);
+    })->with(['empty' => [''], 'upper case' => ['Password'], 'a space' => ['one time'], 'too long' => ['abcdefghijklmnopq']]);
+
     it('is not throttled: every real sign-in is a row', function () {
         $this->recorder->success($this->user, signInRecorderRequest());
         $this->recorder->success($this->user, signInRecorderRequest());

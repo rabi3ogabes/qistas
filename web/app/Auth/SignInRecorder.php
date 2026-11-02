@@ -27,7 +27,7 @@ final class SignInRecorder
 
     public function success(User $user, Request $request, string $method = 'password', string $channel = 'web'): SignInEvent
     {
-        return $this->write($user, $request, $method, self::channel($channel), 'success');
+        return $this->write($user, $request, self::method($method), self::channel($channel), 'success');
     }
 
     /**
@@ -38,6 +38,7 @@ final class SignInRecorder
      */
     public function failed(User $user, Request $request, string $method = 'password', string $channel = 'web'): ?SignInEvent
     {
+        $method = self::method($method);
         $channel = self::channel($channel);
 
         $recent = SignInEvent::query()
@@ -74,6 +75,16 @@ final class SignInRecorder
             'proxy_signals' => $proxy['signals'],
             'user_agent' => $profile['user_agent'],
         ]);
+    }
+
+    /** How the person proved who they are: a short lower-case word chosen by the calling code (the column holds 16). */
+    private static function method(string $method): string
+    {
+        if (preg_match('/\A[a-z0-9_]{1,16}\z/', $method) !== 1) {
+            throw new InvalidArgumentException('A sign-in method is a short lower-case word.');
+        }
+
+        return $method;
     }
 
     private static function channel(string $channel): string
