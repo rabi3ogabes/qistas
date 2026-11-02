@@ -94,6 +94,29 @@ function cleanupPlannedUsers(array $plan): array
     return array_column($plan['accounts'], 'user_id');
 }
 
+/** @return list<string> */
+function cleanupHeldBackUsers(array $plan): array
+{
+    return array_column($plan['held_back'], 'user_id');
+}
+
+/**
+ * A request to delete a workspace, as RequestAccountDeletion leaves it (scope `workspace`), or to delete a login.
+ *
+ * @param  array<string, mixed>  $overrides
+ */
+function cleanupDeletion(string $tenantId, string $scope = 'workspace', array $overrides = []): string
+{
+    $id = (string) Str::uuid();
+    DB::table('account_deletions')->insert($overrides + [
+        'id' => $id, 'tenant_id' => $tenantId, 'user_id' => null, 'scope' => $scope, 'requested_at' => now()->subDays(3),
+        'delete_after' => now()->addDays(27), 'cancelled_at' => null, 'completed_at' => null,
+        'created_at' => now()->subDays(3), 'updated_at' => now()->subDays(3),
+    ]);
+
+    return $id;
+}
+
 function cleanupTenantRows(string $tenantId): int
 {
     return collect(['customers', 'contracts', 'installments', 'transactions', 'documents', 'day_closes', 'stored_files'])
@@ -110,8 +133,33 @@ describe('the plan', function () {
         expect($plan['accounts'])->toBe([[
             'user_id' => $user->id,
             'email' => $user->email,
+            'matched_by' => 'demo_expires_at',
+            'created_at' => '2026-10-21T12:00:00Z',
             'workspaces' => [['id' => $tenant->id, 'name' => 'Demo Shop', 'rows' => 9]],
-        ]])->and($plan['test_workspaces'])->toBe([]);
+        ]])->and($plan['test_workspaces'])->toBe([])
+            ->and($plan['held_back'])->toBe([]);
+    });
+
+    it('says how each account matched and when it was made, so a real person at the seeder’s address stands out', function () {
+        [$old] = cleanupDemoAccount();
+
+        $this->travelTo('2026-09-30 08:30:15');
+        $seeded = User::factory()->create(['email' => DemoSeeder::EMAIL]);
+        $this->travelTo('2026-10-21 12:00:00');
+
+        $byUser = collect(app(DemoCleanup::class)->plan()['accounts'])->keyBy('user_id');
+
+        expect($byUser)->toHaveCount(2)
+            ->and($byUser[$old->id]['matched_by'])->toBe('demo_expires_at')
+            ->and($byUser[$old->id]['created_at'])->toBe('2026-10-21T12:00:00Z')
+            ->and($byUser[$seeded->id]['matched_by'])->toBe('seeder_address')
+            ->and($byUser[$seeded->id]['created_at'])->toBe('2026-09-30T08:30:15Z');
+    });
+
+    it('calls an account with both signs a demo-button account', function () {
+        User::factory()->create(['email' => DemoSeeder::EMAIL, 'demo_expires_at' => now()->addHours(12)]);
+
+        expect(collect(app(DemoCleanup::class)->plan()['accounts'])->sole()['matched_by'])->toBe('demo_expires_at');
     });
 
     it('lists the developer seeder’s own account and its sample business', function () {
@@ -162,6 +210,62 @@ describe('the plan', function () {
         memberAs('manager', $shared);
 
         expect(cleanupPlannedUsers(app(DemoCleanup::class)->plan()))->not->toContain($demo->id);
+    });
+
+    it('lists what it holds back, with the reason in plain words', function () {
+        [$demo, $shared] = cleanupDemoAccount('Shared Shop');
+        memberAs('manager', $shared);
+
+        $held = app(DemoCleanup::class)->plan()['held_back'];
+
+        expect($held)->toHaveCount(1)
+            ->and(array_keys($held[0]))->toBe(['user_id', 'email', 'reason'])
+            ->and($held[0]['user_id'])->toBe($demo->id)
+            ->and($held[0]['email'])->toBe($demo->email)
+            ->and($held[0]['reason'])->toContain('"Shared Shop"')->toContain('not a demo account');
+    });
+
+    it('holds back an account that owns a staff test workspace, and says what that needs', function () {
+        $demo = User::factory()->create(['demo_expires_at' => now()->addHours(12)]);
+        cleanupOwnedWorkspace($demo, 'Staff Sandbox', ['is_test' => true]);
+        $cleanup = app(DemoCleanup::class);
+
+        $without = $cleanup->plan()['held_back'];
+        $with = $cleanup->plan(includeTest: true)['held_back'];
+
+        expect($without)->toHaveCount(1)->and($without[0]['user_id'])->toBe($demo->id)
+            ->and($without[0]['reason'])->toContain('"Staff Sandbox"')->toContain('staff test workspace')->toContain('--include-test')
+            ->and($with)->toHaveCount(1)->and($with[0]['user_id'])->toBe($demo->id)
+            ->and($with[0]['reason'])->toContain('"Staff Sandbox"')->toContain('run the purge again');
+    });
+
+    it('gives one reason per held-back account, and holds it back whole', function () {
+        $demo = User::factory()->create(['demo_expires_at' => now()->addHours(12)]);
+        $first = cleanupOwnedWorkspace($demo, 'A Shared Shop');
+        memberAs('collector', $first);
+        cleanupOwnedWorkspace($demo, 'B Staff Sandbox', ['is_test' => true]);
+
+        $plan = app(DemoCleanup::class)->plan();
+
+        expect($plan['held_back'])->toHaveCount(1)->and($plan['accounts'])->toBe([]);
+    });
+
+    it('lists nothing as held back when everything can go', function () {
+        cleanupDemoAccount();
+        $this->seed(DemoSeeder::class);
+
+        expect(app(DemoCleanup::class)->plan()['held_back'])->toBe([]);
+    });
+
+    it('never lists as held back someone who is not a demo account', function () {
+        $lookalike = User::factory()->create(['email' => 'layla@demo.qistas.test']);
+        $shop = cleanupOwnedWorkspace($lookalike, 'Layla Phones', ['is_demo' => true]);
+        memberAs('manager', $shop);
+        [$real, $realShop] = owner();
+        $realShop->forceFill(['owner_user_id' => $real->id])->save();
+        memberAs('manager', $realShop);
+
+        expect(app(DemoCleanup::class)->plan()['held_back'])->toBe([]);
     });
 });
 
@@ -321,6 +425,166 @@ describe('the purge', function () {
             ->and(User::find($admin->id))->not->toBeNull()
             ->and(User::find($admin->id)->current_tenant_id)->toBeNull();
     });
+
+    it('ignores the held-back list: nothing named there is touched', function () {
+        [$demo, $shared] = cleanupDemoAccount();
+        memberAs('manager', $shared);
+        $real = User::factory()->create();
+        $realShop = cleanupOwnedWorkspace($real, 'Real Shop');
+        $cleanup = app(DemoCleanup::class);
+        $plan = $cleanup->plan();
+        expect(cleanupHeldBackUsers($plan))->toBe([$demo->id]);
+        $plan['held_back'][] = ['user_id' => $real->id, 'email' => $real->email, 'reason' => 'forged'];
+
+        expect($cleanup->purge($plan))->toBe(0);
+
+        expect(User::find($demo->id))->not->toBeNull()->and(Tenant::find($shared->id))->not->toBeNull()
+            ->and(User::find($real->id))->not->toBeNull()->and(Tenant::find($realShop->id))->not->toBeNull()
+            ->and(AuditLog::where('action', 'demo.purged')->count())->toBe(0);
+    });
+
+    it('removes only the workspaces the account owns, however many ids a forged plan lists under it', function () {
+        [$demo, $mine] = cleanupDemoAccount('Mine');
+        $real = User::factory()->create();
+        $theirs = cleanupOwnedWorkspace($real, 'Theirs');
+        cleanupFill($theirs, $real);
+        $cleanup = app(DemoCleanup::class);
+        $plan = $cleanup->plan();
+        $plan['accounts'][0]['workspaces'][] = ['id' => $theirs->id, 'name' => 'Theirs', 'rows' => 0];
+
+        expect($cleanup->purge($plan))->toBe(1);
+
+        expect(User::find($demo->id))->toBeNull()
+            ->and(Tenant::find($mine->id))->toBeNull()
+            ->and(Tenant::find($theirs->id))->not->toBeNull()
+            ->and(Tenant::find($theirs->id)->owner_user_id)->toBe($real->id)
+            ->and(cleanupTenantRows($theirs->id))->toBe(9)
+            ->and(User::find($real->id))->not->toBeNull();
+    });
+
+    it('leaves an account alone when a forged plan lists a real workspace instead of the ones it owns', function () {
+        [$demo, $mine] = cleanupDemoAccount('Mine');
+        $real = User::factory()->create();
+        $theirs = cleanupOwnedWorkspace($real, 'Theirs');
+        $cleanup = app(DemoCleanup::class);
+        $plan = $cleanup->plan();
+        $plan['accounts'][0]['workspaces'] = [['id' => $theirs->id, 'name' => 'Theirs', 'rows' => 0]];
+
+        expect($cleanup->purge($plan))->toBe(0);
+
+        expect(User::find($demo->id))->not->toBeNull()
+            ->and(Tenant::find($mine->id))->not->toBeNull()
+            ->and(Tenant::find($theirs->id))->not->toBeNull();
+    });
+
+    it('refuses a forged test-workspace entry for a workspace that is not a staff test workspace, even with include_test', function () {
+        $real = User::factory()->create();
+        $shop = cleanupOwnedWorkspace($real, 'Real Shop');
+        cleanupFill($shop, $real);
+        $forged = [
+            'accounts' => [], 'held_back' => [], 'include_test' => true,
+            'test_workspaces' => [['id' => $shop->id, 'name' => 'Real Shop', 'owner_email' => $real->email]],
+        ];
+
+        expect(app(DemoCleanup::class)->purge($forged))->toBe(0);
+
+        expect(Tenant::find($shop->id))->not->toBeNull()
+            ->and(Tenant::find($shop->id)->owner_user_id)->toBe($real->id)
+            ->and(cleanupTenantRows($shop->id))->toBe(9)
+            ->and(User::find($real->id))->not->toBeNull()
+            ->and(AuditLog::where('action', 'demo.purged')->count())->toBe(0);
+    });
+
+    it('takes away the login and memberships of a demo account that only belongs to a real workspace, and keeps that workspace’s records', function () {
+        $real = User::factory()->create();
+        $shop = cleanupOwnedWorkspace($real, 'Real Shop');
+        $demo = User::factory()->create(['email' => 'demo-'.Str::lower(Str::random(14)).'@demo.qistas.test', 'demo_expires_at' => now()->addHours(12)]);
+        $shop->users()->attach($demo->id, ['role' => 'collector']);
+        cleanupFill($shop, $demo); // the demo account took the payment, closed the day and added the file
+        cleanupSignIn($demo);
+        $cleanup = app(DemoCleanup::class);
+        $plan = $cleanup->plan();
+        expect(cleanupPlannedUsers($plan))->toBe([$demo->id])->and($plan['accounts'][0]['workspaces'])->toBe([]);
+
+        expect($cleanup->purge($plan))->toBe(1);
+
+        expect(User::find($demo->id))->toBeNull()
+            ->and(DB::table('tenant_users')->where('user_id', $demo->id)->count())->toBe(0)
+            ->and(DB::table('sessions')->where('user_id', $demo->id)->count())->toBe(0)
+            ->and(DB::table('personal_access_tokens')->where('tokenable_id', $demo->id)->count())->toBe(0)
+            // The business next door: still there, still its owner's, every record in place (they only lose the author).
+            ->and(Tenant::find($shop->id))->not->toBeNull()
+            ->and(Tenant::find($shop->id)->owner_user_id)->toBe($real->id)
+            ->and(DB::table('tenant_users')->where(['tenant_id' => $shop->id, 'user_id' => $real->id])->exists())->toBeTrue()
+            ->and(cleanupTenantRows($shop->id))->toBe(9)
+            ->and(Storage::disk('files')->allFiles("tenants/{$shop->id}"))->toHaveCount(1)
+            ->and(DB::table('transactions')->where('tenant_id', $shop->id)->whereNull('created_by_user_id')->count())->toBe(1);
+    });
+
+    it('marks a pending deletion request of a removed workspace as completed, as the nightly erase does', function () {
+        [$demo, $shop] = cleanupDemoAccount();
+        $elsewhere = User::factory()->create();
+        $elsewhereShop = cleanupOwnedWorkspace($elsewhere, 'Elsewhere');
+        $pending = cleanupDeletion($shop->id);
+        $cancelled = cleanupDeletion($shop->id, overrides: ['cancelled_at' => now()->subDay()]);
+        $finished = cleanupDeletion($shop->id, overrides: ['completed_at' => now()->subDays(2), 'updated_at' => now()->subDays(2)]);
+        $login = cleanupDeletion($shop->id, 'login');
+        $other = cleanupDeletion($elsewhereShop->id);
+        $cleanup = app(DemoCleanup::class);
+
+        expect($cleanup->purge($cleanup->plan()))->toBe(1);
+
+        $row = fn (string $id) => DB::table('account_deletions')->where('id', $id)->sole();
+        expect($row($pending)->completed_at)->toBe('2026-10-21 12:00:00')
+            ->and($row($pending)->updated_at)->toBe('2026-10-21 12:00:00')
+            ->and($row($cancelled)->completed_at)->toBeNull()
+            ->and($row($finished)->completed_at)->toBe('2026-10-19 12:00:00')
+            ->and($row($login)->completed_at)->toBeNull()
+            ->and($row($other)->completed_at)->toBeNull();
+    });
+
+    it('marks a pending deletion request of a removed staff test workspace as completed too', function () {
+        $admin = User::factory()->create(['platform_role' => 'super_admin']);
+        $test = app(TestWorkspace::class)->open($admin);
+        $pending = cleanupDeletion($test->id);
+        $cleanup = app(DemoCleanup::class);
+
+        $cleanup->purge($cleanup->plan(includeTest: true));
+
+        expect(Tenant::find($test->id))->toBeNull()
+            ->and(DB::table('account_deletions')->where('id', $pending)->sole()->completed_at)->toBe('2026-10-21 12:00:00');
+    });
+
+    it('reports who and what went, and only what really went', function () {
+        [$gone, $goneShop] = cleanupDemoAccount('Goes');
+        [$stays, $staysShop] = cleanupDemoAccount('Stays');
+        $admin = User::factory()->create(['platform_role' => 'super_admin']);
+        app(TestWorkspace::class)->open($admin);
+        $cleanup = app(DemoCleanup::class);
+        $plan = $cleanup->plan(includeTest: true);
+        memberAs('collector', $staysShop); // a real person joins after the list was made
+
+        $report = $cleanup->purgeAndReport($plan);
+
+        expect($report)->toBe(['accounts' => [$gone->email], 'workspaces' => 1, 'test_workspaces' => 1])
+            ->and(User::find($stays->id))->not->toBeNull();
+    });
+
+    it('locks the workspaces an account owns before it looks at who belongs to them', function () {
+        cleanupDemoAccount();
+        $cleanup = app(DemoCleanup::class);
+        $plan = $cleanup->plan();
+        $queries = [];
+        DB::listen(function ($query) use (&$queries): void {
+            $queries[] = strtolower($query->sql);
+        });
+
+        $cleanup->purge($plan);
+
+        $lock = collect($queries)->search(fn (string $sql) => str_contains($sql, 'from "tenants"') && str_contains($sql, 'for update'));
+        $members = collect($queries)->search(fn (string $sql) => str_contains($sql, 'from "tenant_users"'));
+        expect($lock)->not->toBeFalse()->and($members)->not->toBeFalse()->and($lock)->toBeLessThan($members);
+    })->skip(fn () => DB::connection()->getDriverName() !== 'pgsql', 'row locks exist only on PostgreSQL');
 
     it('is harmless the second time', function () {
         cleanupDemoAccount();
