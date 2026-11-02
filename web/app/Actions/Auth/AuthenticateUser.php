@@ -80,8 +80,9 @@ final class AuthenticateUser
         try {
             $hash = Cache::rememberForever($key, fn (): string => Hash::make(Str::random(40)));
 
-            // An entry that is no password hash (damaged, or written by something else) would make every check throw.
-            if (Hash::isHashed($hash)) {
+            // An entry that is no password hash, or one of another algorithm or cost than the configured one (damaged, or
+            // written by something else), would make every check throw or cost less than a real password's check.
+            if (Hash::isHashed($hash) && ! Hash::needsRehash($hash)) {
                 return $hash;
             }
         } catch (Throwable $e) {

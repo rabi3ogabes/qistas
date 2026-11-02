@@ -590,6 +590,35 @@ describe('what the answer costs', function () {
         $this->post('/login', ['email' => 'nobody@example.com', 'password' => SIGN_IN_HOOKS_WRONG])
             ->assertSessionHasErrors(['email' => __('auth.failed')]);
     });
+
+    it('never checks against a cached decoy of another cost: one is made on the spot', function () {
+        $rounds = (int) config('hashing.bcrypt.rounds');
+        $hasher = signInHooksCountingHasher();
+        Cache::forever("auth.decoy-hash:bcrypt:{$rounds}", password_hash('x', PASSWORD_BCRYPT, ['cost' => $rounds + 1]));
+
+        signInHooksNewProcess();
+        $hasher->made = $hasher->checked = 0;
+        $this->post('/login', ['email' => 'nobody@example.com', 'password' => SIGN_IN_HOOKS_WRONG])
+            ->assertSessionHasErrors(['email' => __('auth.failed')]);
+
+        expect([$hasher->made, $hasher->checked])->toBe([1, 1]);
+    });
+
+    it('says the same number of queries in Server-Timing for a wrong password and for an unknown e-mail', function () {
+        [$user] = makeAccount();
+        $queries = function (string $email): int {
+            signInHooksNewProcess();
+            $answer = $this->post('/login', ['email' => $email, 'password' => SIGN_IN_HOOKS_WRONG, 'timezone' => 'Asia/Riyadh']);
+            preg_match('/(\d+) queries/', (string) $answer->headers->get('Server-Timing'), $count);
+
+            return (int) ($count[1] ?? -1);
+        };
+
+        $queries('nobody@example.com'); // the very first one makes and keeps the decoy
+
+        expect($queries('nobody@example.com'))->toBeGreaterThan(0)
+            ->and($queries('someone.else@example.com'))->toBe($queries($user->email));
+    });
 });
 
 describe('a record that cannot be written', function () {
