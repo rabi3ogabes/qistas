@@ -58,7 +58,7 @@ final class PurgeDemoCommand extends Command
                 }
 
                 if ($account['workspaces'] === []) {
-                    $this->components->twoColumnDetail('owns no workspace', 'its login and membership will be removed; the business and its records are kept');
+                    $this->components->twoColumnDetail('owns no workspace', 'its login (and any membership) will be removed; a business it only belongs to, and its records, are kept');
                 }
             }
         }

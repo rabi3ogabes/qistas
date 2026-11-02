@@ -80,7 +80,11 @@ final class GoLiveCheck
             } catch (Throwable $e) {
                 // The output says which kind of fault and never its message (it can carry a connection string); the
                 // whole story goes to the application's log through the exception handler.
-                report($e);
+                // A log that cannot be written (the storage check's own subject) must not turn one failed check into a crash.
+                try {
+                    report($e);
+                } catch (Throwable) {
+                }
                 [$status, $detail] = ['fail', 'This check could not run ('.class_basename($e).'). Fix what it could not reach, then run it again.'];
             }
 
@@ -319,7 +323,8 @@ final class GoLiveCheck
             $missing[] = 'the webhook signing secret';
         }
 
-        return $missing;
+        // ready() also checks the shape of the keys: never report "nothing missing" for a gateway that is not ready.
+        return $missing === [] ? ['a valid publishable key'] : $missing;
     }
 
     /** @return Outcome */

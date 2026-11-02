@@ -161,7 +161,7 @@ describe('without --confirm', function () {
         $output = purgeDemoRun();
 
         expect($output)->toContain('demo-member@demo.qistas.test')
-            ->toContain('its login and membership will be removed; the business and its records are kept')
+            ->toContain('its login (and any membership) will be removed; a business it only belongs to, and its records, are kept')
             ->not->toContain('none of its own')
             ->and(Tenant::find($shop->id))->not->toBeNull();
     });
