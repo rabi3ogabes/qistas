@@ -52,5 +52,7 @@ it('cannot be reached by registering with an address, or by any request at all',
         'terms' => '1', 'platform_role' => 'super_admin',
     ]);
 
-    expect(User::where('email', 'boss@example.com')->value('platform_role'))->toBeNull();
+    // The account was made (so the test is about the role, not about a sign-up that failed), and it has no platform role.
+    expect(User::where('email', 'boss@example.com')->exists())->toBeTrue()
+        ->and(User::where('email', 'boss@example.com')->value('platform_role'))->toBeNull();
 });

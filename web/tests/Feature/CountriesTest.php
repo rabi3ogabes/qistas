@@ -24,3 +24,26 @@ it('defaults to the application locale', function () {
 
     expect(Countries::options()['SA'])->toBe('المملكة العربية السعودية');
 });
+
+describe('the name of a time zone', function () {
+    it('is said the way the language says it', function () {
+        expect(Countries::timeZoneName('Asia/Qatar', 'en'))->toBe('Qatar Time')
+            ->and(Countries::timeZoneName('Asia/Qatar', 'ar'))->toBe('توقيت قطر')
+            ->and(Countries::timeZoneName('Asia/Qatar', 'es'))->toBe('hora de Catar')
+            ->and(Countries::timeZoneName('Asia/Riyadh', 'ar'))->not->toBe(Countries::timeZoneName('Asia/Riyadh', 'en'));
+    });
+
+    it('defaults to the application locale', function () {
+        app()->setLocale('ar');
+
+        expect(Countries::timeZoneName('Asia/Qatar'))->toBe('توقيت قطر');
+    });
+
+    it('falls back to the zone’s own name, without underscores, when it is not a zone the system knows', function (string $zone, string $shown) {
+        expect(Countries::timeZoneName($zone, 'en'))->toBe($shown);
+    })->with([
+        'unknown place' => ['Mars/Olympus_Mons', 'Mars/Olympus Mons'],
+        'not a zone' => ['not a zone', 'not a zone'],
+        'empty' => ['', ''],
+    ]);
+});

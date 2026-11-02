@@ -504,6 +504,31 @@ describe('saving it', function () {
             ->and(setupCardFind($dom, '//select[@name="country"]')->item(0)->getAttribute('aria-invalid'))->toBe('true');
     });
 
+    it('keeps a picked country in view when the name is refused: the chooser stays open on the pick', function () {
+        [, $tenant] = setupCardOwner();
+
+        // Opened Change, picked the UAE, and sent a name that is only spaces (it passes the browser's own check).
+        $this->from('/app')->put('/app/setup', ['name' => '   ', 'country' => 'AE'])->assertRedirect('/app');
+
+        $dom = setupCardDom($this->get('/app')->assertOk());
+        $disclosure = setupCardFind($dom, '//select[@name="country"]/ancestor::details')->item(0);
+        $select = setupCardFind($dom, '//select[@name="country"]')->item(0);
+
+        expect($tenant->fresh()->country)->toBe('QA')
+            ->and($disclosure->hasAttribute('open'))->toBeTrue()
+            ->and($dom->query('.//option[@selected]', $select)->item(0)->getAttribute('value'))->toBe('AE');
+    });
+
+    it('leaves the chooser closed when the name is refused and the country was not touched', function () {
+        setupCardOwner();
+
+        $this->from('/app')->put('/app/setup', ['name' => '   ', 'country' => 'QA'])->assertRedirect('/app');
+
+        $disclosure = setupCardFind(setupCardDom($this->get('/app')->assertOk()), '//select[@name="country"]/ancestor::details')->item(0);
+
+        expect($disclosure->hasAttribute('open'))->toBeFalse();
+    });
+
     it('refuses another country once there is a contract, and saves nothing, not even the name', function () {
         [, $tenant] = setupCardOwner();
         setupCardLock($tenant);
@@ -578,12 +603,15 @@ describe('saving it', function () {
 
         $page = $this->get('/app')->assertOk();
         $dom = setupCardDom($page);
+        $heading = $dom->query('//section[@id="setup-card"]//h2[@id="setup-title"]')->item(0);
+        $label = setupCardFind($dom, '//label[@for="f-name"]')->item(0);
+        $button = setupCardFind($dom, '//form//button[@type="submit"]')->item(0);
 
         $page->assertSee('lang="ar" dir="rtl"', false);
-        expect(setupCardText($page))->toContain(__('Name your business', [], 'ar'))->toContain(__('Save and continue', [], 'ar'))
-            ->not->toContain('Name your business')->not->toContain('Save and continue');
-        // Nothing in the card is placed by left or right.
-        expect(setupCardNode($dom)->getElementsByTagName('input')->length)->toBeGreaterThan(0);
+        expect(trim($heading->textContent))->toBe(__('Name your business', [], 'ar'))
+            ->and(trim($label->textContent))->toBe(__('Business name', [], 'ar'))
+            ->and(trim($button->textContent))->toBe(__('Save and continue', [], 'ar'))
+            ->and(setupCardText($page))->not->toContain('Name your business')->not->toContain('Save and continue');
     });
 
     it('answers the same way in Arabic: the message and the mistakes are in Arabic', function () {

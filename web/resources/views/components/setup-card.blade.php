@@ -39,7 +39,8 @@
                 <x-field name="name" :label="__('Business name')" :placeholder="$tenant->name" autocomplete="organization" dir="auto" maxlength="255" required />
 
                 @if ($detected)
-                    <details class="setup-place" data-source="{{ $source }}" @if ($errors->has('country')) open @endif>
+                    {{-- Open to show a mistake about the country, and open while a pick other than the current country waits (a page that came back for another reason must not hide it). --}}
+                    <details class="setup-place" data-source="{{ $source }}" @if ($errors->has('country') || $picked !== $country) open @endif>
                         <summary>
                             <x-icon name="globe" :size="20" class="setup-globe" />
                             <span class="setup-where">
