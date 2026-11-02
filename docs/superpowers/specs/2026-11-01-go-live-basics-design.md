@@ -212,12 +212,12 @@ remember-me and two-factor pitfalls.
 
 ### 6.1 Removed from the product
 
-The public demo and everything that exists only for it: `DemoLoginController` and its two routes; `Api\V1\DemoController`
-and its two routes; `Sandbox\DemoAccess` and `DemoBusy`; `PruneDemoCommand` and its schedule line; the admin
-`DemoAccountsController`, its route and the prune button; the demo banners and the sign-in page's demo blocks (and their
-use in the four layouts); the `qistas.demo` and `qistas.demo_login` settings and the `demo` and `api-demo` rate limiters;
-the demo flag in `AccountPayload`; the phone app's `demo_choices.dart`, its sign-in-screen hooks, API methods and strings;
-and the tests of all of these.
+The throw-away public demo and everything that exists only for it: `DemoLoginController` and its two routes;
+`Api\V1\DemoController` and its two routes; `Sandbox\DemoAccess` and `DemoBusy`; `PruneDemoCommand` and its schedule
+line; the admin `DemoAccountsController`, its route and the prune button; the throw-away account's banner
+(`demo-account-banner`) and the sign-in page's "Try the demo" buttons (and their use in the four layouts); the
+`qistas.demo_login` setting and the `demo` and `api-demo` rate limiters; the demo flag in `AccountPayload`; the phone
+app's `demo_choices.dart`, its sign-in-screen hooks, API methods and strings; and the tests of all of these.
 
 ### 6.2 Kept on purpose
 
@@ -226,8 +226,11 @@ and the tests of all of these.
   `RegisterTenantOwner` (it passes a business name).
 - **`SampleBusiness`** and **staff test workspaces** (`is_test`): a staff tool for trying features, excluded from
   customer figures. They are listed, never deleted, by the go-live tools.
-- **The container's built-in demo mode** (the Docker or Vercel image when no database is configured): it is not part of
-  the live site and its CI check depends on it. Out of scope here; a follow-up can retire it with the Vercel copy.
+- **The container's built-in demo mode** (the Docker or Vercel image when no database is configured): the `qistas.demo`
+  setting, the `x-demo-banner` component and the credentials block on the sign-in page stay, because they are what the
+  container shows and what `scripts/e2e-demo.sh` and the CI job "Start with no configuration (demo mode)" depend on. It
+  is not part of the live site, and `qistas:go-live-check` fails when `qistas.demo` is on. Out of scope here; a follow-up
+  can retire it with the Vercel copy.
 - **The column `users.demo_expires_at`** stays so the tools can recognise old demo accounts; a later migration drops it
   after the live clean-up.
 
@@ -326,6 +329,29 @@ mention the demo.
 - Sign-in records live 90 days; failed attempts are recorded at most once a minute per account and IP.
 - Default country when nothing can be detected: `SA` (one environment setting, `QISTAS_DEFAULT_COUNTRY`).
 - The phone app reports a UTC offset instead of a zone name, to avoid a new plugin.
+
+### Plan deviations
+
+Found while reading the code to write the plan (2026-11-02). Where they differ from the sections above, these win.
+
+- **D1.** `purge-demo` matches only users with `demo_expires_at` set or the developer seeder's address
+  (`DemoSeeder::EMAIL`), not the `@demo.qistas.test` domain: a real person could sign up with an address there. Such an
+  account without `demo_expires_at` is a `WARN` in the go-live check and is never purged.
+- **D2.** The payload key is `tenant.setup`, not `workspace.setup`: `AccountPayload` nests the workspace under `tenant`.
+- **D3.** A new nullable column `tenants.country_source` (`header`, `language`, `default`, `chosen`) sits beside
+  `setup_confirmed_at`, because nothing stored how the country was chosen.
+- **D4.** Web successes are written from Fortify's response contracts (`LoginResponse`, `RegisterResponse`,
+  `TwoFactorLoginResponse`), failures from `AuthenticateUser`, the phone app from `AuthController`: a login event
+  listener would also record every remember-me restoration.
+- **D5.** `forwarded_chain` means more hops than `qistas.proxy_chain_allowed` (env `QISTAS_PROXY_CHAIN_ALLOWED`, default
+  2), because the hop count depends on the server's proxy set-up; the owner checks that a normal sign-in reads "not
+  detected" and adjusts the number if not.
+- **D6.** The person reads their sign-ins at `GET /api/v1/account/sign-ins` (last 20, own only), a new route.
+- **D7.** Only the throw-away public demo goes. The container's built-in demo mode (`qistas.demo`, `x-demo-banner`, the
+  sign-in credentials block), `scripts/e2e-demo.sh` and the CI job "Start with no configuration (demo mode)" stay;
+  `qistas:go-live-check` fails when `qistas.demo` is on.
+- **D8.** `PUT .../setup` ignores `country` and `timezone` equal to the current values, so a card that resends unchanged
+  values does not fail once the region is locked; a changed region while locked is refused as a whole (nothing saved).
 
 ## 11. Risks and honest limits
 
