@@ -72,7 +72,6 @@ describe('registering', function () {
         'passwords that differ' => [['password_confirmation' => 'Different!Passw0rd'], 'password'],
         'no e-mail' => [['email' => ''], 'email'],
         'a malformed e-mail' => [['email' => 'not-an-email'], 'email'],
-        'no business name' => [['business_name' => ''], 'business_name'],
         'a country that is not a code' => [['country' => 'Saudi'], 'country'],
         'terms not accepted' => [['terms' => false], 'terms'],
     ]);

@@ -19,12 +19,42 @@ function registerIn(string $country): Tenant
     return $user->tenants()->sole();
 }
 
+/** A sign-up that carries [$zone] (and [$country]), as the web form's hidden field does. */
+function registerWithZone(?string $zone, ?string $country = 'SA'): Tenant
+{
+    $data = [
+        'name' => 'Layla Haddad', 'email' => 'layla'.uniqid().'@example.com', 'password' => TEST_PASSWORD,
+        'country' => $country, 'timezone' => $zone,
+    ];
+
+    return app(RegisterTenantOwner::class)->handle($data)->tenants()->sole();
+}
+
 it('is chosen from the country when a workspace is made', function (string $country, string $zone) {
     expect(registerIn($country)->timezone)->toBe($zone);
 })->with([['SA', 'Asia/Riyadh'], ['AE', 'Asia/Dubai'], ['EG', 'Africa/Cairo'], ['FR', 'Europe/Paris'], ['PK', 'Asia/Karachi']]);
 
 it('is UTC for a country the product does not know', function () {
     expect(registerIn('ZZ')->timezone)->toBe('UTC');
+});
+
+describe('when a sign-up brings its own zone', function () {
+    it('keeps a real one, even when it is not the country’s usual', function () {
+        expect(registerWithZone('Asia/Dubai')->timezone)->toBe('Asia/Dubai');
+    });
+
+    it('ignores one that is not real and uses the country’s', function () {
+        expect(registerWithZone('Mars/Olympus')->timezone)->toBe('Asia/Riyadh');
+    });
+
+    it('uses the country’s when it brings none, and UTC when it does not know the country either', function () {
+        expect(registerWithZone(null)->timezone)->toBe('Asia/Riyadh')
+            ->and(registerWithZone(null, 'ZZ')->timezone)->toBe('UTC');
+    });
+
+    it('uses the default country’s zone when it brings neither a zone nor a country', function () {
+        expect(registerWithZone(null, null)->timezone)->toBe('Asia/Riyadh');
+    });
 });
 
 it('names a real zone for every country the product knows', function () {

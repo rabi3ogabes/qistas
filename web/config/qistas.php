@@ -43,6 +43,12 @@ return [
     ],
 
     /*
+    | The country a new workspace gets when sign-up can detect none (no CDN header, no region in the browser's language).
+    | Two letters; the owner confirms or changes it on the first-run card. One of the countries above.
+    */
+    'default_country' => env('QISTAS_DEFAULT_COUNTRY', 'SA'),
+
+    /*
     | The request header that carries the visitor's country, set by the CDN in front of the app (for example
     | "X-Vercel-IP-Country" on Vercel or "CF-IPCountry" behind Cloudflare). Event themes use it for visitors who are not
     | signed in. Leave it empty unless the CDN sets it on every request and strips it from the browser's own: a header a

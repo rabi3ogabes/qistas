@@ -58,7 +58,6 @@ it('rejects invalid sign-up data and creates nothing', function (array $override
     'missing name' => [['name' => ''], 'name'],
     'name too long' => [['name' => str_repeat('a', 256)], 'name'],
     'malformed email' => [['email' => 'not-an-email'], 'email'],
-    'missing business name' => [['business_name' => ''], 'business_name'],
     'country is not a two-letter code' => [['country' => 'Saudi'], 'country'],
     'unsupported language' => [['locale' => 'xx'], 'locale'],
     'terms not accepted' => [['terms' => null], 'terms'],

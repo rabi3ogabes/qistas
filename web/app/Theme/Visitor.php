@@ -41,7 +41,7 @@ final class Visitor
         }
 
         foreach ($request->getLanguages() as $tag) {
-            $country = self::code(explode('_', str_replace('-', '_', $tag))[1] ?? null);
+            $country = self::languageRegion($tag);
 
             if ($country !== null) {
                 return $country;
@@ -51,7 +51,14 @@ final class Visitor
         return null;
     }
 
-    private static function code(mixed $value): ?string
+    /** The country in a browser language tag (ar-SA is SA), or null when the tag has no region. */
+    public static function languageRegion(string $tag): ?string
+    {
+        return self::code(explode('_', str_replace('-', '_', $tag))[1] ?? null);
+    }
+
+    /** A two-letter country code in capitals, from whatever a header or tag carried; null for anything else, and for the codes a CDN uses for "not a country". */
+    public static function code(mixed $value): ?string
     {
         if (! is_string($value)) {
             return null;

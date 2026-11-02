@@ -3049,14 +3049,20 @@ components:
             feature: {type: string, example: advanced_reports}
     RegisterRequest:
       type: object
-      required: [name, email, password, password_confirmation, business_name, country, terms]
+      description: |
+        Five things are enough. The workspace is named "Business of <first name>" (in `locale`) and placed from the request:
+        the CDN's country header, else the region of `Accept-Language`, else the server's default country. It is
+        unconfirmed until the owner confirms the name and place; a client that sends `business_name` skips that.
+      required: [name, email, password, password_confirmation, terms]
       properties:
         name: {type: string}
         email: {type: string, format: email}
         password: {type: string, minLength: 10, description: "At least 10 characters with upper and lower case, a number and a symbol; known-breached passwords are refused."}
         password_confirmation: {type: string}
-        business_name: {type: string}
-        country: {type: string, minLength: 2, maxLength: 2, example: SA, description: "ISO 3166-1 alpha-2; decides the starting currency."}
+        business_name: {type: string, maxLength: 255, description: "Optional. When sent, it names the workspace and the workspace counts as confirmed (app versions up to 1.28 send it)."}
+        country: {type: string, minLength: 2, maxLength: 2, example: SA, description: "Optional, ISO 3166-1 alpha-2. When sent it wins over the detected country and decides the starting currency."}
+        timezone: {type: string, maxLength: 64, example: Asia/Riyadh, description: "Optional IANA zone name. A name that is not a real zone is ignored."}
+        utc_offset: {type: integer, minimum: -840, maximum: 840, example: 180, description: "Optional. The device's offset from UTC in minutes, east positive. Read against the country's zones when no `timezone` is sent."}
         terms: {type: boolean, const: true}
         locale: {type: string, enum: [en, ar, fr, es, ur]}
         device_name: {type: string, maxLength: 100, example: Pixel 9}
