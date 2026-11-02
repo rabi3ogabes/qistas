@@ -35,3 +35,6 @@ Schedule::command('qistas:charge-late-fees')->everyFiveMinutes()->withoutOverlap
 
 // Owners are told before a plan they pay for ends without renewing, and once it has ended (Sprint 3 Task 1b).
 Schedule::command('qistas:billing-notices')->hourly()->withoutOverlapping(10);
+
+// Each person's sign-in record is kept for qistas.sign_in_days (90 by default), then removed; nothing else removes it.
+Schedule::command('qistas:sign-ins:prune')->daily()->withoutOverlapping(30);

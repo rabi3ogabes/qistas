@@ -104,6 +104,20 @@ return [
     ],
 
     /*
+    | The sign-in record each person can read ("recent sign-ins"): how many days a record is kept before
+    | `qistas:sign-ins:prune` (daily) removes it. Read when the command runs. A whole number of days, at least 1.
+    */
+    'sign_in_days' => (int) env('QISTAS_SIGN_IN_DAYS', 90),
+
+    /*
+    | How many addresses X-Forwarded-For may list before a sign-in counts as having passed through a proxy
+    | ("forwarded_chain"). A normal visit already has the CDN and the host's own proxy in the list, and how many that is
+    | depends on the set-up: after going live, check that a normal sign-in reads "proxy not detected" and raise this
+    | number if it does not.
+    */
+    'proxy_chain_allowed' => (int) env('QISTAS_PROXY_CHAIN_ALLOWED', 2),
+
+    /*
     | "Try the demo" buttons on the sign-in page and in the app. Each press makes a throw-away account with its own
     | workspace and sample data (an "admin" on the Pro plan with every feature, or a "user" on the Free plan with its
     | limits), signed in at once. It is nobody's real account: it expires, is deleted, and can never be platform

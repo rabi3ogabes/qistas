@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -68,6 +69,18 @@ class User extends Authenticatable implements MustVerifyEmail
 
         return $active->where('tenants.is_test', false)
             ->orderBy('tenant_users.created_at')->orderBy('tenants.id')->first();
+    }
+
+    /**
+     * This person's sign-in history, newest first (see App\Auth\SignInRecorder). It is theirs, not a workspace's, so
+     * it is the same wherever they sign in. Rows are removed by the retention command and with the person.
+     *
+     * @return HasMany<SignInEvent, $this>
+     */
+    public function signInEvents(): HasMany
+    {
+        // The id breaks a tie between two sign-ins in the same second, so a page of "the last 20" is stable.
+        return $this->hasMany(SignInEvent::class)->latest('created_at')->latest('id');
     }
 
     /** This person's role in one workspace, or null if they are not a member. */
