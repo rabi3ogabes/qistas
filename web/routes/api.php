@@ -40,6 +40,7 @@ use App\Http\Controllers\Api\V1\TeamController;
 use App\Http\Controllers\Api\V1\TokenController;
 use App\Http\Controllers\Api\V1\ToolsController;
 use App\Http\Controllers\Api\V1\WorkspaceSecurityController;
+use App\Http\Controllers\Api\V1\WorkspaceSetupController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -85,6 +86,8 @@ Route::name('api.')->group(function (): void {
         Route::get('settings/tools', [ToolsController::class, 'index'])->name('settings.tools.index');
         Route::put('settings/tools/{key}', [ToolsController::class, 'update'])->name('settings.tools.update');
         Route::put('workspace/security', [WorkspaceSecurityController::class, 'update'])->name('workspace.security');
+        // The first-run card: the owner names the business and confirms where it is. Documents wait for it.
+        Route::put('workspace/setup', [WorkspaceSetupController::class, 'update'])->middleware('throttle:20,1,workspace-setup')->name('workspace.setup');
 
         // Delete my account (store requirement): the owner deletes the business after 30 days, anyone else their login.
         Route::post('account/deletion', [AccountDeletionController::class, 'store'])->middleware('throttle:account-deletion')->name('account.deletion.store');

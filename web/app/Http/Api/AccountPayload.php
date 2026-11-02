@@ -2,6 +2,7 @@
 
 namespace App\Http\Api;
 
+use App\Actions\ConfirmWorkspaceSetup;
 use App\Entitlements\Entitlements;
 use App\Models\Tenant;
 use App\Models\User;
@@ -33,25 +34,49 @@ final class AccountPayload
                 // The admin team never uses two-factor: the app shows no setting for it.
                 'two_factor_available' => $user->mayUseTwoFactor(),
             ],
-            'tenant' => [
-                'id' => $tenant->id,
-                'name' => $tenant->name,
-                'country' => $tenant->country,
-                'currency' => $tenant->currency,
-                'role' => $user->roleIn($tenant->id)?->value,
-                // An admin's sandbox: the app marks it so nobody mistakes sample data for a customer's books.
-                'is_test' => $tenant->is_test,
-                // A throw-away workspace made by a demo button: the app says so and offers a real account.
-                'is_demo' => $tenant->is_demo,
-                // The business wants every phone to unlock Qistas (fingerprint, face or PIN) before showing its books.
-                'require_app_lock' => $tenant->require_app_lock,
-                // Hijri dates (Win Plan CT26): off, beside the Gregorian date, or first.
-                'hijri_dates' => app(Dates::class)->mode($tenant),
-                // The owner asked to delete the business: read-only, and erased after this day unless restored.
-                'deletion_scheduled_for' => $tenant->restoreUntil(),
-            ],
+            'tenant' => self::tenant($user, $tenant),
             'plan' => $entitlements['plan'],
             'entitlements' => $entitlements['features'],
+        ];
+    }
+
+    /**
+     * The workspace part of the account, on its own: what the first-run card answers with after it is saved.
+     *
+     * @return array<string, mixed>
+     */
+    public static function tenant(User $user, Tenant $tenant): array
+    {
+        return [
+            'id' => $tenant->id,
+            'name' => $tenant->name,
+            'country' => $tenant->country,
+            'currency' => $tenant->currency,
+            'role' => $user->roleIn($tenant->id)?->value,
+            // An admin's sandbox: the app marks it so nobody mistakes sample data for a customer's books.
+            'is_test' => $tenant->is_test,
+            // A throw-away workspace made by a demo button: the app says so and offers a real account.
+            'is_demo' => $tenant->is_demo,
+            // The business wants every phone to unlock Qistas (fingerprint, face or PIN) before showing its books.
+            'require_app_lock' => $tenant->require_app_lock,
+            // Hijri dates (Win Plan CT26): off, beside the Gregorian date, or first.
+            'hijri_dates' => app(Dates::class)->mode($tenant),
+            // The owner asked to delete the business: read-only, and erased after this day unless restored.
+            'deletion_scheduled_for' => $tenant->restoreUntil(),
+
+            // The first-run card (spec 2026-11-01 §3.3): is the business name and place confirmed, where it is, and whether
+            // the owner may still change the place (not once a contract or a payment exists).
+            'setup' => [
+                'confirmed' => $tenant->isSetUp(),
+                'country' => (string) $tenant->country,
+                'currency' => (string) $tenant->currency,
+                'timezone' => $tenant->localTimezone(),
+                // Found from the visitor's network or browser (not the product's default, not the owner's own pick), and a
+                // country the product has a currency for: the card then asks for a tap, not a choice.
+                'country_detected' => in_array($tenant->country_source, ['header', 'language'], true)
+                    && array_key_exists(strtoupper((string) $tenant->country), (array) config('qistas.countries')),
+                'can_change_region' => app(ConfirmWorkspaceSetup::class)->regionIsOpen($tenant),
+            ],
         ];
     }
 }

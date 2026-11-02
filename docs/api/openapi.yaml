@@ -38,6 +38,9 @@ info:
       a success, is not run again: it answers with the first answer and the header `Idempotent-Replayed: true`. An
       answer that was not a success (a 422, a 402) lets the key go, so the corrected request can use it. A repeat that
       arrives while the first is still running after 15 seconds answers 409 (`http_409`): try again in a moment.
+    * **The name comes first.** A new workspace is not confirmed (`tenant.setup.confirmed` is false in `GET /me`) until the
+      owner names it with `PUT /workspace/setup`. Until then every PDF (receipts, statements, contracts, reports) answers
+      **HTTP 409** with `code` `workspace_setup_required`; open the first-run card. Nothing else is held up.
     * **Another workspace's records are never found**: they answer 404, not 403.
     * Lists are paginated: `?page=` and `?per_page=` (1 to 100, default 20); the reply has `data`, `links` and `meta`.
 servers:
@@ -1154,6 +1157,7 @@ paths:
         "402": {$ref: "#/components/responses/PlanLimit"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/WorkspaceSetupRequired"}
         "422": {$ref: "#/components/responses/ValidationFailed"}
         "429": {$ref: "#/components/responses/RateLimited"}
   /late-fees/{fee}/waive:
@@ -1369,6 +1373,7 @@ paths:
         "401": {$ref: "#/components/responses/Unauthenticated"}
         "402": {$ref: "#/components/responses/PlanLimit"}
         "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/WorkspaceSetupRequired"}
         "422": {$ref: "#/components/responses/ValidationFailed"}
         "429": {$ref: "#/components/responses/RateLimited"}
   /contracts/{contract}/promissory-note.pdf:
@@ -1396,6 +1401,7 @@ paths:
         "402": {$ref: "#/components/responses/PlanLimit"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/WorkspaceSetupRequired"}
         "422": {$ref: "#/components/responses/ValidationFailed"}
         "429": {$ref: "#/components/responses/RateLimited"}
   /files/{file}:
@@ -1715,6 +1721,52 @@ paths:
         "401": {$ref: "#/components/responses/Unauthenticated"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "422": {$ref: "#/components/responses/ValidationFailed"}
+  /workspace/setup:
+    put:
+      tags: [Account]
+      summary: Name the business and confirm where it is (the first-run card)
+      description: |
+        A new sign-up starts with a placeholder name ("Business of Layla") and the country, currency and time zone the
+        server found from the visitor's network or browser; `GET /me` says so in `tenant.setup`
+        (`confirmed: false`). The owner confirms the name here, and the place if it is wrong. Until then **no PDF is made**:
+        every receipt, statement, contract and report answers 409 `workspace_setup_required` (open the card).
+        Customers, contracts and payments are never held up.
+
+        **Owner only** (403 `forbidden` for everyone else). Send `name` (1 to 255 characters, spaces around it are
+        dropped, not only spaces). Send `country` and `timezone` only to change them; sending the ones the workspace
+        already has is fine. A different country gets its currency from the country table and, unless `timezone` is
+        sent, its usual time zone, and counts as chosen by the owner. The country and the time zone can change **only
+        while the workspace has no contract and no transaction** (`tenant.setup.can_change_region`): after that a
+        different one is refused as a whole (422 `validation_failed` naming `country` or `timezone`, nothing saved, the
+        name included). Saving again later renames the business; the day it was confirmed stays. Every save is audited
+        (name, country, currency, time zone). Rate-limited to 20 a minute.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: {type: string, minLength: 1, maxLength: 255, example: Al-Fares Electronics}
+                country: {type: string, pattern: '^[A-Za-z]{2}$', description: "Two letters, one of the countries the product has a currency for.", example: QA}
+                timezone: {type: string, description: "An IANA time zone name.", example: Asia/Qatar}
+      responses:
+        "200":
+          description: The workspace as it now is (the same object as `tenant` in `GET /me`).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      tenant: {$ref: "#/components/schemas/Tenant"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/ValidationFailed"}
+        "429": {$ref: "#/components/responses/RateLimited"}
   /account/deletion:
     post:
       tags: [Account]
@@ -2260,6 +2312,7 @@ paths:
         "401": {$ref: "#/components/responses/Unauthenticated"}
         "402": {$ref: "#/components/responses/PlanLimit"}
         "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/WorkspaceSetupRequired"}
         "422": {$ref: "#/components/responses/ValidationFailed"}
         "429": {$ref: "#/components/responses/RateLimited"}
   /contracts/{contract}/statement.pdf:
@@ -2284,6 +2337,7 @@ paths:
         "401": {$ref: "#/components/responses/Unauthenticated"}
         "402": {$ref: "#/components/responses/PlanLimit"}
         "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/WorkspaceSetupRequired"}
         "422": {$ref: "#/components/responses/ValidationFailed"}
         "429": {$ref: "#/components/responses/RateLimited"}
   /payments/{transaction}/receipt.pdf:
@@ -2311,6 +2365,7 @@ paths:
         "401": {$ref: "#/components/responses/Unauthenticated"}
         "402": {$ref: "#/components/responses/PlanLimit"}
         "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/WorkspaceSetupRequired"}
         "422": {$ref: "#/components/responses/ValidationFailed"}
         "429": {$ref: "#/components/responses/RateLimited"}
   /reports/transactions.pdf:
@@ -2338,6 +2393,7 @@ paths:
         "401": {$ref: "#/components/responses/Unauthenticated"}
         "402": {$ref: "#/components/responses/PlanLimit"}
         "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/WorkspaceSetupRequired"}
         "422": {$ref: "#/components/responses/ValidationFailed"}
         "429": {$ref: "#/components/responses/RateLimited"}
         "403": {$ref: "#/components/responses/Forbidden"}
@@ -2365,6 +2421,7 @@ paths:
         "401": {$ref: "#/components/responses/Unauthenticated"}
         "402": {$ref: "#/components/responses/PlanLimit"}
         "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/WorkspaceSetupRequired"}
         "422": {$ref: "#/components/responses/ValidationFailed"}
         "429": {$ref: "#/components/responses/RateLimited"}
         "403": {$ref: "#/components/responses/Forbidden"}
@@ -2994,6 +3051,9 @@ components:
       description: Too many requests (`rate_limited`); wait `Retry-After` seconds.
       headers: {Retry-After: {schema: {type: integer}}}
       content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}
+    WorkspaceSetupRequired:
+      description: The owner has not named the business yet (`workspace_setup_required`), so no PDF is made. Open the first-run card (`PUT /workspace/setup`); `GET /me` says `tenant.setup.confirmed`.
+      content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}
   schemas:
     Money: {type: string, pattern: '^-?\d+\.\d{2}$', example: "1200.00"}
     Error:
@@ -3179,6 +3239,20 @@ components:
           format: date
           nullable: true
           description: The owner asked to delete the business. It is read-only (writes answer 423 `workspace_deleting`) and is erased after this day unless the owner restores it.
+        setup: {$ref: "#/components/schemas/TenantSetup"}
+    TenantSetup:
+      type: object
+      description: |
+        The first-run card. A new sign-up has a placeholder name and a detected place until the owner confirms them with
+        `PUT /workspace/setup`; no PDF is made before that. Older apps ignore this object.
+      required: [confirmed, country, currency, timezone, country_detected, can_change_region]
+      properties:
+        confirmed: {type: boolean, description: "False until the owner has confirmed the name and place (new sign-ups). Workspaces that existed before this are confirmed."}
+        country: {type: string, example: QA}
+        currency: {type: string, example: QAR}
+        timezone: {type: string, description: The IANA time zone the workspace's days follow., example: Asia/Qatar}
+        country_detected: {type: boolean, description: "True when the country was found from the visitor's network or browser and the product has a currency for it: the card asks for a tap to confirm. False when it is only the default or was chosen: the card shows a chooser."}
+        can_change_region: {type: boolean, description: "True while the workspace has no contract and no transaction. After that the country and time zone are fixed (a change answers 422) and the card asks for the name only."}
     Product:
       type: object
       properties:

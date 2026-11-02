@@ -13,7 +13,8 @@ use App\Tenancy\TenantScope;
  * Makes a statement, report or receipt (Win Plan PP8) for the active workspace: renders it with the shop's profile and
  * its preferences, counts it against the plan's monthly allowance and records it, so its QR code can be checked at
  * /verify. The same document asked for again within ten minutes (same kind, subject, choices and content) is the same
- * document: same code, not counted twice.
+ * document: same code, not counted twice. Nothing is made while the owner has not confirmed the business's name
+ * (WorkspaceSetupRequired).
  */
 final class DocumentService
 {
@@ -27,6 +28,11 @@ final class DocumentService
     /** @return array{pdf: string, document: Document, filename: string} */
     public function issue(Template $template, DocumentOptions $options, Tenant $tenant, User $by): array
     {
+        // Every PDF carries the business's name: none is made under the placeholder a new sign-up starts with.
+        if (! $tenant->isSetUp()) {
+            throw new WorkspaceSetupRequired;
+        }
+
         $data = $template->data($options);
         $subject = $template->subject();
         $hash = hash('sha256', (string) json_encode([$template->kind(), $subject?->getMorphClass(), $subject?->getKey(), $options->fingerprint(), $template->reference(), $template->total()]));
