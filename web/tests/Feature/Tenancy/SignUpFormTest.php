@@ -76,6 +76,45 @@ describe('with nothing but the five fields', function () {
             ->toBe(['country' => 'SA', 'currency' => 'SAR', 'timezone' => 'Asia/Riyadh', 'country_source' => 'language']);
     })->with(['web', 'api']);
 
+    it('puts the workspace where the browser’s time zone is, not where its language points', function (string $channel) {
+        // A Saudi browser set to US English, no CDN header: the language says the United States, the device's clock says Riyadh.
+        formSignUp($channel, formSignUpFields(['timezone' => 'Asia/Riyadh']), ['Accept-Language' => 'en-US,en;q=0.9']);
+
+        $tenant = formSignedUpTenant();
+
+        expect($tenant->only(['country', 'currency', 'timezone', 'country_source']))
+            ->toBe(['country' => 'SA', 'currency' => 'SAR', 'timezone' => 'Asia/Riyadh', 'country_source' => 'timezone'])
+            ->and($tenant->isSetUp())->toBeFalse();
+    })->with(['web', 'api']);
+
+    it('puts the workspace where the CDN says, before the browser’s time zone', function (string $channel) {
+        formSignUp($channel, formSignUpFields(['timezone' => 'Asia/Riyadh']), ['CF-IPCountry' => 'QA', 'Accept-Language' => 'en-US']);
+
+        expect(formSignedUpTenant()->only(['country', 'timezone', 'country_source']))
+            ->toBe(['country' => 'QA', 'timezone' => 'Asia/Riyadh', 'country_source' => 'header']);
+    })->with(['web', 'api']);
+
+    it('does not let a browser that says UTC put the workspace on UTC: the language and the country decide', function (string $channel) {
+        formSignUp($channel, formSignUpFields(['timezone' => 'UTC']), ['Accept-Language' => 'ar-QA']);
+
+        expect(formSignedUpTenant()->only(['country', 'currency', 'timezone', 'country_source']))
+            ->toBe(['country' => 'QA', 'currency' => 'QAR', 'timezone' => 'Asia/Qatar', 'country_source' => 'language']);
+    })->with(['web', 'api']);
+
+    it('does not let a browser that says UTC override the CDN’s country either', function (string $channel) {
+        formSignUp($channel, formSignUpFields(['timezone' => 'UTC']), ['CF-IPCountry' => 'AE']);
+
+        expect(formSignedUpTenant()->only(['country', 'timezone', 'country_source']))
+            ->toBe(['country' => 'AE', 'timezone' => 'Asia/Dubai', 'country_source' => 'header']);
+    })->with(['web', 'api']);
+
+    it('leaves the phone app’s path as it was: an offset never names a country', function () {
+        formSignUp('api', formSignUpFields(['utc_offset' => 180]), ['Accept-Language' => 'ar-SA']);
+
+        expect(formSignedUpTenant()->only(['country', 'timezone', 'country_source']))
+            ->toBe(['country' => 'SA', 'timezone' => 'Asia/Riyadh', 'country_source' => 'language']);
+    });
+
     it('puts the workspace in the default country when nothing says', function (string $channel) {
         formSignUp($channel, formSignUpFields());
 

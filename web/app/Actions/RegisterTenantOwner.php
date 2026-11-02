@@ -24,7 +24,7 @@ final class RegisterTenantOwner
     private const FIRST_NAME_LIMIT = 40;
 
     /**
-     * @param  array{name: string, email: string, password: string, locale?: string|null, business_name?: string|null, country?: string|null, country_source?: string|null, timezone?: string|null}  $data  country_source is header, language, default or chosen; given a country without one, the country was chosen
+     * @param  array{name: string, email: string, password: string, locale?: string|null, business_name?: string|null, country?: string|null, country_source?: string|null, timezone?: string|null}  $data  country_source is header, timezone, language, default or chosen; given a country without one, the country was chosen
      */
     public function handle(array $data): User
     {

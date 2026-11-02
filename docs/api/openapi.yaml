@@ -3251,7 +3251,7 @@ components:
         country: {type: string, example: QA}
         currency: {type: string, example: QAR}
         timezone: {type: string, description: The IANA time zone the workspace's days follow., example: Asia/Qatar}
-        country_detected: {type: boolean, description: "True when the country was found from the visitor's network or browser and the product has a currency for it: the card asks for a tap to confirm. False when it is only the default or was chosen: the card shows a chooser."}
+        country_detected: {type: boolean, description: "True when the country was found from the visitor's network, device time zone or browser language and the product has a currency for it: the card asks for a tap to confirm. False when it is only the default or was chosen: the card shows a chooser."}
         can_change_region: {type: boolean, description: "True while the workspace has no contract and no transaction. After that the country and time zone are fixed (a change answers 422) and the card asks for the name only."}
     Product:
       type: object

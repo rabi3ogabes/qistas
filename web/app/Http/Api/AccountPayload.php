@@ -71,9 +71,9 @@ final class AccountPayload
                 'country' => (string) $tenant->country,
                 'currency' => (string) $tenant->currency,
                 'timezone' => $tenant->localTimezone(),
-                // Found from the visitor's network or browser (not the product's default, not the owner's own pick), and a
+                // Found from the visitor's network, device time zone or browser language (not the product's default, not the owner's own pick), and a
                 // country the product has a currency for: the card then asks for a tap, not a choice.
-                'country_detected' => in_array($tenant->country_source, ['header', 'language'], true)
+                'country_detected' => in_array($tenant->country_source, ['header', 'timezone', 'language'], true)
                     && array_key_exists(strtoupper((string) $tenant->country), (array) config('qistas.countries')),
                 'can_change_region' => app(ConfirmWorkspaceSetup::class)->regionIsOpen($tenant),
             ],

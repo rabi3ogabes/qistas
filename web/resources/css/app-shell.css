@@ -901,9 +901,9 @@
         .setup-place > summary { grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; }
         .setup-change { grid-column: auto; margin-inline-start: 0; }
     }
-    /* A place only guessed from the browser's language can be wrong (an Arabic reader whose browser says en-US): warn, and make the way out plain. */
-    .setup-place[data-source="language"] { border-color: color-mix(in srgb, var(--q-warning) 45%, var(--q-line)); background: var(--q-tint-sand); }
-    .setup-place[data-source="language"] .setup-change { margin-inline-start: 0; border: 1px solid color-mix(in srgb, var(--q-ink) 22%, var(--q-line)); background: var(--q-surface); color: var(--q-ink); }
+    /* A place only guessed from the device's time zone or the browser's language can be wrong (a traveller; an Arabic reader whose browser says en-US): warn, and make the way out plain. */
+    .setup-place:is([data-source="language"], [data-source="timezone"]) { border-color: color-mix(in srgb, var(--q-warning) 45%, var(--q-line)); background: var(--q-tint-sand); }
+    .setup-place:is([data-source="language"], [data-source="timezone"]) .setup-change { margin-inline-start: 0; border: 1px solid color-mix(in srgb, var(--q-ink) 22%, var(--q-line)); background: var(--q-surface); color: var(--q-ink); }
     .setup-chooser { display: grid; padding: 0 1rem 1rem; }
     .setup-chooser .field { max-width: 24rem; }
     .setup-place[open] .setup-chooser { animation: q-setup-in var(--q-t-base) var(--q-ease-out) both; }

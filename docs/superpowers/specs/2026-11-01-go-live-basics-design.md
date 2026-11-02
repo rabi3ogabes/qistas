@@ -124,8 +124,10 @@ Customers, contracts and payments are never blocked.
 
 1. the CDN country header named in `qistas.geo_header` (the live site: `CF-IPCountry`), ignoring non-countries (`XX`,
    `T1` Tor, `A1`, ...); this reuses the code and the safety rule of `App\Theme\Visitor`;
-2. the region of the browser's `Accept-Language` (`ar-QA` gives `QA`);
-3. nothing: the workspace gets `qistas.default_country` (env `QISTAS_DEFAULT_COUNTRY`, default `SA`, what the form
+2. the country of the time zone the browser reports (`timezone`: `Asia/Riyadh` gives `SA`), for a name PHP lists as a
+   time zone and only when it names a place (a generic zone such as `UTC` has no country and says nothing);
+3. the region of the browser's `Accept-Language` (`ar-QA` gives `QA`);
+4. nothing: the workspace gets `qistas.default_country` (env `QISTAS_DEFAULT_COUNTRY`, default `SA`, what the form
    preselects today) and the card asks instead of confirming.
 
 A detected country that is not in `config('qistas.countries')` (for example `PS`) is kept as the workspace country only
@@ -134,7 +136,8 @@ asks.
 
 ### 4.2 Time zone
 
-In order: the `timezone` the browser sends (IANA; validated with PHP's timezone list); else, for the phone app, the
+In order: the `timezone` the browser sends (IANA; validated with PHP's timezone list, and ignored when it names no
+place, such as `UTC`, because a browser that hides its zone says it to everyone); else, for the phone app, the
 `utc_offset` combined with the country (the first zone in `DateTimeZone::listIdentifiers(PER_COUNTRY, $country)` whose
 current offset equals the reported one; the Gulf has no daylight saving so this is exact there); else
 `config('qistas.timezones')[country]`; else `UTC`.
@@ -352,6 +355,10 @@ Found while reading the code to write the plan (2026-11-02). Where they differ f
   `qistas:go-live-check` fails when `qistas.demo` is on.
 - **D8.** `PUT .../setup` ignores `country` and `timezone` equal to the current values, so a card that resends unchanged
   values does not fail once the region is locked; a changed region while locked is refused as a whole (nothing saved).
+- **D9.** Section 4.1 detects the country in the order CDN header, then the country of the browser's time zone (source
+  `timezone`), then the language region, then the default: a language is a weak sign of where a person is (a Saudi
+  browser in en-US), the device's zone a strong one. A zone that names no place (`UTC`) is ignored for both the country
+  and the workspace's time zone; the phone app sends only `utc_offset`, so its path is unchanged.
 
 ## 11. Risks and honest limits
 

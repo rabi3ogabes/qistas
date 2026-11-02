@@ -407,11 +407,13 @@ describe('the setup block of the account', function () {
     })->with([
         'from the network' => ['header', 'QA', 'QAR', true],
         'from the browser language' => ['language', 'QA', 'QAR', true],
+        'from the device time zone' => ['timezone', 'QA', 'QAR', true],
         'the default' => ['default', 'SA', 'SAR', false],
         'chosen by the owner' => ['chosen', 'QA', 'QAR', false],
         'never recorded' => [null, 'SA', 'SAR', false],
         'from the network, not listed' => ['header', 'PS', 'USD', false],
         'from the language, not listed' => ['language', 'PS', 'USD', false],
+        'from the device time zone, not listed' => ['timezone', 'PS', 'USD', false],
     ]);
 
     it('reads the zone a workspace uses, the country’s when none is stored', function () {

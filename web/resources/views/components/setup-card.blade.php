@@ -2,8 +2,9 @@
     The first-run card (go-live basics, spec 2026-11-01 §3.3), at the top of the dashboard until the owner has named the
     business: one required field, and the place the sign-up found, told in a sentence the owner can accept or change.
     - The owner sees the card; anyone else in the business reads one quiet line where it would be.
-    - The place: found from the network or the browser's language (and a country on the list) = a sentence with a "Change"
-      that opens the chooser (a guess from the browser's language is flagged as one, because a language can mislead);
+    - The place: found from the network, the device's time zone or the browser's language (and a country on the list) = a
+      sentence with a "Change" that opens the chooser (a guess from the time zone or the language is flagged as one,
+      because either can mislead);
       found by neither = the chooser at once; a business with a contract or a payment = the name only, and why.
     - The card never sends a time zone: the server derives it from the country. Saved by PUT /app/setup (SetupController).
 --}}
@@ -20,7 +21,7 @@
             $source = (string) $tenant->country_source;
             $open = app(\App\Actions\ConfirmWorkspaceSetup::class)->regionIsOpen($tenant);
             // Found by the network or the browser, and a country a business can be opened in: a sentence to accept.
-            $detected = $open && $listed && in_array($source, ['header', 'language'], true);
+            $detected = $open && $listed && in_array($source, ['header', 'timezone', 'language'], true);
             $picked = (string) old('country', $listed ? $country : '');
         @endphp
         <section id="setup-card" class="card card-pad setup-card" aria-labelledby="setup-title">
@@ -49,7 +50,9 @@
                                     'currency' => (string) $tenant->currency,
                                     'zone' => \App\Support\Countries::timeZoneName($tenant->localTimezone()),
                                 ]) }}</span>
-                                @if ($source === 'language')
+                                @if ($source === 'timezone')
+                                    <span class="setup-guess">{{ __('Guessed from your device’s time zone, so it may be wrong.') }}</span>
+                                @elseif ($source === 'language')
                                     <span class="setup-guess">{{ __('Guessed from your browser’s language, so it may be wrong.') }}</span>
                                 @endif
                             </span>

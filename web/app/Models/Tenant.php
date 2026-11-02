@@ -19,7 +19,7 @@ use Illuminate\Support\Carbon;
  * owner_user_id, status and setup_confirmed_at are set by trusted code only.
  *
  * @property Carbon|null $setup_confirmed_at when the owner confirmed the business name and place; null until then
- * @property string|null $country_source how the country was chosen: header, language, default or chosen
+ * @property string|null $country_source how the country was chosen: header, timezone, language, default or chosen
  * @property Carbon|null $deletion_requested_at when the owner asked to delete the business
  * @property Carbon|null $delete_after when it is erased, unless the owner restores it first
  * @property string|null $stripe_customer_id the workspace's customer in Stripe (Pro by card), made at the first checkout

@@ -305,6 +305,26 @@ describe('the card', function () {
                 ->and(setupCardFind(setupCardDom($page), '//details[@data-source="header"]'))->toHaveCount(1);
         });
 
+        it('says so when the place was guessed from the device’s time zone, in its own words, and asks the owner to check it', function () {
+            setupCardOwner(['country' => 'SA', 'currency' => 'SAR', 'timezone' => 'Asia/Riyadh', 'country_source' => 'timezone']);
+
+            $page = $this->get('/app')->assertOk();
+            $dom = setupCardDom($page);
+
+            expect(setupCardText($page))->toContain('We think you are in Saudi Arabia: SAR, Saudi Arabia Time.')
+                ->toContain('Guessed from your device’s time zone, so it may be wrong.')
+                ->not->toContain('Guessed from your browser’s language')
+                ->toContain('Change')
+                ->and(setupCardFind($dom, '//details[@data-source="timezone"]'))->toHaveCount(1)
+                ->and(setupCardFind($dom, '//details[@data-source="timezone"]//select[@name="country"]'))->toHaveCount(1);
+        });
+
+        it('does not call a place from the network or the language by the device’s words', function (string $source) {
+            setupCardOwner(['country_source' => $source]);
+
+            expect(setupCardText($this->get('/app')->assertOk()))->not->toContain('Guessed from your device');
+        })->with(['header', 'language']);
+
         it('shows the chooser at once, with the current country chosen, when nothing could be found', function (string $source) {
             setupCardOwner(['country' => 'SA', 'currency' => 'SAR', 'timezone' => 'Asia/Riyadh', 'country_source' => $source]);
 
