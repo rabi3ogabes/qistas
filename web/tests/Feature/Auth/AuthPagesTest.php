@@ -34,18 +34,21 @@ it('marks every auth page as not for search engines and sets the document langua
     $this->get('/login?lang=ar')->assertSee('lang="ar" dir="rtl"', false);
 });
 
-it('lists the supported countries in the sign-up form', function () {
-    $this->get('/register')->assertSee('<option value="SA"', false)->assertSee('Saudi Arabia');
+it('asks for no business name and no country in the sign-up form: the place is found, and the first-run card asks', function () {
+    $this->get('/register')->assertOk()
+        ->assertDontSee('name="business_name"', false)
+        ->assertDontSee('name="country"', false)
+        ->assertDontSee('<option value="SA"', false);
 });
 
 it('keeps what was typed after a validation error, except passwords', function () {
     $this->from('/register')->post('/register', [
         'name' => 'Layla', 'email' => 'layla@example.com', 'password' => 'weak', 'password_confirmation' => 'weak',
-        'business_name' => 'Al-Fares', 'country' => 'SA', 'terms' => '1',
+        'terms' => '1',
     ]);
 
     $this->get('/register')
         ->assertSee('value="Layla"', false)
-        ->assertSee('value="Al-Fares"', false)
+        ->assertSee('value="layla@example.com"', false)
         ->assertDontSee('value="weak"', false);
 });

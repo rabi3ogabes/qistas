@@ -9,8 +9,10 @@
         </aside>
     @endif
 
-    <form method="POST" action="{{ route('login.store') }}" class="form" novalidate>
+    <form method="POST" action="{{ route('login.store') }}" class="form" data-timezone novalidate>
         @csrf
+        {{-- Filled by resources/js/timezone.js with the browser's own zone (read when the sign-in is recorded). --}}
+        <input type="hidden" name="timezone" value="">
         <x-field name="email" type="email" :label="__('Email')" autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" required autofocus />
         <x-field name="password" type="password" :label="__('Password')" autocomplete="current-password" required />
 

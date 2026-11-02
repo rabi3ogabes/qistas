@@ -1,22 +1,11 @@
 <x-layouts.auth :title="__('Create your account')" :heading="__('Start free')" :lead="__('No card needed. Upgrade to Pro whenever you are ready.')">
-    <form method="POST" action="{{ route('register.store') }}" class="form" novalidate>
+    <form method="POST" action="{{ route('register.store') }}" class="form" data-timezone novalidate>
         @csrf
         <input type="hidden" name="locale" value="{{ app()->getLocale() }}">
+        {{-- Filled by resources/js/timezone.js with the browser's own zone; empty without it, and the country decides. --}}
+        <input type="hidden" name="timezone" value="">
 
         <x-field name="name" :label="__('Your name')" autocomplete="name" required autofocus />
-        <x-field name="business_name" :label="__('Business name')" autocomplete="organization" required />
-
-        <div class="field">
-            <label for="f-country">{{ __('Country') }}</label>
-            <select id="f-country" name="country" autocomplete="country" required @error('country') aria-invalid="true" @enderror>
-                <option value="" disabled @selected(! old('country'))>{{ __('Select your country') }}</option>
-                @foreach (\App\Support\Countries::options() as $code => $name)
-                    <option value="{{ $code }}" @selected(old('country') === $code)>{{ $name }}</option>
-                @endforeach
-            </select>
-            @error('country')<p class="field-error" role="alert">{{ $message }}</p>@enderror
-        </div>
-
         <x-field name="email" type="email" :label="__('Email')" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" required />
         <x-field name="password" type="password" :label="__('Password')" :hint="__('At least 10 characters with upper and lower case letters, a number and a symbol.')" autocomplete="new-password" required />
         <x-field name="password_confirmation" type="password" :label="__('Confirm password')" autocomplete="new-password" required />

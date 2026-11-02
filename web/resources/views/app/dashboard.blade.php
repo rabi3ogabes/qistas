@@ -2,6 +2,7 @@
     use App\Support\Format;
     use App\Support\Dates;
 
+    $tenant = app(\App\Tenancy\CurrentTenant::class)->get();
     $money = fn (string $amount) => Format::money($amount, $currency);
     $overdue = $metrics['overdue'] !== '0.00';
     $steps = [
@@ -14,6 +15,9 @@
     <x-page-head :title="__('Dashboard')">
         <x-slot:subtitle>{{ Dates::day(now(), 'l, j F Y') }}</x-slot:subtitle>
     </x-page-head>
+
+    {{-- Until the owner has named the business: the card for the owner, one quiet line for everyone else. --}}
+    <x-setup-card :tenant="$tenant" />
 
     <x-welcome-banner surface="webapp" />
 

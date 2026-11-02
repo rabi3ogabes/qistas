@@ -26,6 +26,7 @@ use App\Http\Controllers\Workspace\ProfileController;
 use App\Http\Controllers\Workspace\ReminderController;
 use App\Http\Controllers\Workspace\ReportController;
 use App\Http\Controllers\Workspace\SecurityPolicyController;
+use App\Http\Controllers\Workspace\SetupController;
 use App\Http\Controllers\Workspace\TagController;
 use App\Http\Controllers\Workspace\TeamController;
 use App\Http\Controllers\Workspace\ToolsController;
@@ -33,6 +34,9 @@ use Illuminate\Support\Facades\Route;
 
 // Everything here is /app/..., named app.*, and runs for a signed-in member of an active workspace.
 Route::get('/', DashboardController::class)->name('dashboard');
+// The first-run card (go-live basics): the owner names the business and confirms where it is, once. The same rules as the
+// phone app's PUT /api/v1/workspace/setup, in a bucket of their own so this does not share the profile's twenty a minute.
+Route::put('setup', [SetupController::class, 'update'])->middleware('throttle:20,1,web-workspace-setup')->name('setup.update');
 
 Route::get('billing', BillingController::class)->name('billing');
 // Paying by bank transfer, with the receipt (Win Plan PP13). The website only; the app never offers it.

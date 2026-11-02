@@ -49,8 +49,7 @@ it('takes the rights away again', function () {
 it('cannot be reached by registering with an address, or by any request at all', function () {
     $this->post('/register', [
         'name' => 'Boss', 'email' => 'boss@example.com', 'password' => 'Str0ng!Passw0rd#2026', 'password_confirmation' => 'Str0ng!Passw0rd#2026',
-        'business_name' => 'Boss Trading', 'country' => 'SA', 'terms' => '1',
-        'platform_role' => 'super_admin',
+        'terms' => '1', 'platform_role' => 'super_admin',
     ]);
 
     expect(User::where('email', 'boss@example.com')->value('platform_role'))->toBeNull();

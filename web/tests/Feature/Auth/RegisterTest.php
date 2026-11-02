@@ -13,15 +13,14 @@ function signUpPayload(array $overrides = []): array
         'email' => 'layla@example.com',
         'password' => TEST_PASSWORD,
         'password_confirmation' => TEST_PASSWORD,
-        'business_name' => 'Al-Fares Electronics',
-        'country' => 'SA',
         'locale' => 'ar',
         'terms' => '1',
     ], $overrides);
 }
 
 it('shows the sign-up page', function () {
-    $this->get('/register')->assertOk()->assertSee('name="business_name"', false);
+    $this->get('/register')->assertOk()->assertSee('name="password_confirmation"', false)->assertSee('name="terms"', false)
+        ->assertDontSee('name="business_name"', false);
 });
 
 it('creates the account, signs the new owner in and sends the verification email', function () {
@@ -31,7 +30,9 @@ it('creates the account, signs the new owner in and sends the verification email
 
     $user = User::where('email', 'layla@example.com')->sole();
     $this->assertAuthenticatedAs($user);
-    expect($user->tenants()->sole()->name)->toBe('Al-Fares Electronics')
+    // The business is named from the person until the owner gives its real name (the first-run card).
+    expect($user->tenants()->sole()->name)->toBe('نشاط Layla')
+        ->and($user->tenants()->sole()->isSetUp())->toBeFalse()
         ->and($user->locale)->toBe('ar')
         ->and($user->email_verified_at)->toBeNull();
     Notification::assertSentTo($user, VerifyEmailQueued::class);

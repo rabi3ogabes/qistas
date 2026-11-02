@@ -11,6 +11,7 @@ import { initAdminNav } from './admin-nav';
 import { initWelcomeBanners } from './banner';
 import { registerServiceWorker } from './install';
 import { initForms } from './forms';
+import { initTimezone } from './timezone';
 
 window.Alpine = Alpine;
 Alpine.data('planCalculator', planCalculator);
@@ -32,6 +33,7 @@ initLanguageSwitchers();
 initAdminNav();
 initWelcomeBanners();
 initForms();
+initTimezone();
 Alpine.start();
 
 // A list's "Sort by" applies as soon as it is chosen.
