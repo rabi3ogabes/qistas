@@ -16,15 +16,17 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 
 /**
- * owner_user_id and status are set by trusted code only.
+ * owner_user_id, status and setup_confirmed_at are set by trusted code only.
  *
+ * @property Carbon|null $setup_confirmed_at when the owner confirmed the business name and place; null until then
+ * @property string|null $country_source how the country was chosen: header, language, default or chosen
  * @property Carbon|null $deletion_requested_at when the owner asked to delete the business
  * @property Carbon|null $delete_after when it is erased, unless the owner restores it first
  * @property string|null $stripe_customer_id the workspace's customer in Stripe (Pro by card), made at the first checkout
  * @property bool|null $stripe_livemode whether that customer was made with live keys; a test customer is never reused live
  * @property Carbon|null $trial_used_at when the workspace's one free trial was used, by whatever way it first paid
  */
-#[Fillable(['name', 'slug', 'country', 'currency', 'timezone'])]
+#[Fillable(['name', 'slug', 'country', 'currency', 'timezone', 'country_source'])]
 class Tenant extends Model
 {
     /** @use HasFactory<TenantFactory> */
@@ -44,11 +46,18 @@ class Tenant extends Model
             'is_test' => 'boolean',
             'is_demo' => 'boolean',
             'require_app_lock' => 'boolean',
+            'setup_confirmed_at' => 'datetime',
             'deletion_requested_at' => 'datetime',
             'delete_after' => 'datetime',
             'stripe_livemode' => 'boolean',
             'trial_used_at' => 'datetime',
         ];
+    }
+
+    /** The owner has confirmed the business name and place (the first-run card), or the workspace never needed to. */
+    public function isSetUp(): bool
+    {
+        return $this->setup_confirmed_at !== null;
     }
 
     /** The owner asked to delete this business: it is read-only until it is erased or restored. */

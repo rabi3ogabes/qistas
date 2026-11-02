@@ -114,6 +114,8 @@ final class TestWorkspace
         ]);
         $tenant->owner_user_id = $admin->id;
         $tenant->is_test = true;
+        // Staff trying the product are never asked to confirm a business name and place.
+        $tenant->setup_confirmed_at = now();
         $tenant->save();
 
         $tenant->users()->attach($admin->id, ['role' => 'owner']);

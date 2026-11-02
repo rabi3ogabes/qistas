@@ -17,6 +17,8 @@ class TenantFactory extends Factory
             'slug' => fake()->unique()->slug(3),
             'country' => 'SA',
             'currency' => 'SAR',
+            // A factory workspace is already set up; a test about the first-run card asks for null.
+            'setup_confirmed_at' => now(),
         ];
     }
 
