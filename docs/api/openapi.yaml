@@ -1734,8 +1734,9 @@ paths:
 
         **Owner only** (403 `forbidden` for everyone else). Send `name` (1 to 255 characters, spaces around it are
         dropped, not only spaces). Send `country` and `timezone` only to change them; sending the ones the workspace
-        already has is fine. A different country gets its currency from the country table and, unless `timezone` is
-        sent, its usual time zone, and counts as chosen by the owner. The country and the time zone can change **only
+        already has is fine. A different country gets its currency from the country table and, unless a different
+        `timezone` that names a place is sent (UTC counts as none while the country changes), its usual time zone, and
+        counts as chosen by the owner. The country and the time zone can change **only
         while the workspace has no contract and no transaction** (`tenant.setup.can_change_region`): after that a
         different one is refused as a whole (422 `validation_failed` naming `country` or `timezone`, nothing saved, the
         name included). Saving again later renames the business; the day it was confirmed stays. Every save is audited
@@ -3111,7 +3112,8 @@ components:
       type: object
       description: |
         Five things are enough. The workspace is named "Business of <first name>" (in `locale`) and placed from the request:
-        the CDN's country header, else the region of `Accept-Language`, else the server's default country. It is
+        the CDN's country header, else the country of the device's time zone (`timezone`), else the region of
+        `Accept-Language`, else the server's default country. It is
         unconfirmed until the owner confirms the name and place; a client that sends `business_name` skips that.
       required: [name, email, password, password_confirmation, terms]
       properties:
@@ -3121,7 +3123,7 @@ components:
         password_confirmation: {type: string}
         business_name: {type: string, maxLength: 255, description: "Optional. When sent, it names the workspace and the workspace counts as confirmed (app versions up to 1.28 send it)."}
         country: {type: string, minLength: 2, maxLength: 2, example: SA, description: "Optional, ISO 3166-1 alpha-2. When sent it wins over the detected country and decides the starting currency."}
-        timezone: {type: string, maxLength: 64, example: Asia/Riyadh, description: "Optional IANA zone name. A name that is not a real zone is ignored."}
+        timezone: {type: string, maxLength: 64, example: Asia/Riyadh, description: "Optional IANA zone name. A name that is not a real zone, or that names no place (such as UTC), is ignored. A real zone also tells the country when the CDN gives none."}
         utc_offset: {type: integer, minimum: -840, maximum: 840, example: 180, description: "Optional. The device's offset from UTC in minutes, east positive. Read against the country's zones when no `timezone` is sent."}
         terms: {type: boolean, const: true}
         locale: {type: string, enum: [en, ar, fr, es, ur]}

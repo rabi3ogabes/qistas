@@ -322,7 +322,8 @@ describe('the card', function () {
         it('does not call a place from the network or the language by the device’s words', function (string $source) {
             setupCardOwner(['country_source' => $source]);
 
-            expect(setupCardText($this->get('/app')->assertOk()))->not->toContain('Guessed from your device');
+            expect(setupCardText($this->get('/app')->assertOk()))->toContain('We think you are in')
+                ->not->toContain('Guessed from your device');
         })->with(['header', 'language']);
 
         it('shows the chooser at once, with the current country chosen, when nothing could be found', function (string $source) {

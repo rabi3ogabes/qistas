@@ -43,7 +43,7 @@ return [
     ],
 
     /*
-    | The country a new workspace gets when sign-up can detect none (no CDN header, no region in the browser's language).
+    | The country a new workspace gets when sign-up can detect none (no CDN header, no country in the browser's time zone, no region in its language).
     | Two letters; the owner confirms or changes it on the first-run card. One of the countries above.
     */
     'default_country' => env('QISTAS_DEFAULT_COUNTRY', 'SA'),
