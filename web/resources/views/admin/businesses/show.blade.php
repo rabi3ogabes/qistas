@@ -158,6 +158,35 @@
                     <x-meter :label="$row['label']" :entitlement="$row['entitlement']" />
                 @endforeach
             </section>
+
+            {{-- Each person's last sign-ins, address included: what staff need to help someone locked out or worried about a stranger. --}}
+            <section class="card card-pad stack" aria-labelledby="sign-ins-title">
+                <h2 id="sign-ins-title" class="card-title">{{ __('Recent sign-ins') }}</h2>
+                @if ($signIns->isEmpty())
+                    <p class="field-hint">{{ __('No sign-ins are recorded for the people in this business yet.') }}</p>
+                @else
+                    <p class="field-hint">{{ __('The last :count for each person, newest first.', ['count' => \App\Auth\SignInPresenter::STAFF_LIMIT]) }}</p>
+                    @foreach ($people as $person)
+                        @php($events = $signIns->get($person->id))
+                        <div class="signin-member">
+                            <h3 class="signin-member-name">
+                                {{ $person->name }}
+                                <span class="badge">{{ \App\Tenancy\TenantRole::tryFrom((string) $person->pivot->role)?->label() ?? $person->pivot->role }}</span>
+                            </h3>
+                            <p class="cell-sub" dir="ltr">{{ $person->email }}</p>
+                            @if ($events === null)
+                                <p class="field-hint">{{ __('No sign-ins recorded.') }}</p>
+                            @else
+                                <ol class="signin-list">
+                                    @foreach ($events as $event)
+                                        <x-sign-in-row :event="$event" :zone="$signInZone" staff />
+                                    @endforeach
+                                </ol>
+                            @endif
+                        </div>
+                    @endforeach
+                @endif
+            </section>
         </div>
     </div>
 </x-layouts.admin>

@@ -34,6 +34,7 @@ use App\Http\Controllers\Api\V1\ReminderController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\SchedulePreviewController;
 use App\Http\Controllers\Api\V1\SignatureController;
+use App\Http\Controllers\Api\V1\SignInsController;
 use App\Http\Controllers\Api\V1\SupportController;
 use App\Http\Controllers\Api\V1\TagController;
 use App\Http\Controllers\Api\V1\TeamController;
@@ -64,6 +65,8 @@ Route::name('api.')->group(function (): void {
         Route::post('auth/logout-all', [AuthController::class, 'logoutAll'])->name('auth.logout-all');
 
         Route::get('me', MeController::class)->name('me');
+        // The person's own recent sign-ins (go-live basics): the last 20, newest first, never anyone else's.
+        Route::get('account/sign-ins', SignInsController::class)->name('account.sign-ins');
         // Your profile: details, password and photo.
         Route::put('me', [ProfileController::class, 'update'])->middleware('throttle:20,1')->name('me.update');
         Route::put('me/password', [ProfileController::class, 'password'])->middleware('throttle:6,1')->name('me.password');

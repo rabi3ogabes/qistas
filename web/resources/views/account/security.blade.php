@@ -89,6 +89,21 @@
         @endif
     </section>
 
+    {{-- The last 20 sign-ins to this account (go-live basics): what signed in, from which country, whether a proxy shows, and when. --}}
+    <section class="devices" aria-labelledby="sign-ins-title">
+        <h2 id="sign-ins-title" class="devices-title">{{ __('Recent sign-ins') }}</h2>
+        @if ($signIns->isEmpty())
+            <p class="field-hint">{{ __('No sign-ins are recorded yet.') }}</p>
+        @else
+            <p class="field-hint">{{ __('If one of these is not you, change your password.') }}</p>
+            <ol class="signin-list">
+                @foreach ($signIns as $signIn)
+                    <x-sign-in-row :event="$signIn" :zone="$signInZone" />
+                @endforeach
+            </ol>
+        @endif
+    </section>
+
     @if ($user->tenants()->exists())
         <p style="margin-top:2rem"><a href="{{ route('app.account.delete.show') }}">{{ __('Delete my account') }}</a></p>
     @endif

@@ -30,6 +30,24 @@ final class Countries
     }
 
     /**
+     * The name of one country as people say it in $locale ("Qatar", "قطر"), for any two-letter country code, not only
+     * the ones a workspace can be opened in. Null for anything else: no code, a value that is not two letters, or a code
+     * ICU has no country for (it answers with the code itself or with "Unknown Region"), so a screen can leave it out.
+     */
+    public static function name(?string $code, ?string $locale = null): ?string
+    {
+        $code = strtoupper(trim((string) $code));
+        if (preg_match('/\A[A-Z]{2}\z/', $code) !== 1) {
+            return null;
+        }
+
+        $locale ??= app()->getLocale();
+        $name = Locale::getDisplayRegion('-'.$code, $locale);
+
+        return $name === '' || $name === $code || $name === Locale::getDisplayRegion('-ZZ', $locale) ? null : $name;
+    }
+
+    /**
      * The name of an IANA time zone as people say it in $locale: "Qatar Time", "توقيت قطر", never an offset or a code.
      * A zone the system does not know (or no ICU data) is shown as its own name with the underscores taken out.
      */

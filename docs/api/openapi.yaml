@@ -349,6 +349,31 @@ paths:
           description: The account, with `user.photo` null.
           content: {application/json: {schema: {type: object, properties: {data: {$ref: "#/components/schemas/Account"}}}}}
         "401": {$ref: "#/components/responses/Unauthenticated"}
+  /account/sign-ins:
+    get:
+      tags: [Account]
+      summary: Your recent sign-ins
+      description: |
+        The last 20 times someone signed in to the signed-in person's account, or typed its password wrongly, newest first.
+        Only the person's own, and the same list the website shows on its Security page. A row is written for a real
+        sign-in or sign-up (website or phone app), never for a session restored by "remember me", and for a wrong password
+        at most once a minute per address. Rows are removed after 90 days. `proxy` is a best-effort reading of free
+        signals: say "not detected", "possible" or "detected", never "certain", and show `proxy_signals` only as plain
+        words, not as the raw names. The user agent is stored for support and is not sent.
+      responses:
+        "200":
+          description: The sign-ins, newest first; an empty list when there are none.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    maxItems: 20
+                    items: {$ref: "#/components/schemas/SignInEvent"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "429": {$ref: "#/components/responses/RateLimited"}
   /billing:
     get:
       tags: [Account]
@@ -3236,6 +3261,28 @@ components:
         locale: {type: string}
         two_factor: {type: boolean, description: "Whether signing in needs a code from this person. Always false for the admin team."}
         two_factor_available: {type: boolean, description: "False for the admin team, who never use two-factor; the app shows no setting for it. Business owners get true."}
+    SignInEvent:
+      type: object
+      description: One line of a person's sign-in history (`GET /account/sign-ins`).
+      required: [id, method, channel, outcome, device_type, os, browser, app_version, device_name, ip, ip_country, proxy, proxy_signals, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        method: {type: string, example: password, description: "How the person proved who they are. Only `password` today; other methods will be added, so do not treat the list as closed."}
+        channel: {type: string, enum: [web, app], description: "`web` is the website, `app` the phone app's own sign-in."}
+        outcome: {type: string, enum: [success, failed], description: "`failed` is a wrong password for this account."}
+        device_type: {type: string, enum: [desktop, mobile, tablet, unknown]}
+        os: {type: [string, "null"], example: Android, description: The system, as short as the user agent allows; null when unknown.}
+        browser: {type: [string, "null"], example: Chrome, description: Null when unknown and for the phone app.}
+        app_version: {type: [string, "null"], example: 1.29.0, description: The phone app's version; null on the website.}
+        device_name: {type: [string, "null"], example: Pixel 8, description: The phone's model as the app reported it; null on the website.}
+        ip: {type: string, example: 203.0.113.9, description: The address the sign-in came from. The person's own, shown to them.}
+        ip_country: {type: [string, "null"], example: QA, description: Two letters from the network in front of the site; null when unknown.}
+        proxy: {type: string, enum: [not_detected, possible, detected]}
+        proxy_signals:
+          type: array
+          description: Why `proxy` reads as it does. Empty for `not_detected`.
+          items: {type: string, enum: [tor, via_header, forwarded_chain, timezone_country_mismatch]}
+        created_at: {type: string, format: date-time, description: When, in UTC.}
     Tenant:
       type: object
       properties:
