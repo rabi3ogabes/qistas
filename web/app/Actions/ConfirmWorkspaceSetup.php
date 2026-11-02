@@ -29,7 +29,8 @@ final class ConfirmWorkspaceSetup
     /**
      * Saves the name and any allowed change of place and marks the workspace confirmed (the day it was first confirmed
      * stays if it already was). A country sent that is not the workspace's own sets its currency from the country table
-     * and its time zone from the zone sent, else the country's usual one, and counts as chosen by the owner.
+     * and its time zone from a zone sent that differs from the current one, else the country's usual one, and counts as
+     * chosen by the owner.
      *
      * @param  array{name: string, country?: string|null, timezone?: string|null}  $data
      *
