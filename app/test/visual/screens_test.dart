@@ -135,10 +135,30 @@ void main() {
     });
   }
 
-  picture('sign-in', (tester) async {
-    await pumpApp(tester, workspaceServer(routes: {'GET /demo': always(json(200, {'data': demoOfferJson()}))}), signedIn: false, realFonts: true);
-    await snapshot(tester, 'login');
-  });
+  // The two screens a person meets before the app: sign-in, and sign-up with its five things to fill in.
+  final arabic = jsonDecode(File('assets/i18n/ar.json').readAsStringSync()) as Map<String, dynamic>;
+
+  for (final language in ['en', 'ar']) {
+    final suffix = language == 'en' ? '' : '-$language';
+
+    picture('sign-in, $language', (tester) async {
+      await pumpApp(tester, workspaceServer(), signedIn: false, realFonts: true, size: const Size(390, 844), language: language);
+      await snapshot(tester, 'login$suffix');
+    });
+
+    picture('sign-up, $language', (tester) async {
+      await pumpApp(tester, workspaceServer(), signedIn: false, realFonts: true, size: const Size(390, 1100), language: language);
+      await tapText(tester, language == 'en' ? 'Create a free account' : arabic['Create a free account'] as String);
+      await snapshot(tester, 'register$suffix');
+    });
+
+    picture('sign-up with what is still to do, $language', (tester) async {
+      await pumpApp(tester, workspaceServer(), signedIn: false, realFonts: true, size: const Size(390, 1300), language: language);
+      await tapText(tester, language == 'en' ? 'Create a free account' : arabic['Create a free account'] as String);
+      await tapButton(tester, language == 'en' ? 'Start free' : arabic['Start free'] as String);
+      await snapshot(tester, 'register-errors$suffix');
+    });
+  }
 
   picture('dashboard', (tester) async {
     await pumpApp(tester, workspaceServer(), realFonts: true, size: tall);

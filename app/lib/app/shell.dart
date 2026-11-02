@@ -107,7 +107,7 @@ class _AppShellState extends ConsumerState<AppShell> with WidgetsBindingObserver
     final selected = shell.currentIndex < destinations.length ? shell.currentIndex : -1;
 
     final notices = _Notices(auth: auth, account: account);
-    final hasNotices = (account != null && (account.isDemo || !account.emailVerified)) || (auth?.offline ?? false);
+    final hasNotices = (account != null && !account.emailVerified) || (auth?.offline ?? false);
     final wide = MediaQuery.sizeOf(context).width >= 840;
 
     final content = Column(
@@ -153,7 +153,7 @@ class _AppShellState extends ConsumerState<AppShell> with WidgetsBindingObserver
   }
 }
 
-/// What the whole app should know right now: it is a demo, there is no connection, or the e-mail is unconfirmed. (An
+/// What the whole app should know right now: there is no connection, or the e-mail is unconfirmed. (An
 /// admin's test workspace is marked on the account card in Settings instead, not on every screen.)
 class _Notices extends ConsumerWidget {
   const _Notices({required this.auth, required this.account});
@@ -177,22 +177,6 @@ class _Notices extends ConsumerWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (account != null && account.isDemo)
-          strip(
-            color: c.tintSand,
-            // Only the way to a real account: the demo says what it is on the way in, so the strip does not repeat it.
-            child: Align(
-              alignment: AlignmentDirectional.centerEnd,
-              child: TextButton(
-                onPressed: () async {
-                  final router = GoRouter.of(context);
-                  await ref.read(authProvider.notifier).signOut();
-                  router.go('/register');
-                },
-                child: Text(context.t('Create my free account')),
-              ),
-            ),
-          ),
         if (auth?.offline ?? false)
           strip(
             color: c.tintSand,

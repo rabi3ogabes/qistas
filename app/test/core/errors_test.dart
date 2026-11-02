@@ -38,9 +38,9 @@ void main() {
     });
 
     testWidgets('a situation the server named itself is told as it wrote it, even on a 503', (tester) async {
-      const busy = ApiException(status: 503, code: 'demo_busy', message: 'The demo is busy right now. Please try again in a few minutes.');
+      const busy = ApiException(status: 503, code: 'maintenance', message: 'Qistas is being updated. Please try again in a few minutes.');
 
-      expect(await messageFor(tester, busy), 'The demo is busy right now. Please try again in a few minutes.');
+      expect(await messageFor(tester, busy), 'Qistas is being updated. Please try again in a few minutes.');
     });
 
     testWidgets('a refusal carries the server’s own sentence', (tester) async {

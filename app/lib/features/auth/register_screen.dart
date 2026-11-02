@@ -7,11 +7,13 @@ import '../../app/providers.dart';
 import '../../core/api/api_exception.dart';
 import '../../core/config.dart';
 import '../../core/design/widgets.dart';
+import '../../core/device_hint.dart';
 import '../../core/l10n/translations.dart';
 import '../../core/ui/errors.dart';
 import 'auth_shell.dart';
-import 'countries.dart';
 
+/// Five things to fill in: name, e-mail, password, the password again and the terms. The business, its country and its
+/// currency are asked later, in the app, once there is something to set up.
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
 
@@ -21,11 +23,10 @@ class RegisterScreen extends ConsumerStatefulWidget {
 
 class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _name = TextEditingController();
-  final _business = TextEditingController();
   final _email = TextEditingController();
   final _password = TextEditingController();
+  final _confirmation = TextEditingController();
 
-  String _country = 'SA';
   bool _terms = false;
   bool _busy = false;
   bool _showPassword = false;
@@ -34,7 +35,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   @override
   void dispose() {
-    for (final c in [_name, _business, _email, _password]) {
+    for (final c in [_name, _email, _password, _confirmation]) {
       c.dispose();
     }
     super.dispose();
@@ -46,9 +47,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     if (_busy) return;
     final errors = <String, String>{
       if (_name.text.trim().isEmpty) 'name': context.t('Enter your name.'),
-      if (_business.text.trim().isEmpty) 'business_name': context.t('Enter your business name.'),
       if (_email.text.trim().isEmpty) 'email': context.t('Enter your e-mail address.'),
       if (_password.text.isEmpty) 'password': context.t('Choose a password.'),
+      if (_password.text.isNotEmpty && _password.text != _confirmation.text) 'password_confirmation': context.t('The two passwords are not the same.'),
       if (!_terms) 'terms': context.t('Please accept the terms to continue.'),
     };
     setState(() {
@@ -57,22 +58,20 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     });
     if (errors.isNotEmpty) return;
 
+    // Read before the first await: the screen's size is asked of the context, which must not be used after one.
+    final device = deviceHint(shortestSide: MediaQuery.sizeOf(context).shortestSide);
+
     setState(() => _busy = true);
     try {
-      await ref.read(authProvider.notifier).register(
-            name: _name.text,
-            email: _email.text,
-            password: _password.text,
-            businessName: _business.text,
-            country: _country,
-          );
+      await ref.read(authProvider.notifier).register(name: _name.text, email: _email.text, password: _password.text, device: device);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
         _busy = false;
         if (e.isValidation) {
           _fieldErrors = {for (final entry in e.fields.entries) entry.key: entry.value.first};
-          if (_fieldErrors.keys.every((k) => !const {'name', 'email', 'password', 'business_name', 'country', 'terms'}.contains(k))) {
+          // A complaint about something this form does not show would otherwise go unseen.
+          if (_fieldErrors.keys.every((k) => !const {'name', 'email', 'password', 'password_confirmation', 'terms'}.contains(k))) {
             _banner = e.message;
           }
         } else {
@@ -84,30 +83,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     }
 
     if (mounted) setState(() => _busy = false);
-  }
-
-  Future<void> _pickCountry() async {
-    final chosen = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (context) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.8,
-        builder: (context, scroll) => ListView(
-          controller: scroll,
-          children: [
-            for (final code in countryCodes)
-              ListTile(
-                title: Text(countryName(context, code)),
-                trailing: code == _country ? const Icon(Icons.check) : null,
-                onTap: () => Navigator.of(context).pop(code),
-              ),
-          ],
-        ),
-      ),
-    );
-    if (chosen != null) setState(() => _country = chosen);
   }
 
   @override
@@ -132,21 +107,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             children: [
               QField(controller: _name, label: context.t('Your name'), errorText: _fieldErrors['name'], textInputAction: TextInputAction.next, autofillHints: const [AutofillHints.name], enabled: !_busy),
               const SizedBox(height: 16),
-              QField(controller: _business, label: context.t('Business name'), errorText: _fieldErrors['business_name'], textInputAction: TextInputAction.next, autofillHints: const [AutofillHints.organizationName], enabled: !_busy),
-              const SizedBox(height: 16),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(context.t('Country'), style: text.labelLarge)),
-                  OutlinedButton(
-                    onPressed: _busy ? null : _pickCountry,
-                    style: OutlinedButton.styleFrom(alignment: AlignmentDirectional.centerStart),
-                    child: Row(children: [Expanded(child: Text(countryName(context, _country))), const Icon(Icons.arrow_drop_down)]),
-                  ),
-                  if (_fieldErrors['country'] != null) Padding(padding: const EdgeInsets.only(top: 6), child: Text(_fieldErrors['country']!, style: text.bodySmall?.copyWith(color: Theme.of(context).colorScheme.error))),
-                ],
-              ),
-              const SizedBox(height: 16),
               QField(controller: _email, label: context.t('Email'), latin: true, keyboardType: TextInputType.emailAddress, textInputAction: TextInputAction.next, autofillHints: const [AutofillHints.email], errorText: _fieldErrors['email'], enabled: !_busy),
               const SizedBox(height: 16),
               QField(
@@ -154,17 +114,28 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 label: context.t('Password'),
                 latin: true,
                 obscure: !_showPassword,
-                textInputAction: TextInputAction.done,
+                textInputAction: TextInputAction.next,
                 autofillHints: const [AutofillHints.newPassword],
                 helper: context.t('At least 10 characters, with upper and lower case letters, a number and a symbol.'),
                 errorText: _fieldErrors['password'],
                 enabled: !_busy,
-                onSubmitted: (_) => _submit(),
                 suffix: IconButton(
                   tooltip: _showPassword ? context.t('Hide password') : context.t('Show password'),
                   icon: Icon(_showPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined),
                   onPressed: () => setState(() => _showPassword = !_showPassword),
                 ),
+              ),
+              const SizedBox(height: 16),
+              QField(
+                controller: _confirmation,
+                label: context.t('Confirm password'),
+                latin: true,
+                obscure: !_showPassword,
+                textInputAction: TextInputAction.done,
+                autofillHints: const [AutofillHints.newPassword],
+                errorText: _fieldErrors['password_confirmation'],
+                enabled: !_busy,
+                onSubmitted: (_) => _submit(),
               ),
             ],
           ),

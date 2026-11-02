@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:dio/dio.dart' show HttpClientAdapter;
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -9,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api/api_client.dart';
 import '../core/api/api_exception.dart';
 import '../core/config.dart';
+import '../core/device_hint.dart';
 import '../core/l10n/translations.dart';
 import '../core/push/push_service.dart';
 import '../core/storage/token_store.dart';
@@ -146,19 +146,18 @@ class AuthController extends AsyncNotifier<AuthState> {
     }
   }
 
-  Future<void> signIn({required String email, required String password, String? code, String? recoveryCode}) async {
+  /// [device] is what [deviceHint] made on the screen (it needs the screen's size). The offset from UTC is read here, at
+  /// the moment of signing in. The same call carries the two-step code, so the second step sends both again.
+  Future<void> signIn({required String email, required String password, required Map<String, dynamic> device, String? code, String? recoveryCode}) async {
     final session = await ref.read(apiProvider).login(
           email: email.trim(),
           password: password,
           deviceName: deviceName(),
+          device: device,
+          utcOffset: utcOffsetMinutes(),
           code: code,
           recoveryCode: recoveryCode,
         );
-    await _signedIn(session);
-  }
-
-  Future<void> signInDemo(String persona) async {
-    final session = await ref.read(apiProvider).startDemo(persona, deviceName: deviceName());
     await _signedIn(session);
   }
 
@@ -166,17 +165,16 @@ class AuthController extends AsyncNotifier<AuthState> {
     required String name,
     required String email,
     required String password,
-    required String businessName,
-    required String country,
+    required Map<String, dynamic> device,
   }) async {
     final session = await ref.read(apiProvider).register(
           name: name.trim(),
           email: email.trim(),
           password: password,
-          businessName: businessName.trim(),
-          country: country,
           locale: ref.read(localeProvider),
           deviceName: deviceName(),
+          device: device,
+          utcOffset: utcOffsetMinutes(),
         );
     await _signedIn(session);
   }
@@ -272,21 +270,9 @@ class AuthController extends AsyncNotifier<AuthState> {
     await ref.read(tokenStoreProvider).clear();
     await _prefs.remove(accountKey);
   }
-
-  /// What this phone is called in the list of signed-in devices.
-  static String deviceName() => kIsWeb ? 'Qistas (web browser)' : 'Qistas app (${defaultTargetPlatform.name})';
 }
 
 final authProvider = AsyncNotifierProvider<AuthController, AuthState>(AuthController.new);
-
-/// Whether the server offers "Try the demo". Anything but a clear yes (no connection, an old server) means no.
-final demoOfferProvider = FutureProvider.autoDispose<DemoOffer>((ref) async {
-  try {
-    return await ref.watch(apiProvider).demoOffer();
-  } on ApiException {
-    return DemoOffer.none;
-  }
-});
 
 /// The signed-in account, or null.
 final accountProvider = Provider<Account?>((ref) => ref.watch(authProvider).valueOrNull?.account);

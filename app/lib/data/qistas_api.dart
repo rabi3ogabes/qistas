@@ -39,10 +39,14 @@ class QistasApi {
 
   // ------------------------------------------------------------------ account
 
+  /// [device] (what [deviceHint] makes) and [utcOffset] (minutes east of UTC) go into the person's sign-in history on the
+  /// server; both are optional there. The two-step code goes back to this same call, so it carries them again.
   Future<SignedIn> login({
     required String email,
     required String password,
     required String deviceName,
+    Map<String, dynamic>? device,
+    int? utcOffset,
     String? code,
     String? recoveryCode,
   }) async {
@@ -50,6 +54,8 @@ class QistasApi {
       'email': email,
       'password': password,
       'device_name': deviceName,
+      'utc_offset': ?utcOffset,
+      'device': ?device,
       if (code != null && code.isNotEmpty) 'code': code,
       if (recoveryCode != null && recoveryCode.isNotEmpty) 'recovery_code': recoveryCode,
     });
@@ -57,25 +63,27 @@ class QistasApi {
     return _signedIn(json);
   }
 
+  /// Name, e-mail and password are all the server needs: it finds the place (and so the currency) by itself and gives
+  /// the business a placeholder name until the person sets it up.
   Future<SignedIn> register({
     required String name,
     required String email,
     required String password,
-    required String businessName,
-    required String country,
     required String locale,
     required String deviceName,
+    Map<String, dynamic>? device,
+    int? utcOffset,
   }) async {
     final json = await _client.post('/auth/register', body: {
       'name': name,
       'email': email,
       'password': password,
       'password_confirmation': password,
-      'business_name': businessName,
-      'country': country,
       'terms': true,
       'locale': locale,
       'device_name': deviceName,
+      'utc_offset': ?utcOffset,
+      'device': ?device,
     });
 
     return _signedIn(json);
@@ -86,13 +94,6 @@ class QistasApi {
 
     return SignedIn(token: data['token'].toString(), account: Account.fromJson(data));
   }
-
-  /// Whether "Try the demo" is on. Public, so it can be asked before anyone has signed in.
-  Future<DemoOffer> demoOffer() async => DemoOffer.fromJson(_data(await _client.get('/demo')));
-
-  /// Enter the demo as [persona] (admin or user): a throw-away account, signed in on this device.
-  Future<SignedIn> startDemo(String persona, {required String deviceName}) async =>
-      _signedIn(await _client.post('/demo/$persona', body: {'device_name': deviceName}));
 
   Future<Account> me() async => Account.fromJson(_data(await _client.get('/me')));
 

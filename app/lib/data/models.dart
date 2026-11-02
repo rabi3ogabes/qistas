@@ -101,7 +101,6 @@ class Account {
     required this.currency,
     required this.role,
     required this.isTest,
-    required this.isDemo,
     this.requireAppLock = false,
     this.hijriDates = 'off',
     this.deletionScheduledFor,
@@ -133,7 +132,6 @@ class Account {
       currency: (tenant['currency'] ?? 'USD').toString(),
       role: (tenant['role'] ?? 'viewer').toString(),
       isTest: tenant['is_test'] == true,
-      isDemo: tenant['is_demo'] == true,
       requireAppLock: tenant['require_app_lock'] == true,
       hijriDates: (tenant['hijri_dates'] ?? 'off').toString(),
       deletionScheduledFor: tenant['deletion_scheduled_for']?.toString(),
@@ -186,9 +184,6 @@ class Account {
 
   /// An admin's sandbox with sample data: the app says so on every screen.
   final bool isTest;
-
-  /// A throw-away workspace made by "Try the demo": the app says so and offers a real account.
-  final bool isDemo;
 
   /// The business requires every phone to unlock Qistas (fingerprint, face or the phone's PIN) before showing its books.
   final bool requireAppLock;
@@ -246,7 +241,7 @@ class Account {
           'phone': phone, 'photo': photo, 'member_since': memberSince,
         },
         'tenant': {
-          'id': tenantId, 'name': businessName, 'country': country, 'currency': currency, 'role': role, 'is_test': isTest, 'is_demo': isDemo,
+          'id': tenantId, 'name': businessName, 'country': country, 'currency': currency, 'role': role, 'is_test': isTest,
           'require_app_lock': requireAppLock, 'hijri_dates': hijriDates, 'deletion_scheduled_for': deletionScheduledFor,
         },
         'plan': {'key': planKey, 'name': planName},
@@ -939,45 +934,6 @@ class Paged<T> {
   final int total;
 
   bool get hasMore => page < lastPage;
-}
-
-/// One way into the demo: an admin with every feature, or a user with the Free plan's limits.
-@immutable
-class DemoPersona {
-  const DemoPersona({required this.key, required this.label, required this.description, required this.plan});
-
-  factory DemoPersona.fromJson(Map<String, dynamic> json) => DemoPersona(
-        key: json['key'].toString(),
-        label: (json['label'] ?? '').toString(),
-        description: (json['description'] ?? '').toString(),
-        plan: (json['plan'] ?? 'free').toString(),
-      );
-
-  /// admin or user.
-  final String key;
-  final String label;
-  final String description;
-
-  /// pro or free.
-  final String plan;
-}
-
-/// Whether the server offers "Try the demo", and how.
-@immutable
-class DemoOffer {
-  const DemoOffer({required this.enabled, required this.hours, required this.personas});
-
-  factory DemoOffer.fromJson(Map<String, dynamic> json) => DemoOffer(
-        enabled: json['enabled'] == true,
-        hours: (json['hours'] as num?)?.toInt() ?? 0,
-        personas: _list(json['personas']).map(DemoPersona.fromJson).toList(),
-      );
-
-  static const DemoOffer none = DemoOffer(enabled: false, hours: 0, personas: []);
-
-  final bool enabled;
-  final int hours;
-  final List<DemoPersona> personas;
 }
 
 /// What signing in or registering returns.

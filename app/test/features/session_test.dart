@@ -1,6 +1,10 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:qistas/core/config.dart';
+import 'package:qistas/core/device_hint.dart';
 
 import '../support/fake_api.dart';
 import '../support/harness.dart';
@@ -83,6 +87,93 @@ void main() {
       expect(attempts, 2);
       expect(jsonDecode(server.requestsTo('POST /auth/login').last.data as String), containsPair('code', '123456'));
       expect(find.textContaining(', Layla'), findsOneWidget);
+    });
+
+    testWidgets('tells the server the offset from UTC and what kind of device this is', (tester) async {
+      final server = workspaceServer(routes: {'POST /auth/login': always(json(200, {'data': sessionJson()}))});
+      await pumpApp(tester, server, signedIn: false);
+
+      await typeInto(tester, 'Email', 'layla@example.com');
+      await typeInto(tester, 'Password', 'a-long-Password-1!');
+      await tapText(tester, 'Sign in', last: true);
+
+      final body = jsonDecode(server.requestsTo('POST /auth/login').single.data as String) as Map<String, dynamic>;
+      expect(body['utc_offset'], DateTime.now().timeZoneOffset.inMinutes);
+      expect(body['device'], {'type': 'mobile', 'os': Platform.operatingSystem, 'model': deviceName(), 'app_version': AppConfig.appVersion});
+      expect(body, isNot(contains('timezone')));
+      expect(body['device_name'], deviceName());
+    });
+
+    testWidgets('says a tablet is a tablet', (tester) async {
+      final server = workspaceServer(routes: {'POST /auth/login': always(json(200, {'data': sessionJson()}))});
+      await pumpApp(tester, server, signedIn: false, size: const Size(820, 1180));
+
+      await typeInto(tester, 'Email', 'layla@example.com');
+      await typeInto(tester, 'Password', 'a-long-Password-1!');
+      await tapText(tester, 'Sign in', last: true);
+
+      final body = jsonDecode(server.requestsTo('POST /auth/login').single.data as String) as Map<String, dynamic>;
+      expect((body['device'] as Map<String, dynamic>)['type'], 'tablet');
+    });
+
+    testWidgets('sends the same hints again with the two-step code', (tester) async {
+      final server = workspaceServer(routes: {
+        'POST /auth/login': (options) {
+          final body = jsonDecode(options.data as String) as Map<String, dynamic>;
+
+          return body.containsKey('code') ? json(200, {'data': sessionJson()}) : apiError(422, 'two_factor_required', 'Enter the code from your authenticator app.');
+        },
+      });
+      await pumpApp(tester, server, signedIn: false);
+
+      await typeInto(tester, 'Email', 'layla@example.com');
+      await typeInto(tester, 'Password', 'a-long-Password-1!');
+      await tapText(tester, 'Sign in', last: true);
+      await typeInto(tester, 'Authentication code', '123456');
+      await tapText(tester, 'Sign in', last: true);
+
+      final requests = server.requestsTo('POST /auth/login');
+      expect(requests, hasLength(2));
+      for (final request in requests) {
+        final body = jsonDecode(request.data as String) as Map<String, dynamic>;
+        expect(body['utc_offset'], DateTime.now().timeZoneOffset.inMinutes);
+        expect(body['device'], containsPair('type', 'mobile'));
+        expect(body['device'], containsPair('app_version', AppConfig.appVersion));
+      }
+      expect(jsonDecode(requests.last.data as String), containsPair('code', '123456'));
+    });
+
+    testWidgets('sends the same hints again with a recovery code', (tester) async {
+      final server = workspaceServer(routes: {
+        'POST /auth/login': (options) {
+          final body = jsonDecode(options.data as String) as Map<String, dynamic>;
+
+          return body.containsKey('recovery_code') ? json(200, {'data': sessionJson()}) : apiError(422, 'two_factor_required', 'Enter the code from your authenticator app.');
+        },
+      });
+      await pumpApp(tester, server, signedIn: false);
+
+      await typeInto(tester, 'Email', 'layla@example.com');
+      await typeInto(tester, 'Password', 'a-long-Password-1!');
+      await tapText(tester, 'Sign in', last: true);
+      await tapText(tester, 'Use a recovery code instead');
+      await typeInto(tester, 'Recovery code', 'abcde-12345');
+      await tapText(tester, 'Sign in', last: true);
+
+      final body = jsonDecode(server.requestsTo('POST /auth/login').last.data as String) as Map<String, dynamic>;
+      expect(body['recovery_code'], 'abcde-12345');
+      expect(body['utc_offset'], isA<int>());
+      expect(body['device'], containsPair('type', 'mobile'));
+    });
+
+    testWidgets('offers no demo, and never asks the server about one', (tester) async {
+      final server = workspaceServer();
+      await pumpApp(tester, server, signedIn: false);
+
+      expect(find.text('Welcome back'), findsOneWidget);
+      expect(find.text('Just looking around?'), findsNothing);
+      expect(find.textContaining('demo', findRichText: true), findsNothing);
+      expect([for (final request in server.adapter.requests) request.path], isNot(contains(contains('demo'))));
     });
 
     testWidgets('says what was wrong, and does not sign in, when the password is refused', (tester) async {

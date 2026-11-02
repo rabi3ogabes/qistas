@@ -5,10 +5,10 @@ import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import '../../core/api/api_exception.dart';
 import '../../core/design/widgets.dart';
+import '../../core/device_hint.dart';
 import '../../core/l10n/translations.dart';
 import '../../core/ui/errors.dart';
 import 'auth_shell.dart';
-import 'demo_choices.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -54,12 +54,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
 
+    // Read before the first await: the screen's size is asked of the context, which must not be used after one.
+    final device = deviceHint(shortestSide: MediaQuery.sizeOf(context).shortestSide);
+
     setState(() => _busy = true);
     try {
       final code = _code.text.trim();
       await ref.read(authProvider.notifier).signIn(
             email: _email.text,
             password: _password.text,
+            device: device,
             code: _useRecovery ? null : code,
             recoveryCode: _useRecovery ? code : null,
           );
@@ -169,7 +173,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ),
         const SizedBox(height: 24),
         QButton(label: context.t('Sign in'), loading: _busy, onPressed: _submit),
-        const DemoChoices(),
       ],
     );
   }

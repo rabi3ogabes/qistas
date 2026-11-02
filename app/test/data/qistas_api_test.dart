@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:qistas/core/api/api_client.dart';
 import 'package:qistas/core/money.dart';
 import 'package:qistas/core/storage/token_store.dart';
+import 'package:qistas/data/models.dart';
 import 'package:qistas/data/qistas_api.dart';
 
 import '../support/fake_api.dart';
@@ -44,21 +45,71 @@ void main() {
       expect(adapter.lastBody['recovery_code'], 'abcde-12345');
     });
 
-    test('registering sends everything the server needs, including the confirmation and terms', () async {
+    test('adds the offset from UTC and the device hint when it has them, and leaves them out when it has none', () async {
+      final adapter = FakeAdapter((_) => json(200, {'data': sessionJson()}));
+      final api = apiWith(adapter);
+      const hint = {'type': 'mobile', 'os': 'android', 'model': 'Qistas app (android)', 'app_version': '1.29.0'};
+
+      await api.login(email: 'a@b.c', password: 'x', deviceName: 'd', utcOffset: 180, device: hint);
+      expect(adapter.lastBody['utc_offset'], 180);
+      expect(adapter.lastBody['device'], hint);
+
+      await api.login(email: 'a@b.c', password: 'x', deviceName: 'd');
+      expect(adapter.lastBody.containsKey('utc_offset'), isFalse);
+      expect(adapter.lastBody.containsKey('device'), isFalse);
+    });
+
+    test('the two-step code goes with the same hints', () async {
+      final adapter = FakeAdapter((_) => json(200, {'data': sessionJson()}));
+      const hint = {'type': 'tablet', 'os': 'ios', 'model': 'Qistas app (iOS)', 'app_version': '1.29.0'};
+
+      await apiWith(adapter).login(email: 'a@b.c', password: 'x', deviceName: 'd', code: '123456', utcOffset: -300, device: hint);
+
+      expect(adapter.lastBody, containsPair('code', '123456'));
+      expect(adapter.lastBody, containsPair('utc_offset', -300));
+      expect(adapter.lastBody, containsPair('device', hint));
+    });
+
+    test('registering sends the person, the confirmation and terms, the offset and the device, and no business or country', () async {
       final adapter = FakeAdapter((_) => json(201, {'data': sessionJson()}));
+      const hint = {'type': 'mobile', 'os': 'android', 'model': 'Pixel 9', 'app_version': '1.29.0'};
 
       await apiWith(adapter).register(
-        name: 'Layla', email: 'l@e.com', password: 'S3cure!Passw0rd', businessName: 'Al-Fares', country: 'SA', locale: 'ar', deviceName: 'Pixel 9',
+        name: 'Layla', email: 'l@e.com', password: 'S3cure!Passw0rd', locale: 'ar', deviceName: 'Pixel 9', utcOffset: 180, device: hint,
       );
 
       expect(adapter.lastBody, {
         'name': 'Layla', 'email': 'l@e.com', 'password': 'S3cure!Passw0rd', 'password_confirmation': 'S3cure!Passw0rd',
-        'business_name': 'Al-Fares', 'country': 'SA', 'terms': true, 'locale': 'ar', 'device_name': 'Pixel 9',
+        'terms': true, 'locale': 'ar', 'device_name': 'Pixel 9', 'utc_offset': 180, 'device': hint,
       });
     });
   });
 
   group('the account', () {
+    test('reads a payload that has no is_demo, and does not write one back', () {
+      final json = accountJson();
+      expect((json['tenant'] as Map<String, dynamic>).containsKey('is_demo'), isFalse);
+
+      final account = Account.fromJson(json);
+
+      expect(account.businessName, 'Al-Fares Electronics');
+      expect(account.currency, 'SAR');
+      expect((account.toJson()['tenant'] as Map<String, dynamic>).containsKey('is_demo'), isFalse);
+      expect(Account.fromJson(account.toJson()).businessName, account.businessName);
+    });
+
+    test('reads an account kept on the phone by an older version, with its is_demo, and ignores what it does not know', () {
+      final json = accountJson();
+      json['tenant'] = {...json['tenant'] as Map<String, dynamic>, 'is_demo': true, 'setup': {'steps': <Object?>[], 'done': false}, 'something_new': 1};
+      json['something_else'] = 'yes';
+
+      final account = Account.fromJson(json);
+
+      expect(account.userId, 'u1');
+      expect(account.businessName, 'Al-Fares Electronics');
+      expect((account.toJson()['tenant'] as Map<String, dynamic>).containsKey('is_demo'), isFalse);
+    });
+
     test('treats a feature the server did not list as allowed, and a missing role as read-only', () {
       final account = sampleAccount(role: 'viewer');
 
