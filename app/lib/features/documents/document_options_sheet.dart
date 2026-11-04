@@ -240,19 +240,24 @@ class _DocumentOptionsSheetState extends ConsumerState<DocumentOptionsSheet> {
       }
     } on ApiException catch (e) {
       if (mounted) {
-        // The business has not been named, and every document carries its name: the owner is taken to the card on Today (this
-        // sheet closes); anyone else is told whose job it is, here.
-        final stay = isSetupRequired(e) ? answerSetupRequired(context, ref, leave: () => Navigator.of(context).pop()) : null;
-        if (isSetupRequired(e) && stay == null) return null;
-        setState(() {
-          _doing = null;
-          _problem = stay ?? errorMessage(context, e);
-        });
+        final problem = _problemWith(e);
+        if (problem != null) {
+          setState(() {
+            _doing = null;
+            _problem = problem;
+          });
+        }
       }
     }
 
     return null;
   }
+
+  /// What to say here about a refused request, or null when the person has been taken somewhere else and this sheet is closing.
+  /// The business has not been named, and every document carries its name: the owner is taken to the card on Today; anyone else
+  /// is told whose job it is, here.
+  String? _problemWith(ApiException e) =>
+      isSetupRequired(e) ? answerSetupRequired(context, ref, leave: () => Navigator.of(context).pop()) : errorMessage(context, e);
 
   Future<void> _share() async {
     final bytes = await _fetch('share');

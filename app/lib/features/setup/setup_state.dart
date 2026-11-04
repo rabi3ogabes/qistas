@@ -47,27 +47,35 @@ class SetupController extends Notifier<SetupForm> {
   }
 
   /// Sends the name and, only if the person changed it, the country (never a time zone: the server works that out from the
-  /// country). Returns whether it was saved. A second call while one is on its way does nothing, so a double tap sends once.
+  /// country). Returns whether it was saved and taken into the account. A second call while one is on its way does nothing, so
+  /// a double tap sends once.
   Future<bool> save({required String name, String? country}) async {
     if (state.busy) return false;
     state = const SetupForm(busy: true);
+    final asker = ref.read(accountProvider)?.userId;
+    // Someone else may have signed in while the request was on its way. The notifier then started over for them, so what
+    // comes back is not for its state to show.
+    bool stillTheAsker() => ref.read(accountProvider)?.userId == asker;
 
     try {
       final tenant = await ref.read(apiProvider).confirmSetup(name: name, country: country);
-      // The account takes the answer at once, and the card, which only shows for an unnamed business, folds away.
-      await ref.read(authProvider.notifier).tenantChanged(tenant);
-      state = const SetupForm();
+      // The account takes the answer at once, and the card, which only shows for an unnamed business, folds away. An answer
+      // that is not about the account now signed in is not taken.
+      final applied = await ref.read(authProvider.notifier).tenantChanged(tenant, forUser: asker);
+      if (applied || stillTheAsker()) state = const SetupForm();
 
-      return true;
+      return applied;
     } on ApiException catch (e) {
       final aboutName = e.fieldError('name');
       final aboutCountry = e.fieldError('country');
-      state = e.isValidation && (aboutName != null || aboutCountry != null) ? SetupForm(nameError: aboutName, countryError: aboutCountry) : SetupForm(failure: e);
+      if (stillTheAsker()) {
+        state = e.isValidation && (aboutName != null || aboutCountry != null) ? SetupForm(nameError: aboutName, countryError: aboutCountry) : SetupForm(failure: e);
+      }
 
       return false;
     } on Object catch (e) {
       // An answer the app cannot read must not leave the card working for ever.
-      state = SetupForm(failure: e);
+      if (stillTheAsker()) state = SetupForm(failure: e);
 
       return false;
     }

@@ -202,11 +202,15 @@ class AuthController extends AsyncNotifier<AuthState> {
   }
 
   /// The workspace as the server describes it after the first-run card was saved: the account takes it at once, on screen
-  /// and in the copy kept on this phone.
-  Future<void> tenantChanged(Map<String, dynamic> tenant) async {
+  /// and in the copy kept on this phone. An answer is about the business and the person that asked ([forUser]); if someone
+  /// else has signed in since (another business, or another role in the same one), it is not applied. Returns whether it was.
+  Future<bool> tenantChanged(Map<String, dynamic> tenant, {String? forUser}) async {
     final account = state.valueOrNull?.account;
-    if (account == null) return;
+    if (account == null || tenant['id']?.toString() != account.tenantId || (forUser != null && forUser != account.userId)) return false;
+
     await accountChanged(account.withTenant(tenant));
+
+    return true;
   }
 
   Future<void> signOut() async {

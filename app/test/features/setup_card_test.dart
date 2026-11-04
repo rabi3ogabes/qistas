@@ -422,6 +422,140 @@ void main() {
       expect(container.read(setupControllerProvider).busy, isFalse);
     });
 
+    testWidgets('lets a screen reader hear why Save did nothing: the refusal is part of the country field’s semantics, and announced', (tester) async {
+      final handle = tester.ensureSemantics();
+      const refusal = 'The country can no longer be changed because this business already has contracts or payments.';
+      final server = setupServer(routes: {'PUT /workspace/setup': always(refused('country', refusal))});
+      await pumpApp(tester, server);
+
+      await typeIntoKey(tester, 'setup-name', 'Al-Fares Electronics');
+      await tapText(tester, 'Change');
+      await pickCountry(tester, 'Kuwait');
+      await saveNow(tester);
+
+      final field = tester.getSemantics(find.byKey(const ValueKey('setup-country-button')));
+      expect(field, isSemantics(isButton: true, hasTapAction: true, label: 'Country: Kuwait', hint: refusal, isLiveRegion: true));
+      handle.dispose();
+    });
+
+    testWidgets('lets a screen reader hear the helper line of the country field, which is not an alarm', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pumpApp(tester, setupServer());
+
+      await tapText(tester, 'Change');
+
+      final field = tester.getSemantics(find.byKey(const ValueKey('setup-country-button')));
+      expect(field, isSemantics(isButton: true, label: 'Country: Qatar', hint: 'The currency and time zone follow the country.', isLiveRegion: false));
+      handle.dispose();
+    });
+
+    testWidgets('words the country field’s label as one sentence of the language, not a colon the app glues on', (tester) async {
+      final handle = tester.ensureSemantics();
+      final ar = words('ar');
+      await pumpApp(tester, setupServer(), language: 'ar', size: const Size(360, 780));
+
+      await tapText(tester, ar['Change'] as String);
+
+      final label = (ar['Country: :name'] as String).replaceAll(':name', ar['Qatar'] as String);
+      expect(tester.getSemantics(find.byKey(const ValueKey('setup-country-button'))), isSemantics(isButton: true, label: label));
+      handle.dispose();
+    });
+
+    testWidgets('ignores the answer of a save made before another business’s account took over', (tester) async {
+      final gate = Completer<FakeResponse>();
+      final server = setupServer(routes: {'PUT /workspace/setup': (_) => gate.future});
+      await pumpApp(tester, server);
+      final container = containerOf(tester);
+
+      final results = <bool>[];
+      unawaited(container.read(setupControllerProvider.notifier).save(name: 'Al-Fares Electronics').then(results.add));
+      await tester.pump();
+
+      // Signed out and in as someone else, in another business, while the first save was on its way.
+      final other = accountWithSetup();
+      other['user'] = {...Map<String, dynamic>.from(other['user'] as Map), 'id': 'u2', 'name': 'Omar Nasser'};
+      other['tenant'] = {...Map<String, dynamic>.from(other['tenant'] as Map), 'id': 't2', 'name': 'Business of Omar'};
+      unawaited(container.read(authProvider.notifier).accountChanged(Account.fromJson(other)));
+      await tester.pump();
+
+      gate.complete(json(200, {'data': {'tenant': tenantAfterSetupJson(name: 'Al-Fares Electronics')}}));
+      await settle(tester);
+
+      expect(results, [false], reason: 'it was not applied');
+      final account = accountOf(tester);
+      expect(account.tenantId, 't2');
+      expect(account.businessName, 'Business of Omar');
+      expect(account.setup!.confirmed, isFalse, reason: 'the other business is still to be named');
+      expect(card, findsOneWidget);
+      expect(container.read(setupControllerProvider).busy, isFalse);
+    });
+
+    testWidgets('ignores the answer of a save made by another person of the same business, who is not the owner', (tester) async {
+      final gate = Completer<FakeResponse>();
+      final server = setupServer(routes: {'PUT /workspace/setup': (_) => gate.future});
+      await pumpApp(tester, server);
+      final container = containerOf(tester);
+
+      final results = <bool>[];
+      unawaited(container.read(setupControllerProvider.notifier).save(name: 'Al-Fares Electronics').then(results.add));
+      await tester.pump();
+
+      final member = accountWithSetup(role: 'manager');
+      member['user'] = {...Map<String, dynamic>.from(member['user'] as Map), 'id': 'u2', 'name': 'Omar Nasser'};
+      unawaited(container.read(authProvider.notifier).accountChanged(Account.fromJson(member)));
+      await tester.pump();
+
+      gate.complete(json(200, {'data': {'tenant': tenantAfterSetupJson(name: 'Al-Fares Electronics')}}));
+      await settle(tester);
+
+      expect(results, [false]);
+      final account = accountOf(tester);
+      expect(account.role, 'manager', reason: 'the owner’s role in the answer is not this person’s');
+      expect(account.isOwner, isFalse);
+      expect(account.businessName, 'Business of Layla');
+      expect(card, findsNothing);
+      expect(notice, findsOneWidget);
+    });
+
+    testWidgets('goes back to sign-in with the usual explanation when the session has ended, and shows no misleading message', (tester) async {
+      final server = setupServer(routes: {'PUT /workspace/setup': always(apiError(401, 'unauthenticated', 'Unauthenticated.'))});
+      await pumpApp(tester, server);
+      final container = containerOf(tester);
+
+      await typeIntoKey(tester, 'setup-name', 'Al-Fares Electronics');
+      await saveNow(tester);
+
+      expect(find.text('Welcome back'), findsOneWidget);
+      expect(find.text('Your session ended. Please sign in again.'), findsOneWidget);
+      expect(find.text('Unauthenticated.'), findsNothing);
+      expect(card, findsNothing);
+      expect(server.calls('PUT /workspace/setup'), 1);
+      expect(container.read(setupControllerProvider).busy, isFalse);
+      expect(container.read(setupControllerProvider).failure, isNull, reason: 'nothing is left for whoever signs in next to see');
+    });
+
+    testWidgets('keeps the named business in the copy kept on the phone, so a fresh start with no connection shows no card', (tester) async {
+      final server = setupServer();
+      await pumpApp(tester, server);
+
+      await typeIntoKey(tester, 'setup-name', 'Al-Fares Electronics');
+      await saveNow(tester);
+
+      final kept = (await preferences()).getString('account')!;
+      final cached = Account.fromJson(jsonDecode(kept) as Map<String, dynamic>);
+      expect(cached.businessName, 'Al-Fares Electronics');
+      expect(cached.setup!.confirmed, isTrue);
+
+      await tester.pumpWidget(const SizedBox());
+      final offline = setupServer()..offline = true;
+      await pumpApp(tester, offline, preferences: {'account': kept});
+
+      expect(find.textContaining('You are offline'), findsOneWidget);
+      expect(accountOf(tester).businessName, 'Al-Fares Electronics');
+      expect(card, findsNothing);
+      expect(notice, findsNothing);
+    });
+
     testWidgets('tells any other refusal in the server’s words, inside the card', (tester) async {
       final server = setupServer(routes: {'PUT /workspace/setup': always(apiError(403, 'forbidden', 'This action is unauthorized.'))});
       await pumpApp(tester, server);

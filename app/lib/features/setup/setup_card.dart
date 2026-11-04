@@ -387,10 +387,14 @@ class _CountryField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(padding: const EdgeInsetsDirectional.only(bottom: 6), child: Text(context.t('Country'), style: text.labelLarge)),
+        // One node for the whole field. What the sighted read under it, the server's refusal or else the helper line, is its hint,
+        // so a screen reader says why Save did nothing; a refusal is also a live region, so it is announced the moment it comes.
         Semantics(
           button: true,
           enabled: enabled,
-          label: '${context.t('Country')}: $name',
+          label: context.t('Country: :name', {'name': name}),
+          hint: error ?? helper,
+          liveRegion: error != null,
           excludeSemantics: true,
           onTap: enabled ? onTap : null,
           child: InkWell(

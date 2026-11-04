@@ -281,6 +281,19 @@ void main() {
     });
   });
 
+  group('the Arabic relative times', () {
+    test('are worded as the app words counts elsewhere (the number, then the unit as a label), with no plural form to get wrong', () {
+      final ar = words('ar');
+
+      expect(ar[':count minutes ago'], 'منذ :count دقيقة');
+      expect(ar[':count hours ago'], 'منذ :count ساعة');
+      expect(ar[':count days ago'], 'منذ :count يوم');
+      for (final key in [':count minutes ago', ':count hours ago', ':count days ago']) {
+        expect(ar[key], isNot(contains('من ال')), reason: '$key must not read "since 5 of the days"');
+      }
+    });
+  });
+
   group('SignInEvent', () {
     test('reads a line of the list', () {
       final event = SignInEvent.fromJson(signInJson(id: 's9', channel: 'app', outcome: 'failed', deviceType: 'mobile', os: 'Android', browser: null, appVersion: '1.29.0', deviceName: 'Pixel 8', proxy: 'possible', ipCountry: 'qa', createdAt: '2026-10-11T08:55:00Z'));
