@@ -17,7 +17,9 @@ use App\Models\ErrorIssue;
 use App\Models\User;
 use Illuminate\Auth\Middleware\Authenticate;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
+use Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
+use Illuminate\Foundation\Http\Middleware\TrimStrings;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Session\Middleware\StartSession;
@@ -227,7 +229,7 @@ it('the same script error again only counts, and ids in the route are a pattern'
     $issue = ErrorIssue::query()->sole();
 
     expect($issue->occurrences)->toBe(2)
-        ->and($issue->samples()->pluck('route')->unique()->all())->toBe(['/app/customers/{id}']);
+        ->and($issue->samples()->pluck('route')->unique()->all())->toBe(['/app/customers/{customer}']);
 });
 
 it('a phone report creates an app/crash issue with platform android and device mobile', function () {
@@ -389,6 +391,89 @@ it('unknown fields are ignored', function () {
     }
 });
 
+// ---- the route is the router's pattern, not what the page said ------------------------------------------------------
+
+it('the route of a script error is the router\'s pattern, never the address: a code in the address does not survive', function (string $sent, string $stored) {
+    errorsClientSendSite(errorsClientSite(['route' => $sent]))->assertNoContent();
+
+    $sample = ErrorIssue::query()->sole()->samples()->sole();
+
+    expect($sample->route)->toBe($stored);
+    foreach (['K7MPQ2RTXW', 'AbCdEfGhIj1234567890KlMnOpQrStUv', '0b8a7c1e-6a0e-4d4f-9a52-3f1d1b2c4e5f', 'tab=payments'] as $secret) {
+        expect(errorsClientStored())->not->toContain($secret);
+    }
+})->with([
+    'a verification code (ten letters and digits no rule of ours could tell from a word)' => ['/verify/K7MPQ2RTXW', '/verify/{code}'],
+    'the same with a query string and a fragment' => ['/verify/K7MPQ2RTXW?lang=ar#top', '/verify/{code}'],
+    'the same, as the script sends it today (it has hidden the code itself; no route has such a code)' => ['/verify/{id}', '/verify/{id}'],
+    'a code of letters only, which the script cannot tell from a word and the router can' => ['/verify/ABCDEFGH', '/verify/{code}'],
+    'an e-mail in an address nobody serves' => ['/app/customers/search/sara.ali@example.com', '/app/customers/search/[email]'],
+    'a link to sign' => ['/sign/AbCdEfGhIj1234567890KlMnOpQrStUv', '/sign/{token}'],
+    'an address only a POST answers, with a token in it (the fallback answers a GET for it, so the router is asked again)' => ['/sign/AbCdEfGhIj1234567890KlMnOpQrStUv/code', '/sign/{token}/code'],
+    'a customer' => ['/app/customers/0b8a7c1e-6a0e-4d4f-9a52-3f1d1b2c4e5f?tab=payments', '/app/customers/{customer}'],
+    'a customer, as the script sends it' => ['/app/customers/{id}', '/app/customers/{customer}'],
+    'a page that has a fixed address' => ['/pricing', '/pricing'],
+    'a page of the website in a language' => ['/ar/pricing', '/{locale}/pricing'],
+    'the home page' => ['/', '/'],
+    'an address only a POST answers' => ['/schedule-preview', '/schedule-preview'],
+    'an address that is nobody\'s: the pattern of the path, numbers hidden' => ['/nothing/here/12345?x=1', '/nothing/here/{n}'],
+]);
+
+it('a route that is no address is not stored: it becomes none', function (string $sent) {
+    // The controller refuses the ones that do not start with a slash; the intake does not trust the controller.
+    app(ClientErrorIntake::class)->accept('site', 'script', errorsClientSite(['route' => $sent]), null, 'web');
+    app(ErrorCapture::class)->flush();
+
+    expect(ErrorIssue::query()->sole()->samples()->sole()->route)->toBeNull()
+        ->and(errorsClientStored())->not->toContain('alert(')->not->toContain('<img')->not->toContain('<script')->not->toContain('javascript:');
+})->with([
+    'a script url' => ['javascript:alert(1)'],
+    'a data url' => ['data:text/html,<script>alert(1)</script>'],
+    'a relative path' => ['app/customers'],
+    'a full address' => ['https://evil.example/x'],
+    'markup' => ['"><img src=x onerror=alert(1)>'],
+    'markup after a slash' => ['/"><img src=x onerror=alert(1)>'],
+    'a script tag after a slash' => ['/<script>alert(1)</script>'],
+    'a slash and a space' => ['/ one two'],
+    'a slash and a backslash' => ['/a\\b'],
+    'a line break in it' => ["/a\nb"],
+    'a quote in it' => ['/a"b'],
+    'a backtick in it' => ['/a`b'],
+]);
+
+it('the controller refuses a route that does not start with a slash, and nothing is stored', function (string $sent) {
+    errorsClientSendSite(errorsClientSite(['route' => $sent]))->assertStatus(422);
+
+    errorsClientNothingStored();
+})->with(['javascript:alert(1)', 'app/customers', 'https://evil.example/x', '"><img src=x onerror=alert(1)>']);
+
+it('markup in the route the controller does let through (it starts with a slash) never reaches storage', function () {
+    errorsClientSendSite(errorsClientSite(['route' => '/"><img src=x onerror=alert(1)>']))->assertNoContent();
+
+    expect(ErrorIssue::query()->sole()->samples()->sole()->route)->toBeNull()->and(errorsClientStored())->not->toContain('onerror');
+});
+
+it('the class of a script error is a name, and the route an address: the script sends nothing else', function (string $field, string $value, bool $taken) {
+    $response = errorsClientSendSite(errorsClientSite([$field => $value]));
+
+    $taken ? $response->assertNoContent() : $response->assertStatus(422);
+    expect(ErrorIssue::query()->count())->toBe($taken ? 1 : 0);
+})->with([
+    'TypeError' => ['class', 'TypeError', true],
+    'a DOM exception' => ['class', 'DOMException', true],
+    'a dotted name' => ['class', 'Foo.Bar$Baz', true],
+    'the dollar sign and the underscore' => ['class', '$_x1', true],
+    'markup' => ['class', '<svg onload=alert(1)>', false],
+    'words' => ['class', 'Not a class', false],
+    'a digit first' => ['class', '1Error', false],
+    'a quote' => ['class', 'Type"Error', false],
+    'a slash route' => ['route', '/app/contracts/{id}', true],
+    'a bare slash' => ['route', '/', true],
+    'a route with a query string' => ['route', '/pricing?lang=ar', true],
+    'no slash' => ['route', 'pricing', false],
+    'a script url' => ['route', 'javascript:void(0)', false],
+]);
+
 it('kind and source cannot be chosen by the sender', function () {
     $claims = ['source' => 'database', 'kind' => 'exception', 'platform' => 'server', 'status' => 500, 'method' => 'POST', 'at' => '2001-01-01T00:00:00Z', 'fingerprint' => str_repeat('a', 40)];
 
@@ -515,11 +600,57 @@ it('a body over the limit is refused with 413, and nothing is stored', function 
     expect(ErrorIssue::query()->orderBy('source')->pluck('occurrences', 'source')->all())->toBe(['app' => 2, 'site' => 1]);
 });
 
-it('a body that says it is big is refused before it is read, whatever it holds', function () {
+it('a body that says it is big is refused on its word, whatever it holds', function () {
     errorsClientSendSite(errorsClientSite(), ['CONTENT_LENGTH' => '100000'])->assertStatus(413);
     errorsClientSendApp(errorsClientApp(), ['CONTENT_LENGTH' => '100000'])->assertStatus(413);
 
     errorsClientNothingStored();
+});
+
+it('an oversized body is measured and refused without ever being decoded: nothing walks it first', function (string $uri, int $limit) {
+    $request = Request::create($uri, 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], json_encode(['message' => 'x', 'class' => 'X', 'os' => 'ios', 'pad' => str_repeat(' padded ', $limit)], JSON_THROW_ON_ERROR));
+    $decoded = new ReflectionProperty(Request::class, 'json');
+
+    expect(app(HttpKernel::class)->handle($request)->getStatusCode())->toBe(413)
+        ->and($decoded->getValue($request))->toBeNull(); // the JSON bag is made the first time the body is read as JSON
+
+    // A body that is let through is decoded, once the guard has let it.
+    $request = Request::create($uri, 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], json_encode(['message' => 'x', 'class' => 'X', 'os' => 'ios'], JSON_THROW_ON_ERROR));
+    app(HttpKernel::class)->handle($request);
+
+    expect($decoded->getValue($request))->not->toBeNull();
+})->with([
+    'the website' => ['/client-errors', 2000],
+    'the phone' => ['/api/v1/client-errors', 4000],
+]);
+
+it('the whitespace and empty strings of a report are left as the sender wrote them until the report is read', function () {
+    $trim = new ReflectionProperty(TrimStrings::class, 'skipCallbacks');
+    $empty = new ReflectionProperty(ConvertEmptyStringsToNull::class, 'skipCallbacks');
+
+    foreach (['/client-errors', '/api/v1/client-errors', '/client-errors/'] as $path) {
+        $request = Request::create($path, 'POST');
+
+        expect(collect($trim->getValue())->contains(fn (Closure $skip) => $skip($request)))->toBeTrue($path)
+            ->and(collect($empty->getValue())->contains(fn (Closure $skip) => $skip($request)))->toBeTrue($path);
+    }
+
+    // Every other request is still trimmed and its empty strings are still null.
+    foreach (['/app/customers', '/api/v1/customers', '/client-errors-other', '/api/v1/client-errors/extra'] as $path) {
+        $request = Request::create($path, 'POST');
+
+        expect(collect($trim->getValue())->contains(fn (Closure $skip) => $skip($request)))->toBeFalse($path)
+            ->and(collect($empty->getValue())->contains(fn (Closure $skip) => $skip($request)))->toBeFalse($path);
+    }
+});
+
+it('a report with spaces round its words and empty optional fields is still taken', function () {
+    errorsClientSendSite(errorsClientSite(['message' => "  padded message \n", 'class' => '', 'trace' => '', 'route' => '']))->assertNoContent();
+    errorsClientSendApp(errorsClientApp(['message' => '', 'trace' => '', 'version' => '', 'os_version' => '', 'device' => '']))->assertNoContent();
+    errorsClientSendSite(errorsClientSite(['message' => '   ']))->assertStatus(422);
+
+    expect(ErrorIssue::query()->count())->toBe(2)
+        ->and(DB::table('error_occurrences')->whereIn('message', ['padded message', ''])->count())->toBe(2);
 });
 
 it('a non-JSON content type is refused with 415 by the website', function (string $type) {
@@ -528,13 +659,17 @@ it('a non-JSON content type is refused with 415 by the website', function (strin
     $response->assertStatus(415);
     expect($response->getContent())->toBe('');
     errorsClientNothingStored();
-})->with(['text/plain', 'application/x-www-form-urlencoded', 'multipart/form-data; boundary=x', 'text/html', 'application/octet-stream', 'application/xml']);
+})->with([
+    'text/plain', 'application/x-www-form-urlencoded', 'multipart/form-data; boundary=x', 'text/html', 'application/octet-stream', 'application/xml',
+    // The media type itself is compared, not a piece of the header: none of these is application/json.
+    'application/jsonp', 'text/json', 'text/plain;a=/json', 'application/x+json', 'application/vnd.api+json', 'text/plain; charset=/json', 'application/json5', 'xapplication/json', '',
+]);
 
-it('JSON with a charset is JSON', function () {
-    errorsClientSendSite(errorsClientSite(), ['CONTENT_TYPE' => 'application/json; charset=UTF-8'])->assertNoContent();
+it('JSON is application/json, in any case and with any parameters', function (string $type) {
+    errorsClientSendSite(errorsClientSite(), ['CONTENT_TYPE' => $type])->assertNoContent();
 
     expect(ErrorIssue::query()->count())->toBe(1);
-});
+})->with(['application/json', 'application/json; charset=UTF-8', 'APPLICATION/JSON', 'Application/Json;charset=utf-8', ' application/json ', 'application/json ; charset=utf-8']);
 
 it('a foreign Origin is refused with 403 while a missing Origin is accepted', function (?string $origin, bool $taken) {
     $server = $origin === null ? [] : ['HTTP_ORIGIN' => $origin];
@@ -564,10 +699,86 @@ it('a foreign Origin is refused with 403 while a missing Origin is accepted', fu
     'empty' => ['', false],
 ]);
 
-it('the Origin of the phone is not looked at: an app sends none', function () {
-    errorsClientSendApp(errorsClientApp(), ['HTTP_ORIGIN' => 'https://evil.example'])->assertNoContent();
+it('the Origin is checked against the site\'s configured address too, for a proxy that shows the app another host', function (string $origin, bool $taken) {
+    config(['app.url' => 'https://www.qistasme.com']);
 
-    expect(ErrorIssue::query()->count())->toBe(1);
+    $response = errorsClientSendSite(errorsClientSite(), ['HTTP_ORIGIN' => $origin]);
+
+    $taken ? $response->assertNoContent() : $response->assertForbidden();
+})->with([
+    'the configured host' => ['https://www.qistasme.com', true],
+    'in capitals' => ['https://WWW.QISTASME.COM', true],
+    'with the root dot' => ['https://www.qistasme.com.', true],
+    'on plain http' => ['http://www.qistasme.com', true],
+    'on another port' => ['https://www.qistasme.com:8443', true],
+    'the bare domain (another host)' => ['https://qistasme.com', false],
+    'a look-alike' => ['https://www.qistasme.com.evil.example', false],
+    'the configured host as their user name' => ['https://www.qistasme.com@evil.example', false],
+]);
+
+it('a hostile body is answered with a status, never an error, and what is odd in it is not kept', function (string $body, int $status) {
+    $response = errorsClientSendSite($body, ['REMOTE_ADDR' => '10.80.'.random_int(0, 255).'.'.random_int(1, 254)]);
+
+    expect($response->getStatusCode())->toBe($status);
+    $status === 204 ? expect(errorsClientReports())->toBe(1) : errorsClientNothingStored();
+    // A message is the sender's text and is kept as text; a class and a route are names and addresses, and none of these was.
+    expect(DB::table('error_occurrences')->whereNotNull('route')->count())->toBe(0)
+        ->and(errorsClientStored())->not->toContain('<svg')->not->toContain('onerror')->not->toContain('javascript:');
+})->with([
+    'nested a thousand deep' => [str_repeat('{"a":', 1000).'1'.str_repeat('}', 1000), 422],
+    'a field nested 400 deep, beside a message' => ['{"message":"deep","x":'.str_repeat('[', 400).'1'.str_repeat(']', 400).'}', 204],
+    'a NUL and markup in the message and the route' => ['{"message":"a\u0000b<script>x</script>","route":"/x\u0000y"}', 204],
+    'bytes that are not UTF-8' => ["{\"message\":\"a\xC3\x28b\"}", 422],
+    'half of a surrogate pair' => ['{"message":"a\ud800b"}', 422],
+    'markup for a class' => [json_encode(['message' => 'mk', 'class' => '<svg onload=alert(1)>']), 422],
+    'markup for a route' => [json_encode(['message' => 'mk', 'route' => '"><img src=x onerror=alert(1)>']), 422],
+    'a script address for a route' => [json_encode(['message' => 'js', 'route' => 'javascript:alert(document.cookie)']), 422],
+    'a number for a message' => ['{"message":1}', 422],
+    'a boolean for a message' => ['{"message":true}', 422],
+    'an object for a message' => ['{"message":{"0":"a"}}', 422],
+    'a list holding the report' => ['[{"message":"x"}]', 422],
+    'the same field twice' => ['{"message":"first","message":"second"}', 204],
+]);
+
+it('the phone endpoint refuses any request that comes from a browser: it carries an Origin or a Sec-Fetch-Site', function (array $browser) {
+    // A page on another site posts here with a form or a no-cors fetch, and the browser says where it came from.
+    $response = errorsClientSendApp(errorsClientApp(), $browser);
+
+    $response->assertForbidden();
+    expect($response->getContent())->toBe('');
+    errorsClientNothingStored();
+})->with([
+    'a foreign Origin' => [['HTTP_ORIGIN' => 'https://evil.example']],
+    'our own Origin (a page of ours is not the app either)' => [['HTTP_ORIGIN' => 'http://localhost']],
+    'Origin: null' => [['HTTP_ORIGIN' => 'null']],
+    'an empty Origin' => [['HTTP_ORIGIN' => '']],
+    'Sec-Fetch-Site cross-site' => [['HTTP_SEC_FETCH_SITE' => 'cross-site']],
+    'Sec-Fetch-Site same-site' => [['HTTP_SEC_FETCH_SITE' => 'same-site']],
+    'Sec-Fetch-Site none' => [['HTTP_SEC_FETCH_SITE' => 'none']],
+    'both' => [['HTTP_ORIGIN' => 'https://evil.example', 'HTTP_SEC_FETCH_SITE' => 'cross-site']],
+]);
+
+it('the form a stranger\'s page submits with enctype text/plain is refused by the phone endpoint, and nothing is stored', function () {
+    // <form method="post" enctype="text/plain" action="https://.../api/v1/client-errors"><input name='{"class":"FormPosted","os":"android","x":"' value='"}'>
+    $body = '{"class":"FormPosted","os":"android","x":"="}'."\r\n";
+
+    foreach (['text/plain', 'text/plain;charset=UTF-8', 'application/x-www-form-urlencoded'] as $type) {
+        errorsClientSendApp($body, ['CONTENT_TYPE' => $type, 'HTTP_ORIGIN' => 'https://evil.example', 'HTTP_SEC_FETCH_SITE' => 'cross-site'])->assertForbidden();
+    }
+
+    errorsClientNothingStored();
+});
+
+it('the phone endpoint takes a request that carries neither, whatever content type the app\'s HTTP library says', function (string $type) {
+    // Dart's http sends text/plain for a String body unless the header is set; dio sends application/json.
+    errorsClientSendApp(json_encode(errorsClientApp(), JSON_THROW_ON_ERROR), ['CONTENT_TYPE' => $type])->assertNoContent();
+
+    expect(ErrorIssue::query()->sole()->only(['source', 'kind']))->toBe(['source' => 'app', 'kind' => 'crash']);
+})->with(['application/json', 'application/json; charset=utf-8', 'text/plain', 'text/plain; charset=utf-8', 'application/octet-stream']);
+
+it('the website endpoint is not made to take the phone\'s way: its Origin rules stay', function () {
+    errorsClientSendSite(errorsClientSite(), ['HTTP_SEC_FETCH_SITE' => 'same-origin'])->assertNoContent();
+    errorsClientSendSite(errorsClientSite(), ['HTTP_ORIGIN' => 'https://evil.example'])->assertForbidden();
 });
 
 it('the website endpoint answers 20 reports a minute from one address, then 429; another address is not slowed', function () {
@@ -611,6 +822,55 @@ it('the phone endpoint answers 30 reports a minute from one token, then 429; ano
     expect(ErrorIssue::query()->sole()->occurrences)->toBe(33); // 30 + the other person's + the other phone's + the anonymous one
 });
 
+it('a refused request is not counted against the address, and costs no query', function () {
+    // Thirty requests the guard turns away (a foreign Origin, a body too big, the wrong type, a browser at the phone's door)
+    // from the address that then reports for real.
+    foreach (range(1, 8) as $n) {
+        errorsClientSendSite(errorsClientSite(), ['REMOTE_ADDR' => '10.60.0.1', 'HTTP_ORIGIN' => 'https://evil.example'])->assertForbidden();
+        errorsClientSendSite(errorsClientSite(), ['REMOTE_ADDR' => '10.60.0.1', 'CONTENT_TYPE' => 'text/plain'])->assertStatus(415);
+        errorsClientSendSite(errorsClientPadded(errorsClientSite(), 9000), ['REMOTE_ADDR' => '10.60.0.1'])->assertStatus(413);
+        errorsClientSendApp(errorsClientApp(), ['REMOTE_ADDR' => '10.60.0.1', 'HTTP_ORIGIN' => 'https://evil.example'])->assertForbidden();
+    }
+
+    foreach (range(1, 20) as $n) {
+        errorsClientSendSite(errorsClientSite(), ['REMOTE_ADDR' => '10.60.0.1'])->assertNoContent(); // all twenty of the minute are still free
+    }
+
+    errorsClientSendSite(errorsClientSite(), ['REMOTE_ADDR' => '10.60.0.1'])->assertStatus(429);
+
+    // And a refusal runs no statement at all: nothing reads the cache, the tokens or the tables. (The website's 403 is the
+    // exception after the answer: the capture layer counts it as dropped, with one statement.)
+    $queries = [];
+    DB::listen(function ($query) use (&$queries): void {
+        $queries[] = $query->sql;
+    });
+    errorsClientSendSite(errorsClientSite(), ['REMOTE_ADDR' => '10.60.0.3', 'CONTENT_TYPE' => 'text/plain'])->assertStatus(415);
+    errorsClientSendSite(errorsClientPadded(errorsClientSite(), 9000), ['REMOTE_ADDR' => '10.60.0.3'])->assertStatus(413);
+    errorsClientSendApp(errorsClientApp(), ['REMOTE_ADDR' => '10.60.0.4', 'HTTP_ORIGIN' => 'https://evil.example', 'HTTP_AUTHORIZATION' => 'Bearer 1|'.Str::random(40)])->assertForbidden();
+    errorsClientSendApp(errorsClientPadded(errorsClientApp(), 17000), ['REMOTE_ADDR' => '10.60.0.4', 'HTTP_AUTHORIZATION' => 'Bearer 1|'.Str::random(40)])->assertStatus(413);
+
+    expect($queries)->toBe([]);
+});
+
+it('a token made for something else is not a phone: no person, and the address\'s place, not its own', function () {
+    $user = User::factory()->create();
+    $books = $user->createToken('books', ['integration'])->plainTextToken;
+    $other = $user->createToken('sheets', ['integration'])->plainTextToken;
+
+    errorsClientSendApp(errorsClientApp(['class' => 'IntegrationSent']), ['HTTP_AUTHORIZATION' => 'Bearer '.$books])->assertNoContent();
+
+    expect(ErrorIssue::query()->where('class', 'IntegrationSent')->sole()->people)->toBe(0)
+        ->and(DB::table('error_issue_people')->count())->toBe(0);
+
+    // Two such tokens from one address are one sender: the 31st report in the minute is refused, whichever token it carries.
+    foreach (range(1, 15) as $n) {
+        errorsClientSendApp(errorsClientApp(), ['HTTP_AUTHORIZATION' => 'Bearer '.$books, 'REMOTE_ADDR' => '10.61.0.1'])->assertNoContent();
+        errorsClientSendApp(errorsClientApp(), ['HTTP_AUTHORIZATION' => 'Bearer '.$other, 'REMOTE_ADDR' => '10.61.0.1'])->assertNoContent();
+    }
+
+    errorsClientSendApp(errorsClientApp(), ['HTTP_AUTHORIZATION' => 'Bearer '.$other, 'REMOTE_ADDR' => '10.61.0.1'])->assertStatus(429);
+});
+
 it('a stream of made-up tokens does not buy more than the address allows', function () {
     foreach (range(1, 30) as $n) {
         errorsClientSendApp(errorsClientApp(), ['HTTP_AUTHORIZATION' => 'Bearer made-up-'.$n, 'REMOTE_ADDR' => '10.31.0.1'])->assertNoContent();
@@ -634,15 +894,67 @@ it('the 21st NEW issue in a minute is dropped and counted as dropped, while repo
     errorsClientSendSite(errorsClientSite(['message' => 'Failure '.errorsClientWord(21)]), ['REMOTE_ADDR' => '10.40.0.21'])->assertNoContent();
     expect(ErrorIssue::query()->count())->toBe(20)->and(errorsClientNoise('dropped'))->toBe(1);
 
-    // The phone draws on the same budget of client reports.
+    // The phone has twenty of its own: the website's flood has not taken them.
     errorsClientSendApp(errorsClientApp(['class' => 'DartError'.errorsClientWord(22)]), ['REMOTE_ADDR' => '10.40.0.22'])->assertNoContent();
-    expect(ErrorIssue::query()->count())->toBe(20)->and(errorsClientNoise('dropped'))->toBe(2);
+    expect(ErrorIssue::query()->count())->toBe(21)->and(ErrorIssue::query()->where('kind', 'crash')->count())->toBe(1)
+        ->and(errorsClientNoise('dropped'))->toBe(1);
 
     // A failure that is known already is still counted, however many new ones were turned away.
     errorsClientSendSite(errorsClientSite(['message' => 'Failure '.errorsClientWord(1)]), ['REMOTE_ADDR' => '10.40.0.23'])->assertNoContent();
-    expect(ErrorIssue::query()->count())->toBe(20)
+    expect(ErrorIssue::query()->count())->toBe(21)
         ->and(ErrorIssue::query()->where('title', 'like', '%Failure b%')->sole()->occurrences)->toBe(2)
-        ->and(errorsClientNoise('dropped'))->toBe(2);
+        ->and(errorsClientNoise('dropped'))->toBe(1);
+});
+
+it('one address cannot fill the channel: 3 new issues an hour, then the rest are dropped; another address is not slowed', function () {
+    $this->freezeTime();
+
+    foreach (range(1, 5) as $n) {
+        errorsClientSendSite(errorsClientSite(['message' => 'Flood '.errorsClientWord($n)]), ['REMOTE_ADDR' => '10.70.0.1'])->assertNoContent(); // all answered the same
+    }
+
+    expect(ErrorIssue::query()->count())->toBe(3)->and(errorsClientNoise('dropped'))->toBe(2);
+
+    // Another address is not held back, and what the first one already reported still counts.
+    errorsClientSendSite(errorsClientSite(['message' => 'Flood '.errorsClientWord(6)]), ['REMOTE_ADDR' => '10.70.0.2'])->assertNoContent();
+    errorsClientSendSite(errorsClientSite(['message' => 'Flood '.errorsClientWord(1)]), ['REMOTE_ADDR' => '10.70.0.1'])->assertNoContent();
+
+    expect(ErrorIssue::query()->count())->toBe(4)
+        ->and(ErrorIssue::query()->where('title', 'like', '%Flood b%')->sole()->occurrences)->toBe(2);
+
+    // The hour after, it may open three again.
+    $this->travel(61)->minutes();
+
+    foreach (range(7, 10) as $n) {
+        errorsClientSendSite(errorsClientSite(['message' => 'Flood '.errorsClientWord($n)]), ['REMOTE_ADDR' => '10.70.0.1'])->assertNoContent();
+    }
+
+    expect(ErrorIssue::query()->count())->toBe(7);
+});
+
+it('a phone is held to the same quota by its token, whatever addresses it comes from; a made-up token by its address', function () {
+    $this->freezeTime();
+    $mine = errorsClientToken(User::factory()->create());
+    $theirs = errorsClientToken(User::factory()->create());
+
+    foreach (range(1, 5) as $n) {
+        errorsClientSendApp(errorsClientApp(['class' => 'Dart'.errorsClientWord($n)]), ['HTTP_AUTHORIZATION' => 'Bearer '.$mine, 'REMOTE_ADDR' => '10.71.0.'.$n])->assertNoContent();
+    }
+
+    expect(ErrorIssue::query()->count())->toBe(3)->and(errorsClientNoise('dropped'))->toBe(2);
+
+    // Another person's phone is not held back, nor an anonymous one at another address.
+    errorsClientSendApp(errorsClientApp(['class' => 'Dart'.errorsClientWord(6)]), ['HTTP_AUTHORIZATION' => 'Bearer '.$theirs, 'REMOTE_ADDR' => '10.71.0.1'])->assertNoContent();
+    errorsClientSendApp(errorsClientApp(['class' => 'Dart'.errorsClientWord(7)]), ['REMOTE_ADDR' => '10.71.0.9'])->assertNoContent();
+
+    expect(ErrorIssue::query()->count())->toBe(5);
+
+    // A made-up token is nobody: its reports are counted against its address, however many tokens it makes up.
+    foreach (range(8, 12) as $n) {
+        errorsClientSendApp(errorsClientApp(['class' => 'Dart'.errorsClientWord($n)]), ['HTTP_AUTHORIZATION' => 'Bearer made-up-'.$n, 'REMOTE_ADDR' => '10.71.0.50'])->assertNoContent();
+    }
+
+    expect(ErrorIssue::query()->count())->toBe(8);
 });
 
 // ---- no session, no cookie, no token ----------------------------------------------------------------------------------
@@ -689,6 +1001,11 @@ it('the website route runs without session, forgery check, language or duplicate
 
     expect($site)->toContain(ThrottleRequests::class.':client-errors')->toContain(GuardClientReport::class.':site')
         ->and($app)->toContain(ThrottleRequests::class.':client-errors-api')->toContain(GuardClientReport::class.':app');
+
+    // The guard comes first: a refusal costs the database nothing (a throttle check on the database cache is a handful of
+    // statements), and a refused request is not counted against the address.
+    expect(array_search(GuardClientReport::class.':site', $site, true))->toBeLessThan(array_search(ThrottleRequests::class.':client-errors', $site, true))
+        ->and(array_search(GuardClientReport::class.':app', $app, true))->toBeLessThan(array_search(ThrottleRequests::class.':client-errors-api', $app, true));
 
     // Not behind the sign-in group, and not asking the database for a language.
     foreach ([Authenticate::class.':sanctum', EnsureAccountActive::class, SetCurrentTenant::class, ReadOnlyWhileDeleting::class, SetApiLocale::class] as $middleware) {

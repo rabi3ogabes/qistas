@@ -104,7 +104,18 @@ describe('the route pattern', function () {
             ['/?lang=ar', '/'],
             ['/#section', '/'],
             ['/app/customers/01HZX3K9G2M4N5P6Q7R8S9T0VW', '/app/customers/{id}'],
+            // The real shape of a verification code: ten of ABCDEFGHJKMNPQRSTUVWXYZ23456789.
+            ['/verify/K7MPQ2RTXW', '/verify/{id}'],
+            ['/verify/K7MPQ2RTXW?lang=ar', '/verify/{id}'],
+            ['/verify/2WXYZ9KMNP', '/verify/{id}'],
+            ['/verify/ABCD2345', '/verify/{id}'],
+            ['/verify/K7MPQ2RTXWABCDEF', '/verify/{id}'],
             ['/verify/ab12cd34ef56', '/verify/{id}'],
+            // Words with a number in them that are not identifiers stay readable, and so do long words of letters and hyphens.
+            ['/app/v2', '/app/v2'],
+            ['/app/page-2', '/app/page-2'],
+            ['/switch/another-app', '/switch/another-app'],
+            ['/installment-calculator', '/installment-calculator'],
             ['/sign/AbCdEfGhIj1234567890KlMnOpQrStUv', '/sign/{id}'],
             ['/sign/abcdefghijklmnopqrstuvwxyzabcdefghij', '/sign/{id}'],
             ['/files/blob/tenants/0b8a7c1e', '/files/blob/tenants/{id}'],
@@ -252,7 +263,10 @@ describe('what is sent', function () {
             const noError = { message: 'Uncaught SyntaxError: nope', filename: OWN };
             const empty = { reason: Object.assign(new Error(''), { stack: `Error\n    at go (${OWN}:1:2)` }) };
             const plain = { message: 'ResizeObserver loop limit exceeded', filename: OWN };
-            return [text, reasoned, noError, empty, plain].map((e) => reporter.buildPayload(e, win.location));
+            // The two browsers' wordings of the same thing are one: Chrome puts "Uncaught " in front, Firefox and Safari do not.
+            const wordings = ['Uncaught Error: boom', 'Error: boom', 'Uncaught TypeError: boom', 'TypeError: boom', 'Uncaught Exception: boom', 'DOMException: boom', 'Uncaught ReferenceError: boom is not defined', 'ReferenceError: boom is not defined', 'Uncaught boom', 'boom']
+                .map((message) => ({ message, filename: OWN }));
+            return [text, reasoned, noError, empty, plain, ...wordings].map((e) => reporter.buildPayload(e, win.location));
             JS);
 
         expect($got[0])->toMatchArray(['message' => 'plain words', 'class' => 'UnhandledRejection'])
@@ -260,7 +274,18 @@ describe('what is sent', function () {
             ->and($got[2])->toMatchArray(['class' => 'SyntaxError', 'message' => 'nope'])
             ->and($got[3]['message'])->not->toBe('')
             ->and($got[3]['class'])->toBe('Error')
-            ->and($got[4])->toMatchArray(['class' => 'Error', 'message' => 'ResizeObserver loop limit exceeded']);
+            ->and($got[4])->toMatchArray(['class' => 'Error', 'message' => 'ResizeObserver loop limit exceeded'])
+            ->and([$got[5]['class'], $got[5]['message']])->toBe(['Error', 'boom'])
+            ->and([$got[6]['class'], $got[6]['message']])->toBe(['Error', 'boom'])
+            ->and([$got[7]['class'], $got[7]['message']])->toBe(['TypeError', 'boom'])
+            ->and([$got[8]['class'], $got[8]['message']])->toBe(['TypeError', 'boom'])
+            ->and([$got[9]['class'], $got[9]['message']])->toBe(['Exception', 'boom'])
+            ->and([$got[10]['class'], $got[10]['message']])->toBe(['DOMException', 'boom'])
+            ->and([$got[11]['class'], $got[11]['message']])->toBe(['ReferenceError', 'boom is not defined'])
+            ->and([$got[12]['class'], $got[12]['message']])->toBe(['ReferenceError', 'boom is not defined'])
+            // a thrown string has no name: Chrome puts "Uncaught " in front of it, the others do not
+            ->and([$got[13]['class'], $got[13]['message']])->toBe(['Error', 'boom'])
+            ->and([$got[14]['class'], $got[14]['message']])->toBe(['Error', 'boom']);
     });
 
     it('cuts the message, the class and the trace to what the endpoint takes, and the whole to 8 KB, whatever it holds', function () {
@@ -336,7 +361,7 @@ describe('what is sent', function () {
 
         expect($issues)->toHaveCount(2)
             ->and($issues->first()->only(['source', 'kind', 'class']))->toBe(['source' => 'site', 'kind' => 'script', 'class' => 'TypeError'])
-            ->and($sample->route)->toBe('/app/customers/{id}')
+            ->and($sample->route)->toBe('/app/customers/{customer}') // the router's name for it, not the script's
             ->and($sample->platform)->toBe('web')
             ->and(ErrorFingerprint::topFrame($sample->trace, 'web'))->toBe('app.js::pick');
     });
@@ -510,6 +535,47 @@ describe('the reporter on a page', function () {
         expect($got['nastyOutcome'])->toBe('ok')->and($got['nastyLog'])->toBe(0)->and($got['inner'])->toBe(1);
     });
 
+    it('reads nothing of the page but its address and its own error: not the referrer, the cookies, the storage or the browser', function () {
+        $got = errorsScriptRun(ERRORS_SCRIPT_PAGE.<<<'JS'
+
+            const log = [];
+            const read = [];
+            const { win, listeners } = windowOf(log);
+            for (const name of ['document', 'localStorage', 'sessionStorage', 'history', 'screen', 'performance', 'indexedDB', 'caches', 'crypto']) {
+                Object.defineProperty(win, name, { get() { read.push(name); return {}; } });
+            }
+            Object.defineProperty(win.navigator, 'userAgent', { get() { read.push('userAgent'); return 'UA-MARKER'; } });
+            Object.defineProperty(win.navigator, 'language', { get() { read.push('language'); return 'ar'; } });
+            Object.defineProperty(win.location, 'href', { get() { read.push('href'); return ORIGIN + '/?secret=1'; } });
+            Object.defineProperty(win.location, 'search', { get() { read.push('search'); return '?secret=1'; } });
+            Object.defineProperty(win.location, 'hash', { get() { read.push('hash'); return '#secret'; } });
+            reporter.initErrorReporting(win);
+            listeners.error(ownError('read nothing else'));
+            return { read, body: JSON.stringify((await bodies(log))[0]) };
+            JS);
+
+        expect($got['read'])->toBe([])->and($got['body'])->not->toContain('UA-MARKER')->not->toContain('secret');
+    });
+
+    it('copes with an error that points back at itself, whatever kind of thing it is', function () {
+        $got = errorsScriptRun(ERRORS_SCRIPT_PAGE.<<<'JS'
+
+            const log = [];
+            const { win, listeners } = windowOf(log);
+            reporter.initErrorReporting(win);
+            const circular = { a: 1 };
+            circular.self = circular;
+            listeners.unhandledrejection({ reason: circular });
+            class HttpError extends Error { constructor(message) { super(message); this.name = 'HttpError'; this.self = this; this.response = circular; } }
+            const error = new HttpError('nope');
+            error.stack = `HttpError: nope\n    at go (${OWN}:1:2)`;
+            listeners.unhandledrejection({ reason: error });
+            return await bodies(log);
+            JS);
+
+        expect($got)->toHaveCount(1)->and($got[0])->toMatchArray(['class' => 'HttpError', 'message' => 'nope']);
+    });
+
     it('does nothing in a window that is not a page', function () {
         $got = errorsScriptRun(<<<'JS'
             const results = [];
@@ -523,11 +589,41 @@ describe('the reporter on a page', function () {
     });
 })->skip(fn () => ! errorsScriptNodeIsInstalled(), 'Node is not installed here, so resources/js/error-report.js was not run.');
 
+describe('the starter', function () {
+    it('starts the reporter on the window of the page the moment it is imported, and exports nothing', function () {
+        $got = errorsScriptRun(ERRORS_SCRIPT_PAGE.<<<'JS'
+
+            const log = [];
+            const { win, listeners } = windowOf(log);
+            globalThis.window = win;
+            const init = await import(new URL('./error-report-init.js', pathToFileURL(process.argv[2])).href);
+            listeners.error(ownError('after the import'));
+            return { names: Object.keys(listeners).sort(), exports: Object.keys(init), sent: (await bodies(log)).map((b) => b.message) };
+            JS);
+
+        expect($got)->toBe(['names' => ['error', 'unhandledrejection'], 'exports' => [], 'sent' => ['after the import']]);
+    });
+
+    it('does nothing, and does not throw, where there is no window', function () {
+        $got = errorsScriptRun(<<<'JS'
+            delete globalThis.window;
+            try { await import(new URL('./error-report-init.js', pathToFileURL(process.argv[2])).href); return 'ok'; } catch (error) { return 'THREW ' + error.message; }
+            JS);
+
+        expect($got)->toBe('ok');
+    });
+})->skip(fn () => ! errorsScriptNodeIsInstalled(), 'Node is not installed here, so resources/js/error-report-init.js was not run.');
+
 describe('the bundle', function () {
-    it('starts the reporter from app.js, and puts no script in a page', function () {
+    it('starts the reporter before anything else of the bundle is evaluated, and puts no script in a page', function () {
         $app = (string) file_get_contents(base_path('resources/js/app.js'));
 
-        expect($app)->toContain("from './error-report'")->and($app)->toContain('initErrorReporting(window)');
+        // An import is evaluated in the order it is written, and before the file's own lines: the reporter's starter is the
+        // first import, so an error thrown while the others are evaluated is reported too.
+        preg_match_all("~^import\s[^;]*?['\"]([^'\"]+)['\"];~m", $app, $imports);
+        expect($imports[1][0])->toBe('./error-report-init')
+            ->and($app)->not->toContain('initErrorReporting(window)')
+            ->and($app)->not->toContain('First, so an error in anything below it');
 
         // The strict content-security policy forbids inline script: nothing in the views may bring one for the reporter.
         $views = collect(File::allFiles(resource_path('views')))->filter(fn ($file) => str_ends_with($file->getFilename(), '.blade.php'));

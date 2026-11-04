@@ -113,6 +113,20 @@ function errorsRecord(array $with = []): Recorded
     return app(ErrorRecorder::class)->record(errorsRecorderEvent($with));
 }
 
+/** A report from a sender (an opaque key: a browser's address or a phone's token), the way the intake hands one over. */
+function errorsRecordFrom(string $sender, array $with = []): Recorded
+{
+    return app(ErrorRecorder::class)->record(errorsRecorderEvent($with), $sender);
+}
+
+/** The fields of a client report of its own fingerprint: a browser's script error or a phone's crash, number $n. */
+function errorsRecorderClient(string $kind, int $n): array
+{
+    return $kind === 'script'
+        ? ['source' => 'site', 'kind' => 'script', 'platform' => 'web', 'class' => "TypeError{$n}", 'trace' => '', 'status' => null]
+        : ['source' => 'app', 'kind' => 'crash', 'platform' => 'android', 'device' => 'mobile', 'class' => "StateError{$n}", 'trace' => '', 'status' => null];
+}
+
 /** The spool of this test alone (in the system's temporary folder), so no test ever writes storage/logs. */
 function errorsRecorderSpool(): string
 {
@@ -583,20 +597,35 @@ it('the 501st new issue in an hour is dropped', function () {
     expect(errorsRecord(['class' => 'App\\Exceptions\\Hourly502']))->toBe(Recorded::Created);
 });
 
-it('client-reported sources (script, crash) stop at 20 new issues a minute', function () {
-    $script = fn (int $n) => ['source' => 'site', 'kind' => 'script', 'platform' => 'web', 'class' => "TypeError{$n}", 'trace' => '', 'status' => null];
-    $crash = fn (int $n) => ['source' => 'app', 'kind' => 'crash', 'platform' => 'android', 'device' => 'mobile', 'class' => "StateError{$n}", 'trace' => '', 'status' => null];
-
-    foreach (range(1, 10) as $n) {
-        expect(errorsRecord($script($n)))->toBe(Recorded::Created)
-            ->and(errorsRecord($crash($n)))->toBe(Recorded::Created);
+it('browser scripts and phone crashes each stop at 20 new issues a minute, apart from one another', function () {
+    foreach (range(1, 20) as $n) {
+        expect(errorsRecord(errorsRecorderClient('script', $n)))->toBe(Recorded::Created)
+            ->and(errorsRecord(errorsRecorderClient('crash', $n)))->toBe(Recorded::Created);
     }
 
-    expect(errorsRecord($script(11)))->toBe(Recorded::Dropped)
-        ->and(errorsRecord($crash(11)))->toBe(Recorded::Dropped)
-        ->and(errorsRecord($script(1)))->toBe(Recorded::Counted) // one it knows still counts
-        ->and(ErrorIssue::query()->count())->toBe(20)
+    // Each kind has twenty of its own: the website's flood left the phone its twenty, and the phone's the website's.
+    expect(errorsRecord(errorsRecorderClient('script', 21)))->toBe(Recorded::Dropped)
+        ->and(errorsRecord(errorsRecorderClient('crash', 21)))->toBe(Recorded::Dropped)
+        ->and(errorsRecord(errorsRecorderClient('script', 1)))->toBe(Recorded::Counted) // one it knows still counts
+        ->and(ErrorIssue::query()->count())->toBe(40)
         ->and(errorsRecorderNoise('dropped'))->toBe(2);
+});
+
+it('a flood of script errors never stops a phone crash being opened, nor the other way round', function () {
+    foreach (range(1, 25) as $n) {
+        errorsRecord(errorsRecorderClient('script', $n));
+    }
+
+    expect(ErrorIssue::query()->where('kind', 'script')->count())->toBe(20)
+        ->and(errorsRecord(errorsRecorderClient('crash', 1)))->toBe(Recorded::Created);
+
+    $this->travelTo(CarbonImmutable::parse('2026-11-04 12:00:00', 'UTC'));
+
+    foreach (range(101, 125) as $n) {
+        errorsRecord(errorsRecorderClient('crash', $n));
+    }
+
+    expect(errorsRecord(errorsRecorderClient('script', 101)))->toBe(Recorded::Created);
 });
 
 it('client reports have a budget of their own: a flood of them never stops a server error being opened', function () {
@@ -631,7 +660,8 @@ it('client-reported kinds stop at 100 new issues an hour', function () {
     expect($n)->toBe(101) // the 101st came in a minute with 1 so far: the hour's cap held it
         ->and(ErrorIssue::query()->count())->toBe(100)
         ->and(errorsRecord(errorsRecorderOutage()))->toBe(Recorded::Created)
-        ->and(errorsRecord(['class' => 'App\\Exceptions\\Server']))->toBe(Recorded::Created);
+        ->and(errorsRecord(['class' => 'App\\Exceptions\\Server']))->toBe(Recorded::Created)
+        ->and(errorsRecord(errorsRecorderClient('crash', 1)))->toBe(Recorded::Created); // the phone's hour is its own
 
     $this->travelTo(CarbonImmutable::parse('2026-11-04 11:00:00', 'UTC'));
 
@@ -701,7 +731,7 @@ it('a flood of new 404s and slow queries up to their limits does not stop a 503 
         ->and(errorsRecord(['source' => 'database', 'class' => 'Illuminate\\Database\\QueryException', 'message' => 'SQLSTATE[08006] connection lost']))->toBe(Recorded::Created);
 });
 
-it('every new issue draws on one of three budgets, by whether it can send the instant e-mail', function () {
+it('every new issue draws on one of four budgets: by whether it can send the instant e-mail, and a browser and a phone apart', function () {
     expect(ErrorRecorder::budget('site', 'exception', 500))->toBe('alert')
         ->and(ErrorRecorder::budget('api', 'exception', null))->toBe('alert')
         ->and(ErrorRecorder::budget('database', 'exception', null))->toBe('alert')
@@ -711,13 +741,16 @@ it('every new issue draws on one of three budgets, by whether it can send the in
         ->and(ErrorRecorder::budget('site', 'http', 404))->toBe('quiet')
         ->and(ErrorRecorder::budget('site', 'http', null))->toBe('quiet')
         ->and(ErrorRecorder::budget('database', 'slow_query', null))->toBe('quiet')
-        ->and(ErrorRecorder::budget('site', 'script', null))->toBe('client')
-        ->and(ErrorRecorder::budget('app', 'crash', null))->toBe('client')
-        ->and(ErrorRecorder::budget('app', 'exception', 500))->toBe('client') // whatever a phone sends is a phone's
+        ->and(ErrorRecorder::budget('site', 'script', null))->toBe('script')
+        ->and(ErrorRecorder::budget('database', 'script', null))->toBe('script')
+        ->and(ErrorRecorder::budget('app', 'crash', null))->toBe('crash')
+        ->and(ErrorRecorder::budget('site', 'crash', null))->toBe('crash')
+        ->and(ErrorRecorder::budget('app', 'exception', 500))->toBe('crash') // whatever a phone sends is a phone's
         ->and(ErrorRecorder::BUDGETS)->toBe([
             'alert' => ['minute' => 60, 'hour' => 500],
             'quiet' => ['minute' => 30, 'hour' => 200],
-            'client' => ['minute' => 20, 'hour' => 100],
+            'script' => ['minute' => 20, 'hour' => 100],
+            'crash' => ['minute' => 20, 'hour' => 100],
         ]);
 });
 
@@ -810,6 +843,124 @@ it('a request that loses the race to open an issue gives its place in the budget
         ->and(errorsRecord(['class' => 'App\\Exceptions\\Flood59']))->toBe(Recorded::Created)
         ->and(errorsRecord(['class' => 'App\\Exceptions\\Flood60']))->toBe(Recorded::Created)
         ->and(errorsRecord(['class' => 'App\\Exceptions\\Flood61']))->toBe(Recorded::Dropped);
+})->group('db-errors');
+
+// ---- one sender cannot fill the client channel ---------------------------------------------------------------------
+
+it('a sender gets at most 3 new client issues an hour; the rest are dropped and counted, and the ones it knows still count', function () {
+    foreach (range(1, 3) as $n) {
+        expect(errorsRecordFrom('address:203.0.113.5', errorsRecorderClient('script', $n)))->toBe(Recorded::Created);
+    }
+
+    expect(errorsRecordFrom('address:203.0.113.5', errorsRecorderClient('script', 4)))->toBe(Recorded::Dropped)
+        ->and(errorsRecordFrom('address:203.0.113.5', errorsRecorderClient('crash', 5)))->toBe(Recorded::Dropped) // a sender's, whatever it sends
+        ->and(ErrorIssue::query()->count())->toBe(3)
+        ->and(errorsRecorderNoise('dropped'))->toBe(2)
+        ->and(errorsRecordFrom('address:203.0.113.5', errorsRecorderClient('script', 1)))->toBe(Recorded::Counted)
+        ->and(ErrorIssue::query()->where('class', 'TypeError1')->sole()->occurrences)->toBe(2)
+        // another sender is not slowed
+        ->and(errorsRecordFrom('address:203.0.113.6', errorsRecorderClient('script', 6)))->toBe(Recorded::Created);
+
+    // and a report with no sender is held to the budget alone
+    foreach (range(7, 11) as $n) {
+        expect(errorsRecord(errorsRecorderClient('script', $n)))->toBe(Recorded::Created);
+    }
+});
+
+it('the sender quota is for the client kinds only: a server failure is never held to it', function () {
+    foreach (range(1, 6) as $n) {
+        expect(errorsRecordFrom('address:203.0.113.5', ['class' => "App\\Exceptions\\Server{$n}"]))->toBe(Recorded::Created);
+    }
+
+    expect(errorsRecordFrom('address:203.0.113.5', errorsRecorderPage(1)))->toBe(Recorded::Created);
+});
+
+it('the sender quota is an hour long and starts again with the next', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-11-04 10:59:00', 'UTC'));
+
+    foreach (range(1, 3) as $n) {
+        errorsRecordFrom('token:7', errorsRecorderClient('crash', $n));
+    }
+
+    expect(errorsRecordFrom('token:7', errorsRecorderClient('crash', 4)))->toBe(Recorded::Dropped);
+
+    $this->travelTo(CarbonImmutable::parse('2026-11-04 11:00:00', 'UTC'));
+
+    foreach (range(4, 6) as $n) {
+        expect(errorsRecordFrom('token:7', errorsRecorderClient('crash', $n)))->toBe(Recorded::Created);
+    }
+
+    expect(errorsRecordFrom('token:7', errorsRecorderClient('crash', 7)))->toBe(Recorded::Dropped);
+});
+
+it('a sender over its quota takes nothing from the budget of everyone else', function () {
+    foreach (range(1, 12) as $n) {
+        errorsRecordFrom('address:198.51.100.9', errorsRecorderClient('script', $n)); // 3 are opened, 9 are dropped
+    }
+
+    expect(ErrorIssue::query()->count())->toBe(3);
+
+    // Seventeen other senders fill the rest of the minute's twenty: the nine did not use any of it.
+    foreach (range(13, 29) as $n) {
+        expect(errorsRecordFrom('address:192.0.2.'.$n, errorsRecorderClient('script', $n)))->toBe(Recorded::Created);
+    }
+
+    expect(errorsRecordFrom('address:192.0.2.99', errorsRecorderClient('script', 99)))->toBe(Recorded::Dropped)
+        ->and(ErrorIssue::query()->count())->toBe(20);
+});
+
+it('a sender is not charged for an issue the budget turned away', function () {
+    foreach (range(1, 20) as $n) {
+        errorsRecordFrom('address:192.0.2.'.$n, errorsRecorderClient('script', $n)); // the minute's twenty are used
+    }
+
+    expect(errorsRecordFrom('address:198.51.100.9', errorsRecorderClient('script', 21)))->toBe(Recorded::Dropped);
+
+    $this->travelTo(CarbonImmutable::parse('2026-11-04 10:31:30', 'UTC'));
+
+    // The turned-away one did not count against the sender's three.
+    foreach (range(22, 24) as $n) {
+        expect(errorsRecordFrom('address:198.51.100.9', errorsRecorderClient('script', $n)))->toBe(Recorded::Created);
+    }
+});
+
+it('what identifies a sender is never stored, nor written into a cache key as it was given', function () {
+    $sender = 'address:SENDER-MARKER-203.0.113.77';
+
+    errorsRecordFrom($sender, errorsRecorderClient('script', 1));
+    errorsRecordFrom($sender, errorsRecorderClient('script', 2));
+
+    $keys = array_keys((new ReflectionProperty(Cache::getStore(), 'storage'))->getValue(Cache::getStore()));
+
+    expect(errorsRecorderStored())->not->toContain('SENDER-MARKER')->not->toContain('203.0.113.77')
+        ->and(implode("\n", $keys))->not->toContain('SENDER-MARKER')->not->toContain('203.0.113.77')
+        ->and(collect($keys)->filter(fn (string $key) => str_contains($key, 'errors:sender:'))->count())->toBe(1);
+});
+
+it('a request that loses the race to open an issue gives its place in the sender quota back', function () {
+    $event = errorsRecorderEvent(errorsRecorderClient('script', 1));
+    $fingerprint = ErrorFingerprint::of(ErrorScrubber::event($event));
+    $raced = false;
+
+    DB::listen(function (QueryExecuted $query) use (&$raced, $fingerprint): void {
+        if ($raced || ! str_starts_with(strtolower(ltrim($query->sql)), 'select') || ! in_array($fingerprint, $query->bindings, true)) {
+            return;
+        }
+
+        $raced = true;
+        ErrorIssue::query()->forceCreate([
+            'fingerprint' => $fingerprint, 'source' => 'site', 'kind' => 'script', 'title' => 'TypeError1',
+            'class' => 'TypeError1', 'occurrences' => 1, 'first_seen_at' => now(), 'last_seen_at' => now(),
+        ]);
+    });
+
+    expect(app(ErrorRecorder::class)->record($event, 'address:198.51.100.9'))->toBe(Recorded::Counted);
+
+    foreach (range(2, 4) as $n) {
+        expect(errorsRecordFrom('address:198.51.100.9', errorsRecorderClient('script', $n)))->toBe(Recorded::Created);
+    }
+
+    expect(errorsRecordFrom('address:198.51.100.9', errorsRecorderClient('script', 5)))->toBe(Recorded::Dropped);
 })->group('db-errors');
 
 // ---- off -----------------------------------------------------------------------------------------------------------

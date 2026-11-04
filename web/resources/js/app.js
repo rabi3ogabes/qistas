@@ -1,3 +1,6 @@
+// The error reporter starts first. An import is evaluated in the order it is written, before the rest of this file, so an
+// error thrown while any of the others below is evaluated is reported to the error center too.
+import './error-report-init';
 // CSP-safe Alpine: it never calls eval, so the site can forbid 'unsafe-eval' in its Content-Security-Policy.
 import Alpine from '@alpinejs/csp';
 import { planCalculator } from './calculator';
@@ -12,10 +15,6 @@ import { initWelcomeBanners } from './banner';
 import { registerServiceWorker } from './install';
 import { initForms } from './forms';
 import { initTimezone } from './timezone';
-import { initErrorReporting } from './error-report';
-
-// Before the rest of this file runs, so an error in it is reported too: the page's own script errors go to the error center.
-initErrorReporting(window);
 
 window.Alpine = Alpine;
 Alpine.data('planCalculator', planCalculator);

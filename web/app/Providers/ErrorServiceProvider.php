@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Errors\ClientSender;
 use App\Errors\ErrorCapture;
-use App\Models\User;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Console\Events\ScheduledTaskFailed;
 use Illuminate\Console\Events\ScheduledTaskFinished;
@@ -99,7 +99,7 @@ final class ErrorServiceProvider extends ServiceProvider
 
     /**
      * How often the two reporters may be posted to, a minute at a time, and then 429: the website's scripts 20 from one
-     * address, the phone app 30 from one app token, or from one address when it has none.
+     * address, the phone app 30 from one app token made for the phone, or from one address when it has none (ClientSender).
      *
      * The website's refusal is a bare 429 with no page (a script does not read one, and the site's error page would only
      * cost a render). The phone's is the API's usual 429 with its error body (ApiErrors turns a limiter's own response into
@@ -112,27 +112,6 @@ final class ErrorServiceProvider extends ServiceProvider
             ->response(static fn (Request $request, array $headers) => response('', 429, $headers)));
 
         RateLimiter::for('client-errors-api', static fn (Request $request) => Limit::perMinute(30)
-            ->by('client-errors-api|'.self::sender($request)));
-    }
-
-    /**
-     * Who a phone's report is counted against: its app token; a made-up, expired or revoked token is nobody, so a stream
-     * of them is counted against the address like any other stranger. A token store that fails is nobody either.
-     */
-    private static function sender(Request $request): string
-    {
-        try {
-            $user = $request->user('sanctum');
-
-            if ($user instanceof User) {
-                // The token's own number: one person with two phones has two. (A token that has none, such as the one
-                // Sanctum::actingAs makes for a test, throws here and is counted against the address below.)
-                return 'token:'.$user->currentAccessToken()->getKey();
-            }
-        } catch (Throwable) {
-            // counted against the address below
-        }
-
-        return 'address:'.$request->ip();
+            ->by('client-errors-api|'.ClientSender::key($request)));
     }
 }

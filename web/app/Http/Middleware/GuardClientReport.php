@@ -15,13 +15,15 @@ use Throwable;
  * and a refusal is the status and nothing else: no body, no words, so a stranger learns nothing about why.
  *
  *   site (the website's scripts): the Origin, when the browser sends one, must be this site's own (403); the body at most
- *   8 KB (413); and it must be JSON (415). A missing Origin is let through: a same-origin beacon sends it, but some
- *   privacy settings strip it, and a page's error is no less true without it.
- *   app (the phone): the body at most 16 KB (413). A phone sends no Origin, and its content type is whatever its HTTP
- *   library says.
+ *   8 KB (413); and its content type must be application/json itself (415). A missing Origin is let through: a
+ *   same-origin beacon sends it, but some privacy settings strip it, and a page's error is no less true without it.
+ *   app (the phone): the request must not come from a web browser (403): a browser always says where from, on a
+ *   cross-site post, with an Origin or a Sec-Fetch-Site header, and the app's HTTP libraries send neither, so a page of
+ *   another site cannot use a visitor's browser to post here (a plain form or a no-cors fetch would pass any other test:
+ *   it needs no preflight, and the phone's endpoint takes any content type). Then the body at most 16 KB (413).
  *
- * Used as `GuardClientReport::class.':site'` or `':app'`, after the throttle. Anything that is not one of the two is held to
- * the strictest rules.
+ * Used as `GuardClientReport::class.':'.GuardClientReport::SITE` (or `::APP`), BEFORE the throttle: a refusal costs the
+ * database nothing and is not counted against the address. Anything that is not one of the two is held to the strictest rules.
  */
 final class GuardClientReport
 {
@@ -36,7 +38,7 @@ final class GuardClientReport
     {
         $site = $client !== self::APP;
 
-        if ($site && ! $this->ownOrigin($request)) {
+        if ($site ? ! $this->ownOrigin($request) : $this->fromBrowser($request)) {
             return $this->refuse(403);
         }
 
@@ -44,11 +46,17 @@ final class GuardClientReport
             return $this->refuse(413);
         }
 
-        if ($site && ! $request->isJson()) {
+        if ($site && ! $this->isJson($request)) {
             return $this->refuse(415);
         }
 
         return $next($request);
+    }
+
+    /** Did a web browser send this? It says where from: an app's HTTP library does not. */
+    private function fromBrowser(Request $request): bool
+    {
+        return $request->headers->has('Origin') || $request->headers->has('Sec-Fetch-Site');
     }
 
     /**
@@ -97,6 +105,17 @@ final class GuardClientReport
     private static function host(string $host): string
     {
         return rtrim(strtolower($host), '.');
+    }
+
+    /**
+     * Is the content type application/json? The media type itself is compared (the part before any `;`, in any case):
+     * `application/jsonp`, `text/json` or `text/plain; a=/json` merely have "json" in them.
+     */
+    private function isJson(Request $request): bool
+    {
+        $type = $request->headers->get('Content-Type');
+
+        return is_string($type) && strtolower(trim(explode(';', $type, 2)[0])) === 'application/json';
     }
 
     /** Is the body more than $limit bytes? The length it says it has is believed only when it says too much. */

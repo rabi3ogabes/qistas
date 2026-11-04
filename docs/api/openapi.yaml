@@ -145,9 +145,21 @@ paths:
       description: |
         The app tells the server about an uncaught Dart error or a Flutter framework error. No token is needed (a crash on
         the sign-in screen matters); with an app token the report counts one more person on the issue (only a short hash of
-        the id is kept). A report of the right shape is always answered `204`; a refusal is the status alone. At most 30 reports
-        a minute per token, or per address without one. Only `class` and `os` are required.
-      security: []
+        the id is kept), and a bad, expired or other kind of token is simply nobody, never a refusal. A report of the right
+        shape is always answered `204`. At most 30 reports a minute per token, or per address without one. Only `class` and
+        `os` are required, and any content type is taken.
+
+        An exception to "errors always look the same": a report refused for its size (`413`), its fields (`422`) or its
+        origin (`403`) is answered with the status alone, no body and no reason. A request that comes from a web browser
+        (it carries an `Origin` or a `Sec-Fetch-Site` header; the app's HTTP library sends neither) is refused with `403`,
+        so another site's page cannot post here through a visitor's browser. The `429` has the usual error body.
+
+        A new kind of crash is opened at most 3 times an hour for one sender (token, or address without one), and the
+        platform opens at most 20 a minute and 100 an hour of them; a report over either is answered `204` all the same and
+        counted as dropped.
+      security:
+        - {}
+        - bearer: []
       requestBody:
         required: true
         content:
@@ -164,10 +176,11 @@ paths:
                 os_version: {type: string, maxLength: 24, description: Read and not kept.}
                 device: {type: string, enum: [phone, tablet]}
       responses:
-        "204": {description: Taken (or dropped without a word when the platform's budget of new client issues is used up).}
-        "413": {description: The body is over 16 KB.}
-        "422": {description: A field is missing, too long, or not one of the allowed words.}
-        "429": {description: Too many reports. Wait `Retry-After` seconds.}
+        "204": {description: Taken (or dropped without a word when a budget of new crash issues or the sender's share is used up).}
+        "403": {description: The request came from a web browser (an `Origin` or a `Sec-Fetch-Site` header). No body.}
+        "413": {description: The body is over 16 KB. No body.}
+        "422": {description: A field is missing, too long, or not one of the allowed words. No body.}
+        "429": {$ref: "#/components/responses/RateLimited"}
   /auth/login:
     post:
       tags: [Account]

@@ -61,10 +61,11 @@ Route::name('api.')->group(function (): void {
     Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttle:api-login')->name('auth.login');
     // Crashes the phone app reports to the error center (design section 9): an app token or none (a crash on the sign-in
     // screen matters), so it is outside the sign-in group and the token is only looked at, to count the person. No language
-    // lookup either: that needs the database, and a report is answered even while it is away.
+    // lookup either: that needs the database, and a report is answered even while it is away. The guard turns away anything a
+    // web browser sent (a page of another site can make a visitor's browser post here) and comes before the throttle.
     Route::post('client-errors', [ClientErrorController::class, 'store'])
         ->withoutMiddleware(SetApiLocale::class)
-        ->middleware(['throttle:client-errors-api', GuardClientReport::class.':app'])
+        ->middleware([GuardClientReport::class.':'.GuardClientReport::APP, 'throttle:client-errors-api'])
         ->name('client-errors.store');
 
     Route::middleware(['auth:sanctum', 'account.active', 'tenant', 'deleting', 'throttle:api'])->group(function (): void {

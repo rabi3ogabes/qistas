@@ -42,10 +42,12 @@ use Throwable;
  *     before.
  *   - QISTAS_ERRORS=false: nothing is written anywhere, not even the spool.
  *
- * Flood caps (spec 8, ruling R15): new issues draw on one of three budgets (BUDGETS), each with counters of its own in the
- * cache, keyed by the minute and the hour. A failure that can send the instant e-mail never shares a budget with what any
- * visitor can make at will (a new 404 for a made-up path, a browser's script error, a phone's crash) or with slow queries,
- * so no flood of those can stop a real server error being opened. A sighting of a known issue is never capped. A counter
+ * Flood caps (spec 8, rulings R15 and R18): new issues draw on one of four budgets (BUDGETS), each with counters of its own
+ * in the cache, keyed by the minute and the hour. A failure that can send the instant e-mail never shares a budget with what
+ * any visitor can make at will (a new 404 for a made-up path, a browser's script error, a phone's crash) or with slow
+ * queries, so no flood of those can stop a real server error being opened; and browsers' script errors and phones' crashes
+ * have a budget each. Inside the client budgets one sender (an address, an app token) may open only SENDER_NEW_ISSUES new
+ * issues an hour, so one sender cannot use a whole budget up. A sighting of a known issue is never capped. A counter
  * that cannot be read or written keeps the gate shut (fails closed): a failing cache can never let a flood through.
  * Everything over a cap is counted as `dropped` in error_noise_days, so nothing is invisible.
  */
@@ -65,9 +67,17 @@ final class ErrorRecorder
         'alert' => ['minute' => 60, 'hour' => 500],
         // The server's failures that never alert at once: error pages below 500 (any visitor can make a new 404) and slow queries.
         'quiet' => ['minute' => 30, 'hour' => 200],
-        // What browsers and phones report (script, crash): unverifiable, and anyone can send it.
-        'client' => ['minute' => 20, 'hour' => 100],
+        // What browsers report (script) and what phones report (crash): unverifiable, and anyone can send either. Each has a
+        // budget of its own, so a flood of one never uses up the other's.
+        'script' => ['minute' => 20, 'hour' => 100],
+        'crash' => ['minute' => 20, 'hour' => 100],
     ];
+
+    /**
+     * How many new client issues one sender (a browser's address, a phone's token) may open in an hour. A budget is shared by
+     * everyone; this keeps one sender from using all of it (ruling R18).
+     */
+    public const SENDER_NEW_ISSUES = 3;
 
     /** The kinds an untrusted client reports: never verified, never an instant e-mail (spec 9). */
     public const CLIENT_KINDS = ['script', 'crash'];
@@ -107,14 +117,14 @@ final class ErrorRecorder
     }
 
     /**
-     * The budget a new issue draws on (BUDGETS): `client` for what a browser or a phone reports, `alert` for what can send
-     * the instant e-mail (an exception, or an error page of 500 or more), `quiet` for the rest (error pages below 500,
-     * slow queries).
+     * The budget a new issue draws on (BUDGETS): `script` for what a browser reports and `crash` for what a phone reports
+     * (whatever a phone sends is a phone's), `alert` for what can send the instant e-mail (an exception, or an error page of
+     * 500 or more), `quiet` for the rest (error pages below 500, slow queries).
      */
     public static function budget(string $source, string $kind, ?int $status): string
     {
         if (self::clientReported($source, $kind)) {
-            return 'client';
+            return $source === 'app' || $kind === 'crash' ? 'crash' : 'script';
         }
 
         return $kind === 'exception' || ($kind === 'http' && $status !== null && $status >= 500) ? 'alert' : 'quiet';
@@ -174,8 +184,14 @@ final class ErrorRecorder
     /**
      * Records one event and says what became of it. Never throws: when the database refuses the write, the scrubbed event
      * goes to the spool (Spooled), and when the spool cannot take it either, it is lost (Dropped).
+     *
+     * $sender is for what a client reports (a browser's script error, a phone's crash): an opaque key for whoever sent it,
+     * which the intake builds from the address or the app token. It is used for one thing, SENDER_NEW_ISSUES: a sender
+     * that has opened that many new issues this hour gets no more (Dropped, counted), and takes nothing from the budget of
+     * everyone else. It is turned into a keyed hash for the cache key and never stored, written to the spool or logged.
+     * A sighting of an issue that exists is never held to it.
      */
-    public function record(ErrorEvent $event): Recorded
+    public function record(ErrorEvent $event, ?string $sender = null): Recorded
     {
         if (! self::enabled()) {
             return Recorded::Off;
@@ -196,7 +212,7 @@ final class ErrorRecorder
             }
 
             try {
-                $recorded = $this->write($scrubbed, $fingerprint);
+                $recorded = $this->write($scrubbed, $fingerprint, $sender);
             } catch (Throwable) {
                 return $this->spool->append($scrubbed, $fingerprint) ? Recorded::Spooled : Recorded::Dropped;
             }
@@ -236,7 +252,7 @@ final class ErrorRecorder
             $scrubbed = ErrorScrubber::event($event);
             $known = $fingerprint !== null && preg_match('~^[0-9a-f]{40}$~D', $fingerprint) === 1;
 
-            return $this->write($scrubbed, $known ? $fingerprint : ErrorFingerprint::of($scrubbed));
+            return $this->write($scrubbed, $known ? $fingerprint : ErrorFingerprint::of($scrubbed), null);
         } finally {
             self::$busy = false;
         }
@@ -296,7 +312,7 @@ final class ErrorRecorder
     /**
      * Stores one scrubbed event under its fingerprint. Throws whatever the database throws.
      */
-    private function write(ErrorEvent $event, string $fingerprint): Recorded
+    private function write(ErrorEvent $event, string $fingerprint, ?string $sender): Recorded
     {
         $at = self::moment($event->at);
         $person = self::person($event->userId);
@@ -309,7 +325,7 @@ final class ErrorRecorder
                 return $seen;
             }
 
-            $taken = $this->mayOpen($db, $event);
+            $taken = $this->mayOpen($db, $event, $sender);
 
             if ($taken === null) {
                 $this->noise('dropped');
@@ -465,18 +481,37 @@ final class ErrorRecorder
      * counters it took (to give back if another request opens the issue first), or null when either is full. Counted in a
      * transaction of its own, so a cache kept in the database waits for its row at most as long as any other write.
      *
+     * For what a client reports, and a sender given, the sender's own counter for the hour comes first: a sender over its
+     * quota is turned away before it touches the budget everyone shares, and a place it took is given back when the budget
+     * then turns it away (it opened nothing).
+     *
      * @return list<string>|null
      */
-    private function mayOpen(Connection $db, ErrorEvent $event): ?array
+    private function mayOpen(Connection $db, ErrorEvent $event, ?string $sender): ?array
     {
         $budget = self::budget($event->source, $event->kind, $event->status);
         $now = now()->utc();
         $taken = [];
+        $mine = null;
+
+        if ($sender !== null && self::clientReported($event->source, $event->kind)) {
+            $mine = 'errors:sender:'.self::senderKey($sender).':'.$now->format('YmdH');
+
+            if (! $this->withinBudget($db, $mine, self::SENDER_NEW_ISSUES, 7200)) {
+                return null;
+            }
+
+            $taken[] = $mine;
+        }
 
         foreach (['minute' => ['YmdHi', 120], 'hour' => ['YmdH', 7200]] as $window => [$format, $seconds]) {
             $key = "errors:new-issues:{$budget}:{$window}:".$now->format($format);
 
             if (! $this->withinBudget($db, $key, self::BUDGETS[$budget][$window], $seconds)) {
+                if ($mine !== null) {
+                    $this->giveBack($db, [$mine]); // the sender opened nothing
+                }
+
                 return null;
             }
 
@@ -484,6 +519,14 @@ final class ErrorRecorder
         }
 
         return $taken;
+    }
+
+    /** The part of a sender's cache key that stands for it: a keyed hash, so an address is never written into the cache. */
+    private static function senderKey(string $sender): string
+    {
+        $key = config('app.key');
+
+        return substr(hash_hmac('sha256', $sender, is_string($key) ? $key : ''), 0, 32);
     }
 
     /** One more against the counter $key; false when it is over the limit or cannot be counted. */

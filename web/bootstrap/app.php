@@ -7,6 +7,7 @@ use App\Http\Middleware\EnsureAccountActive;
 use App\Http\Middleware\EnsureFeature;
 use App\Http\Middleware\EnsurePlatformAdmin;
 use App\Http\Middleware\ForceJsonResponse;
+use App\Http\Middleware\GuardClientReport;
 use App\Http\Middleware\KeepStaffOutOfTwoFactor;
 use App\Http\Middleware\PreventDuplicateSubmissions;
 use App\Http\Middleware\ReadOnlyWhileDeleting;
@@ -20,6 +21,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\SubstituteBindings;
+use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Http\Middleware\CheckAbilities;
 
@@ -91,6 +93,16 @@ return Application::configure(basePath: dirname(__DIR__))
         // The website's scripts report their errors to the error center without a session, so without a token. The route
         // also runs without the forgery check at all (routes/web.php); this keeps it exempt if it ever runs with it.
         $middleware->preventRequestForgery(except: ['client-errors']);
+
+        // The two reporters measure a body before they read it: an oversized one is refused without the framework first
+        // walking all of it to trim its strings and turn its empty ones into null (the validation copes with both).
+        $reporter = fn (Request $request): bool => $request->is('client-errors', 'api/v1/client-errors');
+        $middleware->trimStrings([$reporter]);
+        $middleware->convertEmptyStringsToNull([$reporter]);
+
+        // The reporters' guard (origin, size, type) runs before the throttle: the framework runs a throttle ahead of anything
+        // it does not list by name, wherever a route writes it, and a refusal should cost the database nothing.
+        $middleware->prependToPriorityList(before: ThrottleRequests::class, prepend: GuardClientReport::class);
 
         // The workspace must be known before route-model binding, or another workspace's ids would resolve.
         $middleware->prependToPriorityList(before: SubstituteBindings::class, prepend: SetCurrentTenant::class);

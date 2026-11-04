@@ -38,16 +38,18 @@ const GECKO_FRAME = /^[^@]*@([a-z][a-z0-9+.-]*:\/\/\S+?)(?::\d+){0,2}\s*$/i;
 // The name of an error class, as the browser gives it (TypeError, DOMException's NetworkError).
 const CLASS_NAME = /^[A-Za-z_$][\w$.]*$/;
 // What a browser puts before the message of an error that has no error object: `Uncaught TypeError: x`, `SyntaxError: x`.
-const PREFIXED = /^(?:Uncaught\s+)?([A-Za-z_$][\w$]*(?:Error|Exception)):\s*([\s\S]*)$/;
+// The name may be just `Error` or `Exception`, or end in either (`TypeError`), so both browsers' wordings are one class.
+const PREFIXED = /^(?:Uncaught\s+)?((?:[A-Za-z_$][\w$]*)?(?:Error|Exception)):\s*([\s\S]*)$/;
 
-// A path segment that is an identifier and not a word: the same rules as the server's ErrorScrubber::route(), and the
-// long plain tokens a signing link carries.
+// A path segment that is an identifier and not a word: the server's ErrorScrubber::route() rules, the long plain tokens a
+// signing link carries, and anything of 8 or more letters, digits, hyphens and underscores that has a digit in it (a
+// verification code such as K7MPQ2RTXW looks like nothing else). This is only the first of two lines of defence: the
+// server matches the path against its own routes and stores the route's pattern, whatever this sends.
 const ID_SEGMENT = [
     /^\d+$/,
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     /^[0-7][0-9A-HJKMNP-TV-Z]{25}$/i,
-    /^(?=[0-9a-f]*\d)[0-9a-f]{8,}$/i,
-    /^(?=.*\d)(?=.*[A-Za-z])[A-Za-z0-9_-]{16,}$/,
+    /^(?=.*\d)[A-Za-z0-9_-]{8,}$/,
     /^[A-Za-z0-9_-]{8,}:[A-Za-z0-9_-]{16,}$/,
     /^[A-Za-z0-9]{20,}$/,
 ];
@@ -187,7 +189,10 @@ function describeError(event, error) {
     if (typeof event.message === 'string' && event.message !== '') {
         const found = PREFIXED.exec(event.message);
 
-        return found === null ? { name: 'Error', message: event.message } : { name: found[1], message: found[2] === '' ? found[1] : found[2] };
+        // A thrown string has no name: Chrome puts "Uncaught " in front of it and the others do not, so it is taken off.
+        return found === null
+            ? { name: 'Error', message: event.message.replace(/^Uncaught\s+/, '') || event.message }
+            : { name: found[1], message: found[2] === '' ? found[1] : found[2] };
     }
 
     if ('reason' in event) {

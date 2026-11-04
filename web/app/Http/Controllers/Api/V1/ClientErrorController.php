@@ -5,17 +5,18 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Errors\ClientErrorIntake;
+use App\Errors\ClientSender;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Symfony\Component\HttpFoundation\Response;
-use Throwable;
 
 /**
  * What the phone app tells us about its crashes (design section 9). It works with an app token or without one (a crash on
  * the sign-in screen matters), so the route is outside the sign-in group and a token is only looked at: a missing, bad or
- * expired one is nobody, never a refusal. Anyone can post here, so it only checks the shape, hands the report to the intake
- * and answers 204; the limits are GuardClientReport and the `client-errors-api` throttle, and a refusal is a status with no
- * words. Unknown fields are not read, and the kind and the source are always `crash` and `app`.
+ * expired one, or one made for something else than the phone app, is nobody, never a refusal. Anyone can post here, so it
+ * only checks the shape, hands the report to the intake and answers 204; the limits are GuardClientReport (which also turns
+ * away anything a web browser sent) and the `client-errors-api` throttle, and a refusal is a status with no words. Unknown
+ * fields are not read, and the kind and the source are always `crash` and `app`.
  */
 final class ClientErrorController
 {
@@ -39,21 +40,17 @@ final class ClientErrorController
         }
 
         $data = $report->validated();
+        $id = ClientSender::person($request)?->getAuthIdentifier();
 
-        $intake->accept('app', 'crash', $data, $this->personOf($request), (string) $data['os']);
+        $intake->accept(
+            'app',
+            'crash',
+            $data,
+            is_int($id) || is_string($id) ? (string) $id : null,
+            (string) $data['os'],
+            ClientSender::key($request),
+        );
 
         return response()->noContent();
-    }
-
-    /** The id of the person on the app's token, or null: no token, a bad one, an expired one, or a token store that fails. */
-    private function personOf(Request $request): ?string
-    {
-        try {
-            $id = $request->user('sanctum')?->getAuthIdentifier();
-
-            return is_int($id) || is_string($id) ? (string) $id : null;
-        } catch (Throwable) {
-            return null;
-        }
     }
 }

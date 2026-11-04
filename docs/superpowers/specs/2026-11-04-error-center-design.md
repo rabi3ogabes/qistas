@@ -173,8 +173,9 @@ browser" or "reported by a phone" on the detail page.
 cross-origin "Script error."; sends at most 5 per page view with `navigator.sendBeacon` (JSON, same origin) to
 `POST /client-errors` (route name `client-errors.store`, throttled 20 per minute per address, **no cookie and no CSRF
 token needed**, body at most 8 KB, JSON content type only, an `Origin` header that is not our own is refused, every
-field length-limited, unknown fields ignored). It sends the scrubbed message, a trace of our own frames, the page route
-pattern (the script strips ids and the query string before sending) and nothing else.
+field length-limited, unknown fields ignored). It sends the message, a trace of our own frames, the page route
+pattern (the script strips ids and the query string before sending) and nothing else; the server scrubs everything before
+storing it.
 
 **Phone app** (`POST /api/v1/client-errors`, an app token or none: a crash on the sign-in screen matters; throttled
 30 per minute per address and per token; body at most 16 KB): `main.dart` installs `runZonedGuarded`, `FlutterError.onError`
