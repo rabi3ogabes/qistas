@@ -115,8 +115,11 @@ Everything else has a safe default (production mode, secure cookies, trusted pro
 | `MAIL_MAILER`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_ADDRESS` | `log` | Send real e-mail (verification, password reset). Until set, e-mails are written to the log only. |
 | `AUTO_MIGRATE` | `true` | Bring the database up to date on every start. Set `false` to run `php artisan migrate --force` yourself. |
 | `TRUSTED_PROXIES` | `*` | Which proxies' `X-Forwarded-*` headers are believed. `*` is right behind Vercel. |
-| `BILLING_GATEWAY` | `fake` | `fake` shows a pretend checkout; `stripe` needs `STRIPE_SECRET` and `STRIPE_WEBHOOK_SECRET`. |
+| `STRIPE_SECRET`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` | none | Normally left unset: Pro by card keeps its Stripe keys in the admin Billing page (`docs/features/billing.md`). A value here wins over the saved one, for testing on your own machine with your own test keys. With none saved, no card is ever charged. (`BILLING_GATEWAY` is only the development default for the fake checkout; the live gateway is decided by the saved keys.) |
 | `QISTAS_DEFAULT_CURRENCY` | `USD` | Currency for new workspaces whose country is not recognised. |
+| `QISTAS_DEFAULT_COUNTRY` | `SA` | The country a new workspace gets when sign-up can find none (no CDN header, no time zone, no language region). Two letters, one the product knows. See `docs/features/sign-up.md`. |
+| `QISTAS_SIGN_IN_DAYS` | `90` | How many days each person's sign-in record (device, address, country, proxy verdict) is kept; a daily job removes older rows. |
+| `QISTAS_PROXY_CHAIN_ALLOWED` | `2` | How many addresses `X-Forwarded-For` may list before a sign-in reads "proxy detected" (a normal visit already passes the CDN and the host's own proxy). After going live, sign in once from your own phone and computer: both should read "not detected"; if not, raise this by one. |
 | `CRON_SECRET` | none | Switches on scheduled work (see below). Any long random string. With none, `/internal/cron` answers 503 and nothing runs. |
 | `CRON_MAX_SECONDS` | `50` | How long one scheduler call works through waiting jobs before it stops and leaves the rest for the next call. |
 | `FILESYSTEM_DISK` | none | Where customers' files (contract and ID photos, proofs of payment) are kept. **Unset (Vercel): in the database** (`file_blobs`, decision D5 of Sprint 2), which lasts and is backed up with everything else. `s3` keeps them in an S3-compatible bucket instead (better once there are many photos); `local` in a private folder on the server, for development only (Vercel throws its disk away). Every kind is only ever served through links that expire within five minutes. Moving from the database to a bucket keeps the same paths. |
@@ -126,6 +129,13 @@ Everything else has a safe default (production mode, secure cookies, trusted pro
 
 > **Containers on Vercel.** This uses Vercel's container Functions (`web/Dockerfile.vercel`). The same image runs on
 > Render, Fly.io, Railway, Google Cloud Run or any server with Docker: give it the same two variables.
+
+### Before real customers come
+
+On the server, `php artisan qistas:go-live-check` says in sixteen plain lines whether the site is ready (production mode,
+https, e-mail, scheduler, a super admin, the terms and privacy pages, PostgreSQL, writable storage, no leftover demo
+accounts); it changes nothing and exits 1 while any line is FAIL. `php artisan qistas:purge-demo` lists the old demo
+accounts and removes them only with `--confirm`. Both are explained, with their output, in `docs/features/go-live.md`.
 
 ### Scheduled work (optional)
 
@@ -221,7 +231,10 @@ and builds and starts the production container.
 
 * Real e-mail delivery needs an SMTP account (see the table above).
 * Security headers and a Content-Security-Policy for the app are planned (task 15 in the plan).
-* Billing through Stripe is not connected yet: `BILLING_GATEWAY=fake` shows a pretend checkout.
+* Pro by card is built and switched off on the live site: it needs a Stripe account, its keys saved in the admin Billing
+  page, and one end-to-end run in Stripe's test mode before the switch is turned on (`docs/features/billing.md`).
+* Sign-up with a phone number and a code, Google and Microsoft accounts, and the error center are planned as the next two
+  releases; they need an SMS provider, a Google project and a Microsoft app registration that only the owner can create.
 * The Android app is a test build signed with a debug key (see `app/README.md`); store releases need a release key.
 * The admin overview (`/admin`) counts workspaces, plans, people and new sign-ups (never customer data), and shows
   whether the database, e-mail, the environment and scheduled work are in order. It is where an admin opens a test
