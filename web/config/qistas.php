@@ -118,6 +118,32 @@ return [
     'proxy_chain_allowed' => (int) env('QISTAS_PROXY_CHAIN_ALLOWED', 2),
 
     /*
+    | The error center (admin: what is breaking on the site, the API, the database and the phone app). `enabled` false
+    | turns capture off and hides nothing already recorded. A query slower than slow_query_ms is recorded as a slow query.
+    | Sample occurrences are kept occurrence_days; an issue is kept issue_days after it was last seen (a resolved or
+    | ignored one 30 days). Read when `qistas:errors:prune` runs. Whole numbers of days, at least 1.
+    |
+    | scanner_paths: case-insensitive patterns for the paths only a scanner asks for. A 404, 403 or 405 on one is counted
+    | per day and never becomes an issue, a sample or an e-mail. They are matched against the path without its query string.
+    */
+    'errors' => [
+        'enabled' => filter_var(env('QISTAS_ERRORS', true), FILTER_VALIDATE_BOOL),
+        'slow_query_ms' => (int) env('QISTAS_SLOW_QUERY_MS', 3000),
+        'occurrence_days' => (int) env('QISTAS_ERROR_OCCURRENCE_DAYS', 30),
+        'issue_days' => (int) env('QISTAS_ERROR_ISSUE_DAYS', 90),
+        'scanner_paths' => [
+            '#^/\.env#i', // /.env, /.env.local, /.env.production
+            '#/\.git(?:/|$)#i', // /.git/config, at any depth
+            '#^/wp-#i', // /wp-login.php, /wp-admin/, /wp-content/...
+            '#^/xmlrpc\.php#i',
+            '#^/phpmyadmin#i',
+            '#^/vendor/#i',
+            '#^/admin\.php#i',
+            '#\.(?:php|sql|bak|zip|env)/?$#i', // anything ending like that, at any depth
+        ],
+    ],
+
+    /*
     | Scheduled work on a host with no scheduler and no queue worker. Something outside (a GitHub workflow, Vercel Cron,
     | any pinger) calls /internal/cron every few minutes with `Authorization: Bearer <CRON_SECRET>`. With no secret the
     | endpoint is closed (503). max_seconds caps how long one call works through the queue (a job already running is
