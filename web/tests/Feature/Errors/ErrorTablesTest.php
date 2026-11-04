@@ -138,7 +138,7 @@ it('deleting an issue removes its occurrences, days and people', function () {
     $kept = errorsIssue();
 
     foreach ([$doomed, $kept] as $issue) {
-        $issue->occurrences()->create(['occurred_at' => now(), 'message' => 'boom', 'trace' => '', 'platform' => 'server']);
+        $issue->samples()->create(['occurred_at' => now(), 'message' => 'boom', 'trace' => '', 'platform' => 'server']);
         DB::table('error_issue_days')->insert(['issue_id' => $issue->id, 'day' => '2026-11-05', 'count' => 1]);
         DB::table('error_issue_people')->insert(['issue_id' => $issue->id, 'person' => 'a1b2c3d4e5f60718']);
     }
@@ -156,7 +156,7 @@ it('deleting an issue removes its occurrences, days and people', function () {
 it('an occurrence belongs to its issue and has no updated_at', function () {
     $issue = errorsIssue();
 
-    $occurrence = $issue->occurrences()->create([
+    $occurrence = $issue->samples()->create([
         'occurred_at' => now(), 'status' => 500, 'method' => 'POST', 'route' => '/app/customers/{id}',
         'message' => 'boom', 'trace' => '#0 app/A.php(1): run()', 'version' => '1.30.0', 'platform' => 'server', 'device' => null,
     ])->fresh();
@@ -166,7 +166,28 @@ it('an occurrence belongs to its issue and has no updated_at', function () {
         ->and($occurrence->occurred_at)->toBeInstanceOf(DateTimeInterface::class)
         ->and($occurrence->created_at)->not->toBeNull()
         ->and($occurrence->getAttributes())->not->toHaveKey('updated_at')
-        ->and($issue->occurrences()->count())->toBe(1);
+        ->and($issue->samples()->count())->toBe(1);
+});
+
+it('the occurrences count stays a number when the samples are loaded', function () {
+    $issue = errorsIssue();
+    $issue->forceFill(['occurrences' => 41])->save();
+    $issue->samples()->create(['occurred_at' => now(), 'message' => 'boom', 'trace' => '', 'platform' => 'server']);
+
+    $loaded = ErrorIssue::query()->with('samples')->findOrFail($issue->id);
+
+    expect($loaded->occurrences)->toBe(41)
+        ->and($loaded->toArray()['occurrences'])->toBe(41)
+        ->and($loaded->samples)->toHaveCount(1);
+});
+
+it('samples come newest first', function () {
+    $issue = errorsIssue();
+    foreach ([now()->subMinutes(2), now()->subMinute(), now()] as $minute => $at) {
+        $issue->samples()->create(['occurred_at' => $at, 'message' => "sighting {$minute}", 'trace' => '', 'platform' => 'server']);
+    }
+
+    expect($issue->samples()->pluck('message')->all())->toBe(['sighting 2', 'sighting 1', 'sighting 0']);
 });
 
 it('status defaults to open and openCount counts only open issues', function () {

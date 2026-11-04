@@ -17,8 +17,9 @@ use Illuminate\Support\Carbon;
  * Only what describes the sighting is mass assignable. The status, the counters and who triaged it are set by trusted
  * code only: `App\Errors\ErrorRecorder` (counts, reopening) and `App\Errors\ErrorTriage` (resolve, ignore, reopen).
  *
- * The `occurrences` attribute is the running count. The relation of the same name is reached as a method,
- * `$issue->occurrences()`, because the attribute wins on property access (`$issue->occurrences` is the number).
+ * The `occurrences` attribute is the running count of sightings; the kept sightings are the relation `samples()`. The two
+ * are named apart on purpose: a relation called `occurrences` would be shadowed by the attribute on property access and,
+ * once loaded, would silently replace the count in `toArray()`.
  *
  * @property string $id
  * @property string $fingerprint sha1 of source, kind, class, normalised message and top frame
@@ -61,13 +62,13 @@ class ErrorIssue extends Model
     public const STATUSES = [self::STATUS_OPEN, self::STATUS_RESOLVED, self::STATUS_IGNORED];
 
     /**
-     * The sample sightings: the last five, the recorder deletes the oldest when it writes a sixth.
+     * The sample sightings, newest first: the last five, the recorder deletes the oldest when it writes a sixth.
      *
      * @return HasMany<ErrorOccurrence, $this>
      */
-    public function occurrences(): HasMany
+    public function samples(): HasMany
     {
-        return $this->hasMany(ErrorOccurrence::class, 'issue_id');
+        return $this->hasMany(ErrorOccurrence::class, 'issue_id')->orderByDesc('occurred_at')->orderByDesc('id');
     }
 
     /**
