@@ -137,11 +137,12 @@ https, e-mail, scheduler, a super admin, the terms and privacy pages, PostgreSQL
 accounts); it changes nothing and exits 1 while any line is FAIL. `php artisan qistas:purge-demo` lists the old demo
 accounts and removes them only with `--confirm`. Both are explained, with their output, in `docs/features/go-live.md`.
 
-### Scheduled work (optional)
+### Scheduled work
 
 The site has no scheduler and no queue worker of its own. Instead, something outside calls `/internal/cron` every few
 minutes; each call does one bounded slice of work (whatever is due in the Laravel scheduler, then the jobs waiting on
-the database queue). Nothing needs this to run today; later features will use it.
+the database queue). Without it nothing scheduled runs: not the daily removal of sign-in records older than 90 days, not the removal of
+accounts people asked to delete, not the alerts, digests, late fees and billing notices.
 
 1. Choose a long random string and set it as `CRON_SECRET` in Vercel. Redeploy.
 2. In the GitHub repository, open *Settings, Secrets and variables, Actions* and add two **repository secrets**:

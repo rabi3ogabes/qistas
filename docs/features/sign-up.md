@@ -12,8 +12,8 @@ Five things, on the website and in the phone app alike: **name, e-mail, password
 terms**. There is no "Business name" and no "Country".
 
 Behind the form the browser also sends its **time zone** (the website: a hidden field filled by `resources/js/timezone.js`;
-the app: the phone's offset from UTC) and, from the app, a short **device hint** (phone or tablet, the model's name and
-the app version). Nobody types any of it.
+the app: the phone's offset from UTC) and, from the app, a short **device hint** (whether the device is a phone or a tablet,
+its operating system and the app version; the app has no way to read the phone's model name). Nobody types any of it.
 
 **Older apps.** App versions up to 1.28 still ask for a business name and a country and send them. The server accepts
 both: the workspace is then named and placed as typed, counts as set up at once, and shows no card. A country sent this
@@ -26,8 +26,8 @@ The workspace gets a country, a currency and a time zone at the moment of sign-u
 gives an answer:
 
 1. **The CDN's country header**, when `QISTAS_GEO_HEADER` names one (behind Cloudflare: `CF-IPCountry`). The codes that
-   mean "no country" (`XX`, `T1`, `A1`, `A2`, `O1`, `EU`, `AP`) are ignored. This is the best source and the only one that
-   cannot be set by the person.
+   mean "no country" (`XX`, `T1`, `A1`, `A2`, `O1`, `EU`, `AP`) are ignored. This is the best source, and the person
+   cannot set it from the browser, as long as the host accepts traffic only through the CDN.
 2. **The country of the time zone** the browser reports (Asia/Riyadh is Saudi Arabia). A zone that names no place, such
    as UTC, is ignored.
 3. **The region in the browser's language** (ar-SA is Saudi Arabia).
@@ -47,7 +47,7 @@ language the person signed up in) and is **not yet set up** (`tenants.setup_conf
 owner opens Today (website or app) a card at the top asks for two things at once:
 
 - **The business name**, required. The placeholder name shows greyed in the empty field until the owner types.
-- **The region**, as one sentence ("We think you are in Saudi Arabia: SAR, Riyadh time.") with a *Change* link that opens
+- **The region**, as one sentence ("We think you are in Saudi Arabia: SAR, Saudi Arabia Time." on the website; the app names the zone's city instead) with a *Change* link that opens
   the country chooser, when the country was found automatically (with "Guessed from your device's time zone, so it may be
   wrong" when the zone or the language was the source); as the chooser at once when nothing was found; or as a locked
   line when the region can no longer change (next section). The website's card never sends a time zone: the server derives
@@ -59,13 +59,20 @@ line where it would be ("Your business owner needs to name the business before d
 
 **What waits for the card.** Documents (contract PDFs, statements, receipts) are refused until the workspace is set up:
 the API answers `409` with the error code `workspace_setup_required`; on the website the person is sent back to Today
-with a warning; the app opens the card. Everything else works from the first minute. Workspaces that existed before this
-release were marked as set up on the day it shipped, so nobody already using Qistas sees the card.
+with a warning; the app opens the card. Everything else works from the first minute, except that the placeholder name is kept out of what a customer reads
+until the business is named. The website's reminder list and the customer's signing page carry the name printed on the
+documents, if the owner set one, and no name otherwise; the phone's own reminder and receipt texts carry no name at all. Workspaces that existed before this
+release were marked as set up from their own creation date, so nobody already using Qistas sees the card.
 
-**When the region can change.** Only while the workspace has no contract and no transaction. A currency is stamped into
-contracts and payments, so changing it afterwards would silently change what they mean. After the first contract or
-payment the country, currency and zone are fixed, the card (if it is still showing) asks only for the name and says why
-("... Contact support to change it."), and changing the region means writing to support.
+**An older app on a new website account.** App 1.28 and earlier have no card. If someone signs up on the website (which
+asks for no business name) and then uses app 1.28, a document answers "name your business first" and the app can do
+nothing about it: name the business on the website, or update the app.
+
+**When the region can change.** Only while the workspace has recorded no money: no contract, no payment, no investor
+deposit or withdrawal and no closed day. A currency is stamped into all of those, so changing it afterwards would silently
+change what they mean. After the first of them the country, currency and zone are fixed, the card (if it is still
+showing) asks only for the name and says why ("... Contact support to change it."), and changing the region means
+writing to support. A change made while it is still open also moves the workspace's investor rows to the new currency.
 
 Code: `App\Support\SignupPlace` (detection), `App\Actions\RegisterTenantOwner` and
 `App\Actions\Fortify\CreateNewUser` (sign-up), `App\Actions\ConfirmWorkspaceSetup` (the card's save),
@@ -96,10 +103,12 @@ account is not recorded: there is nobody to attach it to. Per row:
 | What | Notes |
 |---|---|
 | When, how | time; method (`password` now; `otp`, `google`, `microsoft` come with Release 3); channel (`web` or `app`); success or failed |
-| Device | `desktop`, `mobile`, `tablet` or `unknown`; operating system and browser (read from the browser's own description with the open-source `matomo/device-detector`); for the app, its version and the phone's model |
+| Device | `desktop`, `mobile`, `tablet` or `unknown`; operating system and browser (read from the browser's own description with the open-source `matomo/device-detector`); for the app, its version (the phone's model name is not recorded) |
 | Where | the IP address, and the country the CDN says it is in (empty without `QISTAS_GEO_HEADER`) |
 | Proxy | `not_detected`, `possible` or `detected`, and which signals fired |
 | Raw | the browser's user-agent text, cut at 255 characters |
+
+On a **wrong password** nothing the app reports about itself is kept (no device type, model, system or version): that row holds only what the connection's own user-agent text says, so a stranger who knows an e-mail address cannot write anything into someone's list.
 
 **Never stored:** the e-mail or anything else a person typed, the password, a code, a token.
 
@@ -144,8 +153,10 @@ detected". If your own normal sign-in reads "detected", the host adds a hop: rai
 
 ### A proposal for the privacy page (not published)
 
-> When you sign in we keep the date, the kind of device and browser, the address your connection comes from and the
-> country it appears to be in, for 90 days, so you can spot a sign-in that is not yours. We never keep what you typed.
+> Each time you sign in, and each time someone enters a wrong password for your account, we keep the date, the kind of
+> device and browser, the address your connection comes from, the country it appears to be in and whether it seems to come
+> through a proxy, for 90 days. You can see these on your Security page, and our support team can see them when helping
+> you. They are there so you can spot a sign-in that is not yours. We never keep what you typed.
 
 **Proposal: not published until the owner approves it.** The privacy page is the owner's text; this file only holds the
 sentence ready.

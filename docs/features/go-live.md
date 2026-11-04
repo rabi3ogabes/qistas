@@ -132,6 +132,10 @@ In this order, on the server after the new version is deployed:
 5. **Create one real account** with a real e-mail and walk through the card, then a first contract and its PDF, on the
    live site.
 6. **Approve the privacy sentence** in `sign-up.md`, or write your own, and publish it on the privacy page.
+7. **Before the next Google Play release, re-check the Data safety form** (`docs/store/GOOGLE_PLAY_LAUNCH.md`, section 5):
+   it says location is not collected and lists only the push token under device IDs, and every sign-in now records the
+   connection's address, its country and the device's kind, operating system and app version. Whether Google counts those is for you to decide
+   when you fill the form in; the document has not been changed.
 
 Release 2 (error center) and Release 3 (phone number and code, Google, Microsoft) need accounts and keys only you can
 create (an SMS provider, a Google project, a Microsoft app registration); they go on the server's Environment page, never

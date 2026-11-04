@@ -1711,7 +1711,7 @@ paths:
         already has is fine. A different country gets its currency from the country table and, unless a different
         `timezone` that names a place is sent (UTC counts as none while the country changes), its usual time zone, and
         counts as chosen by the owner. The country and the time zone can change **only
-        while the workspace has no contract and no transaction** (`tenant.setup.can_change_region`): after that a
+        while the workspace has recorded no money** (no contract, payment, investor entry or closed day; `tenant.setup.can_change_region`): after that a
         different one is refused as a whole (422 `validation_failed` naming `country` or `timezone`, nothing saved, the
         name included). Saving again later renames the business; the day it was confirmed stays. Every save is audited
         (name, country, currency, time zone). Rate-limited to 20 a minute.
@@ -3119,7 +3119,8 @@ components:
       type: object
       description: |
         What the phone app reports about itself at sign-in and sign-up, kept in the person's sign-in history as reported
-        (it decides nothing). Every field is optional, and a value of the wrong type is ignored, never an error.
+        for a successful sign-in or sign-up (it decides nothing). A wrong password keeps none of it: that row holds only
+        what the user agent says. Every field is optional, and a value of the wrong type is ignored, never an error.
       properties:
         type: {type: string, enum: [mobile, tablet], description: "The device class; used instead of the user agent's guess. Any other value is ignored."}
         os: {type: string, maxLength: 64, example: android}
@@ -3215,7 +3216,7 @@ components:
         device_type: {type: string, enum: [desktop, mobile, tablet, unknown]}
         os: {type: [string, "null"], example: Android, description: The system, as short as the user agent allows; null when unknown.}
         browser: {type: [string, "null"], example: Chrome, description: Null when unknown and for the phone app.}
-        app_version: {type: [string, "null"], example: 1.29.0, description: The phone app's version; null on the website.}
+        app_version: {type: [string, "null"], example: 1.29.0, description: The phone app's version; null on the website and on a wrong password.}
         device_name: {type: [string, "null"], example: null, description: "A model the app reported with a correct password, if any. The Qistas app sends none (it has no way to ask the phone), so its rows have null and are named by `device_type`. Null on the website and for a wrong password."}
         ip: {type: string, example: 203.0.113.9, description: The address the sign-in came from. The person's own, shown to them.}
         ip_country: {type: [string, "null"], example: QA, description: Two letters from the network in front of the site; null when unknown.}
@@ -3261,7 +3262,7 @@ components:
         currency: {type: string, example: QAR}
         timezone: {type: string, description: The IANA time zone the workspace's days follow., example: Asia/Qatar}
         country_detected: {type: boolean, description: "True when the country was found from the visitor's network, device time zone or browser language and the product has a currency for it: the card asks for a tap to confirm. False when it is only the default or was chosen: the card shows a chooser."}
-        can_change_region: {type: boolean, description: "True while the workspace has no contract and no transaction. After that the country and time zone are fixed (a change answers 422) and the card asks for the name only."}
+        can_change_region: {type: boolean, description: "True while the workspace has recorded no money (no contract, payment, investor entry or closed day). After that the country and time zone are fixed (a change answers 422) and the card asks for the name only."}
     Product:
       type: object
       properties:
