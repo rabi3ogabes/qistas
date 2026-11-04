@@ -3,6 +3,10 @@
 use App\Errors\ErrorEvent;
 use App\Errors\ErrorScrubber;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /*
 | The scrubber is the privacy gate of the error center (design section 6): everything that is stored passes through it.
@@ -29,6 +33,14 @@ function errorsEvent(array $with = []): ErrorEvent
         'userId' => '9d2f4c7e-0b1a-4c55-8f3e-1a2b3c4d5e6f',
         'at' => '2026-11-04T10:30:00+00:00',
     ]));
+}
+
+/** A real Laravel session cookie (Crypt::encryptString of a random string), as the browser sent it or as PHP decoded it. */
+function errorsCookie(bool $encoded = false): string
+{
+    return $encoded
+        ? 'eyJpdiI6IlM1ZGFMRWpxODZCd1U5eGFZaS9WSXc9PSIsInZhbHVlIjoiYkhoUDFyZHZVSUFwbEt4d2VqdnlSaENsTzZqam1UcTY0cFdBTS8rVmZzOTF2Yno3cUlvSmZubXRoVWpFYTlQayIsIm1hYyI6ImYzMzU2MWFiOGVhYjI0MjM2ZDAxYzRkOGVmYTE3MDVkMTBhMmJjMzViM2U0MTY2OTU4NDQxMWQ0ZjlkMGFkOWMiLCJ0YWciOiIifQ%3D%3D'
+        : 'eyJpdiI6IkRrS1A5ZXc5UUl3QmZTRHU5NkdWRGc9PSIsInZhbHVlIjoiVWlhK2hhZVRrWDNqdmdSMHpQejhPR2RHTXpaS3hyYnVOOVBiN0ZqUXQxaEt0VlZRWldoblRHaS83TEoraUJCQyIsIm1hYyI6IjdmZDllZjM0NzMxYjM2NmRiMTMzNDVlYWJhNGRiYjliZjczYzQ3YmM2NWIwNWY2YWVhOTVmNGJlNWI2ZjkxYjMiLCJ0YWciOiIifQ==';
 }
 
 dataset('errors personal data', [
@@ -98,7 +110,7 @@ dataset('errors personal data', [
     // SQL: only the statement with ? is kept
     'a quoted literal in a select' => [
         'select * from "contracts" where "customer_name" = \'Ahmed Ali\' and "phone" = \'0501234567\' limit 25',
-        'select * from "contracts" where "customer_name" = ? and "phone" = ? limit ?',
+        'select * from "contracts" where "customer_name" = ? and "phone" = ?',
     ],
     'an unquoted literal in an update' => [
         'update "customers" set "name" = Ahmed Ali, "phone" = 0501234567 where "id" = 42',
@@ -106,7 +118,7 @@ dataset('errors personal data', [
     ],
     'a raw statement' => [
         'select count(*) as aggregate from customers where tenant_id = 7 and phone = \'0501234567\'',
-        'select count(*) as aggregate from customers where tenant_id = ? and phone = ?',
+        'select count(*) as aggregate from customers where ? = ?',
     ],
     'a statement over several lines' => [
         "select *\nfrom \"users\"\nwhere \"email\" = 'a@b.com'",
@@ -122,7 +134,7 @@ dataset('errors personal data', [
     ],
     'a join' => [
         'select "c"."id" from "contracts" as "c" inner join "customers" on "customers"."id" = "c"."customer_id" where "c"."note" = Paid limit 10',
-        'select "c"."id" from "contracts" as "c" inner join "customers" on "customers"."id" = "c"."customer_id" where "c"."note" = ? limit ?',
+        'select "c"."id" from "contracts" as "c" inner join "customers" on "customers"."id" = "c"."customer_id" where "c"."note" = ?',
     ],
     'a function in a statement' => [
         'select * from "customers" where lower("name") like %ahmed ali% and "created_at" >= 2026-11-04 10:30:00',
@@ -180,6 +192,181 @@ dataset('errors personal data', [
     'a path outside the project' => ['Cannot write /home/rabii/.cache/qistas/x.db now', 'Cannot write [path] now'],
     'a Windows path outside the project' => ['Cannot write C:\\Windows\\Temp\\php1A2B.tmp now', 'Cannot write [path] now'],
     'a file address' => ['Error in file:///C:/Users/x/proj/web/app/A.php', 'Error in app/A.php'],
+
+    // Fix round 1, C1: bindings that Laravel puts into the message of a QueryException, unquoted
+    'a note with from inside a binding' => [
+        '(Connection: pgsql, SQL: update "customers" set "notes" = Payment from Ahmed Ali Alghamdi in Riyadh, "phone" = 0501234567 where "id" = 5)',
+        '(Connection: pgsql, SQL: update "customers" set "notes" = ?, "phone" = ? where "id" = ?)',
+    ],
+    'a note with select inside a binding' => [
+        '(Connection: pgsql, SQL: insert into "notes" ("body", "tenant_id") values (please select Fahad Alotaibi for the visit, 7))',
+        '(Connection: pgsql, SQL: insert into "notes" ("body", "tenant_id") values (?, ?))',
+    ],
+    'a note with into inside a binding' => [
+        '(Connection: pgsql, SQL: insert into "notes" ("body") values (moved into Villa Fahad))',
+        '(Connection: pgsql, SQL: insert into "notes" ("body") values (?))',
+    ],
+    'a note with order by inside a binding' => [
+        '(Connection: pgsql, SQL: insert into "notes" ("body") values (order by Fahad Alotaibi))',
+        '(Connection: pgsql, SQL: insert into "notes" ("body") values (?))',
+    ],
+    'a note with as inside a binding' => [
+        '(Connection: pgsql, SQL: update "customers" set "notes" = known as Abu Fahad, "phone" = 0501234567 where "id" = 5)',
+        '(Connection: pgsql, SQL: update "customers" set "notes" = ?, "phone" = ? where "id" = ?)',
+    ],
+    'a name with a title inside a binding' => [
+        '(Connection: pgsql, SQL: update "customers" set "name" = Mr. Fahad Alotaibi where "id" = 5)',
+        '(Connection: pgsql, SQL: update "customers" set "name" = ? where "id" = ?)',
+    ],
+    'a name with another title inside a binding' => [
+        '(Connection: pgsql, SQL: insert into "customers" ("name", "phone") values (Dr. Noura Alsubaie, 0501234567))',
+        '(Connection: pgsql, SQL: insert into "customers" ("name", "phone") values (?, ?))',
+    ],
+    'a name with an address in angle brackets inside a binding' => [
+        '(Connection: pgsql, SQL: update "users" set "name" = Fahad Alotaibi <fahad@example.com> where "id" = 5)',
+        '(Connection: pgsql, SQL: update "users" set "name" = ? where "id" = ?)',
+    ],
+    'a note with an arrow inside a binding' => [
+        '(Connection: pgsql, SQL: insert into "notes" ("body") values (Fahad => paid 500))',
+        '(Connection: pgsql, SQL: insert into "notes" ("body") values (?))',
+    ],
+    'a name in capitals with from inside a binding' => [
+        '(Connection: pgsql, SQL: update "customers" set "name" = FAHAD FROM DOHA where "id" = 5)',
+        '(Connection: pgsql, SQL: update "customers" set "name" = ? where "id" = ?)',
+    ],
+    'an address with a line break inside a binding' => [
+        "SQLSTATE[23502]: Not null violation (Connection: pgsql, SQL: insert into \"customers\" (\"address\", \"name\") values (Street 5\nFahad Alotaibi Villa 12, null))",
+        'SQLSTATE[23502]: Not null violation (Connection: pgsql, SQL: insert into "customers" ("address", "name") values (?, ?))',
+    ],
+    'a case expression with a name' => [
+        '(Connection: pgsql, SQL: select case when "name" = Fahad then 1 else 0 end from "x")',
+        '(Connection: pgsql, SQL: select case when "name" = ? end from "x")',
+    ],
+    'a statement that starts with values' => [
+        '(Connection: pgsql, SQL: values (Fahad Alotaibi))',
+        '(Connection: pgsql, SQL: values (?))',
+    ],
+    'a list of names in a statement' => [
+        '(Connection: pgsql, SQL: select * from "customers" where "name" in (Fahad, Noura, Salem))',
+        '(Connection: pgsql, SQL: select * from "customers" where "name" in (?, ?, ?))',
+    ],
+    'a name in an escaped E string' => [
+        "select * from \"x\" where \"a\" = E'Fahad\\'s'",
+        'select * from "x" where "a" = ?',
+    ],
+
+    // Fix round 1, C2: the value of a cookie by its name, and by its shape
+    'a Laravel session cookie' => ['laravel_session='.errorsCookie(), 'laravel_session=[secret]'],
+    'a Laravel session cookie in a list in JSON' => ['{"cookie":["laravel_session='.errorsCookie(true).'"]}', '{"cookie":[[secret]]}'],
+    'a session id' => ['sid=kQ9x2LmZp0Vb7TrYw3NcJ8aDh5sFgHjK', 'sid=[secret]'],
+    'a remember cookie' => ['remember_web_59ba36addc2b2f9401580f014c7f58ea4e30989d='.errorsCookie(true), 'remember_web_[token]=[secret]'],
+    'a session cookie value on its own' => ['session '.errorsCookie().' expired', 'session [token] expired'],
+    'a session cookie value on its own, URL-encoded' => ['session '.errorsCookie(true).' expired', 'session [token] expired'],
+
+    // Fix round 1, I1: e-mail addresses in the shapes a URL and a log give them
+    'an e-mail address with an encoded at' => ['Lookup ahmed%40example.com failed', 'Lookup [email] failed'],
+    'an e-mail address in an encoded query' => ['GET /api/v1/customers?email=ahmed%40example.com failed', 'GET /api/v1/customers failed'],
+    'an e-mail address in encoded angle brackets' => ['To: %3Cahmed@example.com%3E', 'To: [email]%3E'],
+    'an e-mail address after an encoded space' => ['Search %20ahmed@example.com', 'Search [email]'],
+    'an e-mail address after a plus' => ['q +ahmed@example.com', 'q [email]'],
+    'an e-mail address after an underscore' => ['user__ahmed@example.com', '[email]'],
+    'an e-mail address after a dot' => ['.ahmed@example.com', '[email]'],
+    'an e-mail address with a quoted name' => ['Mail to "ahmed"@example.com bounced', 'Mail to [email] bounced'],
+    'an e-mail address on localhost' => ['ahmed@localhost failed', '[email] failed'],
+    'an e-mail address on a punycode domain' => ['Mail to ahmed@xn--mgbh0fb.xn--mgberp4a5d4ar bounced', 'Mail to [email] bounced'],
+    'an e-mail address on an address' => ['ahmed@[10.0.0.1] failed', '[email] failed'],
+    'an e-mail address in a path' => ['Not found: /app/customers/search/ahmed%40example.com', 'Not found: /app/customers/search/[email]'],
+    'an e-mail address in a HTTP client error' => [
+        'Client error: `GET https://api.example.com/v1/users/ahmed%40example.com` resulted in a `404 Not Found` response',
+        'Client error: `GET https://api.example.com/v1/users/[email]` resulted in a `404 Not Found` response',
+    ],
+    'an e-mail address with a full-width at' => ['ahmed＠example.com', '[email]'],
+
+    // Fix round 1, I2: Unicode spaces between the groups of a number
+    'a number with no-break spaces' => ["+966\u{00A0}50\u{00A0}123\u{00A0}4567", '[phone]'],
+    'a number with thin spaces' => ["+966\u{2009}50\u{2009}123\u{2009}4567", '[phone]'],
+    'a number with narrow no-break spaces' => ["050\u{202F}123\u{202F}4567", '[phone]'],
+    'a number with figure spaces' => ["050\u{2007}123\u{2007}4567", '[phone]'],
+    'a number with ideographic spaces' => ["050\u{3000}123\u{3000}4567", '[phone]'],
+    'an id with no-break spaces' => ["national id 1234\u{00A0}567\u{00A0}890", 'national id [id]'],
+    'a card with no-break spaces' => ["card 4111\u{00A0}1111\u{00A0}1111\u{00A0}1111", 'card [id]'],
+
+    // Fix round 1, I3: Gulf mobile numbers without a plus or a space
+    'an unspaced Qatari mobile' => ['Customer 55123456 not found', 'Customer [phone] not found'],
+    'a Kuwaiti mobile' => ['phone 99887766', 'phone [phone]'],
+    'a Kuwaiti mobile in groups' => ['phone 9988 7766', 'phone [phone]'],
+    'a Bahraini mobile' => ['phone 3355 1234', 'phone [phone]'],
+    'a Saudi number with the country code and no plus' => ['SMS failed for 966 50 123 4567', 'SMS failed for [phone]'],
+    'a Qatari number with the country code and no plus' => ['974 5555 1234', '[phone]'],
+    'a Saudi mobile without the zero' => ['phone 50 123 4567', 'phone [phone]'],
+    'a Saudi mobile without the zero or the spaces' => ['phone 501234567', 'phone [phone]'],
+    'a Saudi number with slashes' => ['050/123/4567', '[phone]'],
+
+    // Fix round 1, I4: tokens that are not hex and not a name
+    'a long bearer token behind the word token' => ['Bearer token kQ9x2LmZp0Vb7TrYw3Nc', 'Bearer [token]'],
+    'a long bearer token in lower case' => ['bearer kQ9x2LmZp0Vb7TrYw3Nc', 'Bearer [token]'],
+    'a key of lower case letters and digits' => ['api 6hd8a9s7d6f5g4h3j2k1l0z9x8c7v6b5', 'api [token]'],
+    'a key of upper case letters and digits' => ['code K9X2LMZP0VB7TRYW3NCJ8ADH5SFGHJKL end', 'code [token] end'],
+    'a Stripe key' => ['Invalid API Key provided: sk_' . 'test_4eC39HqLyjWDarjtT1zdp7dc', 'Invalid API Key provided: [token]'],
+    'standard base64 with a slash' => ['value kQ9x2LmZp0Vb7TrY/w3NcJ8aDh5sFgHjK end', 'value [token] end'],
+
+    // Fix round 1, I5: credentials in dumps, quotes and escapes
+    'a print_r dump' => [
+        "Array\n(\n    [password] => hunter2\n    [email] => a@b.com\n)",
+        "Array\n(\n    [password] => [secret]\n    [email] => [secret]\n)",
+    ],
+    'a var_dump' => ['["password"]=> string(7) "hunter2"', '["password"]=> [secret]'],
+    'a var_dump over lines' => [
+        "array(1) {\n  [\"password\"]=>\n  string(7) \"hunter2\"\n}",
+        "array(1) {\n  [\"password\"]=>\n  [secret]\n}",
+    ],
+    'an authorization key in JSON' => ['"authorization": "Basic dXNlcjpwYXNz"', '"authorization": [secret]'],
+    'an authorization key in a PHP array' => ["'Authorization' => 'Basic dXNlcjpwYXNz'", "'Authorization' => [secret]"],
+    'an authorization list in JSON' => ['{"headers":{"authorization":["Basic dXNlcjpwYXNz"]}}', '{"headers":{"authorization":[[secret]]}}'],
+    'a cookie key in JSON' => ['{"cookie":"laravel_session=abc; XSRF-TOKEN=def"}', '{"cookie":[secret]}'],
+    'a password with an escaped quote' => ['{"password":"hun\"ter2"}', '{"password":[secret]}'],
+    'a quoted password with spaces' => ['{"password":"hunter 2 with spaces"}', '{"password":[secret]}'],
+    'a password with a space' => ['password=hunter two', 'password=[secret] two'],
+    'a short password key' => ['pass=hunter2', 'pass=[secret]'],
+    'a pw key' => ['pw=hunter2', 'pw=[secret]'],
+    'a pin' => ['pin=1234', 'pin=[secret]'],
+    'a passphrase' => ['passphrase=correct horse', 'passphrase=[secret] horse'],
+    'an auth value' => ['auth=user:pass', 'auth=[secret]'],
+
+    // Fix round 1, M2/M3: a long number before a unit, cards, IBANs, IPv6
+    'a ten digit number before seconds' => ['took 1234567890 seconds', 'took [id] seconds'],
+    'a ten digit number before ms' => ['took 1234567890 ms', 'took [id] ms'],
+    'a ten digit number before KB' => ['id 1234567890 KB', 'id [id] KB'],
+    'a card with dots' => ['4111.1111.1111.1111', '[id]'],
+    'a card with two spaces' => ['4111  1111  1111  1111', '[id]'],
+    'an IBAN in lower case' => ['sa0380000000608010167519', '[id]'],
+    'an IBAN in groups in lower case' => ['sa03 8000 0000 6080 1016 7519 from X', '[id] from X'],
+    'an IBAN with dashes' => ['SA03-8000-0000-6080-1016-7519', '[id]'],
+    'an IPv6 address' => ['Too many requests from 2a02:cb80:4271:93aa:dc3d:1234:5678:9abc', 'Too many requests from [ip]'],
+    'an IPv6 address in brackets' => ['connect to [2406:da18:243:7401::1]:5432 failed', 'connect to [[ip]]:5432 failed'],
+    'an IPv4 address mapped into IPv6' => ['::ffff:10.0.0.15', '[ip]'],
+
+    // Fix round 1, found while hardening: a secret inside the value of a key we do not mask, text after a failing row, a
+    // statement glued to a number, a second statement, a list of values inside brackets
+    'a secret after a word and a colon' => ["and: ['password' => 'hunter2']", "and: ['password' => [secret]]"],
+    'a secret after a sentence and a colon' => ['Login failed: password=hunter2', 'Login failed: password=[secret]'],
+    'a failing row with more text after it' => ['DETAIL:  Failing row contains (1, Fahad, 0501234567). See the log', 'DETAIL:  Failing row contains (?). See the log'],
+    'a statement glued to a number' => ['0501234567update "c" set "n" = Fahad', '[phone]update "c" set "n" = ?'],
+    'two statements' => ['update "x" set "a" = Fahad; select Noura', 'update "x" set "a" = ?; select ?'],
+    'a list of values inside a table expression' => [
+        '(Connection: pgsql, SQL: with "t" as (insert into "n" ("b") values (please select Noura from Doha)) select 1)',
+        '(Connection: pgsql, SQL: with "t" as (insert into "n" ("b") values (?)) select ?)',
+    ],
+    'an e-mail address written as an entity' => ['ahmed&#64;example.com', '[email]'],
+
+    // Fix round 1, M6/M7: personal data by its key, Android storage
+    'a name and a phone in JSON' => ['{"name":"Fahad Alotaibi","phone":"+966501234567"}', '{"name":[secret],"phone":[secret]}'],
+    'a customer name in an assignment' => ['customer_name=Fahad', 'customer_name=[secret]'],
+    'a national id in camel case' => ['{"nationalId":"1234567890"}', '{"nationalId":[secret]}'],
+    'an address in a PHP array' => ["'address' => 'Street 5, Doha'", "'address' => [secret]"],
+    'a full name in a dump' => ['[full_name] => Fahad', '[full_name] => [secret]'],
+    'an Android storage path' => ['/storage/emulated/0/Download/contract-Fahad-Alotaibi.pdf', '[path]'],
+    'an Android card path' => ['Cannot read /sdcard/Download/Fahad.pdf now', 'Cannot read [path] now'],
 ]);
 
 dataset('errors readable text', [
@@ -190,6 +377,20 @@ dataset('errors readable text', [
     'another long PHP class name' => 'Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance',
     'a Symfony class name' => 'Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException',
     'a namespaced class name with digits' => 'League\OAuth2\Server\Exception\OAuthServerException',
+    'a constant with underscores' => 'OS Error: CERTIFICATE_VERIFY_FAILED: unable to get local issuer certificate',
+    'a foreign key name' => 'violates foreign key constraint "contracts_customer_id_foreign"',
+    'a key that is not personal data' => 'Cannot load class_name=Foo from the container',
+    'a controller action' => 'Target class [App\Http\Controllers\CustomerController@index] does not exist.',
+    'a cache key in prose' => 'Cache key: tenant.features.v2',
+    'a signature in prose' => 'Invalid signature: Expected',
+    'a missing key' => 'Missing key: phone',
+    'a size that starts like a mobile number' => 'Read 53687091 bytes',
+    'a time that starts like a mobile number' => 'Waited 50000000 ms',
+    'a big memory size' => 'Allowed memory size of 1073741824 bytes exhausted',
+    'a statement with names that look like personal keys' => 'select * from "customers" where "name" = ? and "phone" = ? and "email" = ?',
+    'an update of a personal column' => 'update "customers" set "email" = ? where "id" = ?',
+    'a long constraint name with a year' => 'violates unique constraint "contracts_tenant_id_reference_unique_2026_11"',
+    'a long path with ids' => 'GET /app/customers/12345/edit/something-long-here failed',
     'a long class name with a digit' => 'Class App\Services\Billing\Stripe3DSecureChallengeHandler not found',
     'another long class name with a digit' => 'Call to undefined method App\Http\Psr7ResponseInterfaceFactory::make()',
     'an SQLSTATE code' => 'SQLSTATE[23505]: Unique violation',
@@ -335,7 +536,7 @@ it('masks every number it is given, however long the input', function () {
 it('keeps no value of a document written inside a statement', function () {
     $clean = ErrorScrubber::text('insert into "audit_logs" ("id", "metadata") values (1, {"name":"Ahmed","phone":"0501234567"})');
 
-    expect($clean)->toStartWith('insert into "audit_logs" ("id", "metadata") values (?')
+    expect($clean)->toBe('insert into "audit_logs" ("id", "metadata") values (?, ?,?)')
         ->and($clean)->not->toContain('Ahmed')
         ->and($clean)->not->toContain('0501234567')
         ->and(ErrorScrubber::text($clean))->toBe($clean);
@@ -358,6 +559,196 @@ it('is not slowed down by a text built to make a pattern run for ever', function
     expect(microtime(true) - $started)->toBeLessThan(2.0)
         ->and(strlen($clean))->toBeLessThanOrEqual(8192);
 })->with(['_', '-', '.', 'a.', '0 ', 'a@', '/a', 'aA1_', 'C:\\a ', 'select a, ', 'Key (a)=(', '(']);
+
+it('has Laravel keep the bindings of a failed query out of the exception message, on every connection', function () {
+    foreach (config('database.connections') as $name => $connection) {
+        expect($connection['mask_bindings_in_exception_messages'] ?? false)->toBeTrue("the {$name} connection must not put bindings into messages");
+    }
+
+    $message = null;
+
+    try {
+        DB::select('select * from missing_table where email = ? and phone = ?', ['ahmed@example.com', '0501234567']);
+    } catch (QueryException $exception) {
+        $message = $exception->getMessage();
+    }
+
+    expect($message)->toBeString()
+        ->and($message)->not->toContain('ahmed@example.com')
+        ->and($message)->not->toContain('0501234567')
+        ->and($message)->toContain('where email = ? and phone = ?');
+});
+
+it('masks the encrypted session cookie in every shape it can arrive in', function () {
+    $leaks = [];
+
+    for ($i = 0; $i < 25; $i++) {
+        $value = rawurlencode(Crypt::encryptString(Str::random(40)));
+        $probe = substr($value, 10, 30);
+
+        foreach ([
+            'json' => "{\"laravel_session\":\"{$value}\"}",
+            'equals' => "laravel_session={$value}",
+            'bare' => "session {$value} expired",
+            'header' => "Cookie: laravel_session={$value}",
+            'list' => "{\"cookie\":[\"laravel_session={$value}\"]}",
+            'remember' => "remember_web_59ba36addc2b2f9401580f014c7f58ea4e30989d={$value}",
+        ] as $shape => $input) {
+            $clean = ErrorScrubber::text($input, 5000);
+
+            if (str_contains($clean, $probe)) {
+                $leaks[] = $shape;
+            }
+
+            expect(ErrorScrubber::text($clean, 5000))->toBe($clean);
+        }
+    }
+
+    expect($leaks)->toBe([]);
+});
+
+/** A random token the way an application or a service makes one, from a fixed seed so the measure is the same every run. */
+function errorsRandomToken(string $family, int $length): string
+{
+    $base62 = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    $pick = function (string $alphabet, int $count): string {
+        $token = '';
+        for ($i = 0; $i < $count; $i++) {
+            $token .= $alphabet[mt_rand(0, strlen($alphabet) - 1)];
+        }
+
+        return $token;
+    };
+
+    return match ($family) {
+        'base62' => $pick($base62, $length),
+        'base64' => rtrim(base64_encode($pick(implode('', array_map('chr', range(0, 255))), intdiv($length * 3, 4))), '='),
+        'base64url' => rtrim(strtr(base64_encode($pick(implode('', array_map('chr', range(0, 255))), intdiv($length * 3, 4))), '+/', '-_'), '='),
+        'lower' => strtolower($pick($base62, $length)),
+        'upper' => strtoupper($pick($base62, $length)),
+    };
+}
+
+it('leaves under one in a thousand random tokens in a sentence', function (string $family, int $length) {
+    mt_srand(20261104 + $length);
+    $samples = 2000;
+    $leaked = 0;
+
+    for ($i = 0; $i < $samples; $i++) {
+        $token = errorsRandomToken($family, $length);
+
+        if (str_contains(ErrorScrubber::text("value {$token} end"), $token)) {
+            $leaked++;
+        }
+    }
+
+    expect($leaked)->toBeLessThanOrEqual(1, "{$leaked} of {$samples} {$family} tokens of {$length} characters were kept");
+})->with([
+    'base62 24' => ['base62', 24],
+    'base62 32' => ['base62', 32],
+    'base62 40' => ['base62', 40],
+    'base62 48' => ['base62', 48],
+    'base64 24' => ['base64', 24],
+    'base64 32' => ['base64', 32],
+    'base64 40' => ['base64', 40],
+    'base64url 32' => ['base64url', 32],
+    'lower case 32' => ['lower', 32],
+    'lower case 24' => ['lower', 24],
+    'upper case 32' => ['upper', 32],
+    'upper case 24' => ['upper', 24],
+]);
+
+it('does not cut the middle of a value at the guard against huge texts', function (string $value, string $part) {
+    // One long hash becomes one [token] and shrinks the text to a few characters; the guard cuts the raw text at 4096
+    // bytes, which is 9 bytes into the value.
+    $filler = str_repeat('d41d8cd98f00b204e9800998ecf8427e', 126).' '.str_repeat('x', 53).' ';
+    $clean = ErrorScrubber::text($filler.$value.' tail');
+
+    expect(strlen($filler))->toBeLessThan(4096)
+        ->and($clean)->not->toContain($part);
+})->with([
+    'an address' => ['ahmed@example.com', 'ahmed'],
+    'a phone number' => ['0501234567', '05012'],
+    'a token' => ['kQ9x2LmZp0Vb7TrYw3NcJ8aDh5sFgHjK', 'kQ9x2'],
+]);
+
+it('puts a word it does not know into its vocabulary', function () {
+    $event = ErrorScrubber::event(errorsEvent(['source' => 'nonsense', 'kind' => 'whatever', 'platform' => 'beos', 'device' => 'television']));
+
+    expect($event->source)->toBe('site')
+        ->and($event->kind)->toBe('exception')
+        ->and($event->platform)->toBe('server')
+        ->and($event->device)->toBeNull();
+});
+
+it('keeps every word of the vocabulary', function (string $field, string $word) {
+    $event = ErrorScrubber::event(errorsEvent([$field => $word]));
+
+    expect($event->{$field})->toBe($word);
+})->with(array_merge(
+    array_map(fn (string $word) => ['source', $word], ['site', 'api', 'database', 'app']),
+    array_map(fn (string $word) => ['kind', $word], ['exception', 'http', 'slow_query', 'script', 'crash']),
+    array_map(fn (string $word) => ['platform', $word], ['server', 'web', 'android', 'ios']),
+    array_map(fn (string $word) => ['device', $word], ['desktop', 'mobile', 'tablet']),
+));
+
+it('gives a platform made of nothing the default one', function () {
+    $event = ErrorScrubber::event(errorsEvent(['platform' => "\x00\u{200B}"]));
+
+    expect($event->platform)->toBe('server');
+});
+
+it('accepts a status between 100 and 599 and nothing else', function (int $status, ?int $expected) {
+    expect(ErrorScrubber::event(errorsEvent(['status' => $status]))->status)->toBe($expected);
+})->with([
+    'a huge number' => [99999999999, null],
+    'a negative number' => [-1, null],
+    'zero' => [0, null],
+    'below 100' => [99, null],
+    'above 599' => [600, null],
+    'the first' => [100, 100],
+    'the last' => [599, 599],
+    'a usual one' => [404, 404],
+]);
+
+it('writes the time as ISO 8601, and as now when it cannot be read', function () {
+    $read = ErrorScrubber::event(errorsEvent(['at' => '2026-11-04 10:30:00']))->at;
+    $unreadable = ErrorScrubber::event(errorsEvent(['at' => 'not a date']))->at;
+    $huge = ErrorScrubber::event(errorsEvent(['at' => str_repeat('x', 100_000)]))->at;
+
+    expect($read)->toBe(CarbonImmutable::parse('2026-11-04 10:30:00')->toIso8601String())
+        ->and($unreadable)->toMatch('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/')
+        ->and(CarbonImmutable::parse($unreadable)->diffInSeconds(now(), true))->toBeLessThan(5)
+        ->and(strlen($huge))->toBeLessThan(40);
+});
+
+it('does not turn text into paths when the project lives in /app, as it does in production', function (string $input, string $expected) {
+    $original = app()->basePath();
+    app()->setBasePath('/app');
+
+    try {
+        $text = ErrorScrubber::text($input);
+        $trace = ErrorScrubber::trace($input);
+    } finally {
+        app()->setBasePath($original);
+    }
+
+    expect($text)->toBe($expected)
+        ->and($trace)->toBe($expected);
+})->with([
+    'a route' => ['/app/customers/{id}', '/app/customers/{id}'],
+    'a request line' => ['GET /app/customers/{customer} answered 500', 'GET /app/customers/{customer} answered 500'],
+    'the app itself' => ['Redirect to /app failed', 'Redirect to /app failed'],
+    'a class in quotes' => ['Class "\App\Models\Customer" not found', 'Class "\App\Models\Customer" not found'],
+    'a class in brackets' => ['Target [\App\Contracts\Gateway] is not instantiable.', 'Target [\App\Contracts\Gateway] is not instantiable.'],
+    'a view' => ['View [app.customers.index] not found.', 'View [app.customers.index] not found.'],
+    'an address on the app domain' => ['See https://qistas.app/app/customers for details', 'See https://qistas.app/app/customers for details'],
+    'a frame in our code' => ['#0 /app/app/Http/Foo.php(12): Foo->bar()', '#0 app/Http/Foo.php(12): Foo->bar()'],
+    'a file in our code' => ['include(/app/app/Foo.php): Failed to open stream', 'include(app/Foo.php): Failed to open stream'],
+    'a log file' => ['Unable to read /app/storage/logs/laravel.log', 'Unable to read storage/logs/laravel.log'],
+    'a vendor file' => ['#3 /app/vendor/laravel/framework/src/Illuminate/Routing/Controller.php(54): x()', '#3 vendor/laravel/framework/src/Illuminate/Routing/Controller.php(54): x()'],
+    'a file at the root' => ['Cannot parse /app/composer.json now', 'Cannot parse composer.json now'],
+]);
 
 it('cuts a trace to 8192 bytes on a character boundary', function () {
     $trace = implode("\n", array_map(
@@ -390,14 +781,24 @@ it('cuts the file paths of a PHP trace and drops the arguments of every frame', 
     ]));
 });
 
+it('drops the arguments of a frame even when one of them has a line break', function () {
+    $trace = "#0 /var/www/site/web/app/Foo.php(12): Foo->bar('Ahmed\nAli', 'x')\n#1 /var/www/site/web/app/B.php(3): B->c(Array)\n#2 {main}";
+
+    expect(ErrorScrubber::trace($trace))->toBe("#0 app/Foo.php(12): Foo->bar()\n#1 app/B.php(3): B->c()\n#2 {main}");
+});
+
 it('cuts the project root whichever slash the path uses', function () {
     $root = base_path();
     $forward = str_replace('\\', '/', $root).'/app/Foo.php';
     $backward = str_replace('/', '\\', $root).'\\app\\Foo.php';
 
     expect(ErrorScrubber::trace("#0 {$forward}(12): Foo->bar()"))->toBe('#0 app/Foo.php(12): Foo->bar()')
-        ->and(ErrorScrubber::trace("#0 {$backward}(12): Foo->bar()"))->toBe('#0 app/Foo.php(12): Foo->bar()')
         ->and(ErrorScrubber::text("Cannot read {$forward}: denied"))->toBe('Cannot read app/Foo.php: denied');
+
+    // A backslash is a separator only in a Windows path (on a Unix server it is the namespace of a class).
+    if (preg_match('~^[A-Za-z]:~', $root) === 1) {
+        expect(ErrorScrubber::trace("#0 {$backward}(12): Foo->bar()"))->toBe('#0 app/Foo.php(12): Foo->bar()');
+    }
 });
 
 it('keeps the frames of a JavaScript or Dart trace and drops what rides on the address', function () {
@@ -439,32 +840,32 @@ it('reduces a route to its pattern', function (?string $route, ?string $expected
     'a mixed token' => ['/join/AbC123XyZ456AbC123XyZ', '/join/{id}'],
     'an e-mail address' => ['/unsubscribe/a@example.com', '/unsubscribe/[email]'],
     'a slug' => ['/blog/how-to-record-a-payment', '/blog/how-to-record-a-payment'],
+    'a push token with the id of the phone in front' => [
+        '/api/v1/push-tokens/dGVzdDp0b2tlbg:APA91bHun4MxP5egoKMwt2KZFBaFUH-1RYqx9z2LmZp0Vb7TrYw3NcJ8aDh5sFgHjK',
+        '/api/v1/push-tokens/{id}',
+    ],
+    'a push token, URL-encoded' => [
+        '/api/v1/push-tokens/dGVzdDp0b2tlbg%3AAPA91bHun4MxP5egoKMwt2KZFBaFUH-1RYqx9z2LmZp0Vb7TrYw3NcJ8aDh5sFgHjK',
+        '/api/v1/push-tokens/{id}',
+    ],
 ]);
 
 it('clamps every field of an event to the width of its column, after masking', function () {
     $event = ErrorScrubber::event(errorsEvent([
-        'source' => str_repeat('s', 40),
-        'kind' => str_repeat('k', 40),
         'class' => str_repeat('Z', 300),
         'message' => str_repeat('m', 900),
         'trace' => str_repeat("#0 app/Foo.php(12): Foo->bar()\n", 600),
         'method' => 'PROPPATCH',
         'route' => '/app/'.str_repeat('r', 300),
         'version' => str_repeat('v', 40),
-        'platform' => 'platformxx',
-        'device' => 'televisions',
     ]));
 
-    expect($event->source)->toHaveLength(16)
-        ->and($event->kind)->toHaveLength(16)
-        ->and($event->class)->toHaveLength(160)
+    expect($event->class)->toHaveLength(160)
         ->and(mb_strlen($event->message))->toBe(500)
         ->and(strlen($event->trace))->toBeLessThanOrEqual(8192)
         ->and($event->method)->toBe('PROPPATC')
         ->and($event->route)->toHaveLength(160)
-        ->and($event->version)->toHaveLength(16)
-        ->and($event->platform)->toBe('platform')
-        ->and($event->device)->toBe('televisi');
+        ->and($event->version)->toHaveLength(16);
 });
 
 it('clamps a 300 character class and route, and a 40 character version', function () {

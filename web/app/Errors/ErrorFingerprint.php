@@ -33,9 +33,6 @@ final class ErrorFingerprint
     /** More than any message that was scrubbed holds; a guard for a text that was not, so the patterns stay quick. */
     private const INPUT_MAX = 8192;
 
-    /** Where in a text a statement starts, so a double quote after it is read as a name and not as a string. */
-    private const SQL_START = '~\b(?:select\s+(?:\*|distinct\b|["`\w.]+\s*(?:,|\bfrom\b|\())|insert\s+into\s+["`\w]|update\s+["`]?[\w.]+["`]?\s+set\b|delete\s+from\s+["`\w]|with\s+["`]?\w+["`]?\s+as\s*\()~iu';
-
     /** The words of the error pages the site shows and the statuses the API answers. */
     private const STATUS_TEXT = [
         403 => 'Forbidden',
@@ -107,7 +104,7 @@ final class ErrorFingerprint
     public static function normalise(string $message, int $max = self::MESSAGE_CUT): string
     {
         $text = mb_strcut(mb_scrub($message, 'UTF-8'), 0, self::INPUT_MAX, 'UTF-8');
-        $isStatement = preg_match(self::SQL_START, $text) === 1;
+        $isStatement = SqlMasker::looksLikeStatement($text);
 
         // A quote opens after something that is not a letter and closes before something that is not a letter, so the
         // apostrophe in "can't" or "user's" is only an apostrophe. A quote written twice is one inside a string.

@@ -30,10 +30,23 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Bindings in exception messages
+    |--------------------------------------------------------------------------
+    |
+    | A failed query's exception message would carry the value of every binding (a name, a phone number, an e-mail
+    | address) into the log, the error center and the e-mails about it. Each connection below has
+    | `mask_bindings_in_exception_messages` on, so the message keeps the SQL with its `?` and nothing else. The error
+    | center's scrubber would mask the values too, but the best place to keep them out is where the message is made.
+    |
+    */
+
     'connections' => [
 
         'sqlite' => [
             'driver' => 'sqlite',
+            'mask_bindings_in_exception_messages' => true,
             'url' => env('DB_URL'),
             'database' => env('DB_DATABASE', database_path('database.sqlite')),
             'prefix' => '',
@@ -46,6 +59,7 @@ return [
 
         'mysql' => [
             'driver' => 'mysql',
+            'mask_bindings_in_exception_messages' => true,
             'url' => env('DB_URL'),
             'host' => env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '3306'),
@@ -66,6 +80,7 @@ return [
 
         'mariadb' => [
             'driver' => 'mariadb',
+            'mask_bindings_in_exception_messages' => true,
             'url' => env('DB_URL'),
             'host' => env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '3306'),
@@ -86,6 +101,7 @@ return [
 
         'pgsql' => [
             'driver' => 'pgsql',
+            'mask_bindings_in_exception_messages' => true,
             'url' => env('DB_URL'),
             'host' => env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '5432'),
@@ -104,6 +120,7 @@ return [
 
         'sqlsrv' => [
             'driver' => 'sqlsrv',
+            'mask_bindings_in_exception_messages' => true,
             'url' => env('DB_URL'),
             'host' => env('DB_HOST', 'localhost'),
             'port' => env('DB_PORT', '1433'),
