@@ -61,6 +61,39 @@ function errorsFingerprintSlowQuery(string $sql): ErrorEvent
     ]);
 }
 
+/**
+ * The scrubbed trace of an exception thrown directly inside a controller method: the framework calls the method, so the
+ * file of the frame is vendor and OUR code is only in the function column. The innermost frame in a file under app/ is a
+ * middleware that every request passes through.
+ */
+function errorsFingerprintControllerTrace(string $controller, string $method = 'store', int $line = 46): string
+{
+    return implode("\n", [
+        "#0 vendor/laravel/framework/src/Illuminate/Routing/ControllerDispatcher.php({$line}): App\\Http\\Controllers\\{$controller}->{$method}()",
+        '#1 vendor/laravel/framework/src/Illuminate/Routing/Route.php(265): Illuminate\\Routing\\ControllerDispatcher->dispatch()',
+        '#2 vendor/laravel/framework/src/Illuminate/Routing/Route.php(211): Illuminate\\Routing\\Route->runController()',
+        '#3 vendor/laravel/framework/src/Illuminate/Routing/Router.php(822): Illuminate\\Routing\\Route->run()',
+        '#4 vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(180): Illuminate\\Routing\\Router->Illuminate\\Routing\\{closure}()',
+        '#5 app/Http/Middleware/ReadOnlyWhileDeleting.php(29): Illuminate\\Pipeline\\Pipeline->Illuminate\\Pipeline\\{closure}()',
+        '#6 vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(180): App\\Http\\Middleware\\ReadOnlyWhileDeleting->handle()',
+        '#7 {main}',
+    ]);
+}
+
+/** The scrubbed trace of a queued job (or a command, or a listener) whose handle() throws: the same shape, from the container. */
+function errorsFingerprintJobTrace(string $class, int $line = 36): string
+{
+    return implode("\n", [
+        "#0 vendor/laravel/framework/src/Illuminate/Container/BoundMethod.php({$line}): {$class}->handle()",
+        '#1 vendor/laravel/framework/src/Illuminate/Container/Util.php(43): Illuminate\\Container\\BoundMethod::{closure:Illuminate\\Container\\BoundMethod::call()',
+        '#2 vendor/laravel/framework/src/Illuminate/Container/BoundMethod.php(96): Illuminate\\Container\\Util::unwrapIfClosure()',
+        '#3 vendor/laravel/framework/src/Illuminate/Container/BoundMethod.php(35): Illuminate\\Container\\BoundMethod::callBoundMethod()',
+        '#4 vendor/laravel/framework/src/Illuminate/Container/Container.php(803): Illuminate\\Container\\BoundMethod::call()',
+        '#5 vendor/laravel/framework/src/Illuminate/Bus/Dispatcher.php(136): Illuminate\\Container\\Container->call()',
+        '#6 {main}',
+    ]);
+}
+
 // ---- normalise ------------------------------------------------------------------------------------------------------
 
 dataset('errors fingerprint messages', [
@@ -118,6 +151,22 @@ dataset('errors fingerprint messages', [
     'a list of numbers is one number' => [
         'select * from "customers" where "id" in (4, 5, 6) and "x" = 9',
         'select * from "customers" where "id" in (<n>) and "x" = <n>',
+    ],
+    'a bulk insert of three rows is one row' => [
+        'insert into "payments" ("a", "ref") values (?, ?), (?, ?), (?, ?)',
+        'insert into "payments" ("a", "ref") values (?)',
+    ],
+    'a bulk insert of one row is the same row' => [
+        'insert into "payments" ("a", "ref") values (?, ?)',
+        'insert into "payments" ("a", "ref") values (?)',
+    ],
+    'a bulk insert of single values' => [
+        'insert into "tags" ("name") values (?), (?), (?), (?)',
+        'insert into "tags" ("name") values (?)',
+    ],
+    'a bulk insert of numbers' => [
+        'insert into "t" ("a", "b") values (1, 2), (3, 4)',
+        'insert into "t" ("a", "b") values (<n>)',
     ],
 
     // masks and whitespace
@@ -255,6 +304,37 @@ it('is stable across a deploy even when the top frame is a closure, which PHP 8.
         ->and(ErrorFingerprint::topFrame($before->trace, 'server'))->toBe('app/Foo.php::App\\Foo->{closure}');
 });
 
+it('is stable across a deploy for a closure of the top level, after the scrubber has cut the paths', function () {
+    $root = str_replace('\\', '/', base_path());
+    $scrubbed = fn (int $line) => ErrorScrubber::event(errorsFingerprintEvent([
+        'trace' => "#0 {$root}/app/Foo.php({$line}): App\\Foo->{closure:{$root}/app/Foo.php:{$line}}()\n#1 {main}",
+    ]));
+
+    expect($scrubbed(12)->trace)->toBe("#0 app/Foo.php(12): App\\Foo->{closure:app/Foo.php:12}()\n#1 {main}")
+        ->and(ErrorFingerprint::topFrame($scrubbed(12)->trace, 'server'))->toBe('app/Foo.php::App\\Foo->{closure}')
+        ->and(ErrorFingerprint::of($scrubbed(12)))->toBe(ErrorFingerprint::of($scrubbed(99)));
+});
+
+it('is stable across a build: a hash with a hyphen in it is still a hash', function () {
+    $script = fn (string $file) => errorsFingerprintEvent([
+        'source' => 'site', 'kind' => 'script', 'class' => 'TypeError', 'message' => 'x is undefined', 'platform' => 'web',
+        'trace' => "TypeError: x is undefined\n    at render (https://qistas.app/build/assets/{$file}:1:2345)",
+    ]);
+
+    expect(ErrorFingerprint::of($script('app-D-yac90l.js')))->toBe(ErrorFingerprint::of($script('app-k5V7fBI0.js')))
+        ->and(ErrorFingerprint::of($script('app--yKEDEoH.js')))->toBe(ErrorFingerprint::of($script('app-k5V7fBI0.js')));
+});
+
+it('is stable across the number of rows of a bulk insert', function () {
+    $insert = fn (string $rows) => ErrorScrubber::event(errorsFingerprintEvent([
+        'source' => 'database',
+        'class' => 'Illuminate\\Database\\QueryException',
+        'message' => 'SQLSTATE[23000]: Integrity constraint violation: 19 UNIQUE constraint failed: payments.ref (Connection: sqlite, SQL: insert into "payments" ("a", "ref") values '.$rows.')',
+    ]));
+
+    expect(ErrorFingerprint::of($insert('(1, X1)')))->toBe(ErrorFingerprint::of($insert('(1, X1), (2, X2), (3, X3)')));
+});
+
 it('does not let the line of an anonymous class split an issue', function () {
     $a = errorsFingerprintEvent(['class' => 'Illuminate\\Foo@anonymousapp/Support/Thing.php:12$0']);
     $b = errorsFingerprintEvent(['class' => 'Illuminate\\Foo@anonymousapp/Support/Thing.php:48$0']);
@@ -356,6 +436,33 @@ it('fingerprints a script error and a phone crash by their own frames', function
         ->and(ErrorFingerprint::of($script('Bx9a2c')))->not->toBe(ErrorFingerprint::of($crash(12)));
 });
 
+it('reads at most 8192 bytes of a message, so a report of a megabyte costs what one of 8 KB costs', function () {
+    // A megabyte of blanks and then a word: the 8192 bytes that are read are all blanks, so nothing is left. Read whole, the
+    // word would be the message.
+    $started = hrtime(true);
+    $fingerprint = ErrorFingerprint::of(errorsFingerprintEvent(['message' => str_repeat(' ', 1024 * 1024).'tail']));
+    $seconds = (hrtime(true) - $started) / 1e9;
+
+    expect($fingerprint)->toBe(sha1('site|exception|RuntimeException||app/Foo.php::Foo->bar'))
+        ->and($seconds)->toBeLessThan(0.5)
+        ->and(ErrorFingerprint::normalise(str_repeat(' ', 9000).'tail'))->toBe('')
+        ->and(ErrorFingerprint::normalise(str_repeat(' ', 8000).'tail'))->toBe('tail');
+});
+
+it('reads at most the first 8192 bytes of a trace, however many lines it has', function () {
+    // 100 000 lines of vendor frames and, a megabyte further on, a frame of ours. The scrubber keeps 8 KB of a trace, so
+    // nothing real is longer; a trace that is reads no further than that.
+    $trace = implode("\n", array_fill(0, 100000, '#0 vendor/x/Y.php(1): Y->z()'))."\n#1 app/Foo.php(1): Foo->bar()";
+
+    $started = hrtime(true);
+    $fingerprint = ErrorFingerprint::of(errorsFingerprintEvent(['trace' => $trace]));
+    $seconds = (hrtime(true) - $started) / 1e9;
+
+    expect($fingerprint)->toBe(sha1('site|exception|RuntimeException|Something broke|-'))
+        ->and($seconds)->toBeLessThan(0.5)
+        ->and(ErrorFingerprint::topFrame("#0 vendor/x/Y.php(1): Y->z()\n#1 app/Foo.php(1): Foo->bar()", 'server'))->toBe('app/Foo.php::Foo->bar');
+});
+
 // ---- topFrame -------------------------------------------------------------------------------------------------------
 
 dataset('errors fingerprint frames', [
@@ -387,6 +494,63 @@ dataset('errors fingerprint frames', [
         'server',
         'app/Foo.php::App\\Foo->App\\{closure}',
     ],
+    'a closure of the top level, the shape that reaches the fold' => [
+        '#0 app/Foo.php(12): App\\Foo->{closure:app/Foo.php:12}()',
+        'server',
+        'app/Foo.php::App\\Foo->{closure}',
+    ],
+
+    // PHP: our code in the function column, called by vendor code (a controller, a job, a command, a view)
+    'a controller method called by the framework' => [
+        errorsFingerprintControllerTrace('PaymentController'),
+        'server',
+        'App\\Http\\Controllers\\PaymentController->store',
+    ],
+    'a job whose handle() throws' => [
+        errorsFingerprintJobTrace('App\\Jobs\\SendReminder'),
+        'server',
+        'App\\Jobs\\SendReminder->handle',
+    ],
+    'a command whose handle() throws' => [
+        errorsFingerprintJobTrace('App\\Console\\Commands\\PruneThings'),
+        'server',
+        'App\\Console\\Commands\\PruneThings->handle',
+    ],
+    'a middleware that throws' => [
+        '#0 vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(180): App\\Http\\Middleware\\ReadOnlyWhileDeleting->handle()',
+        'server',
+        'App\\Http\\Middleware\\ReadOnlyWhileDeleting->handle',
+    ],
+    'a model method called from a compiled view' => [
+        "#0 storage/framework/views/9f8e7d6c5b4a3210.php(12): App\\Models\\Customer->displayName()\n#1 vendor/laravel/framework/src/Illuminate/Filesystem/Filesystem.php(123): require()",
+        'server',
+        'App\\Models\\Customer->displayName',
+    ],
+    'a listener called from no file' => [
+        "#0 [internal function]: App\\Listeners\\SendWelcome->handle()\n#1 vendor/laravel/framework/src/Illuminate/Events/Dispatcher.php(458): call_user_func_array()",
+        'server',
+        'App\\Listeners\\SendWelcome->handle',
+    ],
+    'a static call of ours from vendor code' => [
+        '#0 vendor/laravel/framework/src/Illuminate/Support/Collection.php(10): App\\Support\\Money::sum()',
+        'server',
+        'App\\Support\\Money::sum',
+    ],
+    'the first frame of ours wins, in a file under app/' => [
+        "#0 app/Actions/Y.php(10): App\\Actions\\Z->run()\n#1 vendor/laravel/framework/src/Illuminate/Routing/ControllerDispatcher.php(46): App\\Http\\Controllers\\X->store()",
+        'server',
+        'app/Actions/Y.php::App\\Actions\\Z->run',
+    ],
+    'the first frame of ours wins, in the function column' => [
+        "#0 vendor/laravel/framework/src/Illuminate/Routing/ControllerDispatcher.php(46): App\\Http\\Controllers\\X->store()\n#1 app/Http/Middleware/Y.php(29): Illuminate\\Pipeline\\Pipeline->Illuminate\\Pipeline\\{closure}()",
+        'server',
+        'App\\Http\\Controllers\\X->store',
+    ],
+    'a function that only starts like App is not ours' => [
+        "#0 vendor/x/Y.php(1): Appendix\\Foo->bar()\n#1 vendor/x/Y.php(2): Application\\Foo->bar()\n#2 vendor/x/Y.php(3): app_helper()",
+        'server',
+        '-',
+    ],
     'a trace with no frame of ours' => ["#0 vendor/x/Y.php(1): Y->z()\n#1 [internal function]: A->b()\n#2 {main}", 'server', '-'],
     'a folder that only starts like ours' => ["#0 appendix/Foo.php(1): Foo->bar()\n#1 vendor/app/Foo.php(2): Foo->baz()", 'server', '-'],
     'an empty trace' => ['', 'server', '-'],
@@ -411,6 +575,26 @@ dataset('errors fingerprint frames', [
     'an older hash written with a dot' => ['    at go (https://qistas.app/js/app.3f2a9c1b.js:5:6)', 'web', 'app.js::go'],
     'a hash after a hyphenated name' => ['    at go (https://qistas.app/build/assets/pay-day-Bx9a2c.js:5:6)', 'web', 'pay-day.js::go'],
     'a hyphenated name that is not a hash' => ['    at send (https://qistas.app/build/assets/error-report.js:3:4)', 'web', 'error-report.js::send'],
+    'a hash with a hyphen in its second character' => ['    at go (https://qistas.app/build/assets/app-s-F4Y31w.js:5:6)', 'web', 'app.js::go'],
+    'a hash that starts with a hyphen' => ['    at go (https://qistas.app/build/assets/app--yKEDEoH.js:5:6)', 'web', 'app.js::go'],
+    'a hash with a hyphen after a hyphenated name' => ['    at go (https://qistas.app/build/assets/pay-day-D-yac90l.js:5:6)', 'web', 'pay-day.js::go'],
+    'a word of eight letters is not a hash' => ['    at go (https://qistas.app/build/assets/app-handlers.js:5:6)', 'web', 'app-handlers.js::go'],
+    'a frame of a Chrome extension is passed over' => [
+        "TypeError: x is undefined\n    at inject (chrome-extension://abcdefghijklmnopabcdefghijklmnop/content.js:1:2)\n    at render (https://qistas.app/build/assets/app-Bx9a2c.js:1:2)",
+        'web',
+        'app.js::render',
+    ],
+    'a frame of a Firefox extension is passed over' => [
+        "inject@moz-extension://1b2c3d4e-0000-4000-8000-123456789abc/content.js:1:2\nrender@https://qistas.app/build/assets/app-Bx9a2c.js:1:2",
+        'web',
+        'app.js::render',
+    ],
+    'a frame of a Safari extension is passed over' => [
+        "inject@safari-web-extension://ABCD-1234/content.js:1:2\nrender@https://qistas.app/build/assets/app-Bx9a2c.js:1:2",
+        'web',
+        'app.js::render',
+    ],
+    'a script trace with only an extension frame' => ['    at inject (chrome-extension://abcdefghijklmnop/content.js:1:2)', 'web', '-'],
     'frames that are not scripts are passed over' => [
         implode("\n", [
             'TypeError: x is undefined',
@@ -451,6 +635,30 @@ dataset('errors fingerprint frames', [
 it('finds the top frame of our own code', function (string $trace, string $platform, string $expected) {
     expect(ErrorFingerprint::topFrame($trace, $platform))->toBe($expected);
 })->with('errors fingerprint frames');
+
+it('keeps two controllers that throw the same message apart, and one controller at two lines together', function () {
+    $message = 'Call to a member function format() on null';
+    $payments = errorsFingerprintEvent(['message' => $message, 'trace' => errorsFingerprintControllerTrace('PaymentController')]);
+    $contracts = errorsFingerprintEvent(['message' => $message, 'trace' => errorsFingerprintControllerTrace('ContractController')]);
+    $other = errorsFingerprintEvent(['message' => $message, 'trace' => errorsFingerprintControllerTrace('PaymentController', 'update')]);
+    $later = errorsFingerprintEvent(['message' => $message, 'trace' => errorsFingerprintControllerTrace('PaymentController', 'store', 48)]);
+
+    expect(ErrorFingerprint::of($payments))->not->toBe(ErrorFingerprint::of($contracts))
+        ->and(ErrorFingerprint::of($payments))->not->toBe(ErrorFingerprint::of($other))
+        ->and(ErrorFingerprint::of($payments))->toBe(ErrorFingerprint::of($later));
+});
+
+it('keeps two jobs, two commands and a job and a command that throw the same message apart', function () {
+    $message = 'Call to a member function format() on null';
+    $fingerprints = array_map(
+        fn (string $class): string => ErrorFingerprint::of(errorsFingerprintEvent(['message' => $message, 'trace' => errorsFingerprintJobTrace($class)])),
+        ['App\\Jobs\\SendReminder', 'App\\Jobs\\SendReceipt', 'App\\Console\\Commands\\PruneThings'],
+    );
+    $later = ErrorFingerprint::of(errorsFingerprintEvent(['message' => $message, 'trace' => errorsFingerprintJobTrace('App\\Jobs\\SendReminder', 41)]));
+
+    expect(array_unique($fingerprints))->toHaveCount(3)
+        ->and($later)->toBe($fingerprints[0]);
+});
 
 it('cuts a top frame that is absurdly long', function () {
     $frame = ErrorFingerprint::topFrame('#0 app/Foo.php(1): '.str_repeat('A', 5000).'->bar()', 'server');
@@ -573,6 +781,21 @@ it('reduces a pattern to itself', function () {
 
 it('keeps a very long path within the width of the route column', function () {
     expect(mb_strlen(ErrorFingerprint::routePattern('/'.str_repeat('segment/', 100))))->toBeLessThanOrEqual(ErrorScrubber::ROUTE_MAX);
+});
+
+it('reads a hostile path in no time: a path built to make the query pattern quadratic is cut before it is read', function () {
+    $started = hrtime(true);
+    $pattern = ErrorFingerprint::routePattern('/'.str_repeat('?', 65000).'}');
+    $seconds = (hrtime(true) - $started) / 1e9;
+
+    expect($seconds)->toBeLessThan(0.3)
+        ->and(mb_strlen($pattern))->toBeLessThanOrEqual(ErrorScrubber::ROUTE_MAX);
+});
+
+it('reads at most 8192 bytes of a path', function () {
+    // The ? of an optional parameter is only one while the closing brace is in view; the brace is 9000 bytes away.
+    expect(ErrorFingerprint::routePattern('/a/{b?'.str_repeat('x', 9000).'}'))->toBe('/a/{b')
+        ->and(ErrorFingerprint::routePattern('/a/{b?'.str_repeat('x', 100).'}'))->toStartWith('/a/{b?xxxx');
 });
 
 // ---- isScannerPath --------------------------------------------------------------------------------------------------

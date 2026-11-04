@@ -125,6 +125,8 @@ final class ErrorFingerprint
 
         $text = trim(self::rx('~\s+~u', ' ', $text));
         $text = self::rx('~(\?|<n>|<id>|<hex>)(?:\s*,\s*\1)+~u', '$1', $text);
+        // A bulk insert is one statement whatever its number of rows: `values (?), (?), (?)` is `values (?)`.
+        $text = self::rx('~\((\?|<n>|<id>|<hex>)\)(?:\s*,\s*\(\1\))+~u', '($1)', $text);
 
         return self::cut($text, $max);
     }
@@ -157,10 +159,15 @@ final class ErrorFingerprint
      * The pattern of a path that no route matched, for an error page and for the scanner check: no query string, no
      * fragment, an id (a uuid, a ulid, a hash, a long token) becomes `{id}`, a number `{n}`, and a leading slash is
      * always there. A parameter such as `{customer}` is kept as it is. Cut to the width of the route column.
+     *
+     * Where the scrubber's `route()` writes `{id}` for a number, this writes `{n}`: the recorder calls this on the path
+     * of an unmatched 404 BEFORE it builds the event, and the event's own route (a matched route's pattern) goes through
+     * the scrubber, so each kind of route is stable within itself and the two never have to be equal.
      */
     public static function routePattern(string $path): string
     {
-        $path = '/'.ltrim(mb_scrub($path, 'UTF-8'), '/');
+        // Read no more than a path can be (the lookahead of the query pattern below is quadratic on a hostile one).
+        $path = '/'.ltrim(mb_strcut(mb_scrub($path, 'UTF-8'), 0, self::INPUT_MAX, 'UTF-8'), '/');
         $path = self::rx('~\?(?![^{]*\})[\s\S]*$~u', '', $path);
         $path = self::rx('~#[\s\S]*$~u', '', $path);
 
@@ -202,7 +209,16 @@ final class ErrorFingerprint
 
     // ---- frames ------------------------------------------------------------------------------------------------
 
-    /** `#1 app/Actions/Pay.php(48): App\Actions\Pay->handle()` is `app/Actions/Pay.php::App\Actions\Pay->handle`. */
+    /**
+     * A frame names the file the call was made FROM and the function that was called. Ours is found two ways, whichever
+     * comes first in the trace:
+     * - the call was made from a file under app/: `#1 app/Actions/Pay.php(48): App\Actions\Pay->handle()` is
+     *   `app/Actions/Pay.php::App\Actions\Pay->handle`;
+     * - the call was made by the framework, so the file is vendor's (or a compiled view, or none) and ours is only the
+     *   function: `#0 vendor/.../ControllerDispatcher.php(46): App\Http\Controllers\X->store()` is
+     *   `App\Http\Controllers\X->store`. An exception thrown directly in a controller, a job, a command, a listener or a
+     *   middleware looks like this, and without it two controllers would share the middleware that calls them all.
+     */
     private static function phpFrame(string $trace): ?string
     {
         // PHP 8.4 names a closure with the line it is on ({closure:App\Foo::bar():12}), and one inside another inside
@@ -213,8 +229,20 @@ final class ErrorFingerprint
         } while ($trace !== $before);
 
         foreach (self::lines($trace) as $line) {
-            if (preg_match('~^#\d+\s+(app/[^\s(]+?\.php)(?:\(\d+\))?:\s+([^\s(]+)\(~u', $line, $found) === 1) {
-                return $found[1].'::'.$found[2];
+            if (preg_match('~^#\d+\s+(?<file>[^\s(]+?\.php)(?:\(\d+\))?:\s+(?<function>[^\s(]+)\(~u', $line, $found) === 1) {
+                $file = $found['file'];
+            } elseif (preg_match('~^#\d+\s+\[internal function\]:\s+(?<function>[^\s(]+)\(~u', $line, $found) === 1) {
+                $file = '';
+            } else {
+                continue;
+            }
+
+            if (str_starts_with($file, 'app/')) {
+                return $file.'::'.$found['function'];
+            }
+
+            if (str_starts_with($found['function'], 'App\\')) {
+                return $found['function'];
             }
         }
 
@@ -235,6 +263,11 @@ final class ErrorFingerprint
                 $function = $found['function'];
                 $url = $found['url'];
             } else {
+                continue;
+            }
+
+            // A browser extension's script is not ours, and an error in it is not either.
+            if (preg_match('~^(?:chrome|moz|safari|safari-web|ms-browser)-extension:~i', $url) === 1) {
                 continue;
             }
 
@@ -275,16 +308,20 @@ final class ErrorFingerprint
 
     /**
      * A build puts a hash in the name of a file (`app-Bx9a2c.js`, `app.3f2a9c1b.js`). A word before the extension is not a
-     * hash (`error-report.js`): a hash has a digit in it, or both kinds of letters.
+     * hash (`error-report.js`): a hash has a digit in it, or both kinds of letters. Vite's hash is eight characters of
+     * letters, digits, `_` and `-`, and may have a `-` in it (`app-s-F4Y31w.js`, `app--yKEDEoH.js`), so eight characters
+     * are tried first, then any run of 6 to 16.
      */
     private static function unhashed(string $file): string
     {
-        return self::rxCallback('~^(.+)[-.]([A-Za-z0-9_-]{6,16})(\.[A-Za-z]+)$~u', static function (array $found): string {
-            $hash = $found[2];
-            $isHash = preg_match('~\d~', $hash) === 1 || (preg_match('~[a-z]~', $hash) === 1 && preg_match('~[A-Z]~', $hash) === 1);
+        foreach (['~^(.+)[-.]([A-Za-z0-9_-]{8})(\.[A-Za-z]+)$~u', '~^(.+)[-.]([A-Za-z0-9_-]{6,16})(\.[A-Za-z]+)$~u'] as $pattern) {
+            if (preg_match($pattern, $file, $found) === 1
+                && (preg_match('~\d~', $found[2]) === 1 || (preg_match('~[a-z]~', $found[2]) === 1 && preg_match('~[A-Z]~', $found[2]) === 1))) {
+                return $found[1].$found[3];
+            }
+        }
 
-            return $isHash ? $found[1].$found[3] : $found[0];
-        }, $file);
+        return $file;
     }
 
     /** `Object.render`, `async render`, `render/<` and Firefox's plain `render` are one function. */
@@ -326,11 +363,5 @@ final class ErrorFingerprint
     private static function rx(string $pattern, string $replacement, string $subject): string
     {
         return preg_replace($pattern, $replacement, $subject) ?? $subject;
-    }
-
-    /** @param  callable(array<int|string, string>): string  $callback */
-    private static function rxCallback(string $pattern, callable $callback, string $subject): string
-    {
-        return preg_replace_callback($pattern, $callback, $subject) ?? $subject;
     }
 }
