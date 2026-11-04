@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BackupController;
 use App\Http\Controllers\Api\V1\BillingController;
 use App\Http\Controllers\Api\V1\BusinessProfileController;
+use App\Http\Controllers\Api\V1\ClientErrorController;
 use App\Http\Controllers\Api\V1\ContractController;
 use App\Http\Controllers\Api\V1\ContractPhotoController;
 use App\Http\Controllers\Api\V1\CustomerController;
@@ -41,6 +42,8 @@ use App\Http\Controllers\Api\V1\TokenController;
 use App\Http\Controllers\Api\V1\ToolsController;
 use App\Http\Controllers\Api\V1\WorkspaceSecurityController;
 use App\Http\Controllers\Api\V1\WorkspaceSetupController;
+use App\Http\Middleware\GuardClientReport;
+use App\Http\Middleware\SetApiLocale;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -56,6 +59,13 @@ Route::name('api.')->group(function (): void {
     Route::get('appearance', AppearanceController::class)->middleware('throttle:api-public')->name('appearance');
     Route::post('auth/register', [AuthController::class, 'register'])->middleware('throttle:api-register')->name('auth.register');
     Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttle:api-login')->name('auth.login');
+    // Crashes the phone app reports to the error center (design section 9): an app token or none (a crash on the sign-in
+    // screen matters), so it is outside the sign-in group and the token is only looked at, to count the person. No language
+    // lookup either: that needs the database, and a report is answered even while it is away.
+    Route::post('client-errors', [ClientErrorController::class, 'store'])
+        ->withoutMiddleware(SetApiLocale::class)
+        ->middleware(['throttle:client-errors-api', GuardClientReport::class.':app'])
+        ->name('client-errors.store');
 
     Route::middleware(['auth:sanctum', 'account.active', 'tenant', 'deleting', 'throttle:api'])->group(function (): void {
         Route::post('auth/logout', [AuthController::class, 'logout'])->name('auth.logout');

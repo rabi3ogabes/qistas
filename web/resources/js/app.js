@@ -12,6 +12,10 @@ import { initWelcomeBanners } from './banner';
 import { registerServiceWorker } from './install';
 import { initForms } from './forms';
 import { initTimezone } from './timezone';
+import { initErrorReporting } from './error-report';
+
+// Before the rest of this file runs, so an error in it is reported too: the page's own script errors go to the error center.
+initErrorReporting(window);
 
 window.Alpine = Alpine;
 Alpine.data('planCalculator', planCalculator);

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\BrandAssetController;
+use App\Http\Controllers\ClientErrorController;
 use App\Http\Controllers\DocumentVerificationController;
 use App\Http\Controllers\ExportFileController;
 use App\Http\Controllers\FileBlobController;
@@ -14,7 +15,10 @@ use App\Http\Controllers\SiteController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\StatusController;
 use App\Http\Controllers\ThemeCssController;
+use App\Http\Middleware\GuardClientReport;
+use App\Http\Middleware\KeepStaffOutOfTwoFactor;
 use App\Http\Middleware\PreventDuplicateSubmissions;
+use App\Http\Middleware\SetLocale;
 use App\Site\SitePages;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Session\Middleware\StartSession;
@@ -65,6 +69,16 @@ Route::withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, Pr
         // A brand picture chosen in the admin: its address never changes, so it can be cached for good.
         Route::get('/brand-assets/{asset}', BrandAssetController::class)->whereUuid('asset')->name('brand.asset');
     });
+
+// What the website's own scripts tell the error center about their errors (design section 9). The same cookie-less
+// pattern: no session, so no cookie and no forgery token. Nothing is read from a signed-in person either, so the language,
+// the two-factor guard and the duplicate-submission guard have nothing to do, and a database that is away cannot stop
+// the answer. GuardClientReport (origin, size, JSON only) and the throttle decide who may post.
+Route::withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, PreventRequestForgery::class, PreventDuplicateSubmissions::class, SetLocale::class, KeepStaffOutOfTwoFactor::class])
+    ->post('/client-errors', [ClientErrorController::class, 'store'])
+    ->middleware(['throttle:client-errors', GuardClientReport::class.':site'])
+    ->name('client-errors.store');
+
 // The web app, installable from the browser (Win Plan PL04).
 Route::get('/manifest.webmanifest', ManifestController::class)->name('manifest');
 

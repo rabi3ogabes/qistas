@@ -88,6 +88,10 @@ return Application::configure(basePath: dirname(__DIR__))
             EnsurePlatformAdmin::class,
         ]);
 
+        // The website's scripts report their errors to the error center without a session, so without a token. The route
+        // also runs without the forgery check at all (routes/web.php); this keeps it exempt if it ever runs with it.
+        $middleware->preventRequestForgery(except: ['client-errors']);
+
         // The workspace must be known before route-model binding, or another workspace's ids would resolve.
         $middleware->prependToPriorityList(before: SubstituteBindings::class, prepend: SetCurrentTenant::class);
         // ...and a suspended account is told so before its workspace is looked for.

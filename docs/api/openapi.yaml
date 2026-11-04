@@ -138,6 +138,36 @@ paths:
                   data: {$ref: "#/components/schemas/Session"}
         "422": {$ref: "#/components/responses/ValidationFailed"}
         "429": {$ref: "#/components/responses/RateLimited"}
+  /client-errors:
+    post:
+      tags: [Account]
+      summary: Report a crash (error center)
+      description: |
+        The app tells the server about an uncaught Dart error or a Flutter framework error. No token is needed (a crash on
+        the sign-in screen matters); with an app token the report counts one more person on the issue (only a short hash of
+        the id is kept). A report of the right shape is always answered `204`; a refusal is the status alone. At most 30 reports
+        a minute per token, or per address without one. Only `class` and `os` are required.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [class, os]
+              properties:
+                class: {type: string, maxLength: 160}
+                message: {type: string, maxLength: 500}
+                trace: {type: string, maxLength: 8000, description: Scrubbed by the app and again by the server.}
+                version: {type: string, maxLength: 16}
+                os: {type: string, enum: [android, ios]}
+                os_version: {type: string, maxLength: 24, description: Read and not kept.}
+                device: {type: string, enum: [phone, tablet]}
+      responses:
+        "204": {description: Taken (or dropped without a word when the platform's budget of new client issues is used up).}
+        "413": {description: The body is over 16 KB.}
+        "422": {description: A field is missing, too long, or not one of the allowed words.}
+        "429": {description: Too many reports. Wait `Retry-After` seconds.}
   /auth/login:
     post:
       tags: [Account]
