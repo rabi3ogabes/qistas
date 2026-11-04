@@ -183,24 +183,24 @@ final class ErrorFingerprint
     }
 
     /**
-     * Is this the path of a request only a scanner makes (`/.env`, `/wp-login.php`, `/x.sql`)? The patterns are the
-     * config list `qistas.errors.scanner_paths`, written against a path that starts with a slash and has no query
-     * string; `Request::path()` has neither, so both are put right here. A pattern that does not compile is skipped.
+     * Is this the path of a request that is noise: one only a scanner makes (`/.env`, `/wp-login.php`, `/x.sql`), or one a
+     * browser makes by itself for a file the site does not have (`/apple-touch-icon.png`, `/.well-known/...`)? The
+     * patterns are the config lists `qistas.errors.scanner_paths` and `qistas.errors.browser_noise_paths`, written against
+     * a path that starts with a slash and has no query string; `Request::path()` has neither, so both are put right here.
+     * A pattern that does not compile, or a list that is not one, is skipped.
      */
     public static function isScannerPath(string $path): bool
     {
-        $patterns = config('qistas.errors.scanner_paths');
-
-        if (! is_array($patterns)) {
-            return false;
-        }
-
         $path = (string) preg_replace('~[?#].*$~s', '', $path);
         $path = '/'.ltrim(rawurldecode($path), '/');
 
-        foreach ($patterns as $pattern) {
-            if (is_string($pattern) && $pattern !== '' && @preg_match($pattern, $path) === 1) {
-                return true;
+        foreach (['qistas.errors.scanner_paths', 'qistas.errors.browser_noise_paths'] as $list) {
+            $patterns = config($list);
+
+            foreach (is_array($patterns) ? $patterns : [] as $pattern) {
+                if (is_string($pattern) && $pattern !== '' && @preg_match($pattern, $path) === 1) {
+                    return true;
+                }
             }
         }
 

@@ -11,6 +11,7 @@ use App\Models\ErrorIssue;
 use App\Models\ErrorOccurrence;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Database\Events\TransactionBeginning;
 use Illuminate\Database\SQLiteConnection;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Cache;
@@ -941,6 +942,26 @@ it('a stored occurrence holds no personal data', function () {
 });
 
 // ---- noise ---------------------------------------------------------------------------------------------------------
+
+it('noise() is one statement, with no transaction around it, whether the day\'s row is there or not', function () {
+    $statements = [];
+    DB::listen(function (QueryExecuted $query) use (&$statements): void {
+        $statements[] = $query->sql;
+    });
+    $level = DB::transactionLevel();
+    $began = 0;
+    Event::listen(TransactionBeginning::class, function () use (&$began): void {
+        $began++;
+    });
+
+    app(ErrorRecorder::class)->noise('scanner'); // the first of the day: the row is made
+    app(ErrorRecorder::class)->noise('scanner', null, 4); // then it is added to
+
+    expect($statements)->toHaveCount(2)
+        ->and($began)->toBe(0)
+        ->and(DB::transactionLevel())->toBe($level)
+        ->and(DB::table('error_noise_days')->where('kind', 'scanner')->sole()->count)->toBe(5);
+});
 
 it('noise() counts per day and kind, and leaves alone what it does not know', function () {
     $recorder = app(ErrorRecorder::class);

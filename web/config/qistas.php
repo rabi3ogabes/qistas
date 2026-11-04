@@ -123,23 +123,49 @@ return [
     | Sample occurrences are kept occurrence_days; an issue is kept issue_days after it was last seen (a resolved or
     | ignored one 30 days). Read when `qistas:errors:prune` runs. Whole numbers of days, at least 1.
     |
-    | scanner_paths: case-insensitive patterns for the paths only a scanner asks for. A 404, 403 or 405 on one is counted
-    | per day and never becomes an issue, a sample or an e-mail. They are matched against the path without its query string.
+    | scanner_paths and browser_noise_paths: case-insensitive patterns, each anchored at the start of the path (which always
+    | starts with a slash and never has its query string). A 404, 403 or 405 on one of them is counted per day as scanner
+    | noise and never becomes an issue, a sample or an e-mail. A real broken link (/blog/typo, /pricing-old) matches neither.
     */
     'errors' => [
         'enabled' => filter_var(env('QISTAS_ERRORS', true), FILTER_VALIDATE_BOOL),
         'slow_query_ms' => (int) env('QISTAS_SLOW_QUERY_MS', 3000),
         'occurrence_days' => (int) env('QISTAS_ERROR_OCCURRENCE_DAYS', 30),
         'issue_days' => (int) env('QISTAS_ERROR_ISSUE_DAYS', 90),
+
+        // What only a scanner asks for: the site has none of these.
         'scanner_paths' => [
-            '#^/\.env#i', // /.env, /.env.local, /.env.production
-            '#/\.git(?:/|$)#i', // /.git/config, at any depth
+            '#^/(?:[^/]*/)*\.#i', // a dot file or folder at any depth: /.env, /.git/config, /.aws/credentials, /.DS_Store, /laravel/.env
+            '#^/cgi-bin(?:/|$)#i',
+            '#^/actuator(?:/|$)#i',
+            '#^/_ignition(?:/|$)#i',
+            '#^/server-(?:status|info)(?:/|$)#i',
+            '#^/boaform(?:/|$)#i',
+            '#^/vendor/#i',
             '#^/wp-#i', // /wp-login.php, /wp-admin/, /wp-content/...
+            '#^/wordpress(?:/|$)#i',
             '#^/xmlrpc\.php#i',
             '#^/phpmyadmin#i',
-            '#^/vendor/#i',
+            '#^/pma(?:/|$)#i',
             '#^/admin\.php#i',
-            '#\.(?:php|sql|bak|zip|env)/?$#i', // anything ending like that, at any depth
+            '#^/solr(?:/|$)#i',
+            '#^/jenkins(?:/|$)#i',
+            '#^/console(?:/|$)#i',
+            // anything ending like this, at any depth: code, configuration, logs, backups and archives, source maps
+            '#^/.*\.(?:php|sql|bak|old|swp|ini|log|yml|yaml|asp|aspx|jsp|cgi|zip|gz|tar|rar|7z|env|map)/?$#i',
+        ],
+
+        // What real browsers ask for by themselves, the site serving no such file: icons a phone looks for, a service
+        // worker or manifest of another site's making, and everything under /.well-known/. A route that exists answers
+        // these with a page, so this only ever turns a 404 into noise.
+        'browser_noise_paths' => [
+            '#^/apple-touch-icon[^/]*\.png$#i', // /apple-touch-icon.png, -precomposed.png, -120x120.png
+            '#^/browserconfig\.xml$#i',
+            '#^/service-worker\.js$#i',
+            '#^/sw\.js$#i',
+            '#^/manifest\.json$#i',
+            '#^/manifest\.webmanifest$#i',
+            '#^/\.well-known(?:/|$)#i',
         ],
     ],
 

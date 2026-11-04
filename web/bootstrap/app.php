@@ -103,7 +103,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Every exception that is reported (so never what dontReport leaves out) goes to the error center too, after the
         // answer; nothing is returned, so the framework still writes it to the log.
-        $exceptions->report(fn (Throwable $e) => app(ErrorCapture::class)->exception($e));
+        $exceptions->report(fn (Throwable $e) => ErrorCapture::reported($e));
 
         // Keys and service accounts pasted into the admin area never go back into the session with a refused form.
         $exceptions->dontFlash(['secret_key', 'publishable_key', 'key', 'play_account', 'service_account']);

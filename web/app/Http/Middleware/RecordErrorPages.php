@@ -28,19 +28,22 @@ final class RecordErrorPages
 
     public function terminate(Request $request, Response $response): void
     {
-        $status = $response->getStatusCode();
-
-        if ($status < 403) {
-            return;
-        }
-
         try {
-            // "Not on your plan" and "switched off" are answers for the person, whatever page shows them (spec 3).
-            if (property_exists($response, 'exception') && $response->exception instanceof EntitlementException) {
+            $status = $response->getStatusCode();
+
+            if ($status < 403) {
                 return;
             }
 
-            app(ErrorCapture::class)->errorPage($request, $status);
+            // The exception the answer was made from, when the router made it from one (it says so on the response).
+            $exception = property_exists($response, 'exception') && $response->exception instanceof Throwable ? $response->exception : null;
+
+            // "Not on your plan" and "switched off" are answers for the person, whatever page shows them (spec 3).
+            if ($exception instanceof EntitlementException) {
+                return;
+            }
+
+            app(ErrorCapture::class)->errorPage($request, $status, $exception);
         } catch (Throwable) {
             // the answer is out already: nothing here may change how the request ends
         }

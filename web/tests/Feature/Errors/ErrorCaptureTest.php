@@ -1,9 +1,11 @@
 <?php
 
+use App\Cron\CronRunner;
 use App\Entitlements\Feature;
 use App\Entitlements\FeatureUnavailable;
 use App\Entitlements\LimitReached;
 use App\Errors\ErrorCapture;
+use App\Errors\ErrorFingerprint;
 use App\Errors\ErrorRecorder;
 use App\Errors\ErrorSpool;
 use App\Errors\Events\ErrorIssueCreated;
@@ -12,8 +14,11 @@ use App\Http\Middleware\RecordErrorPages;
 use App\Models\ErrorIssue;
 use App\Models\ErrorOccurrence;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Cache\ArrayStore;
 use Illuminate\Console\Command;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Console\Kernel as ConsoleKernel;
 use Illuminate\Contracts\Foundation\MaintenanceMode;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
@@ -22,9 +27,12 @@ use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Http\Middleware\InvokeDeferredCallbacks;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
+use Illuminate\Http\Request;
 use Illuminate\Log\Events\MessageLogged;
 use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Defer\DeferredCallbackCollection;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
@@ -32,6 +40,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
+use Tests\Support\FailingJob;
 
 /*
 | What becomes an error record on the live site (design section 3), through the real HTTP and console kernels: the
@@ -41,6 +50,11 @@ use Symfony\Component\Console\Output\BufferedOutput;
 */
 
 beforeEach(function () {
+    // The start of a minute, and the clock stands still: the recorder's caps count new issues a minute, and the capture's
+    // window for a repeated error page is 5 seconds, so no test may depend on when it happens to run. (At 10:31 none of
+    // the application's own scheduled commands is due, so schedule:run below runs only what a test adds.)
+    $this->travelTo(CarbonImmutable::parse('2026-11-04 10:31:00', 'UTC'));
+
     $this->spool = errorsCaptureSpool();
     ErrorSpool::forgetLost(ErrorSpool::lost());
 
@@ -74,6 +88,54 @@ function errorsCaptureRoutes(): void
         Route::get('/errors-test/unavailable', fn () => abort(503));
         Route::get('/errors-test/gone', fn () => abort(410));
         Route::get('/errors-test/only-get', fn () => 'ok');
+        Route::get('/wp-admin/install.php', fn () => abort(403)); // a scanner's path that a route happens to refuse
+        Route::get('/errors-scan/setup.php', fn () => 'ok'); // ... and one that only answers GET
+        Route::get('/errors-test/sqlstate-wrapper', fn () => throw new RuntimeException(
+            'Saving failed: SQLSTATE[23505]: Unique violation: 7 DETAIL: Key (email)=(sara.ali@example.com) already exists.'
+        ));
+        Route::get('/errors-test/pdo-warning', fn () => throw new ErrorException('PDO::prepare(): Send of 1024 bytes failed with errno=32 Broken pipe'));
+
+        Route::get('/errors-test/recovered-then-unavailable', function () {
+            report(new RuntimeException('Recovered from this')); // the request goes on ...
+
+            abort(503); // ... and later answers 503 for a reason of its own
+        });
+
+        Route::get('/errors-test/drain', function () {
+            // The way CronRunner works through the database queue inside the /internal/cron request.
+            Artisan::call('queue:work', [
+                'connection' => CronRunner::QUEUE,
+                '--stop-when-empty' => true,
+                '--max-time' => 50,
+                '--tries' => 1,
+                '--memory' => CronRunner::memoryBudgetMb(),
+            ]);
+
+            return 'ok';
+        });
+
+        Route::get('/errors-test/schedule', function (Request $request) {
+            Artisan::call('schedule:run');
+
+            if ($request->query('then') === 'report') {
+                report(new UnexpectedValueException('Reported by the request after the scheduler'));
+            }
+
+            return 'ok';
+        });
+
+        Route::get('/errors-test/flood', function () {
+            foreach (range(1, 100) as $n) {
+                report(new RuntimeException('Failure '.errorsCaptureWord($n)));
+            }
+
+            // 50 more past the 100 that may wait: one failure with a different number each time, so one fingerprint.
+            foreach (range(1, 50) as $n) {
+                report(new RuntimeException("Payment {$n} failed"));
+            }
+
+            return 'ok';
+        });
 
         Route::get('/errors-test/twice', function () {
             // One failure, reported twice in one request with a different number each time: one fingerprint.
@@ -228,6 +290,61 @@ function errorsCaptureIssues(): array
     return ErrorIssue::query()->get()->map(fn (ErrorIssue $issue) => "{$issue->source}/{$issue->kind}/{$issue->class}")->sort()->values()->all();
 }
 
+/**
+ * From now on the cache refuses to note a repeated error page (it throws for the capture's own keys) and works as usual
+ * for everything else, such as the recorder's caps.
+ */
+function errorsCaptureCacheRefusesHits(): void
+{
+    Cache::extend('errors-refuses-hits', fn () => Cache::repository(new class extends ArrayStore
+    {
+        public function add(string $key, mixed $value, int $seconds): bool
+        {
+            if (str_starts_with($key, 'errors:hit:')) {
+                throw new RuntimeException('The cache is away.');
+            }
+
+            if ($this->get($key) !== null) {
+                return false;
+            }
+
+            return $this->put($key, $value, $seconds);
+        }
+    }));
+
+    config(['cache.stores.errors-refuses-hits' => ['driver' => 'errors-refuses-hits']]);
+    app('cache')->setDefaultDriver('errors-refuses-hits');
+}
+
+/**
+ * The worker's memory budget, as CronRunner gives it: a worker's own default stops it (exit 12) once the process passes
+ * 128 MB, which a whole test run's process does.
+ *
+ * @return array{'--memory': int}
+ */
+function errorsCaptureWorkerMemory(): array
+{
+    return ['--memory' => CronRunner::memoryBudgetMb()];
+}
+
+/** Every path a scanner or a browser's housekeeping asks for, which the site serves no page at (design section 3). */
+function errorsCaptureNoisePaths(): array
+{
+    return [
+        // what browsers and the platforms they run on ask for by themselves
+        '/apple-touch-icon.png', '/apple-touch-icon-precomposed.png', '/apple-touch-icon-120x120.png', '/browserconfig.xml',
+        '/service-worker.js', '/sw.js', '/manifest.json', '/build/assets/app-Bx9a2c1d.js.map',
+        '/.well-known/traffic-advice', '/.well-known/assetlinks.json', '/.well-known/apple-app-site-association',
+        '/.well-known/security.txt',
+        // what only a scanner asks for
+        '/cgi-bin/luci', '/.aws/credentials', '/actuator/health', '/.DS_Store', '/backup.tar.gz', '/server-status',
+        '/server-info', '/_ignition/execute-solution', '/.svn/entries', '/.htaccess', '/boaform/admin/formLogin', '/wordpress/',
+        '/pma/', '/solr/admin', '/jenkins/login', '/console', '/config.yml', '/settings.yaml', '/php.ini', '/debug.log',
+        '/index.asp', '/default.aspx', '/login.jsp', '/test.cgi', '/site.rar', '/site.7z', '/db.old', '/.index.php.swp',
+        '/vendor/phpunit/phpunit/src/Util/PHP/eval-stdin.php', '/xmlrpc.php', '/phpmyadmin/', '/admin.php',
+    ];
+}
+
 /** A maintenance mode that lives in memory only (the file driver would write storage/framework/down). */
 function errorsCaptureDown(): void
 {
@@ -301,7 +418,7 @@ it('a QueryException keeps its SQLSTATE and placeholders, and none of its values
     $stored = errorsCaptureStored();
 
     expect($issue->only(['source', 'kind', 'class']))->toBe(['source' => 'database', 'kind' => 'exception', 'class' => QueryException::class])
-        ->and($sample->message)->toBe('SQLSTATE[23505] (Connection: pgsql, SQL: insert into "customers" ("email", "national_id") values (?, ?))')
+        ->and($sample->message)->toBe('SQLSTATE[23505] Unique violation (Connection: pgsql, SQL: insert into "customers" ("email", "national_id") values (?, ?))')
         ->and($sample->route)->toBe('/errors-test/query');
 
     foreach (['sara.ali@example.com', '1098765432', 'DETAIL', 'duplicate key'] as $value) {
@@ -376,6 +493,7 @@ it('a request that reports more failures than may wait for the answer counts the
 
 it('a 404 for a path no route serves is one site http issue, and a second visit counts it', function () {
     $this->get('/pricing-typo')->assertNotFound();
+    $this->travel(6)->seconds(); // past the window in which a repeat of an error page below 500 is only counted
     $this->get('/pricing-typo?ref=newsletter')->assertNotFound();
 
     $issue = ErrorIssue::query()->sole();
@@ -389,6 +507,7 @@ it('a 404 for a path no route serves is one site http issue, and a second visit 
 
 it('404s for paths no route serves are grouped by the path with its numbers replaced', function () {
     $this->get('/errors-missing/123/receipt')->assertNotFound();
+    $this->travel(6)->seconds();
     $this->get('/errors-missing/98765/receipt')->assertNotFound();
 
     expect(ErrorIssue::query()->sole()->only(['title', 'occurrences']))->toBe(['title' => '404 Not Found: /errors-missing/{n}/receipt', 'occurrences' => 2]);
@@ -396,6 +515,7 @@ it('404s for paths no route serves are grouped by the path with its numbers repl
 
 it('a 404 on a route that exists is grouped by the route\'s pattern', function () {
     $this->get('/errors-test/customers/1/missing')->assertNotFound();
+    $this->travel(6)->seconds();
     $this->get('/errors-test/customers/2/missing')->assertNotFound();
 
     $issue = ErrorIssue::query()->sole();
@@ -649,7 +769,248 @@ it('an artisan command that throws a QueryException is a database exception with
         ->and($issue->only(['source', 'kind', 'class']))->toBe(['source' => 'database', 'kind' => 'exception', 'class' => QueryException::class])
         ->and($issue->samples()->sole()->only(['status', 'method', 'route', 'message']))->toBe([
             'status' => null, 'method' => null, 'route' => null,
-            'message' => 'SQLSTATE[23505] (Connection: pgsql, SQL: insert into "customers" ("email", "national_id") values (?, ?))',
+            'message' => 'SQLSTATE[23505] Unique violation (Connection: pgsql, SQL: insert into "customers" ("email", "national_id") values (?, ?))',
         ])
         ->and(errorsCaptureStored())->not->toContain('sara.ali@example.com');
+});
+
+it('a command that reports one failure several times in a run counts it once', function () {
+    $kernel = app(ConsoleKernel::class);
+    $kernel->registerCommand(new class extends Command
+    {
+        protected $signature = 'errors-test:report-thrice';
+
+        public function handle(): int
+        {
+            foreach ([1, 2, 3] as $n) {
+                report(new RuntimeException("Reminder {$n} could not be sent"));
+            }
+
+            return 0;
+        }
+    });
+
+    $input = new ArrayInput(['command' => 'errors-test:report-thrice']);
+    $kernel->terminate($input, $kernel->handle($input, new BufferedOutput));
+
+    $issue = ErrorIssue::query()->sole();
+
+    expect($issue->only(['source', 'kind', 'occurrences']))->toBe(['source' => 'site', 'kind' => 'exception', 'occurrences' => 1])
+        ->and($issue->samples()->sole()->route)->toBeNull();
+});
+
+// ---- queued jobs and scheduled tasks (fix round 1, C1) -------------------------------------------------------------
+
+it('failed queued jobs are recorded, one issue each, by a worker of its own', function () {
+    FailingJob::dispatch('query')->onConnection('database');
+    FailingJob::dispatch('runtime')->onConnection('database');
+
+    $this->artisan('queue:work', ['connection' => 'database', '--stop-when-empty' => true, '--tries' => 1] + errorsCaptureWorkerMemory())->assertExitCode(0);
+
+    expect(DB::table('failed_jobs')->count())->toBe(2)
+        ->and(errorsCaptureIssues())->toBe(['database/exception/'.QueryException::class, 'site/exception/RuntimeException'])
+        ->and(ErrorIssue::query()->pluck('occurrences')->map(fn ($count) => (int) $count)->all())->toBe([1, 1])
+        ->and(ErrorOccurrence::query()->get()->map->only(['status', 'method', 'route'])->unique()->values()->all())->toBe([['status' => null, 'method' => null, 'route' => null]])
+        ->and(ErrorIssue::query()->where('source', 'database')->sole()->samples()->sole()->message)
+        ->toBe('SQLSTATE[23505] Unique violation (Connection: pgsql, SQL: insert into "customers" ("email", "national_id") values (?, ?))')
+        ->and(errorsCaptureStored())->not->toContain('sara.ali@example.com');
+});
+
+it('failed queued jobs worked through inside a request (as /internal/cron does) are the jobs\' failures, not the request\'s', function () {
+    FailingJob::dispatch('query')->onConnection('database');
+    FailingJob::dispatch('runtime')->onConnection('database');
+
+    $this->get('/errors-test/drain')->assertOk();
+
+    expect(DB::table('failed_jobs')->count())->toBe(2)
+        ->and(errorsCaptureIssues())->toBe(['database/exception/'.QueryException::class, 'site/exception/RuntimeException'])
+        ->and(ErrorIssue::query()->pluck('occurrences')->map(fn ($count) => (int) $count)->all())->toBe([1, 1])
+        // no route, no method, no 500: the request that worked through them answered 200
+        ->and(ErrorOccurrence::query()->get()->map->only(['status', 'method', 'route'])->unique()->values()->all())->toBe([['status' => null, 'method' => null, 'route' => null]]);
+});
+
+it('a worker that stops right after a failed job (its job limit) still records it', function () {
+    FailingJob::dispatch('runtime')->onConnection('database');
+    FailingJob::dispatch('runtime')->onConnection('database');
+
+    $this->artisan('queue:work', ['connection' => 'database', '--max-jobs' => 1, '--tries' => 1] + errorsCaptureWorkerMemory())->assertExitCode(0);
+
+    expect(DB::table('jobs')->count())->toBe(1) // the second is still waiting
+        ->and(ErrorIssue::query()->sole()->occurrences)->toBe(1);
+});
+
+it('a job tried three times is three sightings of one issue', function () {
+    FailingJob::dispatch('runtime')->onConnection('database');
+
+    $this->artisan('queue:work', ['connection' => 'database', '--stop-when-empty' => true, '--tries' => 3] + errorsCaptureWorkerMemory())->assertExitCode(0);
+
+    expect(DB::table('failed_jobs')->count())->toBe(1)
+        ->and(ErrorIssue::query()->sole()->occurrences)->toBe(3);
+});
+
+it('a scheduled task that fails inside a request is the task\'s failure, not the request\'s', function () {
+    app(Schedule::class)->call(function (): void {
+        report(new LogicException('The task noted a problem and went on'));
+    })->everyMinute();
+    app(Schedule::class)->call(fn () => throw new RuntimeException('The task broke'))->everyMinute();
+
+    $this->get('/errors-test/schedule')->assertOk();
+
+    expect(ErrorIssue::query()->orderBy('class')->pluck('title')->all())->toBe(['LogicException: The task noted a problem and went on', 'RuntimeException: The task broke'])
+        ->and(ErrorOccurrence::query()->get()->map->only(['status', 'method', 'route'])->unique()->values()->all())->toBe([['status' => null, 'method' => null, 'route' => null]]);
+
+    // and the request is itself again once the scheduler is done: what it reports afterwards is the request's
+    $this->get('/errors-test/schedule?then=report')->assertOk();
+
+    expect(ErrorIssue::query()->where('class', 'UnexpectedValueException')->sole()->samples()->sole()->only(['method', 'route']))
+        ->toBe(['method' => 'GET', 'route' => '/errors-test/schedule']);
+});
+
+// ---- a hot error page costs one cheap write (fix round 1, I1) ------------------------------------------------------
+
+it('the same error page below 500 again within 5 seconds is only counted as dropped', function () {
+    foreach (range(1, 50) as $hit) {
+        $this->get('/errors-hot-path')->assertNotFound();
+    }
+
+    $issue = ErrorIssue::query()->sole();
+
+    expect($issue->occurrences)->toBe(1)
+        ->and($issue->samples()->count())->toBe(1)
+        ->and(errorsCaptureNoise('dropped'))->toBe(49);
+
+    // Another missing page is another fingerprint, never held back by the first one's window.
+    $this->get('/errors-other-hot-path')->assertNotFound();
+
+    expect(ErrorIssue::query()->count())->toBe(2);
+
+    // Once the window has passed, the next one is a sighting again.
+    $this->travel(6)->seconds();
+    $this->get('/errors-hot-path')->assertNotFound();
+
+    expect($issue->fresh()->occurrences)->toBe(2)
+        ->and(errorsCaptureNoise('dropped'))->toBe(49);
+});
+
+it('a 500 page and an exception are never held back, however often they come', function () {
+    foreach (range(1, 3) as $hit) {
+        $this->get('/errors-test/server-error')->assertStatus(500);
+        $this->get('/errors-test/boom')->assertStatus(500);
+    }
+
+    expect(ErrorIssue::query()->pluck('occurrences')->map(fn ($count) => (int) $count)->all())->toBe([3, 3])
+        ->and(errorsCaptureNoise('dropped'))->toBe(0);
+});
+
+it('a cache that cannot note a repeated error page lets it through: the page is recorded as before', function () {
+    $this->get('/errors-hot-path')->assertNotFound();
+    errorsCaptureCacheRefusesHits();
+
+    $this->get('/errors-hot-path')->assertNotFound();
+    $this->get('/errors-hot-path')->assertNotFound();
+
+    expect(ErrorIssue::query()->sole()->occurrences)->toBe(3)
+        ->and(errorsCaptureNoise('dropped'))->toBe(0);
+});
+
+// ---- noise (fix round 1, I2, and the reporters) --------------------------------------------------------------------
+
+it('every path a scanner or a browser\'s housekeeping asks for is scanner noise, never an issue', function () {
+    foreach (errorsCaptureNoisePaths() as $path) {
+        $this->get($path)->assertNotFound();
+    }
+
+    expect(ErrorIssue::query()->pluck('title')->all())->toBe([])
+        ->and(errorsCaptureNoise('scanner'))->toBe(count(errorsCaptureNoisePaths()));
+});
+
+it('a real broken link is still an issue', function (string $path) {
+    expect(ErrorFingerprint::isScannerPath($path))->toBeFalse();
+
+    $status = $this->get($path)->status();
+
+    expect(ErrorIssue::query()->count())->toBe($status === 404 ? 1 : 0)
+        ->and(errorsCaptureNoise('scanner'))->toBe(0);
+})->with(['/blog/typo', '/app/customerz', '/ar/pricing-old', '/pricing/', 'a file of ours that moved' => '/files/price-list.pdf', 'an old page' => '/pricing.html']);
+
+it('a scanner\'s path answered 403 or 405 is noise too', function () {
+    $this->get('/wp-admin/install.php')->assertForbidden();
+    $this->post('/errors-scan/setup.php')->assertStatus(405);
+
+    expect(ErrorIssue::query()->count())->toBe(0)
+        ->and(errorsCaptureNoise('scanner'))->toBe(2);
+});
+
+it('what the two reporters refuse is never an issue, whatever the status: a stranger cannot make issues that way', function () {
+    // A foreign page posting to the website's endpoint: refused 403, and from the 21st on (its limit) 429.
+    foreach (range(1, 21) as $post) {
+        $this->call('POST', '/client-errors', [], [], [], ['HTTP_ORIGIN' => 'https://evil.example', 'CONTENT_TYPE' => 'application/json', 'REMOTE_ADDR' => '10.66.0.1'], '{}');
+    }
+
+    expect(ErrorIssue::query()->count())->toBe(0)
+        ->and(errorsCaptureNoise('dropped'))->toBe(21);
+
+    // The phone's endpoint, should it ever answer with a 5xx of its own.
+    app(ErrorCapture::class)->errorPage(Request::create('/api/v1/client-errors', 'POST'), 503);
+    app(ErrorCapture::class)->flush();
+
+    expect(ErrorIssue::query()->count())->toBe(0)
+        ->and(errorsCaptureNoise('dropped'))->toBe(22);
+});
+
+// ---- the rest of fix round 1 (minor) -------------------------------------------------------------------------------
+
+it('an exception the request recovered from does not hide a later 5xx of another cause', function () {
+    $this->get('/errors-test/recovered-then-unavailable')->assertStatus(503);
+
+    expect(errorsCaptureIssues())->toBe(['site/exception/RuntimeException', 'site/http/http.503']);
+});
+
+it('more failures than may wait for the answer are counted once per failure, not once per repeat', function () {
+    $this->get('/errors-test/flood')->assertOk();
+
+    // The recorder opens 60 of the 100 that waited (its cap for a minute) and drops 40; the 50 past the 100 are one failure.
+    expect(ErrorIssue::query()->count())->toBe(60)
+        ->and(errorsCaptureNoise('dropped'))->toBe(41);
+});
+
+it('a message that carries a SQLSTATE, and a PDO warning, are database failures that keep none of their words', function () {
+    $this->get('/errors-test/sqlstate-wrapper')->assertStatus(500);
+    $this->get('/errors-test/pdo-warning')->assertStatus(500);
+
+    expect(ErrorIssue::query()->orderBy('title')->get()->map->only(['source', 'title'])->all())->toBe([
+        ['source' => 'database', 'title' => 'ErrorException: Lost connection to the database'],
+        ['source' => 'database', 'title' => 'RuntimeException: SQLSTATE[23505] Unique violation'],
+    ])
+        ->and(errorsCaptureStored())->not->toContain('sara.ali@example.com')
+        ->and(errorsCaptureStored())->not->toContain('Saving failed');
+});
+
+it('the slow-query listener reads the threshold set at run time, and resolves nothing for a query under it', function () {
+    expect(app()->resolved(ErrorCapture::class))->toBeFalse();
+
+    errorsCaptureQuery('select "a" from "errors_quick"', 2999.0); // under the default 3000
+
+    expect(app()->resolved(ErrorCapture::class))->toBeFalse();
+
+    config(['qistas.errors.slow_query_ms' => 50]);
+    errorsCaptureQuery('select "b" from "errors_slow"', 60.0);
+
+    expect(app()->resolved(ErrorCapture::class))->toBeTrue();
+
+    app(ErrorCapture::class)->flush();
+
+    expect(ErrorIssue::query()->sole()->title)->toContain('errors_slow');
+});
+
+it('the report hook never throws, even when the capture layer cannot be built', function () {
+    $this->app->bind(ErrorCapture::class, fn () => throw new RuntimeException('The capture layer cannot be built'));
+
+    $this->getJson('/api/v1/errors-test/boom')
+        ->assertStatus(500)
+        ->assertExactJson(['error' => ['code' => 'server_error', 'message' => 'Something went wrong on our side. Please try again.']]);
+
+    report(new RuntimeException('Reported from anywhere'));
+
+    expect(ErrorIssue::query()->count())->toBe(0);
 });

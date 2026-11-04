@@ -246,6 +246,10 @@ final class ErrorRecorder
      * Adds to error_noise_days: `scanner` (a request only a scanner makes) or `dropped` (over a flood cap, or lost on the
      * way), on the given day of the application clock (today unless told). Any other kind is ignored. A counter that
      * cannot be written is lost; it never throws.
+     *
+     * One statement and no transaction (`insert ... on conflict (day, kind) do update set count = count + excluded.count`,
+     * on SQLite and PostgreSQL alike): a flood of scanners or of a repeated error page adds to one row per day, and each
+     * add holds that row only for the moment of its own statement.
      */
     public function noise(string $kind, ?CarbonInterface $day = null, int $count = 1): void
     {
@@ -262,11 +266,13 @@ final class ErrorRecorder
         try {
             $date = CarbonImmutable::instance($day ?? now())->setTimezone(self::timezone())->toDateString();
             $db = self::connection();
+            $grammar = $db->getQueryGrammar();
 
-            self::transaction($db, function () use ($db, $date, $kind, $count): void {
-                $db->table('error_noise_days')->insertOrIgnore(['day' => $date, 'kind' => $kind, 'count' => 0]);
-                $db->table('error_noise_days')->where('day', $date)->where('kind', $kind)->increment('count', $count);
-            });
+            $db->table('error_noise_days')->upsert(
+                [['day' => $date, 'kind' => $kind, 'count' => $count]],
+                ['day', 'kind'],
+                ['count' => $db->raw($grammar->wrapTable('error_noise_days').'.'.$grammar->wrap('count').' + excluded.'.$grammar->wrap('count'))],
+            );
 
             return true;
         } catch (Throwable) {

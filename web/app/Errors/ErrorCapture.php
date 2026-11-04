@@ -7,16 +7,13 @@ namespace App\Errors;
 use App\Http\ApiException;
 use Closure;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
-use Illuminate\Database\ConcurrencyErrorDetector;
 use Illuminate\Database\Events\QueryExecuted;
-use Illuminate\Database\LostConnectionDetector;
-use Illuminate\Database\LostConnectionException;
-use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Route;
-use PDOException;
+use Illuminate\Support\Facades\Cache;
 use RuntimeException;
 use Throwable;
+use WeakMap;
 
 use function Illuminate\Support\defer;
 
@@ -26,35 +23,40 @@ use function Illuminate\Support\defer;
  * QueryExecuted listener of ErrorServiceProvider). It decides WHAT is recorded; ErrorRecorder decides how.
  *
  * What is recorded:
- *   - an exception the framework reports: source `database` for a failed query, a PDO error, a lost connection or a
- *     deadlock (on any request, command or job, and also when it is wrapped in another exception), else `api` on a
- *     request under /api, else `site`. Its message is never the database's message (that holds the values): it is the
- *     SQLSTATE, what kind of failure it was, and the statement with its placeholders. An ApiException below 500 is an
- *     expected answer and is not an error.
+ *   - an exception the framework reports: source `database` for a failure of the database wherever it hides in the chain
+ *     (DatabaseFailure, whose words for it never include the database's own message), on any request, command or job;
+ *     else `api` on a request under /api, else `site`. An ApiException below 500 is an expected answer and is not an
+ *     error. A queued job's failure is the job's, whether a worker of its own or the /internal/cron request ran it, and so
+ *     is a scheduled task's: no route, no method, no status. A job tried three times is three sightings of its issue.
  *   - an error page: `site/http` for 403, 404, 419, 429, 500 and 503, `api/http` for any 5xx; a 404, 403 or 405 for a
- *     path only a scanner asks for is counted as scanner noise instead; a 5xx whose exception was recorded already is
- *     not a second issue; a 5xx while the site is down for maintenance is not recorded at all.
+ *     path only a scanner (or a browser's housekeeping) asks for is counted as scanner noise instead; a 5xx that carries
+ *     the very exception that was recorded is not a second issue; a 5xx while the site is down for maintenance is not
+ *     recorded; whatever the two reporters (`/client-errors`, `/api/v1/client-errors`) answer is only counted as dropped,
+ *     so a stranger can never make issues by posting to them. The same page below 500 again within REPEAT_SECONDS is only
+ *     counted as dropped: a hot broken link costs one cheap statement a hit, not a locked write.
  *   - a query at or above qistas.errors.slow_query_ms (3000 when that is under 1 ms), never one on the error center's
  *     own tables or one made while the capture is at work.
  *
  * Rules that hold whatever happens:
  *   - Nothing heavy runs before the answer. A hook only notes plain values (an ErrorEvent: strings and numbers, never
  *     the request, the response or the exception) and returns; scrubbing, fingerprinting and every write run after the
- *     answer, in flush(), which defer(...)->always() calls once the response is out or the job or command has finished
- *     (and the application's terminating callback calls for a command that threw, whose failure is reported after
- *     Laravel ran its deferred work). So nothing runs inside the caller's database transaction either.
+ *     answer, in flush(), which defer(...)->always() calls once the response is out or the command has finished. A queue
+ *     worker calls it between jobs (its Looping event comes before it throws the job's scope away, which would lose what
+ *     the job's failure noted: the worker reports a failure only after the job's deferred work has run) and as it stops;
+ *     the application's terminating callback calls it for a command that threw. So nothing runs inside the caller's
+ *     database transaction either.
  *   - Every Throwable is swallowed, and never reported: a report would come straight back here. While flush() works,
  *     capturing() is true and every hook stands back, so a failure inside the error center can never loop.
  *   - A fingerprint is recorded at most once per request (spec 8), or once per command or job when there is no request.
- *     At most PENDING_MAX events wait for one answer; any more are counted as dropped, so a runaway loop cannot fill the
- *     memory and is still visible.
+ *     At most PENDING_MAX events wait for one answer; the rest are counted as dropped, once per failure (not once per
+ *     repeat of it), so a runaway loop cannot fill the memory and is still visible.
  *   - QISTAS_ERRORS=false: nothing is noted and nothing is deferred.
  *
  * Bound as a scoped instance (ErrorServiceProvider): one per request, and one per job in a queue worker.
  */
 final class ErrorCapture
 {
-    /** The request attribute that says an exception of this request was recorded, so its 5xx page is not a second issue. */
+    /** The request attribute holding the exceptions recorded for it, so the 5xx page one of them made is not a second issue. */
     public const RECORDED = 'errors.recorded';
 
     /** The route of a 5xx on a path no route serves: one issue for all of them, never one per path (a flood of alerts). */
@@ -66,8 +68,16 @@ final class ErrorCapture
     /** The answers that, for a path only a scanner asks for, are scanner noise. */
     public const SCANNER_STATUSES = [403, 404, 405];
 
+    /** The two reporters (design section 9): anyone may post to them, so what they answer is never an issue. */
+    public const REPORTER_ROUTES = ['client-errors.store', 'api.client-errors.store'];
+
+    public const REPORTER_PATHS = ['/client-errors', '/api/v1/client-errors'];
+
     /** Events that may wait for one answer (or one command or job); any more are counted as dropped. */
     public const PENDING_MAX = 100;
+
+    /** How long the same error page below 500 is held back after a sighting: within it, a repeat is only counted. */
+    public const REPEAT_SECONDS = 5;
 
     /** The threshold when qistas.errors.slow_query_ms is under 1 ms: an empty or mistyped setting is 0 (ruling R9). */
     public const SLOW_QUERY_MS = 3000.0;
@@ -75,17 +85,22 @@ final class ErrorCapture
     /** The request attribute that holds the fingerprints recorded for that request. */
     private const SEEN = 'errors.seen';
 
+    /** The request attributes saying a queue worker or a scheduled task is at work inside the request, and their failures. */
+    private const AT_WORK = 'errors.at-work';
+
+    private const WORK_FAILURES = 'errors.work-failures';
+
     /** Fingerprints remembered outside a request before the list starts again (a long command). */
     private const SEEN_MAX = 1000;
+
+    /** Different failures counted as dropped past PENDING_MAX; past that, nothing more is looked at. */
+    private const OVERFLOW_MAX = 1000;
 
     /** Frames of a trace that are kept (the scrubber keeps 8 KB of them, so far fewer reach the table). */
     private const FRAMES = 100;
 
     /** Bytes of an exception's message that are kept before scrubbing (the scrubber reads far less). */
     private const MESSAGE_BYTES = 16384;
-
-    /** Exceptions looked through, the given one and those it wraps, for a database failure. */
-    private const CHAIN = 8;
 
     /** The name of the deferred flush: Laravel keeps one of each name. */
     private const DEFERRED = 'errors.capture';
@@ -101,8 +116,14 @@ final class ErrorCapture
     /** @var array<string, true> the events waiting, by their fields: an exact repeat is not kept twice */
     private array $pendingKeys = [];
 
-    /** Events that did not fit in PENDING_MAX. */
-    private int $overflow = 0;
+    /** @var array<string, true> the failures past PENDING_MAX, by their class and message as fingerprinted */
+    private array $overflowKeys = [];
+
+    /** @var array<string, true> the same, by their class and message as given (so a repeat costs nothing to recognise) */
+    private array $overflowSeen = [];
+
+    /** Other work that did not fit in PENDING_MAX. */
+    private int $overflowWork = 0;
 
     /** @var array<string, true> the fingerprints recorded when there is no request (a command, a job) */
     private array $seen = [];
@@ -120,35 +141,99 @@ final class ErrorCapture
      */
     public static function guarded(Closure $work): void
     {
-        if (self::$capturing || ! ErrorRecorder::enabled()) {
-            return;
-        }
-
         try {
-            app(self::class)->later($work);
+            if (self::$capturing || ! ErrorRecorder::enabled()) {
+                return;
+            }
+
+            $capture = app(self::class);
+
+            if (! $capture->later($work)) {
+                $capture->overflowWork++;
+            }
         } catch (Throwable) {
             // nothing to record it with: it is lost, never reported
         }
     }
 
+    /** The exception handler's report callback: exception(), with even the capture layer's making inside the guard. */
+    public static function reported(Throwable $e): void
+    {
+        try {
+            if (self::$capturing || ErrorRecorder::busy() || ! ErrorRecorder::enabled()) {
+                return;
+            }
+
+            app(self::class)->exception($e);
+        } catch (Throwable) {
+            // never break the report it was called from
+        }
+    }
+
+    /** The slow-query threshold a setting stands for: anything that is not a number of at least 1 is 3000 (ruling R9). */
+    public static function slowQueryMs(mixed $setting): float
+    {
+        return is_numeric($setting) && (float) $setting >= 1 ? (float) $setting : self::SLOW_QUERY_MS;
+    }
+
     /**
-     * The exception handler reported $e. $request is the request being answered (looked up when not given); none in a
-     * command or a job.
+     * A queue worker or a scheduled task starts inside the request being answered (the /internal/cron request runs both):
+     * until it ends, what it reports is its own, not the request's.
+     */
+    public static function workStarts(): void
+    {
+        try {
+            $request = self::currentRequest();
+            $request?->attributes->set(self::AT_WORK, self::atWork($request) + 1);
+        } catch (Throwable) {
+            // the failure is then the request's: a route too many, never a failure of its own
+        }
+    }
+
+    /**
+     * The worker or the task has ended. A scheduled task that failed is reported just after this, so $failure is kept
+     * (without keeping it alive) to be told apart from the request's own.
+     */
+    public static function workEnds(?Throwable $failure = null): void
+    {
+        try {
+            $request = self::currentRequest();
+
+            if ($request === null) {
+                return;
+            }
+
+            $request->attributes->set(self::AT_WORK, max(0, self::atWork($request) - 1));
+
+            if ($failure !== null) {
+                self::remember($request, self::WORK_FAILURES, $failure);
+            }
+        } catch (Throwable) {
+            // as above
+        }
+    }
+
+    /**
+     * The exception handler reported $e. $request is the request it belongs to (looked up when not given); none in a
+     * command, in a job, or in a scheduled task.
      */
     public function exception(Throwable $e, ?Request $request = null): void
     {
-        if (self::$capturing || ErrorRecorder::busy() || ! ErrorRecorder::enabled()) {
-            return;
-        }
-
         try {
+            if (self::$capturing || ErrorRecorder::busy() || ! ErrorRecorder::enabled()) {
+                return;
+            }
+
             // A refusal the API answers in its usual shape (401, 403, 409, 410, 422) is an answer, not an error.
             if ($e instanceof ApiException && $e->status < 500) {
                 return;
             }
 
-            $request ??= self::currentRequest();
-            $request?->attributes->set(self::RECORDED, true);
+            $request ??= self::attributed($e);
+
+            if ($request !== null) {
+                self::remember($request, self::RECORDED, $e);
+            }
 
             $this->pend(self::exceptionEvent($e, $request));
         } catch (Throwable) {
@@ -156,16 +241,19 @@ final class ErrorCapture
         }
     }
 
-    /** A visitor was answered with $status (RecordErrorPages calls this once the answer is out, for 403 and above). */
-    public function errorPage(Request $request, int $status): void
+    /**
+     * A visitor was answered with $status (RecordErrorPages calls this once the answer is out, for 403 and above), made
+     * from $exception when the response says so.
+     */
+    public function errorPage(Request $request, int $status, ?Throwable $exception = null): void
     {
-        if (self::$capturing || ! ErrorRecorder::enabled()) {
-            return;
-        }
-
         try {
+            if (self::$capturing || ! ErrorRecorder::enabled()) {
+                return;
+            }
+
             if (in_array($status, self::SCANNER_STATUSES, true) && ErrorFingerprint::isScannerPath($request->getPathInfo())) {
-                $this->later(static fn () => app(ErrorRecorder::class)->noise('scanner'));
+                $this->noise('scanner');
 
                 return;
             }
@@ -176,8 +264,15 @@ final class ErrorCapture
                 return;
             }
 
+            // A forged origin or a throttled address at a reporter is a stranger's doing: counted, never an issue.
+            if (self::reporter($request)) {
+                $this->noise('dropped');
+
+                return;
+            }
+
             // The exception behind it is the issue already: one failure, one issue.
-            if ($status >= 500 && $request->attributes->get(self::RECORDED) === true) {
+            if ($status >= 500 && $exception !== null && self::remembered($request, self::RECORDED, $exception)) {
                 return;
             }
 
@@ -199,19 +294,19 @@ final class ErrorCapture
         }
     }
 
-    /** A query finished (the provider's listener calls this only for one of a millisecond or more). */
+    /** A query finished (the provider's listener calls this only for one at or above the threshold). */
     public function slowQuery(QueryExecuted $query): void
     {
-        if (self::$capturing || ErrorRecorder::busy() || ! ErrorRecorder::enabled()) {
-            return;
-        }
-
         try {
-            if ((float) $query->time < self::slowQueryMs() || preg_match(self::OWN_TABLES, $query->sql) === 1) {
+            if (self::$capturing || ErrorRecorder::busy() || ! ErrorRecorder::enabled()) {
                 return;
             }
 
-            $request = self::currentRequest();
+            if ((float) $query->time < self::slowQueryMs(config('qistas.errors.slow_query_ms')) || preg_match(self::OWN_TABLES, $query->sql) === 1) {
+                return;
+            }
+
+            $request = self::attributed();
 
             // The statement as it was sent, with its placeholders; the bindings are never read.
             $this->pend(new ErrorEvent(
@@ -229,8 +324,8 @@ final class ErrorCapture
 
     /**
      * Records what was noted: each event scrubbed, fingerprinted, and handed to the recorder unless its fingerprint was
-     * recorded already in this request (or command, or job). Runs after the answer (defer, or the terminating callback);
-     * never throws.
+     * recorded already in this request (or command, or job). Runs after the answer (defer, the worker's loop, or the
+     * terminating callback); never throws.
      */
     public function flush(): void
     {
@@ -251,10 +346,12 @@ final class ErrorCapture
                 }
             }
 
-            if ($this->overflow > 0) {
-                $dropped = $this->overflow;
-                $this->overflow = 0;
+            $dropped = count($this->overflowKeys) + $this->overflowWork;
+            $this->overflowKeys = [];
+            $this->overflowSeen = [];
+            $this->overflowWork = 0;
 
+            if ($dropped > 0) {
                 try {
                     app(ErrorRecorder::class)->noise('dropped', null, $dropped);
                 } catch (Throwable) {
@@ -266,30 +363,60 @@ final class ErrorCapture
         }
     }
 
-    /** Notes $work for after the answer; past PENDING_MAX it is only counted. */
-    private function later(Closure $work): void
+    /** Notes $work for after the answer; false when PENDING_MAX are waiting already. */
+    private function later(Closure $work): bool
     {
         if (count($this->pending) >= self::PENDING_MAX) {
-            $this->overflow++;
-
-            return;
+            return false;
         }
 
         $this->pending[] = $work;
 
         // `always`: Laravel skips deferred work after an answer of 400 or more, which is when there is most to record.
         defer(fn () => $this->flush(), self::DEFERRED)->always();
+
+        return true;
     }
 
-    /** Notes an event for after the answer, unless the very same one is waiting already. */
+    /** Adds one to the day's noise of $kind, after the answer. */
+    private function noise(string $kind): void
+    {
+        if (! $this->later(static fn () => app(ErrorRecorder::class)->noise($kind))) {
+            $this->overflowWork++;
+        }
+    }
+
+    /**
+     * Notes an event for after the answer, unless the very same one is waiting already. Past PENDING_MAX it is only
+     * counted, once per failure: the class and the message as the fingerprint reads them (scrubbed and normalised, so
+     * `Payment 1 failed` and `Payment 2 failed` are one), for at most OVERFLOW_MAX different ones.
+     */
     private function pend(ErrorEvent $event): void
     {
+        $full = count($this->pending) >= self::PENDING_MAX;
+        $given = $full ? sha1($event->source."\0".$event->kind."\0".$event->class."\0".$event->message) : '';
+
+        // Past the limit, a failure counted already (or any failure, once OVERFLOW_MAX are) costs nothing more.
+        if ($full && (isset($this->overflowSeen[$given]) || count($this->overflowSeen) >= self::OVERFLOW_MAX)) {
+            return;
+        }
+
         $key = sha1(implode("\0", [
             $event->source, $event->kind, $event->class, $event->message, $event->trace,
             (string) $event->status, (string) $event->method, (string) $event->route, (string) $event->userId,
         ]));
 
         if (isset($this->pendingKeys[$key])) {
+            return; // the very same one waits already, and will be recorded
+        }
+
+        if ($full) {
+            $this->overflowSeen[$given] = true;
+            $this->overflowKeys[sha1(implode("\0", [
+                $event->source, $event->kind, $event->class, (string) $event->status, (string) $event->route,
+                ErrorFingerprint::normalise(ErrorScrubber::text(mb_strcut($event->message, 0, 1024, 'UTF-8'))),
+            ]))] = true;
+
             return;
         }
 
@@ -297,14 +424,27 @@ final class ErrorCapture
         $this->later(fn () => $this->store($event));
     }
 
-    /** After the answer: scrubbed, fingerprinted, and recorded when its fingerprint is new in this request. */
+    /**
+     * After the answer: scrubbed, fingerprinted, and recorded when its fingerprint is new in this request. An error page
+     * below 500 (any visitor can call one up again and again) is recorded at most once per REPEAT_SECONDS; a repeat within
+     * that only adds to the day's dropped count. An exception or a 5xx is never held back.
+     */
     private function store(ErrorEvent $event): void
     {
         $scrubbed = ErrorScrubber::event($event);
+        $fingerprint = ErrorFingerprint::of($scrubbed);
 
-        if ($this->firstTime(ErrorFingerprint::of($scrubbed))) {
-            app(ErrorRecorder::class)->record($scrubbed);
+        if (! $this->firstTime($fingerprint)) {
+            return;
         }
+
+        if ($scrubbed->kind === 'http' && ($scrubbed->status ?? 0) < 500 && ! self::firstInWindow($fingerprint)) {
+            app(ErrorRecorder::class)->noise('dropped');
+
+            return;
+        }
+
+        app(ErrorRecorder::class)->record($scrubbed);
     }
 
     /**
@@ -314,7 +454,7 @@ final class ErrorCapture
      */
     private function firstTime(string $fingerprint): bool
     {
-        $request = self::currentRequest();
+        $request = self::attributed();
 
         if ($request !== null) {
             $seen = $request->attributes->get(self::SEEN);
@@ -343,11 +483,21 @@ final class ErrorCapture
         return true;
     }
 
+    /** Is this the first sighting of $fingerprint in REPEAT_SECONDS? A cache that cannot say lets it through (fails open). */
+    private static function firstInWindow(string $fingerprint): bool
+    {
+        try {
+            return Cache::add('errors:hit:'.$fingerprint, 1, self::REPEAT_SECONDS);
+        } catch (Throwable) {
+            return true;
+        }
+    }
+
     // ---- what an event holds -------------------------------------------------------------------------------------
 
     private static function exceptionEvent(Throwable $e, ?Request $request): ErrorEvent
     {
-        $database = self::databaseFailure($e);
+        $database = DatabaseFailure::in($e);
         $subject = $database ?? $e;
         $status = $e instanceof ApiException ? $e->status : 500;
 
@@ -355,95 +505,13 @@ final class ErrorCapture
             source: $database !== null ? 'database' : ($request !== null && self::underApi($request) ? 'api' : 'site'),
             kind: 'exception',
             class: $subject::class,
-            message: $database !== null ? self::databaseMessage($database) : self::cut($e->getMessage()),
+            message: $database !== null ? DatabaseFailure::message($database) : self::cut($e->getMessage()),
             trace: self::trace($subject),
             status: $request === null ? null : $status,
             method: $request?->getMethod(),
             route: $request === null ? null : self::route($request, $status),
             userId: $request === null ? null : self::userId(),
         );
-    }
-
-    /**
-     * The database failure in $e or in what it wraps (a view that failed on a query wraps the QueryException): a failed
-     * query or a PDO error first, then anything whose message is the database's (it carries a SQLSTATE, or PDO says the
-     * connection was lost or a lock was refused). "Connection reset by peer" from another server is not one.
-     */
-    private static function databaseFailure(Throwable $e): ?Throwable
-    {
-        $chain = [];
-
-        for ($link = $e; $link !== null && count($chain) < self::CHAIN; $link = $link->getPrevious()) {
-            $chain[] = $link;
-        }
-
-        foreach ($chain as $link) {
-            if ($link instanceof PDOException || $link instanceof LostConnectionException) {
-                return $link; // a QueryException is a PDOException
-            }
-        }
-
-        foreach ($chain as $link) {
-            $message = $link->getMessage();
-
-            if (str_contains($message, 'SQLSTATE[')
-                || (str_starts_with($message, 'PDO') && (self::lostConnection($link) || self::deadlock($link)))) {
-                return $link;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * What a database failure says, built from what it is and never from its message: the SQLSTATE, a lost connection or
-     * a deadlock, and for a failed query the connection's name and the statement with its placeholders, in the shape
-     * Laravel writes (`... (Connection: pgsql, SQL: insert into ...)`) so the scrubber reads it as SQL.
-     */
-    private static function databaseMessage(Throwable $failure): string
-    {
-        $parts = [];
-        $state = self::sqlState($failure);
-
-        if ($state !== null) {
-            $parts[] = 'SQLSTATE['.$state.']';
-        }
-
-        if (self::lostConnection($failure)) {
-            $parts[] = 'Lost connection to the database';
-        } elseif (self::deadlock($failure)) {
-            $parts[] = 'Deadlock or lock timeout';
-        }
-
-        if ($failure instanceof QueryException) {
-            $parts[] = '(Connection: '.$failure->getConnectionName().', SQL: '.$failure->getSql().')';
-        }
-
-        return $parts === [] ? 'Database failure' : implode(' ', $parts);
-    }
-
-    /** The five characters of the SQLSTATE: from the driver's error info or code, or read out of the message. */
-    private static function sqlState(Throwable $failure): ?string
-    {
-        $info = $failure instanceof PDOException ? $failure->errorInfo : null;
-
-        foreach ([is_array($info) ? ($info[0] ?? null) : null, $failure->getCode()] as $code) {
-            if (is_string($code) && preg_match('~^[0-9A-Z]{5}$~D', $code) === 1) {
-                return $code;
-            }
-        }
-
-        return preg_match('~SQLSTATE\[([0-9A-Z]{5})\]~', $failure->getMessage(), $found) === 1 ? $found[1] : null;
-    }
-
-    private static function lostConnection(Throwable $e): bool
-    {
-        return $e instanceof LostConnectionException || (new LostConnectionDetector)->causedByLostConnection($e);
-    }
-
-    private static function deadlock(Throwable $e): bool
-    {
-        return (new ConcurrencyErrorDetector)->causedByConcurrencyError($e);
     }
 
     /**
@@ -494,6 +562,15 @@ final class ErrorCapture
         return $path === '/api' || str_starts_with($path, '/api/');
     }
 
+    /** Is this a request to one of the two reporters, by the route it matched or, when it matched none, by its path? */
+    private static function reporter(Request $request): bool
+    {
+        $route = $request->route();
+
+        return ($route instanceof Route && in_array($route->getName(), self::REPORTER_ROUTES, true))
+            || in_array(rtrim($request->getPathInfo(), '/'), self::REPORTER_PATHS, true);
+    }
+
     /**
      * The id of the person signed in, if the request already knows who they are. Never asked for: that could mean a query
      * (to read the session's user) on a request that is failing, perhaps because the database is.
@@ -517,6 +594,48 @@ final class ErrorCapture
     }
 
     /**
+     * The request a failure belongs to: the one being answered, unless a queue worker or a scheduled task is at work
+     * inside it (what they report is theirs), or $e is the failure of a scheduled task that has just ended.
+     */
+    private static function attributed(?Throwable $e = null): ?Request
+    {
+        $request = self::currentRequest();
+
+        if ($request === null || self::atWork($request) > 0) {
+            return null;
+        }
+
+        return $e !== null && self::remembered($request, self::WORK_FAILURES, $e) ? null : $request;
+    }
+
+    private static function atWork(Request $request): int
+    {
+        $depth = $request->attributes->get(self::AT_WORK);
+
+        return is_int($depth) ? $depth : 0;
+    }
+
+    /** Notes $e on the request under $attribute, in a WeakMap, so the request never keeps an exception alive. */
+    private static function remember(Request $request, string $attribute, Throwable $e): void
+    {
+        $known = $request->attributes->get($attribute);
+
+        if (! $known instanceof WeakMap) {
+            $known = new WeakMap;
+            $request->attributes->set($attribute, $known);
+        }
+
+        $known[$e] = true;
+    }
+
+    private static function remembered(Request $request, string $attribute, Throwable $e): bool
+    {
+        $known = $request->attributes->get($attribute);
+
+        return $known instanceof WeakMap && isset($known[$e]);
+    }
+
+    /**
      * The request the HTTP kernel is answering right now, or null (a command, a job in a worker, or after the answer has
      * been handled). Not just the container's `request`: a console process has a made-up one.
      */
@@ -534,13 +653,6 @@ final class ErrorCapture
         } catch (Throwable) {
             return null; // a kernel of another kind knows no such moment: then there is no request to tell
         }
-    }
-
-    private static function slowQueryMs(): float
-    {
-        $ms = config('qistas.errors.slow_query_ms');
-
-        return is_numeric($ms) && (float) $ms >= 1 ? (float) $ms : self::SLOW_QUERY_MS;
     }
 
     /**
