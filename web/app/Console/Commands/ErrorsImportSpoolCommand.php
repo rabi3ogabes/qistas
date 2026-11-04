@@ -27,7 +27,9 @@ final class ErrorsImportSpoolCommand extends Command
 
         $imported = $spool->import($recorder);
 
-        $this->components->info("Imported {$imported} error ".($imported === 1 ? 'report' : 'reports').' from the spool.');
+        // Imported: an issue opened, counted or reopened. Dropped: taken out without being recorded (over a flood cap, an
+        // ignored issue, a line nobody can read or one the database kept refusing).
+        $this->components->info("Imported {$imported}, dropped {$spool->dropped()}.");
 
         return self::SUCCESS;
     }

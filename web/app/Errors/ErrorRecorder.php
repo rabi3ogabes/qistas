@@ -9,6 +9,7 @@ use App\Models\ErrorIssue;
 use App\Models\ErrorOccurrence;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Closure;
 use Illuminate\Database\Connection;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Cache;
@@ -25,24 +26,28 @@ use Throwable;
  *      the issue is ignored;
  *   3. for a fingerprint it has not seen, checks the flood caps and opens a new issue in a transaction of its own, then
  *      fires ErrorIssueCreated once that transaction has committed;
- *   4. when the database refuses any of it, appends the scrubbed event to the spool instead (ErrorSpool), so the import
- *      command can record it once the database answers.
+ *   4. when the database refuses any of it, appends the scrubbed event (with its fingerprint) to the spool instead
+ *      (ErrorSpool), so the import command can record it once the database answers.
  *
  * Rules that hold whatever happens:
  *   - record() never throws, so a hook that calls it can never break a request. It never reports or logs what it was
  *     given, and it never calls the capture layer: a failure inside it is never recorded as an error.
  *   - While it is at work (a listener of ErrorIssueCreated, a query listener reacting to its own queries) a nested call
- *     writes nothing and returns Dropped: a failure of the error center itself cannot loop back into it.
- *   - Every statement it sends runs inside one of its own transactions, so a refused statement never leaves a caller's
- *     PostgreSQL transaction in a failed state (inside a caller's transaction, Laravel's nesting is a savepoint).
+ *     writes nothing: record() returns Dropped, replay() throws RecorderBusy. A failure of the error center itself cannot
+ *     loop back into it.
+ *   - Every statement it sends runs inside one of its own transactions (transaction()), so a refused statement never
+ *     leaves a caller's PostgreSQL transaction in a failed state (inside a caller's transaction, Laravel's nesting is a
+ *     savepoint), and on PostgreSQL no lock is waited for longer than a second.
+ *   - The counters are added to in the database (`occurrences = occurrences + 1`), never written back as a number read
+ *     before.
  *   - QISTAS_ERRORS=false: nothing is written anywhere, not even the spool.
  *
- * Flood caps (spec 8), counted in the cache with keys that carry the minute or the hour: at most 60 new issues a minute
- * and 500 an hour from the server's own sources; the client-reported kinds (a browser's script error, a phone's crash),
- * which any stranger can send, have a budget of their own of 20 a minute, so a flood of them can never use up the budget
- * that a real server error needs. A sighting of a known issue is never capped. A counter that cannot be read or written
- * keeps the gate shut (fails closed): a failing cache can never let a flood through. Everything over a cap is counted as
- * `dropped` in error_noise_days, so nothing is invisible.
+ * Flood caps (spec 8, ruling R15): new issues draw on one of three budgets (BUDGETS), each with counters of its own in the
+ * cache, keyed by the minute and the hour. A failure that can send the instant e-mail never shares a budget with what any
+ * visitor can make at will (a new 404 for a made-up path, a browser's script error, a phone's crash) or with slow queries,
+ * so no flood of those can stop a real server error being opened. A sighting of a known issue is never capped. A counter
+ * that cannot be read or written keeps the gate shut (fails closed): a failing cache can never let a flood through.
+ * Everything over a cap is counted as `dropped` in error_noise_days, so nothing is invisible.
  */
 final class ErrorRecorder
 {
@@ -52,12 +57,17 @@ final class ErrorRecorder
     /** Different people counted per issue; after that `people` stops growing. */
     public const PEOPLE = 500;
 
-    public const NEW_PER_MINUTE = 60;
-
-    public const NEW_PER_HOUR = 500;
-
-    /** New issues a minute from the kinds that browsers and phones report (CLIENT_KINDS). */
-    public const CLIENT_NEW_PER_MINUTE = 20;
+    /**
+     * How many new issues each budget may open in a minute and in an hour (see budget() for what draws on which).
+     */
+    public const BUDGETS = [
+        // Failures that can send the instant e-mail: an exception, or an error page of 500 or more, from site, api or database.
+        'alert' => ['minute' => 60, 'hour' => 500],
+        // The server's failures that never alert at once: error pages below 500 (any visitor can make a new 404) and slow queries.
+        'quiet' => ['minute' => 30, 'hour' => 200],
+        // What browsers and phones report (script, crash): unverifiable, and anyone can send it.
+        'client' => ['minute' => 20, 'hour' => 100],
+    ];
 
     /** The kinds an untrusted client reports: never verified, never an instant e-mail (spec 9). */
     public const CLIENT_KINDS = ['script', 'crash'];
@@ -65,8 +75,14 @@ final class ErrorRecorder
     /** What error_noise_days counts: requests only a scanner makes, and everything over a flood cap. */
     public const NOISE_KINDS = ['scanner', 'dropped'];
 
+    /** On PostgreSQL, the longest the recorder waits for a lock before its write is refused (and the event spooled). */
+    public const LOCK_TIMEOUT = '1s';
+
     /** How many times a new fingerprint is tried when another request opens the same issue at the same instant. */
     private const ATTEMPTS = 2;
+
+    /** How long occurrences are kept when qistas.errors.occurrence_days is not a usable number. */
+    private const OCCURRENCE_DAYS = 30;
 
     private static bool $busy = false;
 
@@ -88,6 +104,20 @@ final class ErrorRecorder
     public static function clientReported(string $source, string $kind): bool
     {
         return $source === 'app' || in_array($kind, self::CLIENT_KINDS, true);
+    }
+
+    /**
+     * The budget a new issue draws on (BUDGETS): `client` for what a browser or a phone reports, `alert` for what can send
+     * the instant e-mail (an exception, or an error page of 500 or more), `quiet` for the rest (error pages below 500,
+     * slow queries).
+     */
+    public static function budget(string $source, string $kind, ?int $status): string
+    {
+        if (self::clientReported($source, $kind)) {
+            return 'client';
+        }
+
+        return $kind === 'exception' || ($kind === 'http' && $status !== null && $status >= 500) ? 'alert' : 'quiet';
     }
 
     /**
@@ -119,6 +149,29 @@ final class ErrorRecorder
     }
 
     /**
+     * Runs $work in a transaction of the recorder's own. On PostgreSQL, when it is the outermost transaction, a lock is
+     * waited for at most LOCK_TIMEOUT (`SET LOCAL` lasts until that transaction ends; inside a caller's transaction it is
+     * not set, since it would change the caller's), so a flood of one failure cannot line the PHP workers up behind one
+     * row. A wait that runs out is refused like any other statement: the transaction is rolled back and the event goes to
+     * the spool.
+     *
+     * @template T
+     *
+     * @param  Closure(): T  $work
+     * @return T
+     */
+    public static function transaction(Connection $db, Closure $work): mixed
+    {
+        return $db->transaction(static function () use ($db, $work): mixed {
+            if ($db->getDriverName() === 'pgsql' && $db->transactionLevel() === 1) {
+                $db->unprepared("set local lock_timeout = '".self::LOCK_TIMEOUT."'");
+            }
+
+            return $work();
+        });
+    }
+
+    /**
      * Records one event and says what became of it. Never throws: when the database refuses the write, the scrubbed event
      * goes to the spool (Spooled), and when the spool cannot take it either, it is lost (Dropped).
      */
@@ -137,15 +190,20 @@ final class ErrorRecorder
         try {
             try {
                 $scrubbed = ErrorScrubber::event($event);
+                $fingerprint = ErrorFingerprint::of($scrubbed);
             } catch (Throwable) {
                 return Recorded::Dropped; // what could not be scrubbed is never kept, not even in the spool
             }
 
             try {
-                return $this->write($scrubbed);
+                $recorded = $this->write($scrubbed, $fingerprint);
             } catch (Throwable) {
-                return $this->spool->append($scrubbed) ? Recorded::Spooled : Recorded::Dropped;
+                return $this->spool->append($scrubbed, $fingerprint) ? Recorded::Spooled : Recorded::Dropped;
             }
+
+            $this->countLost();
+
+            return $recorded;
         } catch (Throwable) {
             return Recorded::Dropped;
         } finally {
@@ -155,24 +213,30 @@ final class ErrorRecorder
 
     /**
      * Records an event read back from the spool: the same as record(), except that a database that still refuses it
-     * throws, so the spool keeps the line instead of writing it a second time.
+     * throws, so the spool keeps the line instead of writing it a second time. The fingerprint the line was written with
+     * is used when it is one (40 hex characters), so the scrubber's rare second opinion on a text can never open a second
+     * issue for the same failure.
      *
+     * @throws RecorderBusy when the recorder is already at work: the line was not recorded and must be kept
      * @throws Throwable when the database refuses the write
      */
-    public function replay(ErrorEvent $event): Recorded
+    public function replay(ErrorEvent $event, ?string $fingerprint = null): Recorded
     {
         if (! self::enabled()) {
             return Recorded::Off;
         }
 
         if (self::$busy) {
-            return Recorded::Dropped;
+            throw new RecorderBusy('The error recorder is already at work.');
         }
 
         self::$busy = true;
 
         try {
-            return $this->write(ErrorScrubber::event($event));
+            $scrubbed = ErrorScrubber::event($event);
+            $known = $fingerprint !== null && preg_match('~^[0-9a-f]{40}$~D', $fingerprint) === 1;
+
+            return $this->write($scrubbed, $known ? $fingerprint : ErrorFingerprint::of($scrubbed));
         } finally {
             self::$busy = false;
         }
@@ -185,52 +249,77 @@ final class ErrorRecorder
      */
     public function noise(string $kind, ?CarbonInterface $day = null, int $count = 1): void
     {
+        $this->countNoise($kind, $day, $count);
+    }
+
+    /** noise(), saying whether the count was written. */
+    private function countNoise(string $kind, ?CarbonInterface $day, int $count): bool
+    {
         if (! self::enabled() || $count < 1 || ! in_array($kind, self::NOISE_KINDS, true)) {
-            return;
+            return false;
         }
 
         try {
             $date = CarbonImmutable::instance($day ?? now())->setTimezone(self::timezone())->toDateString();
             $db = self::connection();
 
-            $db->transaction(function () use ($db, $date, $kind, $count): void {
+            self::transaction($db, function () use ($db, $date, $kind, $count): void {
                 $db->table('error_noise_days')->insertOrIgnore(['day' => $date, 'kind' => $kind, 'count' => 0]);
                 $db->table('error_noise_days')->where('day', $date)->where('kind', $kind)->increment('count', $count);
             });
+
+            return true;
         } catch (Throwable) {
-            // a lost count is not an error of its own
+            return false; // a lost count is not an error of its own
         }
     }
 
     /**
-     * Stores one scrubbed event. Throws whatever the database throws.
+     * What the spool could not take in this process is counted as dropped in error_noise_days, now that the database
+     * answers (after a write that went through, and at the end of an import). Kept for later when it cannot be counted.
      */
-    private function write(ErrorEvent $event): Recorded
+    public function countLost(): void
     {
-        $fingerprint = ErrorFingerprint::of($event);
+        $lost = ErrorSpool::lost();
+
+        if ($lost > 0 && $this->countNoise('dropped', null, $lost)) {
+            ErrorSpool::forgetLost($lost);
+        }
+    }
+
+    /**
+     * Stores one scrubbed event under its fingerprint. Throws whatever the database throws.
+     */
+    private function write(ErrorEvent $event, string $fingerprint): Recorded
+    {
         $at = self::moment($event->at);
         $person = self::person($event->userId);
         $db = self::connection();
 
         for ($attempt = 1; $attempt <= self::ATTEMPTS; $attempt++) {
-            $seen = $db->transaction(fn (): ?Recorded => $this->sighting($db, $fingerprint, $event, $at, $person));
+            $seen = self::transaction($db, fn (): ?Recorded => $this->sighting($db, $fingerprint, $event, $at, $person));
 
             if ($seen !== null) {
                 return $seen;
             }
 
-            if (! $this->mayOpen($event)) {
+            $taken = $this->mayOpen($db, $event);
+
+            if ($taken === null) {
                 $this->noise('dropped');
 
                 return Recorded::Dropped;
             }
 
             try {
-                $issue = $db->transaction(fn (): ErrorIssue => $this->open($db, $fingerprint, $event, $at, $person));
+                $issue = self::transaction($db, fn (): ErrorIssue => $this->open($db, $fingerprint, $event, $at, $person));
             } catch (UniqueConstraintViolationException) {
                 // Another request opened the same issue a moment ago. Its insert won; this sighting is counted on that
-                // issue in the next attempt. The refused insert was rolled back with its transaction (a savepoint when
-                // nested), so no PostgreSQL transaction is left failed.
+                // issue in the next attempt, and the place this one took in the budget is given back. The refused insert
+                // was rolled back with its transaction (a savepoint when nested), so no PostgreSQL transaction is left
+                // failed.
+                $this->giveBack($db, $taken);
+
                 continue;
             }
 
@@ -262,27 +351,32 @@ final class ErrorRecorder
 
         $earlier = $at->lessThan($issue->first_seen_at);
         $counted = $person !== null && $issue->people < self::PEOPLE && $this->addPerson($db, $issue->id, $person);
+        $grammar = $db->getQueryGrammar();
 
-        $issue->forceFill([
-            'occurrences' => $issue->occurrences + 1,
-            'people' => $issue->people + ($counted ? 1 : 0),
+        $changes = [
+            // the counts are added to in the database, so nothing written in between is lost
+            'occurrences' => $db->raw($grammar->wrap('occurrences').' + 1'),
             'first_seen_at' => $earlier ? $at : $issue->first_seen_at,
             'last_seen_at' => $at->greaterThan($issue->last_seen_at) ? $at : $issue->last_seen_at,
             // the version of the first sighting (an earlier one read back from the spool moves it back) ...
             'first_version' => $event->version !== null && ($earlier || $issue->first_version === null) ? $event->version : $issue->first_version,
             // ... and the highest version seen; a sighting without a version changes neither
             'last_version' => self::higher($issue->last_version, $event->version),
-        ]);
+        ];
+
+        if ($counted) {
+            $changes['people'] = $db->raw($grammar->wrap('people').' + 1');
+        }
 
         if ($reopens) {
-            $issue->forceFill([
+            $changes += [
                 'status' => ErrorIssue::STATUS_OPEN,
                 'reopened_at' => $at,
                 'reopened_version' => $event->version,
-            ]);
+            ];
         }
 
-        $issue->save();
+        ErrorIssue::query()->whereKey($issue->id)->update($changes);
 
         $this->sample($issue->id, $event, $at);
         $this->trimSamples($issue->id);
@@ -336,7 +430,7 @@ final class ErrorRecorder
         ]);
     }
 
-    /** Keeps the newest five: by time, then by id, since two sightings can share a second. */
+    /** Keeps the newest five of this issue: by time, then by id, since two sightings can share a second. */
     private function trimSamples(string $issueId): void
     {
         $keep = ErrorOccurrence::query()->where('issue_id', $issueId)
@@ -360,32 +454,62 @@ final class ErrorRecorder
         return $db->table('error_issue_people')->insertOrIgnore(['issue_id' => $issueId, 'person' => $person]) > 0;
     }
 
-    /** May a new issue be opened now? Checked outside every transaction, so a cache on the database never sits in one. */
-    private function mayOpen(ErrorEvent $event): bool
+    /**
+     * May a new issue be opened now? Takes a place in the minute's and the hour's counters of its budget and returns the
+     * counters it took (to give back if another request opens the issue first), or null when either is full. Counted in a
+     * transaction of its own, so a cache kept in the database waits for its row at most as long as any other write.
+     *
+     * @return list<string>|null
+     */
+    private function mayOpen(Connection $db, ErrorEvent $event): ?array
     {
+        $budget = self::budget($event->source, $event->kind, $event->status);
         $now = now()->utc();
+        $taken = [];
 
-        if (self::clientReported($event->source, $event->kind)) {
-            return $this->withinBudget('client:'.$now->format('YmdHi'), self::CLIENT_NEW_PER_MINUTE, 120);
+        foreach (['minute' => ['YmdHi', 120], 'hour' => ['YmdH', 7200]] as $window => [$format, $seconds]) {
+            $key = "errors:new-issues:{$budget}:{$window}:".$now->format($format);
+
+            if (! $this->withinBudget($db, $key, self::BUDGETS[$budget][$window], $seconds)) {
+                return null;
+            }
+
+            $taken[] = $key;
         }
 
-        return $this->withinBudget('minute:'.$now->format('YmdHi'), self::NEW_PER_MINUTE, 120)
-            && $this->withinBudget('hour:'.$now->format('YmdH'), self::NEW_PER_HOUR, 7200);
+        return $taken;
     }
 
-    /** One more against the counter of this window; false when it is over the limit or cannot be counted. */
-    private function withinBudget(string $window, int $limit, int $seconds): bool
+    /** One more against the counter $key; false when it is over the limit or cannot be counted. */
+    private function withinBudget(Connection $db, string $key, int $limit, int $seconds): bool
     {
-        $key = 'errors:new-issues:'.$window;
-
         try {
-            Cache::add($key, 0, $seconds);
-            $count = Cache::increment($key);
+            $count = self::transaction($db, static function () use ($key, $seconds): mixed {
+                Cache::add($key, 0, $seconds);
+
+                return Cache::increment($key);
+            });
         } catch (Throwable) {
             return false; // a counter that cannot be read is a full one: a failing cache never opens the gate
         }
 
         return is_int($count) && $count >= 1 && $count <= $limit;
+    }
+
+    /**
+     * Gives back the places a new issue took in its budget, when another request opened the same issue first.
+     *
+     * @param  list<string>  $taken
+     */
+    private function giveBack(Connection $db, array $taken): void
+    {
+        foreach ($taken as $key) {
+            try {
+                self::transaction($db, static fn (): mixed => Cache::decrement($key));
+            } catch (Throwable) {
+                // a place not given back is only a place less in this minute
+            }
+        }
     }
 
     /** Fires ErrorIssueCreated once the transaction that opened the issue has committed; a listener's failure stays its own. */
@@ -428,10 +552,15 @@ final class ErrorRecorder
         return version_compare($seen, $known, '>') ? $seen : $known;
     }
 
-    /** When it happened, on the application clock; a time in the future (a clock that is ahead) is now. */
+    /**
+     * When it happened, on the application clock, kept between the oldest time an occurrence is kept for
+     * (qistas.errors.occurrence_days) and now: a clock that is ahead, or a damaged spool line dated in the year 1 (or a
+     * year PostgreSQL cannot even store), never puts a sighting outside what the screens show and retention removes.
+     */
     private static function moment(string $at): CarbonImmutable
     {
         $now = now()->toImmutable();
+        $oldest = $now->subDays(self::occurrenceDays());
 
         try {
             $moment = CarbonImmutable::parse($at);
@@ -439,7 +568,20 @@ final class ErrorRecorder
             $moment = $now;
         }
 
-        return ($moment->greaterThan($now) ? $now : $moment)->setTimezone(self::timezone());
+        $moment = match (true) {
+            $moment->greaterThan($now) => $now,
+            $moment->lessThan($oldest) => $oldest,
+            default => $moment,
+        };
+
+        return $moment->setTimezone(self::timezone());
+    }
+
+    private static function occurrenceDays(): int
+    {
+        $days = config('qistas.errors.occurrence_days');
+
+        return is_numeric($days) && (int) $days >= 1 ? (int) $days : self::OCCURRENCE_DAYS;
     }
 
     private static function timezone(): string

@@ -4,12 +4,15 @@ use App\Errors\ErrorEvent;
 use App\Errors\ErrorFingerprint;
 use App\Errors\ErrorRecorder;
 use App\Errors\ErrorScrubber;
+use App\Errors\ErrorSpool;
 use App\Errors\Events\ErrorIssueCreated;
 use App\Errors\Recorded;
 use App\Models\ErrorIssue;
 use App\Models\ErrorOccurrence;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Database\SQLiteConnection;
+use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -25,11 +28,65 @@ use Illuminate\Support\Str;
 beforeEach(function () {
     $this->travelTo(CarbonImmutable::parse('2026-11-04 10:30:00', 'UTC'));
     $this->spool = errorsRecorderSpool();
+    ErrorSpool::forgetLost(ErrorSpool::lost()); // a count another test left in this process is not this test's
 });
 
 afterEach(function () {
     errorsRecorderForget($this->spool);
+    ErrorSpool::forgetLost(ErrorSpool::lost());
 });
+
+/** An error page for a path no route serves; each $n is a different path, so a different issue. */
+function errorsRecorderPage(int $n, int $status = 404): array
+{
+    return ['kind' => 'http', 'class' => '', 'message' => '', 'trace' => '', 'status' => $status, 'method' => 'GET', 'route' => "/missing/page-{$n}"];
+}
+
+/** A slow query on a table of its own (named in letters: digits are folded away by the fingerprint). */
+function errorsRecorderSlowQuery(int $n): array
+{
+    $word = '';
+
+    do {
+        $word = chr(97 + $n % 26).$word;
+        $n = intdiv($n, 26);
+    } while ($n > 0);
+
+    return [
+        'source' => 'database', 'kind' => 'slow_query', 'class' => '', 'message' => "select * from table_{$word} where id = ?",
+        'trace' => '', 'status' => null, 'method' => null, 'route' => null,
+    ];
+}
+
+/** A server error the instant e-mail is for: the API answered 503. */
+function errorsRecorderOutage(string $route = '/api/v1/contracts'): array
+{
+    return ['source' => 'api', 'kind' => 'http', 'class' => '', 'message' => '', 'trace' => '', 'status' => 503, 'method' => 'GET', 'route' => $route];
+}
+
+/**
+ * A connection that says it is PostgreSQL (on an SQLite database in memory) and writes down every lock timeout it is
+ * told to set, with the transaction level it was told at.
+ */
+function errorsRecorderPgsqlDouble(string $driver = 'pgsql'): SQLiteConnection
+{
+    return new class(new PDO('sqlite::memory:'), ':memory:', '', ['driver' => $driver, 'name' => 'errors-'.$driver.'-double']) extends SQLiteConnection
+    {
+        /** @var list<array{0: string, 1: int}> */
+        public array $said = [];
+
+        public function unprepared($query)
+        {
+            if (str_contains($query, 'lock_timeout')) {
+                $this->said[] = [$query, $this->transactionLevel()];
+
+                return true;
+            }
+
+            return parent::unprepared($query);
+        }
+    };
+}
 
 /** An event the way the capture layer builds one, any field replaced. It happens now unless told otherwise. */
 function errorsRecorderEvent(array $with = []): ErrorEvent
@@ -196,6 +253,48 @@ it('samples that share a second are trimmed in the order of their time, then the
 
     expect($all)->toHaveCount(6)
         ->and($after)->toBe(array_slice($all, 1)); // the one with the smallest id went
+});
+
+it('trimming the samples of one issue leaves every other issue\'s samples alone', function () {
+    foreach (range(1, 5) as $minute) {
+        errorsRecord(['class' => 'AlphaException']);
+        errorsRecord(['class' => 'BravoException']);
+        $this->travel(1)->minutes();
+    }
+
+    errorsRecord(['class' => 'AlphaException']); // a sixth for Alpha: Alpha's oldest goes, and nothing of Bravo's
+
+    $alpha = ErrorIssue::query()->where('class', 'AlphaException')->sole();
+    $bravo = ErrorIssue::query()->where('class', 'BravoException')->sole();
+
+    expect($alpha->samples()->count())->toBe(5)
+        ->and($bravo->samples()->count())->toBe(5)
+        ->and(ErrorOccurrence::query()->count())->toBe(10)
+        ->and($alpha->samples()->get()->last()->occurred_at->toDateTimeString())->toBe('2026-11-04 10:31:00');
+});
+
+it('the counters are added to in the database, never written back as a number read before', function () {
+    errorsRecord(['userId' => (string) Str::uuid()]);
+    $issue = ErrorIssue::query()->sole();
+    $bumped = false;
+
+    // Another write lands between the recorder's read of the issue and its own write.
+    DB::listen(function (QueryExecuted $query) use (&$bumped, $issue): void {
+        if ($bumped || ! str_starts_with(strtolower(ltrim($query->sql)), 'select') || ! in_array($issue->fingerprint, $query->bindings, true)) {
+            return;
+        }
+
+        $bumped = true;
+        DB::table('error_issues')->where('id', $issue->id)->update([
+            'occurrences' => DB::raw('occurrences + 10'),
+            'people' => DB::raw('people + 10'),
+        ]);
+    });
+
+    expect(errorsRecord(['userId' => (string) Str::uuid()]))->toBe(Recorded::Counted)
+        ->and($bumped)->toBeTrue()
+        ->and($issue->fresh()->occurrences)->toBe(12)
+        ->and($issue->fresh()->people)->toBe(12);
 });
 
 it('the person count stops at 500', function () {
@@ -377,6 +476,56 @@ it('inside a caller\'s transaction, ErrorIssueCreated waits for that commit, and
         ->and(ErrorIssue::query()->count())->toBe(1);
 });
 
+it('ErrorIssueCreated can be handed to a queued listener: it carries the issue by its key', function () {
+    errorsRecord();
+    $issue = ErrorIssue::query()->sole();
+
+    $event = unserialize(serialize(new ErrorIssueCreated($issue)));
+
+    expect(class_uses(ErrorIssueCreated::class))->toContain(SerializesModels::class)
+        ->and($event->issue->is($issue))->toBeTrue()
+        ->and($event->issue->occurrences)->toBe(1);
+});
+
+it('on SQLite no lock timeout is set', function () {
+    $said = [];
+    DB::listen(function (QueryExecuted $query) use (&$said): void {
+        $said[] = strtolower($query->sql);
+    });
+
+    errorsRecord();
+    errorsRecord();
+    app(ErrorRecorder::class)->noise('scanner');
+
+    expect($said)->not->toBeEmpty()
+        ->and(array_values(array_filter($said, fn (string $sql) => str_contains($sql, 'lock_timeout'))))->toBe([]);
+
+    // The tests run inside a transaction of their own, so the recorder's are never the outermost here: the same question
+    // asked at the outermost level, of a connection that is SQLite.
+    $sqlite = errorsRecorderPgsqlDouble('sqlite');
+    ErrorRecorder::transaction($sqlite, fn () => null);
+
+    expect($sqlite->said)->toBe([]);
+});
+
+it('on PostgreSQL the outermost of the recorder\'s transactions waits for a lock at most a second, and a nested one leaves the caller\'s setting alone', function () {
+    $db = errorsRecorderPgsqlDouble();
+
+    expect(ErrorRecorder::transaction($db, fn () => 'answer'))->toBe('answer'); // the outermost: set once
+    $db->transaction(fn () => ErrorRecorder::transaction($db, fn () => null)); // inside a caller's: SET LOCAL would change the caller's
+    ErrorRecorder::transaction($db, fn () => ErrorRecorder::transaction($db, fn () => null)); // the outer sets it, the inner does not
+
+    expect(fn () => ErrorRecorder::transaction($db, fn () => throw new RuntimeException('canceling statement due to lock timeout')))
+        ->toThrow(RuntimeException::class);
+
+    expect($db->said)->toBe([
+        ["set local lock_timeout = '1s'", 1],
+        ["set local lock_timeout = '1s'", 1],
+        ["set local lock_timeout = '1s'", 1],
+    ])
+        ->and($db->transactionLevel())->toBe(0); // a refused one is rolled back, nothing is left open
+});
+
 it('a call made while the recorder is at work writes nothing', function () {
     $inner = null;
 
@@ -454,13 +603,121 @@ it('client reports have a budget of their own: a flood of them never stops a ser
         errorsRecord(['source' => 'site', 'kind' => 'script', 'platform' => 'web', 'class' => "TypeError{$n}", 'trace' => '']);
     }
 
-    foreach (range(1, 60) as $n) {
+    expect(errorsRecord(errorsRecorderOutage()))->toBe(Recorded::Created);
+
+    foreach (range(1, 59) as $n) {
         expect(errorsRecord(['class' => "App\\Exceptions\\Server{$n}"]))->toBe(Recorded::Created);
     }
 
-    expect(errorsRecord(['class' => 'App\\Exceptions\\Server61']))->toBe(Recorded::Dropped)
+    expect(errorsRecord(['class' => 'App\\Exceptions\\Server60']))->toBe(Recorded::Dropped)
         ->and(ErrorIssue::query()->where('kind', 'script')->count())->toBe(20)
-        ->and(ErrorIssue::query()->where('kind', 'exception')->count())->toBe(60);
+        ->and(ErrorIssue::query()->whereIn('kind', ['exception', 'http'])->count())->toBe(60);
+});
+
+it('client-reported kinds stop at 100 new issues an hour', function () {
+    $script = fn (int $n) => ['source' => 'site', 'kind' => 'script', 'platform' => 'web', 'class' => "TypeError{$n}", 'trace' => '', 'status' => null];
+    $n = 0;
+
+    foreach (range(0, 5) as $minute) {
+        $this->travelTo(CarbonImmutable::parse('2026-11-04 10:00:00', 'UTC')->addMinutes($minute));
+
+        foreach (range(1, $minute < 5 ? 20 : 1) as $ignored) {
+            $n++;
+            expect(errorsRecord($script($n)))->toBe($n <= 100 ? Recorded::Created : Recorded::Dropped);
+        }
+    }
+
+    expect($n)->toBe(101) // the 101st came in a minute with 1 so far: the hour's cap held it
+        ->and(ErrorIssue::query()->count())->toBe(100)
+        ->and(errorsRecord(errorsRecorderOutage()))->toBe(Recorded::Created)
+        ->and(errorsRecord(['class' => 'App\\Exceptions\\Server']))->toBe(Recorded::Created);
+
+    $this->travelTo(CarbonImmutable::parse('2026-11-04 11:00:00', 'UTC'));
+
+    expect(errorsRecord($script(102)))->toBe(Recorded::Created);
+});
+
+it('error pages below 500 and slow queries have a budget of their own: 30 new issues a minute', function () {
+    foreach (range(1, 20) as $n) {
+        expect(errorsRecord(errorsRecorderPage($n)))->toBe(Recorded::Created);
+    }
+
+    foreach (range(1, 10) as $n) {
+        expect(errorsRecord(errorsRecorderSlowQuery($n)))->toBe(Recorded::Created);
+    }
+
+    expect(errorsRecord(errorsRecorderPage(21)))->toBe(Recorded::Dropped)
+        ->and(errorsRecord(errorsRecorderPage(22, 419)))->toBe(Recorded::Dropped)
+        ->and(errorsRecord(errorsRecorderSlowQuery(11)))->toBe(Recorded::Dropped)
+        ->and(errorsRecord(errorsRecorderPage(1)))->toBe(Recorded::Counted) // one it knows still counts
+        ->and(errorsRecorderNoise('dropped'))->toBe(3);
+
+    $this->travel(1)->minutes();
+
+    expect(errorsRecord(errorsRecorderPage(23)))->toBe(Recorded::Created);
+});
+
+it('error pages below 500 and slow queries stop at 200 new issues an hour', function () {
+    $n = 0;
+
+    foreach (range(0, 6) as $minute) {
+        $this->travelTo(CarbonImmutable::parse('2026-11-04 10:00:00', 'UTC')->addMinutes($minute));
+
+        foreach (range(1, $minute < 6 ? 30 : 21) as $ignored) {
+            $n++;
+            $quiet = $n % 3 === 0 ? errorsRecorderSlowQuery($n) : errorsRecorderPage($n);
+            expect(errorsRecord($quiet))->toBe($n <= 200 ? Recorded::Created : Recorded::Dropped);
+        }
+    }
+
+    expect($n)->toBe(201) // the 201st came in a minute with 21 so far, under the minute's 30: the hour held it
+        ->and(ErrorIssue::query()->count())->toBe(200)
+        ->and(errorsRecorderNoise('dropped'))->toBe(1);
+
+    $this->travelTo(CarbonImmutable::parse('2026-11-04 11:00:00', 'UTC'));
+
+    expect(errorsRecord(errorsRecorderPage(202)))->toBe(Recorded::Created);
+});
+
+it('a flood of new 404s and slow queries up to their limits does not stop a 503 or an exception from opening an issue', function () {
+    $n = 0;
+
+    // Strangers asking for 200 different missing pages, and a slow database, in the hour before the real failure.
+    foreach (range(0, 6) as $minute) {
+        $this->travelTo(CarbonImmutable::parse('2026-11-04 10:00:00', 'UTC')->addMinutes($minute));
+
+        foreach (range(1, 40) as $ignored) {
+            $n++;
+            errorsRecord($n % 4 === 0 ? errorsRecorderSlowQuery($n) : errorsRecorderPage($n));
+        }
+    }
+
+    expect(ErrorIssue::query()->whereIn('kind', ['http', 'slow_query'])->count())->toBe(200)
+        ->and(errorsRecord(errorsRecorderPage(999)))->toBe(Recorded::Dropped)
+        ->and(errorsRecord(errorsRecorderOutage()))->toBe(Recorded::Created)
+        ->and(errorsRecord(['source' => 'site', 'status' => 500] + errorsRecorderOutage('/app/contracts/{contract}')))->toBe(Recorded::Created)
+        ->and(errorsRecord(['class' => 'App\\Exceptions\\PaymentFailed']))->toBe(Recorded::Created)
+        ->and(errorsRecord(['source' => 'database', 'class' => 'Illuminate\\Database\\QueryException', 'message' => 'SQLSTATE[08006] connection lost']))->toBe(Recorded::Created);
+});
+
+it('every new issue draws on one of three budgets, by whether it can send the instant e-mail', function () {
+    expect(ErrorRecorder::budget('site', 'exception', 500))->toBe('alert')
+        ->and(ErrorRecorder::budget('api', 'exception', null))->toBe('alert')
+        ->and(ErrorRecorder::budget('database', 'exception', null))->toBe('alert')
+        ->and(ErrorRecorder::budget('api', 'http', 503))->toBe('alert')
+        ->and(ErrorRecorder::budget('site', 'http', 500))->toBe('alert')
+        ->and(ErrorRecorder::budget('site', 'http', 499))->toBe('quiet')
+        ->and(ErrorRecorder::budget('site', 'http', 404))->toBe('quiet')
+        ->and(ErrorRecorder::budget('site', 'http', null))->toBe('quiet')
+        ->and(ErrorRecorder::budget('database', 'slow_query', null))->toBe('quiet')
+        ->and(ErrorRecorder::budget('site', 'script', null))->toBe('client')
+        ->and(ErrorRecorder::budget('app', 'crash', null))->toBe('client')
+        ->and(ErrorRecorder::budget('app', 'exception', 500))->toBe('client') // whatever a phone sends is a phone's
+        ->and(ErrorRecorder::BUDGETS)->toBe([
+            'alert' => ['minute' => 60, 'hour' => 500],
+            'quiet' => ['minute' => 30, 'hour' => 200],
+            'client' => ['minute' => 20, 'hour' => 100],
+        ]);
 });
 
 it('an existing issue still counts when new-issue caps are reached', function () {
@@ -525,6 +782,34 @@ it('two requests opening the same issue at once: the second one is counted on th
         ->and(DB::table('error_issues')->count())->toBe(1); // and the connection is still usable after the refused insert
     Event::assertNotDispatched(ErrorIssueCreated::class);
 })->group('db-errors'); // the database refuses an insert (inside a savepoint): left out on the PGlite stand-in
+
+it('a request that loses the race to open an issue gives its place in the budget back', function () {
+    foreach (range(1, 58) as $n) {
+        errorsRecord(['class' => "App\\Exceptions\\Flood{$n}"]); // 58 of the minute's 60
+    }
+
+    $event = errorsRecorderEvent();
+    $fingerprint = ErrorFingerprint::of(ErrorScrubber::event($event));
+    $raced = false;
+
+    DB::listen(function (QueryExecuted $query) use (&$raced, $fingerprint): void {
+        if ($raced || ! str_starts_with(strtolower(ltrim($query->sql)), 'select') || ! in_array($fingerprint, $query->bindings, true)) {
+            return;
+        }
+
+        $raced = true;
+        ErrorIssue::query()->forceCreate([
+            'fingerprint' => $fingerprint, 'source' => 'site', 'kind' => 'exception', 'title' => 'RuntimeException: Something broke',
+            'class' => 'RuntimeException', 'occurrences' => 1, 'first_seen_at' => now(), 'last_seen_at' => now(),
+        ]);
+    });
+
+    expect(app(ErrorRecorder::class)->record($event))->toBe(Recorded::Counted)
+        // the lost race took nothing from the budget: two more new issues fit in this minute, and only two
+        ->and(errorsRecord(['class' => 'App\\Exceptions\\Flood59']))->toBe(Recorded::Created)
+        ->and(errorsRecord(['class' => 'App\\Exceptions\\Flood60']))->toBe(Recorded::Created)
+        ->and(errorsRecord(['class' => 'App\\Exceptions\\Flood61']))->toBe(Recorded::Dropped);
+})->group('db-errors');
 
 // ---- off -----------------------------------------------------------------------------------------------------------
 
@@ -605,6 +890,24 @@ it('a time in the future is taken as now', function () {
     expect($issue->last_seen_at->toDateTimeString())->toBe('2026-11-04 10:30:00')
         ->and($issue->samples()->sole()->occurred_at->toDateTimeString())->toBe('2026-11-04 10:30:00')
         ->and(errorsRecorderDays($issue))->toBe(['2026-11-04' => 1]);
+});
+
+it('a time from before the occurrences are kept is taken as the oldest time kept', function () {
+    errorsRecord(['class' => 'AlphaException', 'at' => '1970-01-01T00:00:00+00:00']);
+
+    config(['qistas.errors.occurrence_days' => 7]);
+    errorsRecord(['class' => 'BravoException', 'at' => '0001-01-01T00:00:00+00:00']);
+
+    config(['qistas.errors.occurrence_days' => 0]); // not a usable setting: the default 30 days
+    errorsRecord(['class' => 'CharlieException', 'at' => '2026-01-01T00:00:00+00:00']);
+
+    $first = fn (string $class) => ErrorIssue::query()->where('class', $class)->sole()->first_seen_at->toDateTimeString();
+
+    expect($first('AlphaException'))->toBe('2026-10-05 10:30:00') // 30 days before now
+        ->and($first('BravoException'))->toBe('2026-10-28 10:30:00') // 7 days
+        ->and($first('CharlieException'))->toBe('2026-10-05 10:30:00')
+        ->and(ErrorOccurrence::query()->min('occurred_at'))->toStartWith('2026-10-05 10:30:00')
+        ->and(errorsRecorderDays(ErrorIssue::query()->where('class', 'BravoException')->sole()))->toBe(['2026-10-28' => 1]);
 });
 
 // ---- privacy -------------------------------------------------------------------------------------------------------

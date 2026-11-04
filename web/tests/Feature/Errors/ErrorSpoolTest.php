@@ -1,11 +1,15 @@
 <?php
 
 use App\Errors\ErrorEvent;
+use App\Errors\ErrorFingerprint;
 use App\Errors\ErrorRecorder;
+use App\Errors\ErrorScrubber;
 use App\Errors\ErrorSpool;
 use App\Errors\Events\ErrorIssueCreated;
 use App\Errors\Recorded;
+use App\Errors\RecorderBusy;
 use App\Models\ErrorIssue;
+use App\Models\ErrorOccurrence;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -26,11 +30,32 @@ use Illuminate\Support\Str;
 beforeEach(function () {
     $this->travelTo(CarbonImmutable::parse('2026-11-04 10:30:00', 'UTC'));
     $this->spool = errorsSpoolUse();
+    ErrorSpool::forgetLost(ErrorSpool::lost()); // a count another test left in this process is not this test's
 });
 
 afterEach(function () {
     errorsSpoolForget($this->spool);
+    ErrorSpool::forgetLost(ErrorSpool::lost());
 });
+
+/** A line written straight into the spool file (a hostile or damaged one), from an event's fields with any replaced. */
+function errorsSpoolWrite(string $path, array $line): void
+{
+    if (! is_dir(dirname($path))) {
+        mkdir(dirname($path), 0777, true);
+    }
+
+    file_put_contents($path, json_encode($line + errorsSpoolEvent()->toArray(), JSON_UNESCAPED_SLASHES)."\n", FILE_APPEND);
+}
+
+/** A spool path nobody can write: a file stands where its folder should be. Returns the file, to remove it after. */
+function errorsSpoolUnwritable(): string
+{
+    $file = (string) tempnam(sys_get_temp_dir(), 'qistas');
+    config(['qistas.errors.spool_path' => $file.DIRECTORY_SEPARATOR.'error-spool.ndjson']);
+
+    return $file;
+}
 
 /** An event the way the capture layer builds one, any field replaced. */
 function errorsSpoolEvent(array $with = []): ErrorEvent
@@ -141,13 +166,14 @@ function errorsSpoolImport(?float $seconds = null): int
 
 it('when the database write throws, the scrubbed event is appended to the spool and Spooled is returned', function () {
     $userId = (string) Str::uuid();
-
-    errorsSpoolTablesAway();
-    $result = app(ErrorRecorder::class)->record(errorsSpoolEvent([
+    $event = errorsSpoolEvent([
         'message' => 'Card declined for sara.ali@example.com',
         'route' => '/app/customers/0b8a7c1e-6a0e-4d4f-9a52-3f1d1b2c4e5f?phone=0501234567',
         'userId' => $userId,
-    ]));
+    ]);
+
+    errorsSpoolTablesAway();
+    $result = app(ErrorRecorder::class)->record($event);
     errorsSpoolTablesBack();
 
     $raw = (string) file_get_contents($this->spool);
@@ -160,6 +186,8 @@ it('when the database write throws, the scrubbed event is appended to the spool 
             'route' => '/app/customers/{id}', 'version' => '1.30.0', 'platform' => 'server',
             'user_id' => 'h:'.substr(hash_hmac('sha256', $userId, config('app.key')), 0, 16),
             'at' => '2026-11-04T10:30:00+00:00',
+            // the fingerprint the direct write would have used, so the import opens or counts the very same issue
+            'fingerprint' => ErrorFingerprint::of(ErrorScrubber::event($event)),
         ])
         ->and($lines[0]['message'])->toContain('[email]')
         ->and($raw)->not->toContain('sara.ali@example.com')->not->toContain($userId)->not->toContain('0501234567')
@@ -448,28 +476,205 @@ it('an import with no spool file writes nothing', function () {
         ->and(is_dir(dirname($this->spool)))->toBeFalse();
 });
 
+it('a spooled line keeps the fingerprint it was written with, so an import never opens a second issue', function () {
+    $recorder = app(ErrorRecorder::class);
+    $recorder->record(errorsSpoolEvent());
+    $issue = ErrorIssue::query()->sole();
+
+    // As if scrubbing the line again had changed its text a little: its own fingerprint still says which issue it is.
+    errorsSpoolWrite($this->spool, ['message' => 'Something broke, read back a little differently', 'fingerprint' => $issue->fingerprint]);
+
+    expect(errorsSpoolImport())->toBe(1)
+        ->and(ErrorIssue::query()->count())->toBe(1)
+        ->and($issue->fresh()->occurrences)->toBe(2);
+});
+
+it('a fingerprint in a line that is not 40 hex characters is worked out again', function () {
+    app(ErrorRecorder::class)->record(errorsSpoolEvent());
+    $issue = ErrorIssue::query()->sole();
+
+    foreach ([strtoupper($issue->fingerprint), $issue->fingerprint.'0', 'not a fingerprint', 42] as $fingerprint) {
+        errorsSpoolWrite($this->spool, ['fingerprint' => $fingerprint]);
+    }
+
+    expect(errorsSpoolImport())->toBe(4)
+        ->and(ErrorIssue::query()->count())->toBe(1) // every one recomputed: the same issue
+        ->and($issue->fresh()->occurrences)->toBe(5);
+});
+
+it('append() writes the fingerprint of the event it was given', function () {
+    $event = errorsSpoolEvent(['message' => 'No payment 123 for contract 0b8a7c1e-6a0e-4d4f-9a52-3f1d1b2c4e5f']);
+
+    app(ErrorSpool::class)->append($event);
+
+    expect(errorsSpoolLines($this->spool)[0]['fingerprint'])->toBe(ErrorFingerprint::of(ErrorScrubber::event($event)));
+});
+
+it('a line cut short by a crash is not glued to the next one', function () {
+    mkdir(dirname($this->spool), 0777, true);
+    file_put_contents($this->spool, '{"source":"site","kind":"excep'); // the crashed write: no line break
+
+    expect(app(ErrorSpool::class)->append(errorsSpoolEvent(['class' => 'AlphaException'])))->toBeTrue()
+        ->and(errorsSpoolImport())->toBe(1)
+        ->and(ErrorIssue::query()->pluck('class')->all())->toBe(['AlphaException'])
+        ->and(errorsSpoolDropped())->toBe(1);
+});
+
+it('a spool line with a time from long ago or far ahead is recorded inside the time occurrences are kept', function () {
+    foreach (['1970-01-01T00:00:00+00:00', '0001-01-01T00:00:00+00:00', '-9999-01-01T00:00:00+00:00', '+99999-01-01T00:00:00+00:00', 'not a time', ''] as $n => $at) {
+        errorsSpoolWrite($this->spool, ['class' => "App\\Exceptions\\Old{$n}", 'at' => $at]);
+    }
+
+    expect(errorsSpoolImport())->toBe(6)
+        ->and(ErrorIssue::query()->count())->toBe(6)
+        ->and((string) ErrorOccurrence::query()->min('occurred_at'))->toBeGreaterThanOrEqual('2026-10-05 10:30:00')
+        ->and((string) ErrorOccurrence::query()->max('occurred_at'))->toBeLessThanOrEqual('2026-11-04 10:30:00')
+        ->and((string) ErrorIssue::query()->min('first_seen_at'))->toBeGreaterThanOrEqual('2026-10-05 10:30:00');
+});
+
+it('putting a refused line back never takes the spool past 2 MB: the newest line makes room', function () {
+    $spool = app(ErrorSpool::class);
+    $spool->append(errorsSpoolEvent(['message' => 'poison pill']));
+
+    // The rest of the file is filled to the cap exactly (these lines are never reached: the import stops at the first).
+    $room = ErrorSpool::MAX_BYTES - errorsSpoolSize($this->spool);
+    $fill = '';
+
+    while (strlen($fill) + 1001 <= $room) {
+        $fill .= str_repeat('x', 1000)."\n";
+    }
+
+    if ($room - strlen($fill) >= 2) {
+        $fill .= str_repeat('y', $room - strlen($fill) - 1)."\n";
+    }
+
+    file_put_contents($this->spool, $fill, FILE_APPEND);
+    errorsSpoolRefusePoison();
+
+    expect(errorsSpoolSize($this->spool))->toBeGreaterThan(ErrorSpool::MAX_BYTES - 2)
+        ->and(errorsSpoolImport())->toBe(0); // refused: its line gains "tries" and grows
+
+    $first = json_decode(strstr((string) file_get_contents($this->spool), "\n", true), true);
+
+    expect(errorsSpoolSize($this->spool))->toBeLessThanOrEqual(ErrorSpool::MAX_BYTES)
+        ->and($first['tries'])->toBe(1)
+        ->and(errorsSpoolDropped())->toBe(1);
+})->group('db-errors');
+
+it('replay() while the recorder is at work refuses instead of dropping the line', function () {
+    $refused = null;
+
+    Event::listen(ErrorIssueCreated::class, function () use (&$refused): void {
+        try {
+            app(ErrorRecorder::class)->replay(errorsSpoolEvent(['class' => 'LateException']));
+        } catch (RecorderBusy $e) {
+            $refused = $e;
+        }
+    });
+
+    expect(app(ErrorRecorder::class)->record(errorsSpoolEvent()))->toBe(Recorded::Created)
+        ->and($refused)->toBeInstanceOf(RecorderBusy::class)
+        ->and(ErrorIssue::query()->pluck('class')->all())->toBe(['RuntimeException']);
+});
+
+it('an import asked for while the recorder is at work touches nothing, not even its lock', function () {
+    app(ErrorSpool::class)->append(errorsSpoolEvent(['class' => 'AlphaException']));
+    $before = (string) file_get_contents($this->spool);
+    $imported = null;
+
+    Event::listen(ErrorIssueCreated::class, function () use (&$imported): void {
+        $imported = app(ErrorSpool::class)->import(app(ErrorRecorder::class));
+    });
+
+    expect(app(ErrorRecorder::class)->record(errorsSpoolEvent(['class' => 'BravoException'])))->toBe(Recorded::Created)
+        ->and($imported)->toBe(0)
+        ->and((string) file_get_contents($this->spool))->toBe($before)
+        ->and(file_exists($this->spool.'.lock'))->toBeFalse()
+        ->and(errorsSpoolImport())->toBe(1); // and once the recorder is free, the line comes in
+});
+
+it('events the spool could not take are counted as dropped by the next write that succeeds', function () {
+    $file = errorsSpoolUnwritable();
+
+    try {
+        expect(app(ErrorSpool::class)->append(errorsSpoolEvent()))->toBeFalse()
+            ->and(app(ErrorSpool::class)->append(errorsSpoolEvent()))->toBeFalse()
+            ->and(ErrorSpool::lost())->toBe(2)
+            ->and(app(ErrorRecorder::class)->record(errorsSpoolEvent()))->toBe(Recorded::Created);
+    } finally {
+        unlink($file);
+    }
+
+    expect(errorsSpoolDropped())->toBe(2)
+        ->and(ErrorSpool::lost())->toBe(0);
+});
+
+it('events the spool could not take are counted as dropped at the end of an import', function () {
+    $file = errorsSpoolUnwritable();
+
+    try {
+        app(ErrorSpool::class)->append(errorsSpoolEvent());
+    } finally {
+        unlink($file);
+    }
+
+    config(['qistas.errors.spool_path' => $this->spool]);
+    app(ErrorSpool::class)->append(errorsSpoolEvent(['class' => 'AlphaException']));
+
+    expect(ErrorSpool::lost())->toBe(1)
+        ->and(errorsSpoolImport())->toBe(1)
+        ->and(errorsSpoolDropped())->toBe(1)
+        ->and(ErrorSpool::lost())->toBe(0);
+});
+
+it('import() counts only what it recorded: a dropped or ignored line is not imported', function () {
+    $recorder = app(ErrorRecorder::class);
+    $spool = app(ErrorSpool::class);
+
+    $recorder->record(errorsSpoolEvent(['class' => 'IgnoredException']));
+    ErrorIssue::query()->where('class', 'IgnoredException')->sole()->forceFill(['status' => 'ignored'])->save();
+
+    foreach (range(2, 60) as $n) {
+        $recorder->record(errorsSpoolEvent(['class' => "App\\Exceptions\\Flood{$n}"])); // the minute's 60 new issues are used up
+    }
+
+    $spool->append(errorsSpoolEvent(['class' => 'IgnoredException']));
+    $spool->append(errorsSpoolEvent(['class' => 'App\\Exceptions\\Flood2']));
+    $spool->append(errorsSpoolEvent(['class' => 'App\\Exceptions\\OneTooMany']));
+
+    expect($spool->import($recorder))->toBe(1)
+        ->and($spool->dropped())->toBe(2)
+        ->and(errorsSpoolSize($this->spool))->toBe(0);
+});
+
 // ---- the command ---------------------------------------------------------------------------------------------------
 
-it('the command qistas:errors:import-spool prints how many it imported and exits 0', function () {
+it('the command qistas:errors:import-spool prints how many it imported and dropped, and exits 0', function () {
     $spool = app(ErrorSpool::class);
     $spool->append(errorsSpoolEvent());
     $spool->append(errorsSpoolEvent(['class' => 'LogicException']));
 
     $this->artisan('qistas:errors:import-spool')
-        ->expectsOutputToContain('Imported 2 error reports from the spool.')
+        ->expectsOutputToContain('Imported 2, dropped 0.')
         ->assertExitCode(0);
+
+    app(ErrorRecorder::class)->record(errorsSpoolEvent(['class' => 'IgnoredException']));
+    ErrorIssue::query()->where('class', 'IgnoredException')->sole()->forceFill(['status' => 'ignored'])->save();
 
     $spool->append(errorsSpoolEvent());
+    $spool->append(errorsSpoolEvent(['class' => 'IgnoredException']));
+    file_put_contents($this->spool, "not a line anybody can read\n", FILE_APPEND);
 
     $this->artisan('qistas:errors:import-spool')
-        ->expectsOutputToContain('Imported 1 error report from the spool.')
+        ->expectsOutputToContain('Imported 1, dropped 2.')
         ->assertExitCode(0);
 
     $this->artisan('qistas:errors:import-spool')
-        ->expectsOutputToContain('Imported 0 error reports from the spool.')
+        ->expectsOutputToContain('Imported 0, dropped 0.')
         ->assertExitCode(0);
 
-    expect(ErrorIssue::query()->count())->toBe(2);
+    expect(ErrorIssue::query()->count())->toBe(3)
+        ->and(ErrorIssue::query()->where('class', 'RuntimeException')->sole()->occurrences)->toBe(2);
 });
 
 it('the command leaves the spool alone while capture is off', function () {
