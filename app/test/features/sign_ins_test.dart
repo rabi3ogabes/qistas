@@ -85,6 +85,18 @@ void main() {
       expect(find.descendant(of: row('w3'), matching: find.text('Desktop · Linux · ZZ')), findsOneWidget, reason: 'a country the app has no name for is shown by its code');
     });
 
+    testWidgets('names a sign-in from this app, which reports no model, by its kind, and spells its system as people do', (tester) async {
+      final server = signInsServer([
+        signInJson(id: 'a1', channel: 'app', deviceType: 'mobile', os: 'android', browser: null, appVersion: '1.29.0', createdAt: at(const Duration(minutes: 5))),
+        signInJson(id: 'a2', channel: 'app', deviceType: 'tablet', os: 'ios', browser: null, appVersion: '1.29.0', ipCountry: 'SA', createdAt: at(const Duration(minutes: 6))),
+      ]);
+      await openDevices(tester, server);
+
+      expect(find.descendant(of: row('a1'), matching: find.text('Mobile · Android · App 1.29.0 · Qatar')), findsOneWidget);
+      expect(find.descendant(of: row('a1'), matching: find.text('Proxy not detected · 5 minutes ago')), findsOneWidget);
+      expect(find.descendant(of: row('a2'), matching: find.text('Tablet · iOS · App 1.29.0 · Saudi Arabia')), findsOneWidget);
+    });
+
     testWidgets('says the proxy verdict in words and never says certain', (tester) async {
       final server = signInsServer([
         signInJson(id: 'p1', proxy: 'detected', signals: ['tor'], createdAt: at(const Duration(minutes: 1))),

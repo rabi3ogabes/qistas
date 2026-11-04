@@ -21,6 +21,23 @@ Future<void> tapFinder(WidgetTester tester, Finder finder) async {
   await settle(tester);
 }
 
+/// Every address the app asks the phone to open from here on (WhatsApp, text messages), as url_launcher hands it over.
+List<Uri> captureLaunches(WidgetTester tester) {
+  const channel = MethodChannel('plugins.flutter.io/url_launcher');
+  final opened = <Uri>[];
+  tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+    if (call.method == 'launch') opened.add(Uri.parse((call.arguments as Map<Object?, Object?>)['url'] as String));
+
+    return true;
+  });
+  addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, null));
+
+  return opened;
+}
+
+/// The words of the reminder on the open reminder sheet.
+String reminderOnSheet(WidgetTester tester) => tester.widget<Text>(find.textContaining('Thank you.')).data!;
+
 /// Today's page of the dashboard, with the lists replaced.
 Map<String, dynamic> board({List<Map<String, dynamic>>? late, List<Map<String, dynamic>>? today, List<Map<String, dynamic>>? upcoming}) => {
       ...dashboardJson(),
@@ -220,6 +237,22 @@ void main() {
       expect(find.text('Message copied.'), findsOneWidget);
     });
 
+    testWidgets('leaves the sign-up’s placeholder name out while the business is not named, and ends on the thanks', (tester) async {
+      await pumpApp(tester, workspaceServer(account: accountWithSetup()));
+      await tapFinder(tester, find.widgetWithText(OutlinedButton, 'Remind'));
+
+      expect(reminderOnSheet(tester), allOf(contains('has been overdue since'), isNot(contains('Business of Layla')), endsWith('Thank you.')));
+    });
+
+    for (final (label, account) in [('a business that is named', accountWithSetup(confirmed: true)), ('a server that does not know the first-run card', accountWithSetup(setup: false))]) {
+      testWidgets('signs with the business’s name for $label', (tester) async {
+        await pumpApp(tester, workspaceServer(account: account));
+        await tapFinder(tester, find.widgetWithText(OutlinedButton, 'Remind'));
+
+        expect(reminderOnSheet(tester), endsWith('Thank you. Business of Layla'));
+      });
+    }
+
     testWidgets('cannot be sent to someone with no phone number, and says why', (tester) async {
       final nobody = {...dueJson(contract: 'k2', reference: 'C-0003', name: 'Youssef Mansour', amount: '180.00', due: '2026-10-01', late: 6), 'customer_phone': ''};
       await pumpApp(tester, workspaceServer(routes: {'GET /dashboard': always(json(200, {'data': board(late: [nobody])}))}));
@@ -259,6 +292,32 @@ void main() {
       await tapButton(tester, 'Done');
       expect(find.text('Payment recorded'), findsNothing);
     });
+
+    /// Takes a payment from the dashboard for [account]'s business and sends the receipt; the words WhatsApp is given.
+    Future<String> sendReceipt(WidgetTester tester, Map<String, dynamic> account) async {
+      final opened = captureLaunches(tester);
+      await pumpApp(tester, workspaceServer(account: account, routes: {'POST /contracts/k1/payments': always(json(201, {'data': lineJson()}))}));
+      await tapFinder(tester, find.widgetWithText(FilledButton, 'Record payment').last);
+      await tapButton(tester, 'Record payment');
+      await tapButton(tester, 'Send receipt on WhatsApp');
+
+      expect(opened, hasLength(1));
+      expect(opened.single.host, 'wa.me');
+
+      return opened.single.queryParameters['text']!;
+    }
+
+    testWidgets('sends the receipt without the sign-up’s placeholder name while the business is not named', (tester) async {
+      final receipt = await sendReceipt(tester, accountWithSetup());
+
+      expect(receipt, allOf(contains('we received'), isNot(contains('Business of Layla')), endsWith('Thank you.')));
+    });
+
+    for (final (label, account) in [('a business that is named', accountWithSetup(confirmed: true)), ('a server that does not know the first-run card', accountWithSetup(setup: false))]) {
+      testWidgets('signs the receipt with the business’s name for $label', (tester) async {
+        expect(await sendReceipt(tester, account), endsWith('Thank you. Business of Layla'));
+      });
+    }
 
     testWidgets('a viewer is never taken to the payment sheet', (tester) async {
       final server = workspaceServer(account: accountJson(role: 'viewer'));

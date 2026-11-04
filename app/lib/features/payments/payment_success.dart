@@ -73,7 +73,7 @@ class _PaymentSuccessSheetState extends ConsumerState<PaymentSuccessSheet> {
         remaining: _remaining,
         reference: widget.contract.reference,
         currency: account?.currency ?? '',
-        business: account?.businessName ?? '',
+        business: customerFacingBusiness(account),
         paidAt: widget.payment.paidAt,
         language: language,
       );

@@ -199,8 +199,9 @@ class _SignInRow extends StatelessWidget {
   final DateTime now;
   final String language;
 
-  /// Where it came from, in the website's words: "Desktop · Chrome on Windows · Qatar", or for the phone app "Pixel 8 · Android
-  /// · App 1.29.0 · Qatar". A part that is not known is left out. The user agent is never shown, nor the address.
+  /// Where it came from, in the website's words: "Desktop · Chrome on Windows · Qatar", or for the phone app "Mobile · Android
+  /// · App 1.29.0 · Qatar" (a model the app reported would stand in for the kind; this app reports none). A part that is not
+  /// known is left out. The user agent is never shown, nor the address.
   String _device(BuildContext context) {
     final kind = switch (event.deviceType) {
       'desktop' => context.t('Desktop'),
@@ -208,7 +209,12 @@ class _SignInRow extends StatelessWidget {
       'tablet' => context.t('Tablet'),
       _ => context.t('Unknown device'),
     };
-    final os = event.os;
+    // The app reports its system as Flutter names it (android, ios); people write Android and iOS.
+    final os = switch (event.os?.toLowerCase()) {
+      'android' => 'Android',
+      'ios' => 'iOS',
+      _ => event.os,
+    };
     final browser = event.browser;
     final version = event.appVersion;
     final country = event.ipCountry;

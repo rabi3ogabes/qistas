@@ -99,7 +99,8 @@ void main() {
 
       final body = jsonDecode(server.requestsTo('POST /auth/login').single.data as String) as Map<String, dynamic>;
       expect(body['utc_offset'], DateTime.now().timeZoneOffset.inMinutes);
-      expect(body['device'], {'type': 'mobile', 'os': Platform.operatingSystem, 'model': deviceName(), 'app_version': AppConfig.appVersion});
+      // No model: the app cannot ask the phone for one, and the name of the Devices list is not one.
+      expect(body['device'], {'type': 'mobile', 'os': Platform.operatingSystem, 'app_version': AppConfig.appVersion});
       expect(body, isNot(contains('timezone')));
       expect(body['device_name'], deviceName());
     });

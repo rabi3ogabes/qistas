@@ -112,7 +112,7 @@ void main() {
       expect(body['locale'], 'en');
       expect(body['device_name'], deviceName());
       expect(body['utc_offset'], DateTime.now().timeZoneOffset.inMinutes);
-      expect(body['device'], {'type': 'mobile', 'os': Platform.operatingSystem, 'model': deviceName(), 'app_version': AppConfig.appVersion});
+      expect(body['device'], {'type': 'mobile', 'os': Platform.operatingSystem, 'app_version': AppConfig.appVersion});
       // No place and no time zone name: the server finds the place itself, and the app has no plugin for the zone's name.
       expect(body, isNot(contains('timezone')));
     });

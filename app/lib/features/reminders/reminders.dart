@@ -37,7 +37,18 @@ String? whatsappNumber(String phone, String country) {
   return digits;
 }
 
-/// Words for a customer, in the app's language: a friendly reminder, or a firmer one once an instalment is late.
+/// The name a message to a customer is signed with. Until the owner names the business (the first-run card), the
+/// workspace's name is the sign-up's placeholder ("Business of Layla", the owner's own first name) and must not reach a
+/// customer, so none is used. A server that does not know the card sends no setup, and its businesses are named.
+String customerFacingBusiness(Account? account) {
+  final setup = account?.setup;
+  if (account == null || (setup != null && !setup.confirmed)) return '';
+
+  return account.businessName;
+}
+
+/// Words for a customer, in the app's language: a friendly reminder, or a firmer one once an instalment is late. Trimmed,
+/// so a message signed with no name ends on its last word.
 String reminderMessage(BuildContext context, DueItem item, {required String currency, required String business, required String language, String? custom}) {
   final params = {
     'name': item.customerName,
@@ -48,14 +59,15 @@ String reminderMessage(BuildContext context, DueItem item, {required String curr
   };
 
   // The business's own words (Win Plan PP9), with the same placeholders filled in.
-  if (custom != null && custom.trim().isNotEmpty) return fillPlaceholders(custom, params);
+  if (custom != null && custom.trim().isNotEmpty) return fillPlaceholders(custom, params).trim();
 
-  return item.isOverdue
-      ? context.t('Hello :name, :amount for contract :reference has been overdue since :date. Could you settle it soon? Thank you. :business', params)
-      : context.t('Hello :name, a friendly reminder that :amount is due on :date for contract :reference. Thank you. :business', params);
+  return (item.isOverdue
+          ? context.t('Hello :name, :amount for contract :reference has been overdue since :date. Could you settle it soon? Thank you. :business', params)
+          : context.t('Hello :name, a friendly reminder that :amount is due on :date for contract :reference. Thank you. :business', params))
+      .trim();
 }
 
-/// Words for a customer after a payment: what was received and what is left.
+/// Words for a customer after a payment: what was received and what is left. Trimmed, like [reminderMessage].
 String receiptMessage(
   BuildContext context, {
   required String name,
@@ -76,9 +88,10 @@ String receiptMessage(
     'business': business,
   };
 
-  return remaining != null && remaining.isZero
-      ? context.t('Hello :name, we received :amount on :date for contract :reference. It is now fully paid. Thank you. :business', params)
-      : context.t('Hello :name, we received :amount on :date for contract :reference. Still to pay: :remaining. Thank you. :business', params);
+  return (remaining != null && remaining.isZero
+          ? context.t('Hello :name, we received :amount on :date for contract :reference. It is now fully paid. Thank you. :business', params)
+          : context.t('Hello :name, we received :amount on :date for contract :reference. Still to pay: :remaining. Thank you. :business', params))
+      .trim();
 }
 
 /// [text] with every :placeholder replaced by its value (longest names first, so none is cut short).
@@ -147,7 +160,7 @@ class ReminderSheet extends ConsumerWidget {
     final custom = remindsEveryone(account)
         ? ref.watch(reminderWordingProvider).valueOrNull?.where((w) => w.key == (item.isOverdue ? 'reminder_late' : 'reminder_due') && w.language == language && w.custom).firstOrNull?.body
         : null;
-    final message = reminderMessage(context, item, currency: currency, business: account?.businessName ?? '', language: language, custom: custom);
+    final message = reminderMessage(context, item, currency: currency, business: customerFacingBusiness(account), language: language, custom: custom);
 
     return SafeArea(
       child: SingleChildScrollView(
