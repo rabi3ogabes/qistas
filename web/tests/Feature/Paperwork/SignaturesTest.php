@@ -113,6 +113,19 @@ describe('through a link', function () {
             ->assertDontSee($contract->reference())->assertDontSee('Ahmad Salem');
     });
 
+    it('names the shop to the customer, but never by the placeholder a new workspace starts with', function () {
+        [, $tenant, $contract] = signingContract();
+        ['url' => $url, 'code' => $code] = signingLink($contract);
+
+        $tenant->forceFill(['name' => 'Salem Electronics'])->save();
+        $this->get($url)->assertOk()->assertSee('Salem Electronics');
+
+        $tenant->forceFill(['name' => 'Business of Layla', 'setup_confirmed_at' => null])->save();
+        $this->get($url)->assertOk()->assertDontSee('Business of Layla');
+        $this->post($url.'/code', ['code' => $code])->assertRedirect($url);
+        $this->get($url)->assertOk()->assertDontSee('Business of Layla')->assertSee('Ahmad Salem');
+    });
+
     it('shows the contract after the right code and keeps the signature drawn there', function () {
         [, $tenant, $contract] = signingContract();
         ['url' => $url, 'code' => $code] = signingLink($contract);

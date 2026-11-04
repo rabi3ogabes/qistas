@@ -19,7 +19,7 @@
                 <h1>{{ __('Thank you') }}</h1>
                 <p>{{ __('Your signature is kept with the contract. You can close this page.') }}</p>
             @elseif ($state === 'code')
-                <p class="sign-shop">{{ $business }}</p>
+                @if ($business !== '')<p class="sign-shop">{{ $business }}</p>@endif
                 <h1>{{ __('Sign your contract') }}</h1>
                 <p>{{ __('Enter the six-digit code the shop sent you by text message. It keeps the contract private to you.') }}</p>
                 <form method="POST" action="{{ route('sign.code', ['token' => $token]) }}" class="form" novalidate>
@@ -29,7 +29,7 @@
                 </form>
             @else
                 @php $money = fn (string $amount): string => Format::money($amount, $currency); @endphp
-                <p class="sign-shop">{{ $business }}</p>
+                @if ($business !== '')<p class="sign-shop">{{ $business }}</p>@endif
                 <h1>{{ __('Read the contract, then sign') }}</h1>
 
                 <table class="sign-facts">

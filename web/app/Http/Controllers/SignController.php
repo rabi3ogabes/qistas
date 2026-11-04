@@ -6,6 +6,7 @@ use App\Actions\Paperwork\SignThroughLink;
 use App\Documents\BusinessProfile;
 use App\Http\ApiException;
 use App\Models\Contract;
+use App\Models\Tenant;
 use App\Support\SignatureImage;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\RedirectResponse;
@@ -33,19 +34,32 @@ final class SignController
             return $this->closed($token);
         }
 
-        $business = BusinessProfile::for($link->tenant);
+        $business = $this->shopName($link->tenant);
         if ($request->session()->get(self::VERIFIED.$link->id) !== true) {
-            return response()->view('site.sign', ['state' => 'code', 'token' => $token, 'business' => $business->name(app()->getLocale())]);
+            return response()->view('site.sign', ['state' => 'code', 'token' => $token, 'business' => $business]);
         }
 
         // Inside the shop's workspace, so dates read the way the shop shows them (Hijri beside, when it does).
         return $current->use($link->tenant, fn (): Response => response()->view('site.sign', [
             'state' => 'sign',
             'token' => $token,
-            'business' => $business->name(app()->getLocale()),
+            'business' => $business,
             'contract' => $link->contract->load(['customer', 'items', 'installments' => fn ($query) => $query->orderBy('number')]),
             'currency' => $link->tenant->currency,
         ]));
+    }
+
+    /**
+     * The shop's name for the customer's page: the printed name or the workspace's. Until the owner has named the business
+     * the workspace's name is the placeholder sign-up made ("Business of Layla"), which a customer must never read, so then
+     * only a name the owner printed on the documents shows, or none.
+     */
+    private function shopName(Tenant $tenant): string
+    {
+        $profile = BusinessProfile::for($tenant);
+        $language = app()->getLocale();
+
+        return $tenant->isSetUp() ? $profile->name($language) : (string) $profile->printedName($language);
     }
 
     public function code(Request $request, string $token, SignThroughLink $links): RedirectResponse|Response
