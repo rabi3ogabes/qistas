@@ -201,6 +201,14 @@ class AuthController extends AsyncNotifier<AuthState> {
     state = AsyncData(AuthState.signedIn(account));
   }
 
+  /// The workspace as the server describes it after the first-run card was saved: the account takes it at once, on screen
+  /// and in the copy kept on this phone.
+  Future<void> tenantChanged(Map<String, dynamic> tenant) async {
+    final account = state.valueOrNull?.account;
+    if (account == null) return;
+    await accountChanged(account.withTenant(tenant));
+  }
+
   Future<void> signOut() async {
     await _stopPushes();
     try {

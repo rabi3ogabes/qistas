@@ -468,4 +468,86 @@ void main() {
       await snapshot(tester, name);
     });
   }
+
+  // The first-run card at the top of Today (go-live basics): the place told in a sentence with Change, asked outright, fixed by a
+  // contract or a payment; open on its list of countries; and the line a member of the business reads in its place. English and
+  // Arabic, the card by day and by night.
+  for (final (name, language, mode, account) in [
+    ('setup-card', 'en', 'light', accountWithSetup()),
+    ('setup-card-ar', 'ar', 'light', accountWithSetup()),
+    ('setup-card-dark', 'en', 'dark', accountWithSetup()),
+    ('setup-card-ask', 'en', 'light', accountWithSetup(detected: false)),
+    ('setup-card-ask-ar', 'ar', 'light', accountWithSetup(detected: false)),
+    ('setup-card-locked', 'en', 'light', accountWithSetup(canChange: false)),
+    ('setup-notice', 'en', 'light', accountWithSetup(role: 'manager')),
+    ('setup-notice-ar', 'ar', 'light', accountWithSetup(role: 'manager')),
+  ]) {
+    picture(name, (tester) async {
+      await pumpApp(tester, workspaceServer(account: account), realFonts: true, size: const Size(390, 1000), language: language, preferences: {'theme_mode': mode});
+      await snapshot(tester, name);
+    });
+  }
+
+  for (final (name, language, change) in [('setup-card-change', 'en', 'Change'), ('setup-card-change-ar', 'ar', 'تغيير')]) {
+    picture(name, (tester) async {
+      await pumpApp(tester, workspaceServer(account: accountWithSetup()), realFonts: true, size: const Size(390, 1500), language: language);
+      await tapText(tester, change);
+      await snapshot(tester, name);
+    });
+  }
+
+  picture('setup-card-country-list', (tester) async {
+    await pumpApp(tester, workspaceServer(account: accountWithSetup(detected: false)), realFonts: true, size: const Size(390, 844));
+    await tester.tap(find.byKey(const ValueKey('setup-country-button')));
+    await settle(tester);
+    await snapshot(tester, 'setup-card-country-list');
+  });
+
+  picture('setup-card-refused', (tester) async {
+    final server = workspaceServer(account: accountWithSetup(), routes: {
+      'PUT /workspace/setup': always(apiError(422, 'validation_failed', 'Some of the information is not valid.', extra: {
+        'fields': {'country': ['The country can no longer be changed because this business already has contracts or payments.']},
+      })),
+    });
+    await pumpApp(tester, server, realFonts: true, size: const Size(390, 1500));
+    await typeIntoKey(tester, 'setup-name', 'Al-Fares Electronics');
+    await tapText(tester, 'Change');
+    await tester.tap(find.byKey(const ValueKey('setup-country-button')));
+    await settle(tester);
+    await tester.tap(find.descendant(of: find.byType(BottomSheet), matching: find.text('Kuwait')));
+    await settle(tester);
+    await tapButton(tester, 'Save and continue');
+    // Tapping Save scrolled it into view; bring the top of Today back so the card is seen whole, with the refusal under the country.
+    tester.state<ScrollableState>(find.descendant(of: find.byType(SingleChildScrollView).first, matching: find.byType(Scrollable)).first).position.jumpTo(0);
+    await tester.pump();
+    await snapshot(tester, 'setup-card-refused');
+  });
+
+  // The person's own recent sign-ins under their devices: a phone, the web, a wrong password, a proxy that may be there.
+  for (final (name, language, mode) in [('sign-ins', 'en', 'light'), ('sign-ins-ar', 'ar', 'light'), ('sign-ins-dark', 'en', 'dark')]) {
+    picture(name, (tester) async {
+      final clock = FakeClock(DateTime(2026, 10, 11, 9));
+      String at(Duration ago) => clock.now.subtract(ago).toUtc().toIso8601String();
+      final server = workspaceServer(routes: {
+        'GET /devices': always(json(200, {
+          'data': [
+            {'id': 'd1', 'name': 'Pixel 8', 'current': true, 'last_used_at': at(const Duration(minutes: 4)), 'last_used_ip': '198.51.100.9', 'signed_in_at': at(const Duration(days: 9))},
+            {'id': 'd2', 'name': 'Chrome on Windows (web)', 'current': false, 'last_used_at': at(const Duration(days: 2)), 'last_used_ip': '198.51.100.24', 'signed_in_at': at(const Duration(days: 20))},
+          ],
+        })),
+        'GET /account/sign-ins': always(json(200, {
+          'data': [
+            signInJson(id: 's1', channel: 'app', deviceType: 'mobile', os: 'Android', browser: null, appVersion: '1.29.0', deviceName: 'Pixel 8', createdAt: at(const Duration(minutes: 5))),
+            signInJson(id: 's2', outcome: 'failed', deviceType: 'mobile', os: 'Android', browser: 'Chrome', ipCountry: 'GB', proxy: 'possible', signals: ['timezone_country_mismatch'], createdAt: at(const Duration(hours: 3))),
+            signInJson(id: 's3', createdAt: at(const Duration(days: 2))),
+            signInJson(id: 's4', deviceType: 'tablet', os: 'iPadOS', browser: 'Safari', ipCountry: 'SA', createdAt: at(const Duration(days: 12))),
+          ],
+        })),
+      });
+      await pumpApp(tester, server, realFonts: true, size: const Size(390, 1250), language: language, clock: clock, preferences: {'theme_mode': mode});
+      GoRouter.of(tester.element(find.byType(Scaffold).first)).go('/devices');
+      await settle(tester);
+      await snapshot(tester, name);
+    });
+  }
 }

@@ -19,6 +19,7 @@ import 'notifications.dart';
 import 'paperwork.dart';
 import 'plan_changes.dart';
 import 'reports.dart';
+import 'sign_in_event.dart';
 
 /// A fresh key for one attempt at one payment. Showing the same key again for the same attempt (a double tap, a
 /// retry after a dropped connection) makes the server record one payment, not two.
@@ -205,6 +206,24 @@ class QistasApi {
   }
 
   Future<void> signOutDevice(String id) async => _client.delete('/devices/$id');
+
+  /// The person's own latest sign-ins, newest first (go-live basics). An older server has no such list and answers 404.
+  Future<List<SignInEvent>> signIns() async {
+    final json = await _client.get('/account/sign-ins');
+
+    return [for (final item in (json['data'] as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>()) SignInEvent.fromJson(item)];
+  }
+
+  // ------------------------------------------------------------------ the first-run card (go-live basics)
+
+  /// The owner names the business and, if the place the server guessed is wrong, picks the country. The time zone is never
+  /// sent: the server works it out from the country. Answers with the workspace as the account describes it, the card's
+  /// facts included; a refused change of country is a 422 on `country` and nothing is saved.
+  Future<Map<String, dynamic>> confirmSetup({required String name, String? country}) async {
+    final json = await _client.put('/workspace/setup', body: {'name': name.trim(), 'country': ?country});
+
+    return _data(json)['tenant'] as Map<String, dynamic>;
+  }
 
   // ---------------------------------------------------------------- alerts and reminders (Win Plan PP9)
 

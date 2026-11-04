@@ -82,6 +82,53 @@ class Entitlement {
       };
 }
 
+/// The first-run card's facts (go-live basics): whether the owner has named the business and confirmed where it is, where
+/// the server thinks that is, and whether the place may still change. An older server sends none of it ([Account.setup] is
+/// then null and there is no card).
+@immutable
+class WorkspaceSetup {
+  const WorkspaceSetup({
+    required this.confirmed,
+    required this.country,
+    required this.currency,
+    required this.timezone,
+    this.countryDetected = false,
+    this.canChangeRegion = true,
+  });
+
+  /// Tolerant: a value that is not an object is no setup at all; a missing flag never makes the card appear on its own
+  /// (a card the server did not describe is treated as done), and never locks the place (the server refuses what it must).
+  static WorkspaceSetup? tryFromJson(Object? json) => json is Map<String, dynamic> ? WorkspaceSetup.fromJson(json) : null;
+
+  factory WorkspaceSetup.fromJson(Map<String, dynamic> json) => WorkspaceSetup(
+        confirmed: json['confirmed'] != false,
+        country: (json['country'] ?? '').toString().toUpperCase(),
+        currency: (json['currency'] ?? '').toString(),
+        timezone: (json['timezone'] ?? '').toString(),
+        countryDetected: json['country_detected'] == true,
+        canChangeRegion: json['can_change_region'] != false,
+      );
+
+  /// The owner named the business; no card.
+  final bool confirmed;
+
+  /// The place the business is in now (two letters), its currency and its time zone (an IANA name such as Asia/Qatar).
+  final String country;
+  final String currency;
+  final String timezone;
+
+  /// The server guessed the country from the connection or the browser, rather than falling back on its default.
+  final bool countryDetected;
+
+  /// False once the business has a contract or a payment: the place is fixed.
+  final bool canChangeRegion;
+
+  Map<String, dynamic> toJson() => {
+        'confirmed': confirmed, 'country': country, 'currency': currency, 'timezone': timezone,
+        'country_detected': countryDetected, 'can_change_region': canChangeRegion,
+      };
+}
+
 @immutable
 class Account {
   const Account({
@@ -104,6 +151,7 @@ class Account {
     this.requireAppLock = false,
     this.hijriDates = 'off',
     this.deletionScheduledFor,
+    this.setup,
     required this.planKey,
     required this.planName,
     required this.entitlements,
@@ -135,6 +183,7 @@ class Account {
       requireAppLock: tenant['require_app_lock'] == true,
       hijriDates: (tenant['hijri_dates'] ?? 'off').toString(),
       deletionScheduledFor: tenant['deletion_scheduled_for']?.toString(),
+      setup: WorkspaceSetup.tryFromJson(tenant['setup']),
       planKey: (plan['key'] ?? 'free').toString(),
       planName: (plan['name'] ?? '').toString(),
       entitlements: {
@@ -194,6 +243,9 @@ class Account {
   /// The owner asked to delete the business: it is read-only and erased after this day (YYYY-MM-DD) unless restored.
   final String? deletionScheduledFor;
 
+  /// The first-run card's facts; null from a server that does not have the card.
+  final WorkspaceSetup? setup;
+
   bool get isOwner => role == 'owner';
   final String planKey;
   final String planName;
@@ -243,10 +295,18 @@ class Account {
         'tenant': {
           'id': tenantId, 'name': businessName, 'country': country, 'currency': currency, 'role': role, 'is_test': isTest,
           'require_app_lock': requireAppLock, 'hijri_dates': hijriDates, 'deletion_scheduled_for': deletionScheduledFor,
+          if (setup != null) 'setup': setup!.toJson(),
         },
         'plan': {'key': planKey, 'name': planName},
         'entitlements': {for (final e in entitlements.entries) e.key: e.value.toJson()},
       };
+
+  /// This account with its workspace as the server describes it after a change to it (the first-run card): the name, the
+  /// place and the card's facts. The person, the plan and the entitlements stay as they were.
+  Account withTenant(Map<String, dynamic> tenant) => Account.fromJson({
+        ...toJson(),
+        'tenant': {...(toJson()['tenant'] as Map<String, dynamic>), ...tenant},
+      });
 }
 
 @immutable

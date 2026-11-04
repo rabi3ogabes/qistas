@@ -22,6 +22,7 @@ import '../../data/models.dart';
 import '../billing/upgrade_sheet.dart';
 import '../investors/investors_screen.dart';
 import '../products/products_screen.dart';
+import '../setup/setup_state.dart';
 
 /// Hands a file to the phone's share sheet (WhatsApp, email, a printer, any app). A provider, so tests see what was shared.
 final documentSharerProvider = Provider<Future<void> Function(String path, String subject)>(
@@ -239,9 +240,13 @@ class _DocumentOptionsSheetState extends ConsumerState<DocumentOptionsSheet> {
       }
     } on ApiException catch (e) {
       if (mounted) {
+        // The business has not been named, and every document carries its name: the owner is taken to the card on Today (this
+        // sheet closes); anyone else is told whose job it is, here.
+        final stay = isSetupRequired(e) ? answerSetupRequired(context, ref, leave: () => Navigator.of(context).pop()) : null;
+        if (isSetupRequired(e) && stay == null) return null;
         setState(() {
           _doing = null;
-          _problem = errorMessage(context, e);
+          _problem = stay ?? errorMessage(context, e);
         });
       }
     }

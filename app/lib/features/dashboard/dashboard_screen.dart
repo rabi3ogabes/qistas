@@ -23,6 +23,7 @@ import '../notifications/alerts.dart';
 import '../reminders/reminders.dart';
 import '../security/app_lock.dart' show clockProvider;
 import '../settings/delete_account_screen.dart';
+import '../setup/setup_card.dart';
 
 final dashboardProvider = FutureProvider.autoDispose<Dashboard>((ref) async {
   final glance = ref.read(glanceServiceProvider);
@@ -62,6 +63,8 @@ class DashboardScreen extends ConsumerWidget {
                 children: [
                   _Greeting(account: account, board: board.valueOrNull),
                   const SizedBox(height: 18),
+                  // The first-run card, until the owner has named the business (go-live basics).
+                  const SetupSlot(),
                   const DeletionBanner(),
                   const WelcomeBannerCard(),
                   board.when(

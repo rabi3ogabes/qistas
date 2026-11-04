@@ -9,10 +9,25 @@ import '../../core/design/widgets.dart';
 import '../../core/l10n/formats.dart';
 import '../../core/l10n/translations.dart';
 import '../../core/ui/errors.dart';
+import '../../core/ui/time_ago.dart';
 import '../../data/models.dart';
+import '../../data/sign_in_event.dart';
+import '../security/app_lock.dart' show clockProvider;
+import '../setup/countries.dart';
 
 /// The phones and browsers signed in to my account, newest seen first.
 final devicesProvider = FutureProvider.autoDispose<List<Device>>((ref) => ref.watch(apiProvider).devices());
+
+/// The person's own latest sign-ins, newest first, or null from a server that does not have the list (it answers 404): then the
+/// section is not drawn at all. Read only while the Devices screen is open.
+final signInsProvider = FutureProvider.autoDispose<List<SignInEvent>?>((ref) async {
+  try {
+    return await ref.watch(apiProvider).signIns();
+  } on ApiException catch (e) {
+    if (e.isNotFound) return null;
+    rethrow;
+  }
+});
 
 /// Win Plan PP16: which devices are signed in, when and where each was last seen, and signing any one out. A phone the
 /// owner does not recognise stands out by its place and its last time.
@@ -60,7 +75,11 @@ class DevicesScreen extends ConsumerWidget {
         loading: () => const Padding(padding: EdgeInsets.all(16), child: QSkeletonList(rows: 3)),
         error: (error, _) => QErrorView(message: errorMessage(context, error), retryLabel: context.t('Try again'), onRetry: () => ref.invalidate(devicesProvider)),
         data: (list) => RefreshIndicator(
-          onRefresh: () => ref.refresh(devicesProvider.future),
+          onRefresh: () {
+            ref.invalidate(signInsProvider);
+
+            return ref.refresh(devicesProvider.future);
+          },
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
             children: [
@@ -101,8 +120,160 @@ class DevicesScreen extends ConsumerWidget {
                   ],
                 ),
               ),
+              const _RecentSignIns(),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "Recent sign-ins": what signed in to this account lately, from where, whether a proxy shows and when, one calm row each
+/// in plain words, with a failed attempt marked in text. Nothing at all from a server that has no such list.
+class _RecentSignIns extends ConsumerWidget {
+  const _RecentSignIns();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final signIns = ref.watch(signInsProvider);
+    final c = context.qc;
+    final text = Theme.of(context).textTheme;
+
+    // An older server: no heading, no error, no empty sentence. While it is asked, the heading and placeholders.
+    if (signIns.hasValue && signIns.value == null) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        QSectionTitle(context.t('Recent sign-ins')),
+        signIns.when(
+          loading: () => const QCard(child: QSkeletonList(rows: 3)),
+          error: (error, _) => QCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(errorMessage(context, error), style: text.bodyMedium),
+                const SizedBox(height: 4),
+                TextButton(onPressed: () => ref.invalidate(signInsProvider), child: Text(context.t('Try again'))),
+              ],
+            ),
+          ),
+          data: (events) {
+            if (events == null) return const SizedBox.shrink();
+            if (events.isEmpty) return QCard(child: Text(context.t('No sign-ins are recorded yet.'), style: text.bodyMedium?.copyWith(color: c.inkMuted)));
+            final now = ref.watch(clockProvider)();
+            final language = ref.watch(localeProvider);
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(context.t('If one of these is not you, change your password.'), style: text.bodyMedium?.copyWith(color: c.inkMuted)),
+                ),
+                QCard(
+                  padding: EdgeInsets.zero,
+                  child: Column(
+                    children: [
+                      for (final (index, event) in events.indexed) ...[
+                        if (index > 0) const Divider(height: 1),
+                        _SignInRow(event: event, now: now, language: language),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _SignInRow extends StatelessWidget {
+  _SignInRow({required this.event, required this.now, required this.language}) : super(key: ValueKey('sign-in-${event.id}'));
+
+  final SignInEvent event;
+  final DateTime now;
+  final String language;
+
+  /// Where it came from, in the website's words: "Desktop · Chrome on Windows · Qatar", or for the phone app "Pixel 8 · Android
+  /// · App 1.29.0 · Qatar". A part that is not known is left out. The user agent is never shown, nor the address.
+  String _device(BuildContext context) {
+    final kind = switch (event.deviceType) {
+      'desktop' => context.t('Desktop'),
+      'mobile' => context.t('Mobile'),
+      'tablet' => context.t('Tablet'),
+      _ => context.t('Unknown device'),
+    };
+    final os = event.os;
+    final browser = event.browser;
+    final version = event.appVersion;
+    final country = event.ipCountry;
+    final parts = event.isApp
+        ? [
+            event.deviceName ?? kind,
+            ?os,
+            if (version == null) context.t('App') else context.t('App :version', {'version': version}),
+            if (country != null) countryName(context, country),
+          ]
+        : [
+            kind,
+            if (browser != null && os != null) context.t(':browser on :system', {'browser': browser, 'system': os}) else ?(browser ?? os),
+            if (country != null) countryName(context, country),
+          ];
+
+    return parts.join(' · ');
+  }
+
+  String _verdict(BuildContext context) => switch (event.proxy) {
+        'detected' => context.t('Proxy detected'),
+        'possible' => context.t('Proxy possible'),
+        _ => context.t('Proxy not detected'),
+      };
+
+  IconData get _icon => event.isApp
+      ? Icons.smartphone_rounded
+      : switch (event.deviceType) {
+          'desktop' => Icons.laptop_rounded,
+          'tablet' => Icons.tablet_mac_rounded,
+          'mobile' => Icons.smartphone_rounded,
+          _ => Icons.devices_other_rounded,
+        };
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.qc;
+    final text = Theme.of(context).textTheme;
+    final moment = event.createdAt;
+    final detail = [_verdict(context), if (moment != null) timeAgo(context, moment, now, language)].join(' · ');
+    final noted = event.proxy == 'possible' || event.proxy == 'detected';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: MergeSemantics(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              backgroundColor: event.failed ? c.tintBlush : c.surfaceAlt,
+              child: Icon(_icon, color: event.failed ? c.danger : c.inkMuted),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(_device(context), style: text.titleSmall),
+                  const SizedBox(height: 2),
+                  Text(detail, style: text.bodySmall?.copyWith(color: noted ? c.warning : c.inkMuted)),
+                  if (event.failed) ...[const SizedBox(height: 6), QBadge(context.t('Wrong password'), tone: QTone.warn)],
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -209,6 +209,69 @@ Map<String, dynamic> dayCloseTodayJson({
       'can_reopen': canReopen,
     };
 
+/// The first-run card's facts, as `tenant.setup` writes them (go-live basics).
+Map<String, dynamic> setupJson({
+  bool confirmed = false,
+  String country = 'QA',
+  String currency = 'QAR',
+  String timezone = 'Asia/Qatar',
+  bool detected = true,
+  bool canChange = true,
+}) =>
+    {'confirmed': confirmed, 'country': country, 'currency': currency, 'timezone': timezone, 'country_detected': detected, 'can_change_region': canChange};
+
+/// An account whose business has not been named yet: the placeholder name a sign-up starts with and the first-run card's
+/// facts. [setup] false is a server that does not know the card (the key is left out).
+Map<String, dynamic> accountWithSetup({
+  String role = 'owner',
+  bool confirmed = false,
+  String country = 'QA',
+  String currency = 'QAR',
+  String timezone = 'Asia/Qatar',
+  bool detected = true,
+  bool canChange = true,
+  bool setup = true,
+}) {
+  final account = accountJson(role: role);
+  account['tenant'] = {
+    ...Map<String, dynamic>.from(account['tenant'] as Map),
+    'name': 'Business of Layla',
+    'country': country,
+    'currency': currency,
+    if (setup) 'setup': setupJson(confirmed: confirmed, country: country, currency: currency, timezone: timezone, detected: detected, canChange: canChange),
+  };
+
+  return account;
+}
+
+/// The workspace part of the account as `PUT /workspace/setup` answers it once the business is named.
+Map<String, dynamic> tenantAfterSetupJson({String name = 'Al-Fares Electronics', String country = 'QA', String currency = 'QAR', String timezone = 'Asia/Qatar', String role = 'owner'}) => {
+      'id': 't1', 'name': name, 'country': country, 'currency': currency, 'role': role, 'is_test': false, 'require_app_lock': false, 'hijri_dates': 'off',
+      'deletion_scheduled_for': null,
+      'setup': setupJson(confirmed: true, country: country, currency: currency, timezone: timezone, detected: true, canChange: true),
+    };
+
+/// One line of `GET /account/sign-ins`.
+Map<String, dynamic> signInJson({
+  String id = 's1',
+  String channel = 'web',
+  String outcome = 'success',
+  String deviceType = 'desktop',
+  String? os = 'Windows',
+  String? browser = 'Chrome',
+  String? appVersion,
+  String? deviceName,
+  String? ipCountry = 'QA',
+  String proxy = 'not_detected',
+  List<String> signals = const [],
+  required String createdAt,
+}) =>
+    {
+      'id': id, 'method': 'password', 'channel': channel, 'outcome': outcome, 'device_type': deviceType, 'os': os, 'browser': browser,
+      'app_version': appVersion, 'device_name': deviceName, 'ip': '203.0.113.7', 'ip_country': ipCountry, 'proxy': proxy, 'proxy_signals': signals,
+      'created_at': createdAt,
+    };
+
 Map<String, dynamic> sessionJson() => {
       'token': 'qst_new-token',
       'token_type': 'Bearer',

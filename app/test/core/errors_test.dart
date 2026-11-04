@@ -49,6 +49,21 @@ void main() {
       expect(await messageFor(tester, refused), 'This account is suspended.');
     });
 
+    testWidgets('a document asked for before the business is named is told in our own words, whatever the server wrote', (tester) async {
+      const unnamed = ApiException(status: 409, code: 'workspace_setup_required', message: 'Name your business first. It is printed on every receipt.');
+
+      expect(isSetupRequired(unnamed), isTrue);
+      expect(await messageFor(tester, unnamed), 'Name your business first. It is printed on every receipt.');
+      expect(await messageFor(tester, const ApiException(status: 409, code: 'workspace_setup_required', message: '')), 'Name your business first. It is printed on every receipt.');
+    });
+
+    test('only that answer is the setup one', () {
+      expect(isSetupRequired(const ApiException(status: 409, code: 'conflict', message: 'x')), isFalse);
+      expect(isSetupRequired(const ApiException(status: 403, code: 'workspace_setup_required', message: 'x')), isFalse);
+      expect(isSetupRequired(const ApiException.network()), isFalse);
+      expect(isSetupRequired(StateError('boom')), isFalse);
+    });
+
     testWidgets('anything unexpected gets a plain sentence', (tester) async {
       expect(await messageFor(tester, StateError('boom')), 'Something went wrong. Please try again.');
     });
