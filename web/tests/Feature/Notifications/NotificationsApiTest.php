@@ -1,5 +1,6 @@
 <?php
 
+use App\Documents\BusinessProfile;
 use App\Entitlements\Feature;
 use App\Entitlements\FeatureControl;
 use App\Entitlements\PlatformState;
@@ -117,10 +118,13 @@ describe('the inbox', function () {
 });
 
 describe('remind everyone', function () {
-    /** @return array{0: User, 1: Tenant} */
-    function remindWorkspace(): array
+    /**
+     * @param  array<string, mixed>  $workspace
+     * @return array{0: User, 1: Tenant}
+     */
+    function remindWorkspace(array $workspace = ['name' => 'Al-Fares Electronics']): array
     {
-        [$owner, $tenant] = apiOwner(['name' => 'Al-Fares Electronics']);
+        [$owner, $tenant] = apiOwner($workspace);
         openContract($tenant, ['customer_id' => customerIn($tenant, ['name' => 'Amal', 'phone' => '0501112223'])->id, 'principal' => '300.00', 'start_date' => '2026-09-11', 'first_due_date' => '2026-10-11']);
         openContract($tenant, ['customer_id' => customerIn($tenant, ['name' => 'Badr', 'phone' => '+966502223334'])->id, 'principal' => '300.00', 'start_date' => '2026-09-01', 'first_due_date' => '2026-10-01']);
 
@@ -182,6 +186,36 @@ describe('remind everyone', function () {
         apiMember('collector', $tenant);
         $this->getJson('/api/v1/reminders/due-today')->assertOk();
         $this->putJson('/api/v1/message-templates/reminder_due', ['language' => 'en', 'body' => 'Hi'])->assertForbidden();
+    });
+
+    it('leaves the sign-up’s placeholder name out while the business is not named, and ends the sentence cleanly', function () {
+        remindWorkspace(['name' => 'Business of Layla', 'setup_confirmed_at' => null]);
+
+        $due = $this->getJson('/api/v1/reminders/due-today')->assertOk()->json('data.0.message');
+        $late = $this->getJson('/api/v1/reminders/due-today?scope=late')->assertOk()->json('data.0.message');
+        $arabic = $this->getJson('/api/v1/reminders/due-today?language=ar')->assertOk()->json('data.0.message');
+
+        expect(str_replace("\u{00A0}", ' ', $due))->toBe('Hello Amal, a friendly reminder that SAR 100.00 is due on 11 October 2026 for contract C-0001. Thank you.')
+            ->and(str_replace("\u{00A0}", ' ', $late))->toBe('Hello Badr, SAR 100.00 for contract C-0002 has been overdue since 1 October 2026. Could you settle it soon? Thank you.')
+            ->and($arabic)->toContain('مرحبًا Amal')->not->toContain('Layla')->toBe(trim($arabic));
+    });
+
+    it('signs with the name printed on the documents while the business is not named, in the reader’s language', function () {
+        [$owner, $tenant] = remindWorkspace(['name' => 'Business of Layla', 'setup_confirmed_at' => null]);
+        BusinessProfile::for($tenant)->save(['name_en' => 'Al-Fares Trading', 'name_ar' => 'الفارس للتجارة'], $owner);
+
+        expect(str_replace("\u{00A0}", ' ', $this->getJson('/api/v1/reminders/due-today')->json('data.0.message')))
+            ->toEndWith('for contract C-0001. Thank you. Al-Fares Trading')
+            ->and($this->getJson('/api/v1/reminders/due-today?language=ar')->json('data.0.message'))
+            ->toEndWith('الفارس للتجارة')->not->toContain('Layla');
+    });
+
+    it('signs with the business’s own name once it is named, as before, whatever the documents print', function () {
+        [$owner, $tenant] = remindWorkspace();
+        BusinessProfile::for($tenant)->save(['name_en' => 'Al-Fares Trading'], $owner);
+
+        expect(str_replace("\u{00A0}", ' ', $this->getJson('/api/v1/reminders/due-today')->json('data.0.message')))
+            ->toBe('Hello Amal, a friendly reminder that SAR 100.00 is due on 11 October 2026 for contract C-0001. Thank you. Al-Fares Electronics');
     });
 
     it('is closed while the platform has it switched off', function () {

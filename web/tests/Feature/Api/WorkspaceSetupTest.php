@@ -1,7 +1,10 @@
 <?php
 
 use App\Actions\RecordPayment;
+use App\Domain\Investors\MainInvestor;
+use App\Http\Controllers\Api\V1\TokenController;
 use App\Models\AuditLog;
+use App\Models\Investor;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Support\Collection;
@@ -72,10 +75,26 @@ function workspaceSetupOnlyATransaction(Tenant $tenant, User $by): void
         ->and(DB::table('transactions')->where('tenant_id', $tenant->id)->count())->toBe(1);
 }
 
-/** Put the locked workspace in the state the data set names. */
+/** Put the locked workspace in the state the data set names: a contract, a payment alone, or money with neither. */
 function workspaceSetupLock(string $history, Tenant $tenant, User $by): void
 {
-    $history === 'a contract' ? workspaceSetupWithContract($tenant) : workspaceSetupOnlyATransaction($tenant, $by);
+    match ($history) {
+        'a contract' => workspaceSetupWithContract($tenant),
+        'only a transaction' => workspaceSetupOnlyATransaction($tenant, $by),
+        default => recordMoneyWithoutAContract($history, $tenant, $by),
+    };
+}
+
+/** @return list<string> every kind of history that locks the place */
+function workspaceSetupHistories(): array
+{
+    return ['a contract', 'only a transaction', ...MONEY_WITHOUT_A_CONTRACT];
+}
+
+/** The currency of each of [$tenant]'s investors, read inside the workspace. @return list<string> */
+function workspaceSetupInvestorCurrencies(Tenant $tenant): array
+{
+    return asTenant($tenant, fn () => Investor::query()->orderBy('name')->pluck('currency')->all());
 }
 
 function workspaceSetupSend(array $body): TestResponse
@@ -225,6 +244,28 @@ describe('the place changes while no contract or transaction exists', function (
 
         expect(workspaceSetupState($tenant))->toMatchArray(['country' => 'QA', 'timezone' => 'Asia/Qatar', 'country_source' => 'language']);
     });
+
+    it('takes the workspace’s investors, still with no money, to the new currency with it, and nobody else’s', function () {
+        [, $tenant] = workspaceSetupOwner();
+        MainInvestor::for($tenant);
+        asTenant($tenant, fn () => (new Investor)->forceFill(['name' => 'Khalid Al-Harbi', 'currency' => 'SAR', 'is_main' => false])->save());
+        [, $theirs] = owner();
+        MainInvestor::for($theirs);
+
+        workspaceSetupSend(['name' => 'Al-Fares Electronics', 'country' => 'QA'])->assertOk()->assertJsonPath('data.tenant.currency', 'QAR');
+
+        expect(workspaceSetupInvestorCurrencies($tenant))->toBe(['QAR', 'QAR'])
+            ->and(workspaceSetupInvestorCurrencies($theirs))->toBe(['SAR']);
+    });
+
+    it('leaves the investors as they are when only the time zone changes', function () {
+        [, $tenant] = workspaceSetupOwner();
+        MainInvestor::for($tenant);
+
+        workspaceSetupSend(['name' => 'Al-Fares Electronics', 'timezone' => 'Asia/Dubai'])->assertOk();
+
+        expect(workspaceSetupInvestorCurrencies($tenant))->toBe(['SAR']);
+    });
 });
 
 describe('the place is locked once money exists', function () {
@@ -238,7 +279,7 @@ describe('the place is locked once money exists', function () {
 
         expect(workspaceSetupState($tenant))->toBe($before)->and($before['confirmed'])->toBeNull()
             ->and(workspaceSetupAudits($tenant))->toHaveCount(0);
-    })->with(['a contract', 'only a transaction']);
+    })->with(workspaceSetupHistories());
 
     it('refuses a different time zone and saves nothing, the name included', function (string $history) {
         [$user, $tenant] = workspaceSetupOwner();
@@ -249,7 +290,7 @@ describe('the place is locked once money exists', function () {
             ->assertStatus(422)->assertJsonStructure(['error' => ['fields' => ['timezone']]]);
 
         expect(workspaceSetupState($tenant))->toBe($before)->and(workspaceSetupAudits($tenant))->toHaveCount(0);
-    })->with(['a contract', 'only a transaction']);
+    })->with(workspaceSetupHistories());
 
     it('names both fields when both differ, and points to support', function () {
         [$user, $tenant] = workspaceSetupOwner();
@@ -277,6 +318,8 @@ describe('the place is locked once money exists', function () {
         'a contract, lower case' => ['a contract', 'sa', 'Asia/Riyadh'],
         'a contract, only the country' => ['a contract', 'SA', null],
         'a transaction, both' => ['only a transaction', 'SA', 'Asia/Riyadh'],
+        'an investor deposit, both' => ['an investor deposit', 'SA', 'Asia/Riyadh'],
+        'a closed day, both' => ['a closed day', 'SA', 'Asia/Riyadh'],
     ]);
 
     it('counts the zone a workspace falls back to as its own when none is stored', function () {
@@ -316,6 +359,23 @@ describe('who may confirm', function () {
 
     it('needs a token', function () {
         $this->putJson(WORKSPACE_SETUP_URL, ['name' => 'Al-Fares Electronics'])->assertUnauthorized();
+    });
+
+    it('needs the owner’s phone: an API access token made for other software gets 403 and changes nothing', function () {
+        [$user, $tenant] = owner(['name' => 'Business of Layla', 'country' => 'SA', 'currency' => 'SAR', 'timezone' => 'Asia/Riyadh', 'setup_confirmed_at' => null]);
+        $integration = $user->createToken('Accounting sync', [TokenController::ABILITY])->plainTextToken;
+        $phone = $user->createToken('Qistas app (android)', ['app'])->plainTextToken;
+        $before = workspaceSetupState($tenant);
+
+        $this->withToken($integration)->putJson(WORKSPACE_SETUP_URL, ['name' => 'Someone else', 'country' => 'QA'])
+            ->assertForbidden()->assertJsonPath('error.code', 'forbidden');
+
+        expect(workspaceSetupState($tenant))->toBe($before)->and(workspaceSetupAudits($tenant))->toHaveCount(0);
+
+        $this->app['auth']->forgetGuards();
+        $this->withToken($phone)->putJson(WORKSPACE_SETUP_URL, ['name' => 'Al-Fares Electronics'])->assertOk();
+
+        expect($tenant->fresh()->name)->toBe('Al-Fares Electronics');
     });
 });
 
@@ -446,13 +506,27 @@ describe('the setup block of the account', function () {
         $this->getJson('/api/v1/me')->assertJsonPath('data.tenant.setup.can_change_region', false);
     });
 
+    it('does not let the region change once money is recorded without a contract', function (string $kind) {
+        [$user, $tenant] = workspaceSetupOwner();
+
+        recordMoneyWithoutAContract($kind, $tenant, $user);
+
+        $this->getJson('/api/v1/me')->assertJsonPath('data.tenant.setup.can_change_region', false);
+    })->with(MONEY_WITHOUT_A_CONTRACT);
+
     it('looks only at its own workspace’s money', function () {
         [, $mine] = workspaceSetupOwner();
-        [, $theirs] = owner();
+        [$them, $theirs] = owner();
+        foreach (MONEY_WITHOUT_A_CONTRACT as $kind) {
+            recordMoneyWithoutAContract($kind, $theirs, $them);
+        }
         openContract($theirs);
 
         $this->getJson('/api/v1/me')->assertJsonPath('data.tenant.setup.can_change_region', true);
         expect($mine->fresh()->isSetUp())->toBeFalse();
+
+        workspaceSetupSend(['name' => 'Al-Fares Electronics', 'country' => 'QA'])->assertOk()->assertJsonPath('data.tenant.setup.country', 'QA');
+        expect($mine->fresh()->currency)->toBe('QAR');
     });
 });
 

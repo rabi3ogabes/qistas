@@ -1,6 +1,7 @@
 <?php
 
 use App\Auth\SignInPresenter;
+use App\Http\Controllers\Api\V1\TokenController;
 use App\Models\AuditLog;
 use App\Models\SignInEvent;
 use App\Models\Tenant;
@@ -147,10 +148,23 @@ describe('the API', function () {
         $this->getJson('/api/v1/account/sign-ins')->assertUnauthorized();
     });
 
-    it('sits behind the same guards and the same throttle as /me', function () {
+    it('sits behind the same guards and the same throttle as the list of signed-in devices', function () {
         $served = fn (string $name): array => Route::getRoutes()->getByName($name)->gatherMiddleware();
 
-        expect($served('api.account.sign-ins'))->toBe($served('api.me'));
+        expect($served('api.account.sign-ins'))->toBe($served('api.devices.index'))->toContain('abilities:app');
+    });
+
+    it('is for the person’s own phone: an API access token made for other software gets 403, an app token the list', function () {
+        [$me] = owner();
+        signInSurfacesRow($me, ['ip' => '198.51.100.7']);
+        $integration = $me->createToken('Accounting sync', [TokenController::ABILITY])->plainTextToken;
+        $phone = $me->createToken('Qistas app (android)', ['app'])->plainTextToken;
+
+        $refused = $this->withToken($integration)->getJson('/api/v1/account/sign-ins')->assertForbidden()->assertJsonPath('error.code', 'forbidden');
+        expect($refused->getContent())->not->toContain('198.51.100.7');
+
+        $this->app['auth']->forgetGuards();
+        $this->withToken($phone)->getJson('/api/v1/account/sign-ins')->assertOk()->assertJsonPath('data.0.ip', '198.51.100.7');
     });
 
     it('sends the person’s 20 latest sign-ins, newest first, and nobody else’s', function () {
@@ -692,6 +706,9 @@ describe('the wording, in one place', function () {
         'nothing known' => [['device_type' => 'unknown'], 'Unknown device'],
         'the phone app' => [['channel' => 'app', 'device_type' => 'mobile', 'device_name' => 'Pixel 8', 'os' => 'Android', 'app_version' => '1.29.0', 'ip_country' => 'SA'], 'Pixel 8 · Android · App 1.29.0 · Saudi Arabia'],
         'the phone app that told nothing about itself' => [['channel' => 'app', 'device_type' => 'tablet'], 'Tablet · App'],
+        'the phone app as it signs in: no model, its system in its own spelling' => [['channel' => 'app', 'device_type' => 'mobile', 'os' => 'android', 'app_version' => '1.29.0', 'ip_country' => 'QA'], 'Mobile · Android · App 1.29.0 · Qatar'],
+        'the phone app on an iPad' => [['channel' => 'app', 'device_type' => 'tablet', 'os' => 'ios', 'app_version' => '1.29.0', 'ip_country' => 'SA'], 'Tablet · iOS · App 1.29.0 · Saudi Arabia'],
+        'a system the app spells in capitals' => [['channel' => 'app', 'device_type' => 'mobile', 'os' => 'IOS', 'app_version' => '1.29.0'], 'Mobile · iOS · App 1.29.0'],
     ]);
 
     it('skips a signal it has no words for, and has no hint when none is left', function () {

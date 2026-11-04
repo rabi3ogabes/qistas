@@ -231,6 +231,31 @@ describe('a failed sign-in', function () {
             ->and(SignInEvent::query()->count())->toBe(3);
     });
 
+    it('keeps nothing the app says about itself, since anyone who knows the e-mail can send it: only what the user agent says', function (string $userAgent, array $parsed) {
+        $hostile = signInRecorderRequest(
+            ['device' => ['type' => 'tablet', 'os' => 'Qistas Security: locked', 'model' => 'Qistas Security: account locked, WhatsApp +974 5555 1234', 'app_version' => '+974 5555 1234']],
+            ['CF-IPCountry' => 'SA'],
+            userAgent: $userAgent,
+        );
+
+        $failed = $this->recorder->failed($this->user, $hostile, 'password', 'app');
+
+        expect($failed->only(['channel', 'outcome', 'device_type', 'os', 'browser', 'app_version', 'device_name']))
+            ->toBe(['channel' => 'app', 'outcome' => 'failed', ...$parsed, 'app_version' => null, 'device_name' => null])
+            ->and(json_encode(collect($failed->getAttributes())->except('user_agent')))->not->toContain('Qistas Security')->not->toContain('5555');
+
+        // The very same report after the right password is the person's own, and is kept.
+        $success = $this->recorder->success($this->user, $hostile, 'password', 'app');
+
+        expect($success->only(['device_type', 'os', 'app_version', 'device_name']))->toBe([
+            'device_type' => 'tablet', 'os' => 'Qistas Security: locked', 'app_version' => '+974 5555 1234',
+            'device_name' => 'Qistas Security: account locked, WhatsApp +974 5555 1234',
+        ]);
+    })->with([
+        'the phone app’s own user agent' => [SIGN_IN_RECORDER_DART, ['device_type' => 'unknown', 'os' => null, 'browser' => null]],
+        'a browser’s user agent' => [SIGN_IN_RECORDER_IPHONE, ['device_type' => 'mobile', 'os' => 'iOS', 'browser' => 'Mobile Safari']],
+    ]);
+
     it('keeps a stranger from filling a history: a hundred wrong guesses in a minute are one row', function () {
         foreach (range(1, 100) as $guess) {
             $this->recorder->failed($this->user, signInRecorderRequest(['password' => "guess-{$guess}"]));

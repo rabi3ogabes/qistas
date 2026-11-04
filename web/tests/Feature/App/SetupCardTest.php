@@ -371,6 +371,20 @@ describe('the card', function () {
                 ->toContain('The country can no longer be changed because this business already has contracts or payments. Contact support to change it.');
         });
 
+        it('asks for the name only, and says why the country stays, once money is recorded without a contract', function (string $kind) {
+            [$owner, $tenant] = setupCardOwner();
+            recordMoneyWithoutAContract($kind, $tenant, $owner);
+
+            $page = $this->get('/app')->assertOk();
+            $dom = setupCardDom($page);
+
+            expect(setupCardFind($dom, '//input[@name="name"]'))->toHaveCount(1)
+                ->and(setupCardFind($dom, '//select'))->toHaveCount(0)
+                ->and(setupCardFind($dom, '//details'))->toHaveCount(0)
+                ->and(setupCardText($page))->not->toContain('We think you are in')
+                ->toContain('The country can no longer be changed because this business already has contracts or payments. Contact support to change it.');
+        })->with(MONEY_WITHOUT_A_CONTRACT);
+
         it('keeps a country that is not on the list out of the chooser’s way once the place is locked', function () {
             [, $tenant] = setupCardOwner(['country' => 'PS', 'currency' => 'USD', 'timezone' => 'Asia/Gaza', 'country_source' => 'language']);
             setupCardLock($tenant);

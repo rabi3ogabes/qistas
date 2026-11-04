@@ -299,7 +299,7 @@ paths:
         restored by "remember me", and for a wrong password at most once a minute per address. Rows are removed after 90
         days. `proxy` is a best-effort reading of free signals: say "not detected", "possible" or "detected", never
         "certain", and show `proxy_signals` only as plain words, not as the raw names. The user agent is stored for
-        support and is not sent.
+        support and is not sent. Needs a signed-in device (an "app" token): an API access token gets 403 `forbidden`.
       responses:
         "200":
           description: The sign-ins, newest first; an empty list when there are none.
@@ -313,6 +313,7 @@ paths:
                     maxItems: 20
                     items: {$ref: "#/components/schemas/SignInEvent"}
         "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/Forbidden"}
         "429": {$ref: "#/components/responses/RateLimited"}
   /billing:
     get:
@@ -1704,7 +1705,8 @@ paths:
         every receipt, statement, contract and report answers 409 `workspace_setup_required` (open the card).
         Customers, contracts and payments are never held up.
 
-        **Owner only** (403 `forbidden` for everyone else). Send `name` (1 to 255 characters, spaces around it are
+        **Owner only** (403 `forbidden` for everyone else), and only from a signed-in device (an "app" token): an API
+        access token gets 403 `forbidden`. Send `name` (1 to 255 characters, spaces around it are
         dropped, not only spaces). Send `country` and `timezone` only to change them; sending the ones the workspace
         already has is fine. A different country gets its currency from the country table and, unless a different
         `timezone` that names a place is sent (UTC counts as none while the country changes), its usual time zone, and
@@ -3214,7 +3216,7 @@ components:
         os: {type: [string, "null"], example: Android, description: The system, as short as the user agent allows; null when unknown.}
         browser: {type: [string, "null"], example: Chrome, description: Null when unknown and for the phone app.}
         app_version: {type: [string, "null"], example: 1.29.0, description: The phone app's version; null on the website.}
-        device_name: {type: [string, "null"], example: Pixel 8, description: The phone's model as the app reported it; null on the website.}
+        device_name: {type: [string, "null"], example: null, description: "A model the app reported with a correct password, if any. The Qistas app sends none (it has no way to ask the phone), so its rows have null and are named by `device_type`. Null on the website and for a wrong password."}
         ip: {type: string, example: 203.0.113.9, description: The address the sign-in came from. The person's own, shown to them.}
         ip_country: {type: [string, "null"], example: QA, description: Two letters from the network in front of the site; null when unknown.}
         proxy: {type: string, enum: [not_detected, possible, detected]}

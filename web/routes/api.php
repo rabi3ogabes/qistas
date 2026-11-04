@@ -62,8 +62,6 @@ Route::name('api.')->group(function (): void {
         Route::post('auth/logout-all', [AuthController::class, 'logoutAll'])->name('auth.logout-all');
 
         Route::get('me', MeController::class)->name('me');
-        // The person's own recent sign-ins (go-live basics): up to 20, newest first, at most 5 of them wrong passwords, never anyone else's.
-        Route::get('account/sign-ins', SignInsController::class)->name('account.sign-ins');
         // Your profile: details, password and photo.
         Route::put('me', [ProfileController::class, 'update'])->middleware('throttle:20,1')->name('me.update');
         Route::put('me/password', [ProfileController::class, 'password'])->middleware('throttle:6,1')->name('me.password');
@@ -86,8 +84,6 @@ Route::name('api.')->group(function (): void {
         Route::get('settings/tools', [ToolsController::class, 'index'])->name('settings.tools.index');
         Route::put('settings/tools/{key}', [ToolsController::class, 'update'])->name('settings.tools.update');
         Route::put('workspace/security', [WorkspaceSecurityController::class, 'update'])->name('workspace.security');
-        // The first-run card: the owner names the business and confirms where it is. Documents wait for it.
-        Route::put('workspace/setup', [WorkspaceSetupController::class, 'update'])->middleware('throttle:20,1,workspace-setup')->name('workspace.setup');
 
         // Delete my account (store requirement): the owner deletes the business after 30 days, anyone else their login.
         Route::post('account/deletion', [AccountDeletionController::class, 'store'])->middleware('throttle:account-deletion')->name('account.deletion.store');
@@ -219,6 +215,12 @@ Route::name('api.')->group(function (): void {
             // The phones and browsers signed in to my account, and signing one out (Win Plan PP16).
             Route::get('devices', [DeviceController::class, 'index'])->name('devices.index');
             Route::delete('devices/{device}', [DeviceController::class, 'destroy'])->name('devices.destroy');
+            // The person's own recent sign-ins (go-live basics): up to 20, newest first, at most 5 of them wrong passwords,
+            // never anyone else's. Addresses and devices, like the list above, so not for software holding an API token.
+            Route::get('account/sign-ins', SignInsController::class)->name('account.sign-ins');
+            // The first-run card: the owner names the business and confirms where it is. Documents wait for it. Renaming
+            // the business and moving its country is the owner's own act, never an API token's.
+            Route::put('workspace/setup', [WorkspaceSetupController::class, 'update'])->middleware('throttle:20,1,workspace-setup')->name('workspace.setup');
             // Pushes, each person's alert choices and their inbox (Win Plan PP9).
             Route::post('push-tokens', [PushTokenController::class, 'store'])->name('push-tokens.store');
             Route::delete('push-tokens/{token}', [PushTokenController::class, 'destroy'])->where('token', '[^/]+')->name('push-tokens.destroy');

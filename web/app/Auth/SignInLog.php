@@ -6,7 +6,9 @@ namespace App\Auth;
 
 use App\Models\User;
 use Closure;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use RuntimeException;
 use Throwable;
 
 use function Illuminate\Support\defer;
@@ -17,8 +19,8 @@ use function Illuminate\Support\defer;
  *
  *  - It is written after the answer is sent (a deferred callback), so it adds no time to the answer. That matters for a
  *    wrong password: only an existing account gets a record, and the work must not tell an unknown e-mail apart.
- *  - Whatever goes wrong while writing it is reported and swallowed, so a broken record can never stop a sign-in, a
- *    sign-up or the usual answer to a wrong password.
+ *  - Whatever goes wrong while writing it is reported (its kind only, never the values the row was to hold) and
+ *    swallowed, so a broken record can never stop a sign-in, a sign-up or the usual answer to a wrong password.
  *
  * The hook points (plan deviation D4): Fortify's login, registration and two-factor responses and the invitation
  * sign-up for the website, the password check (App\Actions\Auth\AuthenticateUser) for a wrong password, and the API's
@@ -61,7 +63,23 @@ final class SignInLog
         try {
             $write(app(SignInRecorder::class));
         } catch (Throwable $e) {
-            report($e);
+            report(self::withoutDetails($e));
         }
+    }
+
+    /**
+     * What is reported when a record cannot be written: the kind of failure and where, never the original exception or
+     * its message. A database error's message carries the row's values (the person's address and browser) and the
+     * server's words about them; the SQL with its placeholders and the SQLSTATE say what failed, the same for everyone.
+     */
+    private static function withoutDetails(Throwable $e): RuntimeException
+    {
+        $what = $e::class.' at '.$e->getFile().':'.$e->getLine();
+
+        if ($e instanceof QueryException) {
+            $what .= ' (SQLSTATE '.($e->errorInfo[0] ?? $e->getCode()).', SQL: '.$e->getSql().')';
+        }
+
+        return new RuntimeException('A sign-in record could not be written: '.$what);
     }
 }

@@ -3,6 +3,9 @@
 namespace App\Actions;
 
 use App\Models\Contract;
+use App\Models\DayClose;
+use App\Models\Investor;
+use App\Models\InvestorEntry;
 use App\Models\Tenant;
 use App\Models\Transaction;
 use App\Models\User;
@@ -17,7 +20,7 @@ use Illuminate\Validation\ValidationException;
 /**
  * The first-run card (spec 2026-11-01 §3.3): the owner gives the business its real name and confirms where it is, once.
  * The name is printed on every document, so none is made until this is done (DocumentService). The country, its
- * currency and the time zone can be changed only while the workspace has no contract and no transaction, because they
+ * currency and the time zone can be changed only while the workspace has recorded no money (regionIsOpen), because they
  * decide the currency of every amount and the day every payment falls on; after that the same country and zone may
  * still be sent (a screen that resends what it was given is not an error) but a different one is refused as a whole,
  * and nothing at all is saved. Callers check that [$by] is the owner and that the input is valid.
@@ -73,6 +76,12 @@ final class ConfirmWorkspaceSetup
             $tenant->setup_confirmed_at ??= now();
             $tenant->save();
 
+            // An investor carries the workspace's currency from the day it is made (MainInvestor, CreateInvestor). No money
+            // is recorded yet (the place is open), so its rows simply follow the new currency and nothing disagrees.
+            if (isset($place['currency'])) {
+                $this->current->use($tenant, fn () => Investor::query()->update(['currency' => $tenant->currency]));
+            }
+
             Audit::record('workspace.setup_confirmed', $tenant, [
                 'name' => $tenant->name,
                 'country' => $tenant->country,
@@ -85,12 +94,21 @@ final class ConfirmWorkspaceSetup
     }
 
     /**
-     * Whether the place can still change: the workspace has no contract and no transaction. Both are read inside the
-     * workspace, and money is looked at on its own, so a payment whose contract is gone still holds the place.
+     * Whether the place can still change: nothing has been recorded in the workspace's currency. Each table is read inside
+     * the workspace, and money is looked at on its own, so a payment whose contract is gone still holds the place.
+     *
+     * What holds it: a contract (and the money that can only hang off one: instalments, items, late fees, plan changes,
+     * conversions to an open contract), a transaction (with its allocations and payment batches), an investor's deposit or
+     * withdrawal (written by hand, with no contract or payment), and a closed day (the cash counted, even on a day with
+     * no payment). An investor with no entry, a product's list price, a staged import and a document (a print of the
+     * rows above) record nothing; the platform's own billing is in the plan's currency, not the workspace's.
      */
     public function regionIsOpen(Tenant $tenant): bool
     {
-        return (bool) $this->current->use($tenant, fn (): bool => ! Contract::query()->exists() && ! Transaction::query()->exists());
+        return (bool) $this->current->use($tenant, fn (): bool => ! Contract::query()->exists()
+            && ! Transaction::query()->exists()
+            && ! InvestorEntry::query()->exists()
+            && ! DayClose::query()->exists());
     }
 
     /** A two-letter country code in capitals, or null when none was sent. */

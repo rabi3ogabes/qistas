@@ -62,11 +62,17 @@ final class BusinessProfile
     /** The shop's name for a document in [$language]: its Arabic name for Arabic and Urdu, else its English one. */
     public function name(string $language): string
     {
+        return $this->printedName($language) ?? $this->tenant->name;
+    }
+
+    /** The name the owner set for the documents in [$language] (as name() picks it), or null when they set none. */
+    public function printedName(string $language): ?string
+    {
         $arabic = in_array($language, (array) config('qistas.rtl_locales'), true);
         $first = $arabic ? 'name_ar' : 'name_en';
         $second = $arabic ? 'name_en' : 'name_ar';
 
-        return $this->fields[$first] ?? $this->fields[$second] ?? $this->tenant->name;
+        return $this->fields[$first] ?? $this->fields[$second];
     }
 
     /**

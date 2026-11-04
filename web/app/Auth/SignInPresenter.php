@@ -69,8 +69,10 @@ final class SignInPresenter
     }
 
     /**
-     * The web: "Mobile · Chrome on Android · Qatar". The phone app: "Pixel 8 · Android · App 1.29.0 · Qatar", where the
-     * phone's own name stands in for the device word when it told us one. A part that is not known is left out.
+     * The web: "Mobile · Chrome on Android · Qatar". The phone app: "Mobile · Android · App 1.29.0 · Qatar" (the app
+     * reports its system as `android` or `ios`, written here the way people spell them). A model the app reports stands
+     * in for the device word; the Qistas app sends none (it has no way to ask the phone), so its rows show the class. A
+     * part that is not known is left out.
      */
     private static function device(SignInEvent $event): string
     {
@@ -81,7 +83,7 @@ final class SignInPresenter
             default => __('Unknown device'),
         };
 
-        $os = self::text($event->os);
+        $os = self::system(self::text($event->os));
         $browser = self::text($event->browser);
 
         if ($event->channel === 'app') {
@@ -130,6 +132,16 @@ final class SignInPresenter
         }
 
         return $seen === [] ? null : __('What we noticed: :signals', ['signals' => implode(self::JOIN, array_unique($seen))]);
+    }
+
+    /** "Android" and "iOS" however the phone app spelled them (it sends Flutter's `android` and `ios`); any other system as stored. */
+    private static function system(?string $os): ?string
+    {
+        return match (strtolower((string) $os)) {
+            'android' => 'Android',
+            'ios' => 'iOS',
+            default => $os,
+        };
     }
 
     /** A stored name, or null for one that is empty. */

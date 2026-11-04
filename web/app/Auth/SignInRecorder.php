@@ -17,8 +17,8 @@ use InvalidArgumentException;
  *
  * What it reads from the request, besides the connection and the user agent: the inputs `timezone` (an IANA name) and
  * `utc_offset` (minutes, east positive) the browser or phone reports, and `device` (an object) the phone app reports
- * about itself. They come from a client, so a value of the wrong type is ignored, never an error. Nothing the person
- * typed (e-mail, phone, password, code) is read, so none of it can be stored.
+ * about itself, read for a successful sign-in only. They come from a client, so a value of the wrong type is ignored,
+ * never an error. Nothing the person typed (e-mail, phone, password, code) is read, so none of it can be stored.
  */
 final class SignInRecorder
 {
@@ -54,7 +54,10 @@ final class SignInRecorder
     private function write(User $user, Request $request, string $method, string $channel, string $outcome): SignInEvent
     {
         $zone = $request->input('timezone');
-        $device = $request->input('device');
+        // A wrong password can come from anyone who knows the e-mail, and the row is shown to the account's owner (and to
+        // staff): the app's account of itself is free text, so it is kept only after the right password. A failed row
+        // keeps what the user agent parses to (class, system, browser) and the channel.
+        $device = $outcome === 'success' ? $request->input('device') : null;
 
         $profile = DeviceProfile::describe($request, $channel, is_array($device) ? $device : null);
         $proxy = ProxyCheck::inspect($request, is_string($zone) ? $zone : null, self::offset($request->input('utc_offset')));

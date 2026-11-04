@@ -2,6 +2,7 @@
 
 namespace App\Reminders;
 
+use App\Documents\BusinessProfile;
 use App\Models\Tenant;
 use App\Reports\DashboardMetrics;
 use App\Support\Format;
@@ -32,17 +33,28 @@ final class DueReminders
         $body = $this->templates->body($tenant, $late ? 'reminder_late' : 'reminder_due', $language);
         $currency = (string) $tenant->currency;
         $country = (string) $tenant->country;
-        $business = (string) $tenant->name;
+        $business = self::signature($tenant, $language);
 
         return InLanguage::run($language, fn () => array_map(fn (array $row): array => $row + [
             'whatsapp' => WhatsApp::number((string) $row['customer_phone'], $country),
-            'message' => ReminderTemplates::fill($body, [
+            // Trimmed, so a message signed with no name ends on its last word rather than a space.
+            'message' => trim(ReminderTemplates::fill($body, [
                 'name' => $row['customer_name'],
                 'amount' => Format::money((string) $row['amount_due'], $currency),
                 'date' => Carbon::parse((string) $row['due_date'])->translatedFormat('j F Y'),
                 'reference' => $row['contract_reference'],
                 'business' => $business,
-            ]),
+            ])),
         ], $rows));
+    }
+
+    /**
+     * The name a reminder is signed with. Until the owner names the business (the first-run card), the workspace's name
+     * is the sign-up's placeholder ("Business of Layla", the owner's own first name) and must not reach a customer: the
+     * name the owner printed on the documents is used if there is one, else none.
+     */
+    private static function signature(Tenant $tenant, string $language): string
+    {
+        return $tenant->isSetUp() ? (string) $tenant->name : (string) BusinessProfile::for($tenant)->printedName($language);
     }
 }

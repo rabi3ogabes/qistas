@@ -2,9 +2,11 @@
 
 use App\Actions\CloseDay;
 use App\Actions\CreateContract;
+use App\Actions\Investors\RecordInvestorEntry;
 use App\Actions\RecordPayment;
 use App\Actions\ReopenDay;
 use App\Domain\DayClose\DayTotals;
+use App\Domain\Investors\MainInvestor;
 use App\Entitlements\Feature;
 use App\Entitlements\FeatureControl;
 use App\Entitlements\PlatformState;
@@ -24,6 +26,7 @@ use App\Tenancy\CurrentTenant;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -278,6 +281,31 @@ function saleOn(Contract $contract, ?string $start, string $downPayment = '200.0
 function reopenDay(DayClose $close, string $reason, User $by): DayClose
 {
     return app(ReopenDay::class)->handle($close, $reason, $by);
+}
+
+/*
+| Go-live basics, the region lock: money a workspace can record before it has any contract or payment. Each fixes the
+| country, its currency and the time zone just as a contract does (ConfirmWorkspaceSetup::regionIsOpen).
+*/
+
+/** The kinds of money recordMoneyWithoutAContract() can record. */
+const MONEY_WITHOUT_A_CONTRACT = ['an investor deposit', 'a closed day'];
+
+/** [$by] records money in [$tenant] as [$kind] says, with no contract and no payment anywhere in it. */
+function recordMoneyWithoutAContract(string $kind, Tenant $tenant, User $by): void
+{
+    if ($kind === 'an investor deposit') {
+        switchOn(Feature::Investors);
+        app(RecordInvestorEntry::class)->handle(MainInvestor::for($tenant), 'deposit', '1000.00', by: $by);
+    } elseif ($kind === 'a closed day') {
+        switchOn(Feature::DayClose);
+        app(CloseDay::class)->handle($tenant, WorkspaceDay::of($tenant), '150.00', null, $by);
+    } else {
+        throw new InvalidArgumentException("No money of the kind [{$kind}].");
+    }
+
+    expect(DB::table('contracts')->where('tenant_id', $tenant->id)->count())->toBe(0)
+        ->and(DB::table('transactions')->where('tenant_id', $tenant->id)->count())->toBe(0);
 }
 
 /**

@@ -194,10 +194,29 @@ function signInHooksCountingHasher(): object
     return $counting;
 }
 
-/** How often the broken recorder's problem was reported (other reports, such as a refused sign-in's, do not count). */
+/**
+ * How often the broken recorder's problem was reported (other reports, such as a refused sign-in's, do not count). What
+ * is reported names the kind of failure only, never the original exception or its message.
+ */
 function signInHooksStoreDownReports(): int
 {
-    return collect(Exceptions::reported())->filter(fn (Throwable $e) => $e->getMessage() === SIGN_IN_HOOKS_STORE_DOWN)->count();
+    $reported = collect(Exceptions::reported());
+    expect($reported->contains(fn (Throwable $e) => str_contains($e->getMessage(), SIGN_IN_HOOKS_STORE_DOWN)))->toBeFalse();
+
+    return $reported->filter(fn (Throwable $e) => str_starts_with($e->getMessage(), 'A sign-in record could not be written: RuntimeException'))->count();
+}
+
+/** Every report of a record that could not be written, as text: its message and anything it carries along. */
+function signInHooksReportedText(): string
+{
+    return collect(Exceptions::reported())->map(function (Throwable $e): string {
+        $text = [];
+        for ($link = $e; $link !== null; $link = $link->getPrevious()) {
+            $text[] = $link::class.': '.$link->getMessage();
+        }
+
+        return implode("\n", $text);
+    })->implode("\n");
 }
 
 /** @return list<string> the property names a schema of docs/api/openapi.yaml lists, in order */
@@ -475,6 +494,17 @@ describe('the phone app', function () {
             ->and(SignInEvent::query()->sole()->user_id)->toBe($user->id);
     });
 
+    it('keeps nothing of the device report that comes with a wrong password: a stranger cannot write into the history', function () {
+        [$user] = makeAccount();
+        $hostile = ['type' => 'tablet', 'os' => 'Qistas Security: locked', 'model' => 'Qistas Security: account locked, WhatsApp +974 5555 1234', 'app_version' => '+974 5555'];
+
+        signInHooksAppLogin($user->email, SIGN_IN_HOOKS_WRONG, ['device' => $hostile])->assertUnauthorized();
+
+        expect(SignInEvent::query()->sole()->only(['outcome', 'channel', 'device_type', 'os', 'browser', 'app_version', 'device_name']))->toBe([
+            'outcome' => 'failed', 'channel' => 'app', 'device_type' => 'unknown', 'os' => null, 'browser' => null, 'app_version' => null, 'device_name' => null,
+        ]);
+    });
+
     it('writes nothing for a suspended account given the right password', function () {
         [$user] = makeAccount(['status' => 'suspended']);
 
@@ -681,9 +711,31 @@ describe('a record that cannot be written', function () {
 
         expect(signInHooksStoreDownReports())->toBe(2);
     });
+
+    it('reports what kind of database error it was, never the address or the browser the row was to hold', function () {
+        $this->app->bind(SignInRecorder::class, function () {
+            $driver = new PDOException('SQLSTATE[22P02]: Invalid text representation: invalid input syntax for type inet: "'.SIGN_IN_HOOKS_IP.'"');
+            $driver->errorInfo = ['22P02', 7, 'invalid input syntax for type inet: "'.SIGN_IN_HOOKS_IP.'"'];
+
+            throw new QueryException('pgsql', 'insert into "sign_in_events" ("ip", "user_agent") values (?, ?)', [SIGN_IN_HOOKS_IP, SIGN_IN_HOOKS_IPHONE], $driver);
+        });
+        [$user] = makeAccount();
+
+        signInHooksWebLogin($user)->assertRedirect(config('fortify.home'));
+
+        $this->assertAuthenticatedAs($user);
+        Exceptions::assertNotReported(QueryException::class);
+        expect(Exceptions::reported())->toHaveCount(1)
+            ->and(signInHooksReportedText())
+            ->toContain('A sign-in record could not be written: Illuminate\Database\QueryException')
+            ->toContain('22P02')
+            ->toContain('insert into "sign_in_events" ("ip", "user_agent") values (?, ?)')
+            ->not->toContain(SIGN_IN_HOOKS_IP)
+            ->not->toContain('iPhone');
+    });
 });
 
-it('lets the person in when the table of records is gone, and reports the database error', function () {
+it('lets the person in when the table of records is gone, and reports the database error without the row’s values', function () {
     Exceptions::fake();
     [$user] = makeAccount();
     Schema::drop('sign_in_events');
@@ -691,5 +743,10 @@ it('lets the person in when the table of records is gone, and reports the databa
     signInHooksWebLogin($user)->assertRedirect(config('fortify.home'));
 
     $this->assertAuthenticatedAs($user);
-    Exceptions::assertReported(QueryException::class);
+    Exceptions::assertNotReported(QueryException::class);
+    expect(signInHooksReportedText())
+        ->toContain('A sign-in record could not be written: Illuminate\Database\QueryException')
+        ->toContain('sign_in_events')
+        ->not->toContain(SIGN_IN_HOOKS_IP)
+        ->not->toContain('iPhone');
 })->group('db-errors'); // makes the database raise an error: left out when running against the PGlite stand-in
