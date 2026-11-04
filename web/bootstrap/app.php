@@ -1,6 +1,7 @@
 <?php
 
 use App\Entitlements\EntitlementException;
+use App\Errors\ErrorCapture;
 use App\Http\ApiErrors;
 use App\Http\Middleware\EnsureAccountActive;
 use App\Http\Middleware\EnsureFeature;
@@ -9,6 +10,7 @@ use App\Http\Middleware\ForceJsonResponse;
 use App\Http\Middleware\KeepStaffOutOfTwoFactor;
 use App\Http\Middleware\PreventDuplicateSubmissions;
 use App\Http\Middleware\ReadOnlyWhileDeleting;
+use App\Http\Middleware\RecordErrorPages;
 use App\Http\Middleware\ServerTiming;
 use App\Http\Middleware\SetApiLocale;
 use App\Http\Middleware\SetCurrentTenant;
@@ -56,6 +58,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // How long the server and the database took, on every answer (measured where the site runs).
         $middleware->prepend(ServerTiming::class);
 
+        // The error pages visitors are shown, for the error center. First of all: middleware end in the order they are
+        // listed, and this must end before InvokeDeferredCallbacks runs what is deferred for after the answer.
+        $middleware->prepend(RecordErrorPages::class);
+
         // After the session starts, so a remembered or saved language can be read.
         $middleware->web(append: [SetLocale::class, PreventDuplicateSubmissions::class, KeepStaffOutOfTwoFactor::class]);
 
@@ -90,6 +96,10 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions): void {
         // "Not on your plan" and "switched off" are answers shown to the person, not failures for the error log.
         $exceptions->dontReport(EntitlementException::class);
+
+        // Every exception that is reported (so never what dontReport leaves out) goes to the error center too, after the
+        // answer; nothing is returned, so the framework still writes it to the log.
+        $exceptions->report(fn (Throwable $e) => app(ErrorCapture::class)->exception($e));
 
         // Keys and service accounts pasted into the admin area never go back into the session with a refused form.
         $exceptions->dontFlash(['secret_key', 'publishable_key', 'key', 'play_account', 'service_account']);
