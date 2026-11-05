@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Errors\ErrorRecorder;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -61,6 +62,12 @@ class ErrorIssue extends Model
 
     public const STATUSES = [self::STATUS_OPEN, self::STATUS_RESOLVED, self::STATUS_IGNORED];
 
+    /** An issue is "new" for this many hours after it was first seen. */
+    public const NEW_HOURS = 24;
+
+    /** An open issue "came back" for this many days after the recorder reopened it. */
+    public const BACK_DAYS = 7;
+
     /**
      * The sample sightings, newest first: the last five, the recorder deletes the oldest when it writes a sixth.
      *
@@ -79,6 +86,73 @@ class ErrorIssue extends Model
     public function scopeOpen(Builder $query): void
     {
         $query->where('status', self::STATUS_OPEN);
+    }
+
+    /**
+     * First seen within the last NEW_HOURS hours: the "new" mark and the "new in 24 hours" filter.
+     *
+     * @param  Builder<ErrorIssue>  $query
+     */
+    public function scopeNewIssues(Builder $query): void
+    {
+        $query->where('first_seen_at', '>=', now()->subHours(self::NEW_HOURS));
+    }
+
+    /**
+     * Open again after being resolved, within the last BACK_DAYS days: the "came back" mark and filter. An issue that was
+     * resolved (or ignored) once more since is not back, it is dealt with.
+     *
+     * @param  Builder<ErrorIssue>  $query
+     */
+    public function scopeCameBack(Builder $query): void
+    {
+        $query->where('status', self::STATUS_OPEN)->where('reopened_at', '>=', now()->subDays(self::BACK_DAYS));
+    }
+
+    /** Is it new? The same rule as scopeNewIssues. */
+    public function isNew(): bool
+    {
+        return $this->first_seen_at->greaterThanOrEqualTo(now()->subHours(self::NEW_HOURS));
+    }
+
+    /** Did it come back? The same rule as scopeCameBack. */
+    public function hasComeBack(): bool
+    {
+        return $this->status === self::STATUS_OPEN
+            && $this->reopened_at !== null
+            && $this->reopened_at->greaterThanOrEqualTo(now()->subDays(self::BACK_DAYS));
+    }
+
+    /** How many different people it touched, as the screens say it: the cap is "500+", since the count stops growing there. */
+    public function peopleLabel(): string
+    {
+        return $this->people >= ErrorRecorder::PEOPLE ? ErrorRecorder::PEOPLE.'+' : (string) $this->people;
+    }
+
+    /**
+     * The sources in the words the screens use, by key. "Website", not "Site": a string that is also the name of a language
+     * file (lang/en/site.php) cannot be translated (see TranslationsTest).
+     *
+     * @return array<string, string>
+     */
+    public static function sourceLabels(): array
+    {
+        return ['site' => __('Website'), 'api' => __('API'), 'database' => __('Database'), 'app' => __('App')];
+    }
+
+    /** @return array<string, string> the kinds in plain words, by key */
+    public static function kindLabels(): array
+    {
+        return [
+            'exception' => __('Exception'), 'http' => __('Error page'), 'slow_query' => __('Slow query'),
+            'script' => __('Script error'), 'crash' => __('Crash'),
+        ];
+    }
+
+    /** @return array<string, string> the statuses in plain words, by key */
+    public static function statusLabels(): array
+    {
+        return [self::STATUS_OPEN => __('Open'), self::STATUS_RESOLVED => __('Resolved'), self::STATUS_IGNORED => __('Ignored')];
     }
 
     /** How many issues are waiting for a look; the badge on the admin menu. */

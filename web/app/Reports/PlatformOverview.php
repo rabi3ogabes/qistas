@@ -4,6 +4,7 @@ namespace App\Reports;
 
 use App\Mail\MailSettings;
 use App\Models\CronRun;
+use App\Models\ErrorIssue;
 use App\Models\Subscription;
 use Illuminate\Support\Facades\DB;
 
@@ -71,7 +72,7 @@ final class PlatformOverview
     /**
      * What a live site needs, each with how it stands: ok, warn or off. Words are written for the person reading.
      *
-     * @return list<array{key: string, status: string, title: string, detail: string}>
+     * @return list<array{key: string, status: string, title: string, detail: string, action?: array{label: string, href: string}}>
      */
     public function health(): array
     {
@@ -110,8 +111,33 @@ final class PlatformOverview
         ];
 
         $checks[] = $this->cronCheck();
+        $checks[] = $this->errorsCheck();
 
         return $checks;
+    }
+
+    /**
+     * Whether the error center has seen anything lately: fine while no open issue was seen in the last 24 hours, otherwise
+     * a warning that says how many (an issue someone has resolved or ignored is dealt with and not counted). One count on the
+     * (status, last_seen_at) index. The way to the list is part of the line.
+     *
+     * @return array{key: string, status: string, title: string, detail: string, action: array{label: string, href: string}}
+     */
+    private function errorsCheck(): array
+    {
+        $seen = ErrorIssue::query()->open()->where('last_seen_at', '>=', now()->subDay())->count();
+
+        return [
+            'key' => 'errors',
+            'status' => $seen === 0 ? 'ok' : 'warn',
+            'title' => __('Errors in the last 24 hours'),
+            'detail' => match (true) {
+                $seen === 0 => __('No open issue was seen in the last 24 hours.'),
+                $seen === 1 => __('1 open issue seen in the last 24 hours'),
+                default => __(':count open issues seen in the last 24 hours', ['count' => number_format($seen)]),
+            },
+            'action' => ['label' => __('See the errors'), 'href' => route('admin.errors.index')],
+        ];
     }
 
     /**

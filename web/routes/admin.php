@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\AppearanceEventController;
 use App\Http\Controllers\Admin\BillingController;
 use App\Http\Controllers\Admin\BusinessController;
 use App\Http\Controllers\Admin\CardSettingsController;
+use App\Http\Controllers\Admin\ErrorsController;
 use App\Http\Controllers\Admin\FeaturesController;
 use App\Http\Controllers\Admin\HomeController;
 use App\Http\Controllers\Admin\MailController;
@@ -44,6 +45,15 @@ Route::prefix('support')->name('support.')->controller(SupportController::class)
         Route::put('settings', 'settings')->name('settings');
     });
 });
+
+// Errors (error center, Release 2): what is breaking on the website, the API, the database and the phone app, grouped into
+// issues. Anyone on the platform team may look and change an issue's status (resolve, ignore, reopen; audited).
+Route::prefix('errors')->name('errors.')->controller(ErrorsController::class)->group(function () {
+    Route::get('/', 'index')->name('index');
+    Route::get('{issue}', 'show')->whereUuid('issue')->name('show');
+    Route::put('{issue}/status', 'status')->whereUuid('issue')->middleware('throttle:30,1')->name('status');
+});
+
 Route::get('release-notes', [ReleaseNoteController::class, 'index'])->name('release-notes.index');
 // Reading notebook photos and PDFs (Win Plan K9): the Anthropic key, never shown back.
 Route::get('ai', [AiController::class, 'index'])->name('ai.index');

@@ -127,8 +127,8 @@ describe('is everything set up?', function () {
         expect(collect(app(PlatformOverview::class)->health())->firstWhere('key', 'environment')['status'])->toBe('ok');
     });
 
-    it('checks the database, e-mail, the environment and scheduled work, and nothing about a demo', function () {
-        expect(collect(app(PlatformOverview::class)->health())->pluck('key')->all())->toBe(['database', 'mail', 'environment', 'cron']);
+    it('checks the database, e-mail, the environment, scheduled work and the error center, and nothing about a demo', function () {
+        expect(collect(app(PlatformOverview::class)->health())->pluck('key')->all())->toBe(['database', 'mail', 'environment', 'cron', 'errors']);
     });
 });
 

@@ -3,12 +3,18 @@
     $user = auth()->user();
     $hasWorkspace = $user->primaryTenant() !== null;
 
-    // The pages of the admin area, then the places a person goes next. One list each, so a new page is one line.
+    // How many errors wait for a look: one count on an index, on every admin page. If that cannot be read, the menu still
+    // opens (the badge is left out and nothing is reported: the Errors page itself says what is wrong).
+    $openErrors = (int) rescue(fn () => \App\Models\ErrorIssue::openCount(), 0, false);
+
+    // The pages of the admin area, then the places a person goes next. One list each, so a new page is one line. A fifth
+    // item, when there is one, is a count shown as a badge.
     $manage = array_values(array_filter([
         ['overview', __('Overview'), route('admin.home'), 'home'],
         ['businesses', __('Businesses'), route('admin.businesses.index'), 'accounts'],
         ['billing', __('Billing'), route('admin.billing.index'), 'wallet'],
         ['support', __('Support'), route('admin.support.index'), 'life'],
+        ['errors', __('Errors'), route('admin.errors.index'), 'alert', $openErrors],
         ['release-notes', __('What’s new'), route('admin.release-notes.index'), 'megaphone'],
         ['ai', __('AI reading'), route('admin.ai.index'), 'sparkles'],
         ['mail', __('E-mail'), route('admin.mail.index'), 'send'],
@@ -66,8 +72,11 @@
                 </div>
 
                 <nav class="rail-nav" aria-label="{{ __('Admin pages') }}">
-                    @foreach ($manage as [$key, $label, $href, $icon])
-                        <a href="{{ $href }}" @if ($section === $key) aria-current="page" @endif><x-icon :name="$icon" :size="20" /> <span>{{ $label }}</span></a>
+                    @foreach ($manage as $entry)
+                        @php [$key, $label, $href, $icon] = $entry; $count = $entry[4] ?? 0; @endphp
+                        <a href="{{ $href }}" @if ($section === $key) aria-current="page" @endif><x-icon :name="$icon" :size="20" /> <span>{{ $label }}</span>
+                            @if ($count > 0)<span class="rail-count"><span aria-hidden="true">{{ $count > 99 ? '99+' : $count }}</span><span class="sr-only">{{ __(':count open', ['count' => $count]) }}</span></span>@endif
+                        </a>
                     @endforeach
                 </nav>
 

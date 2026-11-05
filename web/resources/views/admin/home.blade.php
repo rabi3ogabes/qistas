@@ -139,6 +139,9 @@
                         </p>
                         <p class="health-detail">{{ $check['detail'] }}</p>
                     </div>
+                    @isset($check['action'])
+                        <a class="btn btn-quiet btn-sm" href="{{ $check['action']['href'] }}">{{ $check['action']['label'] }}</a>
+                    @endisset
                 </li>
             @endforeach
         </ul>
