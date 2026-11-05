@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Errors\ClientSender;
+use App\Errors\ErrorAlerts;
 use App\Errors\ErrorCapture;
+use App\Errors\Events\ErrorIssueCreated;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Console\Events\ScheduledTaskFailed;
 use Illuminate\Console\Events\ScheduledTaskFinished;
@@ -24,7 +26,7 @@ use Throwable;
  * The error center's server capture (design sections 3 and 8): one ErrorCapture per request (or per job in a queue
  * worker), the slow-query listener, what queue workers and scheduled tasks need (captureWork), and the last call that
  * records what a command left behind. The exception hook and the error-page middleware are wired in bootstrap/app.php.
- * Also the request limits of the two reporters (section 9).
+ * Also the request limits of the two reporters (section 9), and the listener that sends the instant e-mail (section 8).
  */
 final class ErrorServiceProvider extends ServiceProvider
 {
@@ -36,6 +38,11 @@ final class ErrorServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->limitReporters();
+
+        // The instant e-mail for a brand-new server error (design section 8). The recorder fires this once per new issue, after
+        // the issue is stored; ErrorAlerts decides whether it alerts and swallows whatever goes wrong. Registered here and
+        // nowhere else (no class in app/Listeners, which Laravel would discover on its own as a second listener).
+        Event::listen(ErrorIssueCreated::class, [ErrorAlerts::class, 'handle']);
 
         // Every query passes here. A query under a millisecond costs one comparison; any other one, a read of the setting
         // from the configuration object taken here once (no container lookup, and a change made at run time still
