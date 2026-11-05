@@ -2,6 +2,7 @@
 
 namespace App\Reports;
 
+use App\Errors\ErrorRecorder;
 use App\Mail\MailSettings;
 use App\Models\CronRun;
 use App\Models\ErrorIssue;
@@ -117,27 +118,36 @@ final class PlatformOverview
     }
 
     /**
-     * Whether the error center has seen anything lately: fine while no open issue was seen in the last 24 hours, otherwise
-     * a warning that says how many (an issue someone has resolved or ignored is dealt with and not counted). One count on the
-     * (status, last_seen_at) index. The way to the list is part of the line.
+     * Whether the server has been failing lately: fine while no open server error (an exception, or an error page of 500 or
+     * more) was seen in the last 24 hours, otherwise a warning that says how many. Only the server's own failures count: a
+     * broken link or an expired form becomes an open issue by design and would keep the line yellow for ever on a live site,
+     * until the owner stopped reading it. The menu's badge still counts every open issue. When recording is switched off the
+     * line says so instead of "No server errors", since nothing new would be seen. One count on the (status, last_seen_at)
+     * index. The way to the list is part of the line.
      *
      * @return array{key: string, status: string, title: string, detail: string, action: array{label: string, href: string}}
      */
     private function errorsCheck(): array
     {
-        $seen = ErrorIssue::query()->open()->where('last_seen_at', '>=', now()->subDay())->count();
-
-        return [
+        $check = fn (string $status, string $detail): array => [
             'key' => 'errors',
-            'status' => $seen === 0 ? 'ok' : 'warn',
+            'status' => $status,
             'title' => __('Errors in the last 24 hours'),
-            'detail' => match (true) {
-                $seen === 0 => __('No open issue was seen in the last 24 hours.'),
-                $seen === 1 => __('1 open issue seen in the last 24 hours'),
-                default => __(':count open issues seen in the last 24 hours', ['count' => number_format($seen)]),
-            },
+            'detail' => $detail,
             'action' => ['label' => __('See the errors'), 'href' => route('admin.errors.index')],
         ];
+
+        if (! ErrorRecorder::enabled()) {
+            return $check('warn', __('Error recording is switched off (QISTAS_ERRORS). Nothing new is being recorded.'));
+        }
+
+        $seen = ErrorIssue::query()->open()->serverErrors()->where('last_seen_at', '>=', now()->subDay())->count();
+
+        return match (true) {
+            $seen === 0 => $check('ok', __('No server errors in the last 24 hours.')),
+            $seen === 1 => $check('warn', __('1 server error seen in the last 24 hours')),
+            default => $check('warn', __(':count server errors seen in the last 24 hours', ['count' => number_format($seen)])),
+        };
     }
 
     /**

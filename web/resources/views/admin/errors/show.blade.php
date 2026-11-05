@@ -6,7 +6,6 @@
     $states = \App\Models\ErrorIssue::statusLabels();
     $platforms = ['server' => __('Server'), 'web' => __('Website'), 'android' => 'Android', 'ios' => 'iOS'];
     $devices = ['desktop' => __('Desktop'), 'mobile' => __('Phone'), 'tablet' => __('Tablet')];
-    $when = fn ($moment) => $moment?->translatedFormat('j M Y, H:i');
     $day = fn ($moment) => $moment?->translatedFormat('j M Y');
 
     // What a browser or a phone reported is never checked, so the page says so; everything else came from our own server.
@@ -24,7 +23,7 @@
 @endphp
 <x-layouts.admin :title="$issue->title" section="errors">
     <div class="stack">
-        <a class="err-back" href="{{ route('admin.errors.index') }}"><x-icon name="chevronLeft" :size="18" class="flip" /> {{ __('All errors') }}</a>
+        <a class="err-back" href="{{ $backUrl }}"><x-icon name="chevronLeft" :size="18" class="flip" /> {{ __('All errors') }}</a>
 
         <header class="page-head">
             <div>
@@ -35,6 +34,7 @@
                     <span @class(['badge', 'badge-ok' => $issue->status === 'resolved', 'badge-warn' => $issue->status === 'open'])>{{ $states[$issue->status] ?? $issue->status }}</span>
                     @if ($issue->isNew())<span class="badge badge-info" data-mark="new">{{ __('New') }}</span>@endif
                     @if ($issue->hasComeBack())<span class="badge badge-warn" data-mark="back">{{ __('Came back') }}</span>@endif
+                    @if ($growing)<span class="badge badge-bad" data-mark="growing">{{ __('Growing') }}</span>@endif
                 </p>
             </div>
         </header>
@@ -50,11 +50,11 @@
                 <div><dt>{{ __('People it touched') }}</dt><dd class="money">{{ $issue->peopleLabel() }}</dd></div>
                 <div>
                     <dt>{{ __('First seen') }}</dt>
-                    <dd><time datetime="{{ $issue->first_seen_at->toIso8601String() }}">{{ $when($issue->first_seen_at) }}</time>@if ($issue->first_version)<span class="cell-sub">{{ __('Version :version', ['version' => $issue->first_version]) }}</span>@endif</dd>
+                    <dd>@include('admin.errors._time', ['moment' => $issue->first_seen_at, 'ago' => true])@if ($issue->first_version)<span class="cell-sub">{{ __('Version :version', ['version' => $issue->first_version]) }}</span>@endif</dd>
                 </div>
                 <div>
                     <dt>{{ __('Last seen') }}</dt>
-                    <dd><time datetime="{{ $issue->last_seen_at->toIso8601String() }}">{{ $when($issue->last_seen_at) }}</time>@if ($issue->last_version)<span class="cell-sub">{{ __('Version :version', ['version' => $issue->last_version]) }}</span>@endif</dd>
+                    <dd>@include('admin.errors._time', ['moment' => $issue->last_seen_at, 'ago' => true])@if ($issue->last_version)<span class="cell-sub">{{ __('Version :version', ['version' => $issue->last_version]) }}</span>@endif</dd>
                 </div>
                 @php
                     // What was decided, or that it came back: one line, whichever applies.
@@ -74,11 +74,25 @@
             <form method="POST" action="{{ route('admin.errors.status', $issue) }}" class="err-actions">
                 @csrf
                 @method('PUT')
-                @foreach ([['resolved', __('Resolve'), 'btn-gold'], ['ignored', __('Ignore'), 'btn-quiet'], ['open', __('Reopen'), 'btn-quiet']] as [$to, $label, $style])
-                    <button type="submit" name="status" value="{{ $to }}" class="btn btn-sm {{ $style }}" @disabled($issue->status === $to)>{{ $label }}</button>
-                @endforeach
+                @if ($back)<input type="hidden" name="back" value="{{ $back }}">@endif
+                <button type="submit" name="status" value="resolved" class="btn btn-sm btn-gold" @disabled($issue->status === 'resolved')>{{ __('Resolve') }}</button>
+                @if ($issue->status === 'ignored')
+                    <button type="submit" name="status" value="ignored" class="btn btn-sm btn-quiet" disabled>{{ __('Ignore') }}</button>
+                @else
+                    {{-- One more step before ignoring, with no script (the site's content security policy forbids an inline confirm):
+                         the real button is only inside the opened details. --}}
+                    <details class="err-ignore">
+                        <summary class="btn btn-sm btn-quiet">{{ __('Ignore…') }}</summary>
+                        <div class="err-ignore-body">
+                            <p>{{ __('New sightings will not be counted while this is ignored. You can reopen it later.') }}</p>
+                            <button type="submit" name="status" value="ignored" class="btn btn-sm btn-quiet">{{ __('Ignore') }}</button>
+                        </div>
+                    </details>
+                @endif
+                <button type="submit" name="status" value="open" class="btn btn-sm btn-quiet" @disabled($issue->status === 'open')>{{ __('Reopen') }}</button>
             </form>
             <p class="field-hint">{{ __('Resolve hides it until it happens again, and then it comes back on its own. Ignore hides it for good: new sightings are no longer counted and never raise an alert.') }}</p>
+            @include('admin.errors._legend')
         </section>
 
         <section class="card card-pad stack" aria-labelledby="err-days-title">
@@ -107,9 +121,9 @@
             <p class="field-hint err-samples-note">{{ __('The last five times it happened, newest first. Personal details were removed before anything was kept.') }}</p>
 
             @forelse ($samples as $sample)
-                <article class="err-sample" aria-label="{{ $when($sample->occurred_at) }}">
+                <article class="err-sample" aria-label="{{ $sample->occurred_at->translatedFormat('j M Y, H:i') }}">
                     <p class="err-sample-meta">
-                        <time datetime="{{ $sample->occurred_at->toIso8601String() }}">{{ $when($sample->occurred_at) }}</time>
+                        @include('admin.errors._time', ['moment' => $sample->occurred_at])
                         @if ($sample->version)<span>{{ __('Version :version', ['version' => $sample->version]) }}</span>@endif
                         <span>{{ $platforms[$sample->platform] ?? $sample->platform }}@if ($sample->device), {{ $devices[$sample->device] ?? $sample->device }}@endif</span>
                         @if ($sample->method || $sample->route)<span dir="ltr" class="err-route">{{ trim($sample->method.' '.$sample->route) }}</span>@endif
@@ -117,7 +131,7 @@
                     </p>
                     @if ($sample->message !== '')<p class="err-message" dir="auto">{{ $sample->message }}</p>@endif
                     @if ($sample->trace !== '')
-                        <pre class="err-trace" dir="ltr" role="region" tabindex="0" aria-label="{{ __('Trace') }}">{{ $sample->trace }}</pre>
+                        <pre class="err-trace" dir="ltr" role="region" tabindex="0" aria-label="{{ __('Trace of sighting :n', ['n' => $loop->iteration]) }}">{{ $sample->trace }}</pre>
                     @else
                         <p class="field-hint">{{ __('No trace was kept for this one.') }}</p>
                     @endif

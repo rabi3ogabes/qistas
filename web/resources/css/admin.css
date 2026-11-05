@@ -1463,8 +1463,13 @@ fieldset:has(input[value="date"]:checked) .biz-until, .biz-until:has([aria-inval
 .err-noise:not([open]) > summary::after { rotate: -45deg; }
 .err-noise-title { font-weight: 600; }
 .err-noise-sum { color: var(--q-ink-muted); font-size: .875rem; font-variant-numeric: tabular-nums; }
+.err-noise-drop { color: var(--q-warning); font-weight: 600; }
+.err-noise-drop::before { content: "·"; margin-inline-end: .5rem; color: var(--q-ink-muted); font-weight: 400; }
 .err-noise-body { display: grid; gap: .75rem; padding: 0 1.25rem 1.25rem; border-block-start: 1px solid var(--q-line); padding-block-start: 1rem; }
-.err-noise-body .table tbody th { font-size: inherit; font-weight: 500; color: var(--q-ink); text-align: start; }
+.err-noise-body .table tbody th {
+    padding: .75rem .875rem; border-bottom: 1px solid color-mix(in srgb, var(--q-line) 70%, transparent);
+    font-size: inherit; font-weight: 500; color: var(--q-ink); text-align: start; white-space: normal;
+}
 
 /* One issue. */
 .err-back {
@@ -1476,6 +1481,13 @@ fieldset:has(input[value="date"]:checked) .biz-until, .biz-until:has([aria-inval
 .err-facts { grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: 1rem 1.5rem; }
 .err-fact-wide { grid-column: 1 / -1; }
 .err-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.err-actions { align-items: flex-start; }
+.err-ignore > summary { list-style: none; cursor: pointer; }
+.err-ignore > summary::-webkit-details-marker { display: none; }
+.err-ignore[open] { flex-basis: 100%; order: 3; padding: .75rem; border: 1px solid var(--q-line); border-radius: var(--q-r-md); background: var(--q-surface-alt); }
+.err-ignore[open] > summary { margin-block-end: .625rem; }
+.err-ignore-body { display: grid; gap: .625rem; justify-items: start; }
+.err-ignore-body p { margin: 0; max-inline-size: 60ch; font-size: .9375rem; }
 .err-days { display: block; inline-size: 100%; block-size: 6rem; color: var(--q-info); fill: currentColor; }
 .err-days-axis { display: flex; justify-content: space-between; gap: .75rem; color: var(--q-ink-muted); font-size: .75rem; font-variant-numeric: tabular-nums; }
 .err-samples-note { margin: 0; padding: .75rem 1.25rem 0; }
@@ -1490,7 +1502,6 @@ fieldset:has(input[value="date"]:checked) .biz-until, .biz-until:has([aria-inval
     font: .8125rem/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; white-space: pre; tab-size: 4;
 }
 .health-row > .btn { flex: none; }
-.err-noise-body .table tbody th { padding: .75rem .875rem; border-bottom: 1px solid color-mix(in srgb, var(--q-line) 70%, transparent); white-space: normal; }
 .err-noise-body .table tbody tr:last-child > * { border-block-start: 1px solid var(--q-line); border-block-end: 0; }
 @media (max-width: 639px) { .err-filter-name { flex-basis: 100%; } }
 /* At twice the text size the three parts of the pager no longer fit one line on a phone: let them wrap instead of widening the page. */

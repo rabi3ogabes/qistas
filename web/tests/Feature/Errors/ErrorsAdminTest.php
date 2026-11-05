@@ -1,6 +1,9 @@
 <?php
 
+use App\Errors\ErrorEvent;
+use App\Errors\ErrorRecorder;
 use App\Errors\ErrorTriage;
+use App\Errors\Recorded;
 use App\Models\AuditLog;
 use App\Models\ErrorIssue;
 use App\Models\ErrorOccurrence;
@@ -642,7 +645,7 @@ describe('changing the status', function () {
         $this->actingAs($admin)->put('/admin/errors/'.$issue->id.'/status', ['status' => 'resolved']);
         $first = $issue->fresh()->resolved_at;
         $this->travelTo(now()->addMinutes(5));
-        $this->actingAs($admin)->put('/admin/errors/'.$issue->id.'/status', ['status' => 'resolved'])->assertRedirect(route('admin.errors.show', $issue));
+        $this->actingAs($admin)->put('/admin/errors/'.$issue->id.'/status', ['status' => 'resolved'])->assertRedirect(route('admin.errors.show', $issue))->assertSessionHas('status', 'Already resolved.');
 
         expect(AuditLog::query()->where('action', 'like', 'error.%')->count())->toBe(1)
             ->and($issue->fresh()->resolved_at->equalTo($first))->toBeTrue();
@@ -786,41 +789,459 @@ describe('the menu and the admin home', function () {
         expect($count)->toBe(1)->and($queries)->toHaveCount(1)->and($queries[0]['query'])->toContain('count(*)')->toContain('"status"');
     });
 
-    it('adds a check to what is set up: fine when no open issue was seen in the last 24 hours', function () {
-        errorsAdminIssue(['last_seen_at' => now()->subHours(25)]);
+    it('adds a check to what is set up: fine when no server error was seen in the last 24 hours', function () {
+        errorsAdminIssue(['last_seen_at' => now()->subHours(25)]); // an exception, but a day ago
         errorsAdminIssue(['last_seen_at' => now()->subMinutes(5), 'status' => 'resolved', 'resolved_at' => now()]);
         errorsAdminIssue(['last_seen_at' => now()->subMinutes(5), 'status' => 'ignored', 'ignored_at' => now()]);
 
         $check = collect(app(PlatformOverview::class)->health())->firstWhere('key', 'errors');
 
-        expect($check['status'])->toBe('ok')->and($check['title'])->toBe('Errors in the last 24 hours')->and($check['detail'])->toContain('No open issue');
+        expect($check['status'])->toBe('ok')->and($check['title'])->toBe('Errors in the last 24 hours')->and($check['detail'])->toBe('No server errors in the last 24 hours.');
     });
 
-    it('warns, in words, how many open issues were seen in the last 24 hours', function () {
-        errorsAdminIssue(['last_seen_at' => now()->subHours(23)]);
-        $one = collect(app(PlatformOverview::class)->health())->firstWhere('key', 'errors');
-        errorsAdminIssue(['last_seen_at' => now()->subMinutes(5)]);
-        errorsAdminIssue(['last_seen_at' => now()->subDays(3)]);
-        $two = collect(app(PlatformOverview::class)->health())->firstWhere('key', 'errors');
+    it('does not turn yellow for the quiet kinds: a broken link, an expired form, a slow query, a browser or a phone', function () {
+        errorsAdminIssue(['kind' => 'http', 'class' => 'http.404', 'title' => 'Error 404 on /old-link']);
+        errorsAdminIssue(['kind' => 'http', 'class' => 'http.419', 'title' => 'Error 419 on /login']);
+        errorsAdminIssue(['kind' => 'http', 'class' => 'http.429', 'title' => 'Error 429 on /login']);
+        errorsAdminIssue(['source' => 'database', 'kind' => 'slow_query']);
+        errorsAdminIssue(['source' => 'site', 'kind' => 'script']);
+        errorsAdminIssue(['source' => 'app', 'kind' => 'crash']);
 
-        expect($one['status'])->toBe('warn')->and($one['detail'])->toBe('1 open issue seen in the last 24 hours')
-            ->and($two['status'])->toBe('warn')->and($two['detail'])->toBe('2 open issues seen in the last 24 hours');
+        $check = collect(app(PlatformOverview::class)->health())->firstWhere('key', 'errors');
+
+        expect($check['status'])->toBe('ok')->and($check['detail'])->toBe('No server errors in the last 24 hours.');
+    });
+
+    it('warns, in words, how many server errors were seen in the last 24 hours', function () {
+        errorsAdminIssue(['last_seen_at' => now()->subHours(23)]); // an open exception
+        $one = collect(app(PlatformOverview::class)->health())->firstWhere('key', 'errors');
+        errorsAdminIssue(['source' => 'api', 'kind' => 'http', 'class' => 'http.503', 'last_seen_at' => now()->subMinutes(5)]);
+        errorsAdminIssue(['source' => 'database', 'kind' => 'exception', 'class' => 'PDOException', 'last_seen_at' => now()->subHour()]);
+        errorsAdminIssue(['source' => 'site', 'kind' => 'http', 'class' => 'http.500', 'last_seen_at' => now()->subHour()]);
+        errorsAdminIssue(['last_seen_at' => now()->subDays(3)]); // too old
+        errorsAdminIssue(['kind' => 'http', 'class' => 'http.404']); // quiet
+        $four = collect(app(PlatformOverview::class)->health())->firstWhere('key', 'errors');
+
+        expect($one['status'])->toBe('warn')->and($one['detail'])->toBe('1 server error seen in the last 24 hours')
+            ->and($four['status'])->toBe('warn')->and($four['detail'])->toBe('4 server errors seen in the last 24 hours');
+    });
+
+    it('counts the server errors with one query on the issues table', function () {
+        errorsAdminIssue();
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        app(PlatformOverview::class)->health();
+        $sql = collect(DB::getQueryLog())->pluck('query')->filter(fn (string $query) => str_contains($query, 'error_issues'))->values()->all();
+        DB::disableQueryLog();
+
+        expect($sql)->toHaveCount(1)->and($sql[0])->toContain('count(*)');
+    });
+
+    it('says so on the home line when error recording is switched off, instead of "No server errors"', function () {
+        config(['qistas.errors.enabled' => false]);
+
+        $check = collect(app(PlatformOverview::class)->health())->firstWhere('key', 'errors');
+
+        expect($check['status'])->toBe('warn')
+            ->and($check['detail'])->toBe('Error recording is switched off (QISTAS_ERRORS). Nothing new is being recorded.')
+            ->and($check['detail'])->not->toContain('No server errors');
     });
 
     it('shows the line on the admin home with a way to the list', function () {
         $admin = errorsAdminUser();
         errorsAdminIssue();
-        errorsAdminIssue();
+        errorsAdminIssue(['kind' => 'http', 'class' => 'http.502']);
+        errorsAdminIssue(['kind' => 'http', 'class' => 'http.404']);
 
         $this->actingAs($admin)->get('/admin')->assertOk()
-            ->assertSee('Errors in the last 24 hours')->assertSee('2 open issues seen in the last 24 hours')
+            ->assertSee('Errors in the last 24 hours')->assertSee('2 server errors seen in the last 24 hours')
             ->assertSee('href="'.route('admin.errors.index').'"', false);
     });
 
-    it('shows the good line on a quiet day', function () {
+    it('shows the good line on a quiet day, while the menu badge still counts every open issue', function () {
+        $admin = errorsAdminUser();
+        errorsAdminIssue(['kind' => 'http', 'class' => 'http.404']);
+
+        $page = $this->actingAs($admin)->get('/admin')->assertOk()->assertSee('Errors in the last 24 hours')->assertSee('No server errors in the last 24 hours.');
+
+        expect(errorsAdminRail($page->getContent()))->toContain('<span class="sr-only">1 open</span>');
+    });
+});
+
+describe('an honest message after a press', function () {
+    it('says Already ... and writes nothing when the issue is already in the status that was asked for', function (string $status, string $message) {
+        $admin = errorsAdminUser();
+        $issue = errorsAdminIssue($status === 'open' ? [] : ['status' => $status, $status.'_at' => now()->subDay(), $status.'_by' => $admin->id]);
+        $before = $issue->fresh();
+
+        $this->actingAs($admin)->put('/admin/errors/'.$issue->id.'/status', ['status' => $status])
+            ->assertRedirect(route('admin.errors.show', $issue))->assertSessionHas('status', $message);
+
+        expect(AuditLog::query()->where('action', 'like', 'error.%')->count())->toBe(0)
+            ->and($issue->fresh()->updated_at->equalTo($before->updated_at))->toBeTrue();
+    })->with([['resolved', 'Already resolved.'], ['ignored', 'Already ignored.'], ['open', 'Already open.']]);
+
+    it('says what happened when something did', function (string $status, string $message) {
+        $admin = errorsAdminUser();
+        $issue = errorsAdminIssue($status === 'open' ? ['status' => 'resolved', 'resolved_at' => now(), 'resolved_by' => $admin->id] : []);
+
+        $this->actingAs($admin)->put('/admin/errors/'.$issue->id.'/status', ['status' => $status])->assertSessionHas('status', $message);
+    })->with([['resolved', 'Marked as resolved.'], ['ignored', 'Ignored. New sightings of it are no longer counted.'], ['open', 'Reopened.']]);
+
+    it('does not claim a change a stale page asked for, when someone else made it first', function () {
+        $admin = errorsAdminUser();
+        $other = errorsAdminUser('super_admin');
+        $issue = errorsAdminIssue();
+
+        // This page was drawn while the issue was open; a colleague resolves it before the button is pressed.
+        $this->actingAs($admin)->get('/admin/errors/'.$issue->id)->assertOk();
+        (new ErrorTriage)->resolve($issue->fresh(), $other);
+
+        $this->actingAs($admin)->put('/admin/errors/'.$issue->id.'/status', ['status' => 'resolved'])->assertSessionHas('status', 'Already resolved.');
+
+        expect(AuditLog::query()->where('action', 'error.resolved')->count())->toBe(1)
+            ->and($issue->fresh()->resolved_by)->toBe($other->id);
+    });
+
+    it('still makes a different change on a stale page, and audits where it really came from', function () {
+        $admin = errorsAdminUser();
+        $other = errorsAdminUser('super_admin');
+        $issue = errorsAdminIssue();
+
+        $this->actingAs($admin)->get('/admin/errors/'.$issue->id)->assertOk();
+        (new ErrorTriage)->resolve($issue->fresh(), $other);
+
+        $this->actingAs($admin)->put('/admin/errors/'.$issue->id.'/status', ['status' => 'ignored'])
+            ->assertSessionHas('status', 'Ignored. New sightings of it are no longer counted.');
+
+        expect(AuditLog::query()->where('action', 'error.ignored')->sole()->changes)->toBe(['issue' => $issue->id, 'from' => 'resolved']);
+    });
+});
+
+/** One sighting of the same failure, a minute after the last. */
+function errorsAdminSight(ErrorRecorder $recorder, ?string $version = '1.30.0'): Recorded
+{
+    test()->travelTo(now()->addMinute());
+
+    return $recorder->record(new ErrorEvent(source: 'site', kind: 'exception', class: 'RuntimeException', message: 'Boom', version: $version));
+}
+
+describe('came back means: reopened by the recorder after the last staff decision', function () {
+    it('is cleared when staff resolve, kept through a staff reopen, and set again by a new sighting', function () {
+        $admin = errorsAdminUser();
+        $recorder = app(ErrorRecorder::class);
+        $triage = new ErrorTriage;
+
+        expect(errorsAdminSight($recorder))->toBe(Recorded::Created);
+        $issue = ErrorIssue::query()->sole();
+
+        $triage->resolve($issue->fresh(), $admin);
+        expect(errorsAdminSight($recorder))->toBe(Recorded::Reopened);
+        $issue->refresh();
+        expect($issue->hasComeBack())->toBeTrue()->and($issue->reopened_version)->toBe('1.30.0');
+
+        test()->travelTo(now()->addMinute());
+        $triage->resolve($issue->fresh(), $admin);
+        $issue->refresh();
+        expect($issue->reopened_at)->toBeNull()->and($issue->reopened_version)->toBeNull()->and($issue->hasComeBack())->toBeFalse();
+
+        // A staff reopen is a decision, not a recurrence.
+        test()->travelTo(now()->addMinute());
+        $triage->reopen($issue->fresh(), $admin);
+        $issue->refresh();
+        expect($issue->status)->toBe('open')->and($issue->reopened_at)->toBeNull()->and($issue->hasComeBack())->toBeFalse();
+
+        // Resolved again, and then it really does happen again.
+        test()->travelTo(now()->addMinute());
+        $triage->resolve($issue->fresh(), $admin);
+        expect(errorsAdminSight($recorder, '1.31.0'))->toBe(Recorded::Reopened);
+        $issue->refresh();
+        expect($issue->hasComeBack())->toBeTrue()->and($issue->reopened_version)->toBe('1.31.0');
+    });
+
+    it('is cleared by a staff ignore too', function () {
+        $admin = errorsAdminUser();
+        $issue = errorsAdminIssue(['reopened_at' => now()->subDay(), 'reopened_version' => '1.29.0']);
+
+        (new ErrorTriage)->ignore($issue, $admin);
+        $issue->refresh();
+
+        expect($issue->status)->toBe('ignored')->and($issue->reopened_at)->toBeNull()->and($issue->reopened_version)->toBeNull();
+    });
+
+    it('is left alone by a staff reopen', function () {
+        $admin = errorsAdminUser();
+        $issue = errorsAdminIssue(['status' => 'resolved', 'resolved_at' => now(), 'resolved_by' => $admin->id, 'reopened_at' => now()->subHours(2), 'reopened_version' => '1.29.0']);
+
+        (new ErrorTriage)->reopen($issue, $admin);
+
+        expect($issue->fresh()->reopened_version)->toBe('1.29.0');
+    });
+});
+
+describe('the background noise card does not hide what was dropped', function () {
+    it('says in the closed summary how many were dropped in the last 7 days', function () {
+        $admin = errorsAdminUser();
+        DB::table('error_noise_days')->insert([
+            ['day' => '2026-11-04', 'kind' => 'dropped', 'count' => 12],
+            ['day' => '2026-11-02', 'kind' => 'dropped', 'count' => 5],
+            ['day' => '2026-10-20', 'kind' => 'dropped', 'count' => 99],
+        ]);
+
+        $html = $this->actingAs($admin)->get('/admin/errors')->getContent();
+        preg_match('/<details[^>]*err-noise[^>]*>\s*<summary.*?<\/summary>/s', $html, $summary);
+
+        expect($summary[0])->toContain('17 dropped')->not->toContain('99');
+    });
+
+    it('leaves the dropped note out when nothing was dropped', function () {
+        $admin = errorsAdminUser();
+        DB::table('error_noise_days')->insert(['day' => '2026-11-04', 'kind' => 'scanner', 'count' => 40]);
+
+        $html = $this->actingAs($admin)->get('/admin/errors')->getContent();
+        preg_match('/<details[^>]*err-noise[^>]*>\s*<summary.*?<\/summary>/s', $html, $summary);
+
+        expect($summary[0])->not->toContain('dropped')->toContain('Last 7 days: 40');
+    });
+});
+
+describe('a switched-off recorder is said out loud', function () {
+    it('shows a notice at the top of the list', function () {
         $admin = errorsAdminUser();
 
-        $this->actingAs($admin)->get('/admin')->assertOk()->assertSee('Errors in the last 24 hours')->assertSee('No open issue was seen in the last 24 hours');
+        $this->actingAs($admin)->get('/admin/errors')->assertDontSee('Error recording is switched off');
+
+        config(['qistas.errors.enabled' => false]);
+        $this->actingAs($admin)->get('/admin/errors')->assertOk()
+            ->assertSee('Error recording is switched off (QISTAS_ERRORS). Nothing new is being recorded.');
+    });
+});
+
+describe('the back link keeps the list filters', function () {
+    it('uses a back value that points at the list, escaped', function () {
+        $admin = errorsAdminUser();
+        $issue = errorsAdminIssue();
+        $back = '/admin/errors?source=api&status=all&new=1&page=2';
+
+        $html = $this->actingAs($admin)->get('/admin/errors/'.$issue->id.'?'.http_build_query(['back' => $back]))->assertOk()->getContent();
+
+        expect($html)->toContain('href="'.e(url($back)).'"')->toContain('&amp;status=all');
+    });
+
+    it('ignores a back value that points anywhere else, or carries anything odd', function (string $back) {
+        $admin = errorsAdminUser();
+        $issue = errorsAdminIssue();
+
+        $html = $this->actingAs($admin)->get('/admin/errors/'.$issue->id.'?'.http_build_query(['back' => $back]))->assertOk()->getContent();
+
+        // (The language links on the page repeat the address of the page itself, percent-encoded, so the check is on the
+        // back link and on the status form, the two places the value could be used.)
+        expect($html)->toContain('<a class="err-back" href="'.route('admin.errors.index').'">')
+            ->not->toContain('name="back"')->not->toContain('<b>')->not->toContain('javascript:');
+    })->with([
+        '//evil.example', 'https://evil.example/admin/errors', '/app', '/admin/errors/../../app', '/admin/errorsx', '/admin/errors/00000000-0000-0000-0000-000000000000',
+        '/admin/errors?a="><b>', "/admin/errors?a=1\nb=2", '/admin/errors#x', 'javascript:alert(1)', '\\\\evil.example', '/admin/errors?a=<b>',
+    ]);
+
+    it('is added to a row link of a filtered list, and left off the plain list', function () {
+        $admin = errorsAdminUser();
+        $issue = errorsAdminIssue(['source' => 'api', 'first_seen_at' => now()->subHour()]);
+
+        $filtered = errorsAdminRow($this->actingAs($admin)->get('/admin/errors?source=api&new=1')->getContent(), $issue);
+        $plain = errorsAdminRow($this->actingAs($admin)->get('/admin/errors')->getContent(), $issue);
+
+        expect($filtered)->toContain('href="'.route('admin.errors.show', ['issue' => $issue, 'back' => '/admin/errors?source=api&new=1']).'"')
+            ->and($plain)->toContain('href="'.route('admin.errors.show', $issue).'"');
+    });
+
+    it('remembers the page of the list too', function () {
+        $admin = errorsAdminUser();
+        foreach (range(1, 30) as $n) {
+            errorsAdminIssue(['last_seen_at' => now()->subMinutes($n)]);
+        }
+        $onPageTwo = ErrorIssue::query()->orderByDesc('last_seen_at')->orderByDesc('id')->skip(25)->first();
+
+        $row = errorsAdminRow($this->actingAs($admin)->get('/admin/errors?page=2')->getContent(), $onPageTwo);
+
+        expect($row)->toContain(e(route('admin.errors.show', ['issue' => $onPageTwo, 'back' => '/admin/errors?page=2'])));
+    });
+
+    it('is carried through a status change, and a bad one is dropped there too', function () {
+        $admin = errorsAdminUser();
+        $issue = errorsAdminIssue();
+        $back = '/admin/errors?source=api';
+
+        $this->actingAs($admin)->put('/admin/errors/'.$issue->id.'/status', ['status' => 'resolved', 'back' => $back])
+            ->assertRedirect(route('admin.errors.show', ['issue' => $issue, 'back' => $back]));
+        $this->actingAs($admin)->put('/admin/errors/'.$issue->id.'/status', ['status' => 'open', 'back' => 'https://evil.example'])
+            ->assertRedirect(route('admin.errors.show', $issue));
+
+        $html = $this->actingAs($admin)->get('/admin/errors/'.$issue->id.'?'.http_build_query(['back' => $back]))->getContent();
+        expect($html)->toContain('<input type="hidden" name="back" value="'.e($back).'">');
+    });
+});
+
+describe('the detail says the same things the list does', function () {
+    it('shows the growing mark, and the legend of the three marks', function () {
+        $admin = errorsAdminUser();
+        $growing = errorsAdminIssue([], ['2026-11-04' => 6, '2026-11-02' => 1]);
+        $steady = errorsAdminIssue([], ['2026-11-04' => 6, '2026-11-03' => 5, '2026-11-02' => 5, '2026-11-01' => 5, '2026-10-31' => 5, '2026-10-30' => 5, '2026-10-29' => 5, '2026-10-28' => 5]);
+        $resolved = errorsAdminIssue(['status' => 'resolved', 'resolved_at' => now()], ['2026-11-04' => 6]);
+
+        $page = $this->actingAs($admin)->get('/admin/errors/'.$growing->id)->assertOk();
+        $page->assertSee('data-mark="growing"', false)->assertSee('New: first seen in the last 24 hours. Came back:')->assertSee('Growing: today at least 3 times');
+
+        $this->actingAs($admin)->get('/admin/errors/'.$steady->id)->assertDontSee('data-mark="growing"', false);
+        $this->actingAs($admin)->get('/admin/errors/'.$resolved->id)->assertDontSee('data-mark="growing"', false);
+    });
+});
+
+describe('times', function () {
+    it('are time elements with the exact UTC time as a tooltip, and the list says how long ago it was last seen', function () {
+        $admin = errorsAdminUser();
+        $issue = errorsAdminIssue([
+            'first_seen_at' => CarbonImmutable::parse('2026-10-30 08:15:00', 'UTC'),
+            'last_seen_at' => CarbonImmutable::parse('2026-11-04 09:40:00', 'UTC'),
+        ]);
+
+        $row = errorsAdminRow($this->actingAs($admin)->get('/admin/errors')->getContent(), $issue);
+
+        expect($row)->toContain('<time datetime="2026-11-04T09:40:00+00:00" title="2026-11-04 09:40 UTC">4 Nov 2026, 09:40</time>')
+            ->toContain('<time datetime="2026-10-30T08:15:00+00:00" title="2026-10-30 08:15 UTC">30 Oct 2026, 08:15</time>')
+            ->toContain('50 minutes ago')->not->toContain('5 days ago');
+    });
+
+    it('say how long ago on the detail page for first and last seen, and give a sighting its exact time', function () {
+        $admin = errorsAdminUser();
+        $issue = errorsAdminIssue([
+            'first_seen_at' => CarbonImmutable::parse('2026-10-30 08:15:00', 'UTC'),
+            'last_seen_at' => CarbonImmutable::parse('2026-11-04 09:40:00', 'UTC'),
+        ]);
+        errorsAdminSample($issue, ['occurred_at' => CarbonImmutable::parse('2026-11-04 09:40:00', 'UTC')]);
+
+        $this->actingAs($admin)->get('/admin/errors/'.$issue->id)->assertOk()
+            ->assertSee('5 days ago')->assertSee('50 minutes ago')
+            ->assertSee('<time datetime="2026-11-04T09:40:00+00:00" title="2026-11-04 09:40 UTC">', false);
+    });
+
+    it('are said in the language of the page', function () {
+        $admin = errorsAdminUser();
+        errorsAdminIssue(['last_seen_at' => now()->subHours(3)]);
+
+        $this->actingAs($admin)->get('/admin/errors?lang=ar')->assertOk()->assertSee('منذ');
+    });
+});
+
+describe('Ignore asks for one more step, without script', function () {
+    it('keeps the real button inside a closed details element, with the sentence that explains it', function () {
+        $admin = errorsAdminUser();
+        $issue = errorsAdminIssue();
+
+        $html = $this->actingAs($admin)->get('/admin/errors/'.$issue->id)->getContent();
+
+        expect($html)->toMatch('/<details(?![^>]*\sopen)[^>]*class="[^"]*err-ignore[^"]*"[^>]*>\s*<summary[^>]*>\s*Ignore…\s*<\/summary>.*?New sightings will not be counted while this is ignored\. You can reopen it later\..*?<button[^>]*name="status"[^>]*value="ignored"[^>]*>\s*Ignore\s*<\/button>.*?<\/details>/s')
+            ->and($html)->not->toMatch('/\sonsubmit=|\sonclick=|confirm\(/')
+            ->and(preg_match_all('/<button[^>]*value="resolved"/', $html))->toBe(1);
+
+        // Resolve and Reopen are not behind the extra step.
+        preg_match('/<details[^>]*err-ignore.*?<\/details>/s', $html, $details);
+        expect($details[0])->not->toContain('value="resolved"')->not->toContain('value="open"');
+    });
+
+    it('still posts status=ignored from that button', function () {
+        $admin = errorsAdminUser();
+        $issue = errorsAdminIssue();
+
+        $this->actingAs($admin)->put('/admin/errors/'.$issue->id.'/status', ['status' => 'ignored'])->assertRedirect();
+
+        expect($issue->fresh()->status)->toBe('ignored');
+    });
+
+    it('shows a plain disabled button instead, when it is ignored already', function () {
+        $admin = errorsAdminUser();
+        $issue = errorsAdminIssue(['status' => 'ignored', 'ignored_at' => now(), 'ignored_by' => $admin->id]);
+
+        $html = $this->actingAs($admin)->get('/admin/errors/'.$issue->id)->getContent();
+
+        expect($html)->not->toContain('err-ignore')->toMatch('/<button[^>]*value="ignored"[^>]*disabled|<button[^>]*disabled[^>]*value="ignored"/');
+    });
+});
+
+describe('the words in Arabic agree with the feminine issue', function () {
+    it('uses the agreed forms', function () {
+        app()->setLocale('ar');
+
+        expect(__('Resolved'))->toBe('محلولة')->and(__('Ignored'))->toBe('متجاهَلة')->and(__('Dropped'))->toBe('المُهمَلة')
+            ->and(__('Background noise (bots and browsers)'))->toBe('حركة الروبوتات والمتصفحات في الخلفية')
+            ->and(__('Script error'))->toBe('خطأ في البرنامج النصي');
+    });
+
+    it('does not leave the old wording in the other sentences', function () {
+        $ar = json_decode(file_get_contents(lang_path('app/ar.json')), true, flags: JSON_THROW_ON_ERROR);
+
+        expect(implode(' ', $ar))->not->toContain('المُسقَطة')->not->toContain('الضجيج في الخلفية');
+    });
+});
+
+describe('what the screens refuse, and what they survive', function () {
+    it('gives a suspended staff member nothing: not the list, not the buttons', function () {
+        $suspended = User::factory()->platformAdmin('admin')->suspended()->create();
+        $issue = errorsAdminIssue();
+
+        $this->actingAs($suspended)->get('/admin/errors')->assertRedirect(route('account.suspended'));
+        $this->actingAs($suspended)->get('/admin/errors/'.$issue->id)->assertRedirect(route('account.suspended'));
+        $this->actingAs($suspended)->put('/admin/errors/'.$issue->id.'/status', ['status' => 'resolved'])->assertRedirect(route('account.suspended'));
+
+        expect($issue->fresh()->status)->toBe('open')->and(AuditLog::query()->where('action', 'like', 'error.%')->count())->toBe(0);
+    });
+
+    it('refuses a status change without the forgery token, and takes it with one', function () {
+        $admin = errorsAdminUser();
+        $issue = errorsAdminIssue();
+        // The framework skips the forgery check in a test run; a different environment name puts it back.
+        app()->detectEnvironment(fn () => 'local');
+
+        $this->actingAs($admin)->put('/admin/errors/'.$issue->id.'/status', ['status' => 'resolved'])->assertStatus(419);
+        expect($issue->fresh()->status)->toBe('open');
+
+        $this->actingAs($admin)->withSession(['_token' => 'a-token'])->put('/admin/errors/'.$issue->id.'/status', ['status' => 'resolved', '_token' => 'a-token'])->assertRedirect();
+        expect($issue->fresh()->status)->toBe('resolved');
+    });
+
+    it('shows a message with a right-to-left override and a NUL without breaking the page', function () {
+        $admin = errorsAdminUser();
+        $issue = errorsAdminIssue(['title' => "Odd \u{202E}title\u{202C} here"]);
+        errorsAdminSample($issue, ['message' => "before \u{202E}reversed\0after end", 'trace' => "#0 app/X.php(1): \u{202E}go\n#1 {main}"]);
+
+        $list = $this->actingAs($admin)->get('/admin/errors')->assertOk()->getContent();
+        $page = $this->actingAs($admin)->get('/admin/errors/'.$issue->id)->assertOk()->getContent();
+
+        // Stored text sits in elements that isolate their direction, so an override cannot reach the text around them.
+        expect($page)->toContain('<h1 class="display err-h1" dir="auto">')->toContain('<p class="err-message" dir="auto">before')
+            ->toContain('<pre class="err-trace" dir="ltr"')
+            ->and($list)->toContain('class="cell-link err-title" dir="auto"')
+            ->and(substr_count($page, '<article'))->toBe(substr_count($page, '</article>'))
+            ->and(substr_count($page, '<main'))->toBe(1);
+    });
+});
+
+describe('small things', function () {
+    it('gives each trace a name of its own for a screen reader', function () {
+        $admin = errorsAdminUser();
+        $issue = errorsAdminIssue();
+        errorsAdminSample($issue, ['occurred_at' => now()->subHours(2)]);
+        errorsAdminSample($issue, ['occurred_at' => now()->subHours(1)]);
+
+        $html = $this->actingAs($admin)->get('/admin/errors/'.$issue->id)->getContent();
+
+        expect($html)->toContain('aria-label="Trace of sighting 1"')->toContain('aria-label="Trace of sighting 2"')->not->toContain('aria-label="Trace"');
+    });
+
+    it('has one rule for the noise table heading cells in the admin stylesheet', function () {
+        $css = file_get_contents(resource_path('css/admin.css'));
+
+        expect(substr_count($css, '.err-noise-body .table tbody th {'))->toBe(1);
     });
 });
 
@@ -831,7 +1252,7 @@ describe('in Arabic', function () {
 
         $this->actingAs($admin)->get('/admin/errors?lang=ar')->assertOk()
             ->assertSee('dir="rtl"', false)->assertSee('lang="ar"', false)
-            ->assertSee('الأخطاء')->assertSee('الضجيج في الخلفية')
+            ->assertSee('الأخطاء')->assertSee('حركة الروبوتات والمتصفحات في الخلفية')
             ->assertDontSee('Background noise')->assertDontSee('Times seen');
     });
 

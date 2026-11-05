@@ -4,13 +4,16 @@
 @php
     $sources = \App\Models\ErrorIssue::sourceLabels();
     $kinds = \App\Models\ErrorIssue::kindLabels();
-    $when = fn ($moment) => $moment?->translatedFormat('j M Y, H:i');
     $groups = [['status', __('Status')], ['source', __('Source')], ['show', __('Show')]];
 @endphp
 <x-layouts.admin :title="__('Errors')" section="errors">
     <x-page-head :title="__('Errors')">
         <x-slot:subtitle>{{ __('What is breaking on the website, the API, the database and the phone app. Nothing here names a customer or a business.') }}</x-slot:subtitle>
     </x-page-head>
+
+    @unless ($recording)
+        <x-alert type="warning" :message="__('Error recording is switched off (QISTAS_ERRORS). Nothing new is being recorded.')" />
+    @endunless
 
     <div>
         <div class="err-tools">
@@ -59,7 +62,7 @@
                                                 <span class="err-src" data-source="{{ $issue->source }}">{{ $sources[$issue->source] ?? $issue->source }}</span>
                                                 <span class="err-kind">{{ $kinds[$issue->kind] ?? $issue->kind }}</span>
                                             </span>
-                                            <a class="cell-link err-title" dir="auto" href="{{ route('admin.errors.show', $issue) }}">{{ $issue->title }}</a>
+                                            <a class="cell-link err-title" dir="auto" href="{{ route('admin.errors.show', array_filter(['issue' => $issue, 'back' => $back])) }}">{{ $issue->title }}</a>
                                             @if ($issue->isNew() || $issue->hasComeBack() || $growing[$issue->id])
                                                 <span class="err-marks">
                                                     @if ($issue->isNew())<span class="badge badge-info" data-mark="new">{{ __('New') }}</span>@endif
@@ -76,11 +79,11 @@
                                         </span>
                                     </td>
                                     <td data-label="{{ __('First seen') }}">
-                                        <time datetime="{{ $issue->first_seen_at->toIso8601String() }}">{{ $when($issue->first_seen_at) }}</time>
+                                        @include('admin.errors._time', ['moment' => $issue->first_seen_at])
                                         @if ($issue->first_version)<span class="cell-sub">{{ __('Version :version', ['version' => $issue->first_version]) }}</span>@endif
                                     </td>
                                     <td data-label="{{ __('Last seen') }}">
-                                        <time datetime="{{ $issue->last_seen_at->toIso8601String() }}">{{ $when($issue->last_seen_at) }}</time>
+                                        @include('admin.errors._time', ['moment' => $issue->last_seen_at, 'ago' => true])
                                         @if ($issue->last_version)<span class="cell-sub">{{ __('Version :version', ['version' => $issue->last_version]) }}</span>@endif
                                     </td>
                                 </tr>
@@ -91,7 +94,7 @@
             @endif
         </section>
 
-        <p class="field-hint err-legend">{{ __('New: first seen in the last 24 hours. Came back: it was resolved and happened again in the last 7 days. Growing: today at least 3 times, and at least double the daily average of the 7 days before.') }}</p>
+        @include('admin.errors._legend')
     </div>
 
     {{ $issues->links() }}
@@ -100,6 +103,8 @@
         <summary>
             <span class="err-noise-title">{{ __('Background noise (bots and browsers)') }}</span>
             <span class="err-noise-sum">{{ __('Last 7 days: :count', ['count' => number_format($noiseTotals['scanner'])]) }}</span>
+            {{-- What was dropped is the part of the noise that was meant to be seen, so a closed card still says so. --}}
+            @if ($noiseTotals['dropped'] > 0)<span class="err-noise-sum err-noise-drop">{{ __(':count dropped', ['count' => number_format($noiseTotals['dropped'])]) }}</span>@endif
         </summary>
         <div class="err-noise-body">
             <p class="field-hint">{{ __('Requests for things this site does not have, from bots probing for files such as .env and from browsers asking for icons, are only counted here. They never become an issue, a sample or an e-mail.') }}</p>

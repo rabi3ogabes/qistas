@@ -58,32 +58,47 @@ final class ErrorsController
 
         $noise = ErrorTrend::noise(self::SPARK_DAYS);
 
+        // Where a row's link says the reader came from, so the detail page can lead back to the same filters and page.
+        $listUrl = $this->listUrl($filters, $issues->currentPage());
+
         return view('admin.errors.index', [
             'issues' => $issues,
             'weeks' => $weeks,
             'growing' => $growing,
             'chips' => $this->chips($filters),
             'filtered' => $filters !== $this->defaults(),
+            'recording' => ErrorRecorder::enabled(),
+            'back' => $listUrl === $this->listPath() ? null : $listUrl,
             'noise' => $noise,
             'noiseTotals' => ['scanner' => array_sum(array_column($noise, 'scanner')), 'dropped' => array_sum(array_column($noise, 'dropped'))],
         ]);
     }
 
-    public function show(ErrorIssue $issue): View
+    public function show(Request $request, ErrorIssue $issue): View
     {
         $people = array_values(array_filter([$issue->resolved_by, $issue->ignored_by]));
+        $days = ErrorTrend::days([$issue->id], self::TIMELINE_DAYS)[$issue->id];
+        $back = $this->backTo($request->query('back'));
 
         return view('admin.errors.show', [
             'issue' => $issue,
             'samples' => $issue->samples()->limit(ErrorRecorder::SAMPLES)->get(),
-            'days' => ErrorTrend::days([$issue->id], self::TIMELINE_DAYS)[$issue->id],
+            'days' => $days,
+            // The same rule as the list's mark: today against the seven days before it, for an open issue only.
+            'growing' => $issue->status === ErrorIssue::STATUS_OPEN
+                && ErrorTrend::growing($days[self::TIMELINE_DAYS - 1], array_slice($days, -(self::SPARK_DAYS + 1), self::SPARK_DAYS)),
             'staff' => $people === [] ? collect() : User::query()->whereIn('id', $people)->pluck('name', 'id'),
+            'back' => $back,
+            'backUrl' => url($back ?? $this->listPath()),
         ]);
     }
 
     /**
      * Resolve, ignore or reopen (audited by ErrorTriage). Only the three statuses mean anything: the buttons send nothing
      * else, so anything else is a hand-made request and is refused with a 422 whatever it accepts.
+     *
+     * The message says what happened, not what was asked: an issue that is already in the status asked for (a double press,
+     * or a page that was open while a colleague decided) is left alone, writes no audit row, and is answered "Already ...".
      */
     public function status(Request $request, ErrorIssue $issue, ErrorTriage $triage): RedirectResponse
     {
@@ -91,19 +106,74 @@ final class ErrorsController
         abort_unless(is_string($status) && in_array($status, ErrorIssue::STATUSES, true), 422);
 
         $staff = $request->user();
+        $changed = false;
 
-        if ($status === ErrorIssue::STATUS_RESOLVED) {
-            $triage->resolve($issue, $staff);
-            $message = __('Marked as resolved.');
-        } elseif ($status === ErrorIssue::STATUS_IGNORED) {
-            $triage->ignore($issue, $staff);
-            $message = __('Ignored. New sightings of it are no longer counted.');
-        } else {
-            $triage->reopen($issue, $staff);
-            $message = __('Reopened.');
+        if ($issue->status !== $status) {
+            $after = match ($status) {
+                ErrorIssue::STATUS_RESOLVED => $triage->resolve($issue, $staff),
+                ErrorIssue::STATUS_IGNORED => $triage->ignore($issue, $staff),
+                default => $triage->reopen($issue, $staff),
+            };
+            // ErrorTriage re-reads the row under a lock: a colleague who got there between this page's read and now is not
+            // overwritten, and the triage says so by leaving the status as it was.
+            $changed = $after->wasChanged('status');
         }
 
-        return redirect()->route('admin.errors.show', $issue)->with('status', $message);
+        $message = match (true) {
+            $changed && $status === ErrorIssue::STATUS_RESOLVED => __('Marked as resolved.'),
+            $changed && $status === ErrorIssue::STATUS_IGNORED => __('Ignored. New sightings of it are no longer counted.'),
+            $changed => __('Reopened.'),
+            $status === ErrorIssue::STATUS_RESOLVED => __('Already resolved.'),
+            $status === ErrorIssue::STATUS_IGNORED => __('Already ignored.'),
+            default => __('Already open.'),
+        };
+
+        $back = $this->backTo($request->input('back'));
+
+        return redirect()->route('admin.errors.show', array_filter(['issue' => $issue, 'back' => $back]))->with('status', $message);
+    }
+
+    /** The list's own path, without a host: the only place a "back" link may lead. */
+    private function listPath(): string
+    {
+        return route('admin.errors.index', absolute: false);
+    }
+
+    /**
+     * The path and query of the list as it is now: only the filters that are not the default, and the page after the first.
+     * Always built from what was understood, never from the request's own query string.
+     *
+     * @param  array{source: string|null, status: string, new: bool, back: bool}  $filters
+     */
+    private function listUrl(array $filters, int $page): string
+    {
+        return route('admin.errors.index', array_filter([
+            'source' => $filters['source'],
+            'status' => $filters['status'] === 'open' ? null : $filters['status'],
+            'new' => $filters['new'] ? 1 : null,
+            'back' => $filters['back'] ? 1 : null,
+            'page' => $page > 1 ? $page : null,
+        ], fn ($value) => $value !== null), false);
+    }
+
+    /**
+     * A "back" value from the request, kept only when it is the list itself: its path, then at most a query made of plain
+     * characters. Anything else (another path, a host, a scheme, a quote, an angle bracket, a line break) is dropped, so
+     * the link can only ever lead back to the list and nothing in it can break out of its attribute.
+     */
+    private function backTo(mixed $value): ?string
+    {
+        if (! is_string($value) || strlen($value) > 300) {
+            return null;
+        }
+
+        $list = $this->listPath();
+
+        if ($value === $list || preg_match('~^'.preg_quote($list, '~').'\?[A-Za-z0-9_=&%.,+\[\]-]+$~D', $value) !== 1) {
+            return null;
+        }
+
+        return $value;
     }
 
     /**

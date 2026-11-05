@@ -109,6 +109,20 @@ class ErrorIssue extends Model
         $query->where('status', self::STATUS_OPEN)->where('reopened_at', '>=', now()->subDays(self::BACK_DAYS));
     }
 
+    /**
+     * The server's own failures: an exception, or an error page of 500 or more (its class is `http.5xx`). What a visitor can
+     * make at will (a 404 for a made-up address, an expired form), a slow query and what a browser or a phone reports are
+     * not, so they never turn the admin home's line yellow.
+     *
+     * @param  Builder<ErrorIssue>  $query
+     */
+    public function scopeServerErrors(Builder $query): void
+    {
+        $query->where(fn (Builder $inner) => $inner
+            ->where('kind', 'exception')
+            ->orWhere(fn (Builder $page) => $page->where('kind', 'http')->where('class', 'like', 'http.5%')));
+    }
+
     /** Is it new? The same rule as scopeNewIssues. */
     public function isNew(): bool
     {

@@ -19,8 +19,11 @@ use Illuminate\Support\Facades\DB;
  * Asking for the status the issue already has changes nothing and writes nothing.
  *
  * The counters belong to the recorder: this writes only the status and the two decisions, so a sighting counted a moment
- * before (or after) is never written over, and reopening does not touch `occurrences`. A staff reopen is not the issue
- * "coming back": `reopened_at` and `reopened_version` stay as the recorder left them.
+ * before (or after) is never written over, and reopening does not touch `occurrences`.
+ *
+ * "Came back" means the recorder reopened the issue after the last staff decision. So a staff resolve or ignore is that
+ * decision and clears `reopened_at` and `reopened_version`; a staff reopen is a decision too, not a recurrence, and leaves
+ * them alone (they are already empty after any decision, and only a new sighting of a resolved issue sets them again).
  */
 final class ErrorTriage
 {
@@ -58,7 +61,13 @@ final class ErrorTriage
                 'resolved_by' => $to === ErrorIssue::STATUS_RESOLVED ? $by->id : null,
                 'ignored_at' => $to === ErrorIssue::STATUS_IGNORED ? $now : null,
                 'ignored_by' => $to === ErrorIssue::STATUS_IGNORED ? $by->id : null,
-            ])->save();
+            ]);
+
+            if ($to !== ErrorIssue::STATUS_OPEN) {
+                $current->forceFill(['reopened_at' => null, 'reopened_version' => null]);
+            }
+
+            $current->save();
 
             Audit::record($action, $current, ['issue' => $current->id, 'from' => $from], null, $by->id);
 
