@@ -169,7 +169,7 @@ never waits more than a second for a lock.
 ## The phone app
 
 Nothing to set up. **Settings > Preferences > Send crash reports** is on by default and kept on the phone; the line under it
-says "When the app hits an error it sends the kind of error and a technical trace, never your data or your customers', so we
+says "When the app hits an error it sends the kind of error and a technical trace, never your data or your customers’, so we
 can fix it." Turning it off stops reports at once and empties what was waiting.
 
 **What a report holds:** the error's class, the first line of its message, a trace, the app version, Android or iOS (and the
@@ -178,13 +178,17 @@ same kind of rules as the server, and cuts it to 500, 160 and 8000 characters. *
 a phone number, what was typed, or the account.
 
 **When it is sent:** straight away, 3 seconds after the app starts, and when the app comes back to the screen. A report that
-cannot go waits on the phone (20 at most, 6 hours at most). The same error within a minute is one report. The server's
-answer decides the rest: 403, 404 or 405 (a server that does not have the place yet) stops reporting for the session and
-empties the queue, 413 or 422 drops that report, 429 waits as long as asked, anything else keeps it for the next try. The
-reporter has an API client of its own, so a stale sign-in can never sign anyone out.
+cannot go waits on the phone (20 at most, 6 hours at most). The same error within a minute is one report, and at most one
+report is made a second and ten a minute (it is decided before anything is cleaned, so an error thrown on every frame costs
+the screen nothing). The server's answer decides the rest: 403, 404 or 405 (a browser's report, or a server that does not
+have the place yet) stops reporting for the session and empties the queue; 429 waits as long as it is asked and a 408, a
+5xx or a lost connection waits a minute, keeping the reports; any other refusal drops that one report so it cannot block the
+ones behind it. The reporter has an API client of its own, so a stale sign-in can never sign anyone out.
 
 **Not reported:** failed network calls (`ApiException`, no connection, a time-out, a refused certificate), errors the
-framework marks as handled, and anything on the web build, which has no reporter and no switch.
+framework marks as handled, and anything on the web build or in a debug build (`flutter run`, which points at the live site
+with the release's version number and would put a developer's errors among the real ones). Neither has a reporter; the
+Settings switch is hidden on the web and stays visible in a debug build.
 
 **The server side** is `POST /api/v1/client-errors` (`api.client-errors.store`): no token needed (a crash on the sign-in
 screen matters); a phone's app token counts one more person on the issue; any other token is nobody. A request that comes
@@ -273,9 +277,8 @@ database is away would be lost). See `go-live.md`.
 - **A crash inside Android or iOS code that never reaches Dart is not seen.** That would need a native plugin; it was left out
   of this release.
 - **The phone does not report network failures, errors in background isolates (the push handler, the home-widget refresh), or
-  anything from the web build.** A debug build run from a developer's machine (`flutter run`) *does* report, to whatever address
-  it was built with, which is the live site unless changed, so developer noise can reach the live error center
-  (compare the version and the platform). The reporter has run in the test suite only: no real phone and no live server have
+  anything from the web build or a debug build.** (A debug build reports only when a developer asks for it in code and points
+  the app at a server of their own.) The reporter has run in the test suite only: no real phone and no live server have
   seen it yet, so look at the first real reports after the app is released.
 - **Client reports cannot be verified.** Anyone can post a fake one, so they never send an instant e-mail, they have budgets of
   their own, one sender can open only 3 new issues an hour, and a flood of fake reports can use up a client budget and

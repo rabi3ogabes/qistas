@@ -310,10 +310,13 @@ document stands as written). Each item names the section it changes.
 
 **The phone app (section 9)**
 
-- D25. A 403, 404 or 405 answer (not only 404 and 405) stops reporting for the session and drops the queue; 413 and 422 drop that report; 429 waits `Retry-After`.
+- D25. A 403, 404 or 405 answer (not only 404 and 405) stops reporting for the session and drops the queue; 429 waits `Retry-After`, and a 408, a 5xx or a lost
+  connection waits a minute and keeps the reports; any other 4xx drops that one report, so it cannot block the ones behind it for six hours.
 - D26. The reporter sends only the first line of an error's message, does not report network, API or time-out errors or framework errors marked
-  silent, counts the same error within a minute once, uses an API client of its own (a stale token cannot sign anyone out), and cuts the encoded body to 15 KB.
-- D27. The web build never reports, and the Settings switch is hidden there (a browser's reports always carry an `Origin` and would all be refused).
+  silent, counts the same error within a minute once (decided before anything is cleaned) and makes at most one report a second and ten a minute, uses an API client
+  of its own (a stale token cannot sign anyone out), and cuts the encoded body to 15 KB.
+- D27. The web build never reports, and the Settings switch is hidden there (a browser's reports always carry an `Origin` and would all be refused); a debug build
+  (`flutter run`, which points at the live site with the release's version) installs nothing either, unless a developer passes `reportInDebug`.
 
 **The screens (section 7)**
 
