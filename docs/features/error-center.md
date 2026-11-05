@@ -292,6 +292,13 @@ database is away would be lost). See `go-live.md`.
 - **A database outage cannot alert while it lasts.** Recording needs the database, and so does the mail. Events wait in the spool
   and are imported when it returns (the digest then lists them). Real outage alerting needs an **external uptime monitor**
   watching `/up`. If an outage outlasts the 2 MB spool the rest are lost, and only the process that lost them counts them.
+- **With emulated prepared statements (`DB_EMULATE_PREPARES=true`: the Vercel container and Supabase's transaction pooler),
+  PostgreSQL's own error text echoes the first characters of a value** (`LINE 1: ... email = 'ahmed@exam..`) in a
+  `QueryException`'s message; Laravel's masking of bindings only covers the `SQL:` part. The error center is not affected,
+  because it never stores a database exception's message (only the class, the SQLSTATE and the statement with
+  placeholders), but Laravel's own log in `storage/logs` can hold those characters. SixPanel uses native prepares and is not
+  affected. This was found because one test (`ErrorScrubberTest`: Laravel keeps the bindings out of the exception message on
+  every connection) fails against such a connection; it passes on SQLite.
 - **The container hosting target (Vercel) spools per running instance** and throws that disk away when the instance stops, so
   a spooled event can be lost there. SixPanel is one server with one spool file that the five-minute import reads.
 - **Real addresses that now count as noise:** old `.php`, `.zip`, `.map` and similar URLs, `/sw.js`, `/manifest.webmanifest`
