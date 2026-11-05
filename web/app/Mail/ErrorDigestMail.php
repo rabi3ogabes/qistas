@@ -3,11 +3,14 @@
 namespace App\Mail;
 
 use App\Errors\ErrorAlerts;
+use App\Errors\ErrorRecorder;
+use App\Errors\ErrorTrend;
 use App\Models\ErrorIssue;
 use App\Support\Locale;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
+use Illuminate\Mail\Mailables\Headers;
 
 /**
  * The daily digest of the error center (design section 8): what is new in the last 24 hours, what came back, and what is
@@ -16,6 +19,11 @@ use Illuminate\Mail\Mailables\Envelope;
  *
  * Each list holds at most ErrorAlerts::LIST_LIMIT issues, the most often seen first; `$more` says how many more there were,
  * by list (`new`, `cameBack`, `growing`), and the e-mail links to the whole list of issues.
+ *
+ * Some of what an issue is called was written by a stranger: anybody can post a script error or a crash, and a visitor picks
+ * the address of a page that is not found. An issue reported by a browser or a phone is therefore shown by its kind ("Script
+ * error", "Crash") and who reported it, never by its title, and a missing page keeps its title but is marked as one. A title
+ * in an e-mail to the owner is a sentence a stranger could have put there ("Your account is locked, open ...").
  */
 final class ErrorDigestMail extends Mailable
 {
@@ -37,6 +45,12 @@ final class ErrorDigestMail extends Mailable
         return new Envelope(subject: __('Error summary of the last 24 hours'));
     }
 
+    /** Sent by a machine: an out-of-office reply or a mailing-list robot must not answer it. */
+    public function headers(): Headers
+    {
+        return new Headers(text: ['Auto-Submitted' => 'auto-generated']);
+    }
+
     public function content(): Content
     {
         return new Content(
@@ -55,15 +69,20 @@ final class ErrorDigestMail extends Mailable
     /**
      * The parts that have something in them, in the order they are read, each ready to print.
      *
-     * @return list<array{key: string, heading: string, hint: string, issues: list<array{source: string, title: string, count: string, link: string}>, more: int}>
+     * @return list<array{key: string, heading: string, hint: string, issues: list<array{source: string, note: string|null, title: string, count: string, link: string}>, more: int}>
      */
     private function sections(): array
     {
         $sources = ErrorIssue::sourceLabels();
+        $kinds = ErrorIssue::kindLabels();
+        $growingHint = __('Today at least :times times, and at least double the daily average of the :days days before.', [
+            'times' => ErrorTrend::GROWING_MIN,
+            'days' => ErrorTrend::WINDOW,
+        ]);
         $parts = [
             ['new', $this->new, __('New in the last 24 hours'), __('Seen for the first time.')],
             ['cameBack', $this->cameBack, __('Came back in the last 24 hours'), __('Resolved, then seen again.')],
-            ['growing', $this->growing, __('Growing'), __('Today at least 3 times, and at least double the daily average of the 7 days before.')],
+            ['growing', $this->growing, __('Growing'), $growingHint],
         ];
         $sections = [];
 
@@ -76,16 +95,36 @@ final class ErrorDigestMail extends Mailable
                 'key' => $key,
                 'heading' => $heading,
                 'hint' => $hint,
-                'issues' => array_map(static fn (ErrorIssue $issue): array => [
-                    'source' => $sources[$issue->source] ?? $issue->source,
-                    'title' => ErrorAlerts::oneLine($issue->title),
-                    'count' => number_format($issue->occurrences),
-                    'link' => ErrorAlerts::link($issue),
-                ], $issues),
+                'issues' => array_map(static fn (ErrorIssue $issue): array => self::row($issue, $sources, $kinds), $issues),
                 'more' => max(0, (int) ($this->more[$key] ?? 0)),
             ];
         }
 
         return $sections;
+    }
+
+    /**
+     * One issue as the e-mail prints it. Reported by a browser or a phone: the kind of report and who sent it, no title. A page
+     * that was not found: its title, marked. Anything else: its title.
+     *
+     * @param  array<string, string>  $sources
+     * @param  array<string, string>  $kinds
+     * @return array{source: string, note: string|null, title: string, count: string, link: string}
+     */
+    private static function row(ErrorIssue $issue, array $sources, array $kinds): array
+    {
+        $reported = ErrorRecorder::clientReported($issue->source, $issue->kind);
+
+        return [
+            'source' => $sources[$issue->source] ?? $issue->source,
+            'note' => match (true) {
+                $reported => $issue->source === 'app' || $issue->kind === 'crash' ? __('Reported by a phone') : __('Reported by a browser'),
+                $issue->kind === 'http' && $issue->class === 'http.404' => __('Page not found'),
+                default => null,
+            },
+            'title' => $reported ? ($kinds[$issue->kind] ?? $issue->kind) : ErrorAlerts::oneLine($issue->title),
+            'count' => number_format($issue->occurrences),
+            'link' => ErrorAlerts::link($issue),
+        ];
     }
 }

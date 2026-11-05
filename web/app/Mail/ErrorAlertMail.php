@@ -8,6 +8,7 @@ use App\Support\Locale;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
+use Illuminate\Mail\Mailables\Headers;
 use Illuminate\Support\Str;
 
 /**
@@ -47,8 +48,16 @@ final class ErrorAlertMail extends Mailable
                 'count' => number_format($this->issue->occurrences),
                 'version' => $this->issue->first_version,
                 'link' => ErrorAlerts::link($this->issue),
+                'hourLimit' => ErrorAlerts::HOUR_LIMIT,
+                'dayLimit' => ErrorAlerts::DAY_LIMIT,
             ],
         );
+    }
+
+    /** Sent by a machine: an out-of-office reply or a mailing-list robot must not answer it. */
+    public function headers(): Headers
+    {
+        return new Headers(text: ['Auto-Submitted' => 'auto-generated']);
     }
 
     private function source(): string

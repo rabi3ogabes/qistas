@@ -5,7 +5,7 @@
 {!! $section['hint'] !!}
 @foreach ($section['issues'] as $issue)
 
-- [{!! $issue['source'] !!}] {!! $issue['title'] !!}
+- [{!! $issue['source'] !!}{!! $issue['note'] !== null ? ' · '.$issue['note'] : '' !!}] {!! $issue['title'] !!}
   {!! __('Times seen') !!}: {!! $issue['count'] !!}
   {!! $issue['link'] !!}
 @endforeach

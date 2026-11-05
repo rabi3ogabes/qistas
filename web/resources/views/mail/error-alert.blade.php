@@ -1,6 +1,6 @@
 {{--
     The instant e-mail for a new server error (App\Mail\ErrorAlertMail). Needs $language, $dir, $brand, $source, $title,
-    $count, $version (or null) and $link. The title is printed as text and nothing else about the failure is available here.
+    $count, $version (or null), $link, $hourLimit and $dayLimit. The title is printed as text and nothing else about the failure is available here.
 --}}
 @extends('mail.error-frame')
 
@@ -34,4 +34,4 @@
 </table>
 @endsection
 
-@section('footer', __('You receive this because you are a super admin. At most 3 of these are sent an hour and 10 a day; the others wait for the daily summary.'))
+@section('footer', __('You receive this because you are a super admin. At most :hour of these are sent an hour and :day a day; the others wait for the daily summary.', ['hour' => $hourLimit, 'day' => $dayLimit]))

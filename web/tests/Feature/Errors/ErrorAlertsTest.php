@@ -1,8 +1,10 @@
 <?php
 
+use App\Errors\DigestOutcome;
 use App\Errors\ErrorAlerts;
 use App\Errors\ErrorEvent;
 use App\Errors\ErrorRecorder;
+use App\Errors\ErrorTrend;
 use App\Errors\ErrorTriage;
 use App\Errors\Events\ErrorIssueCreated;
 use App\Errors\Recorded;
@@ -13,6 +15,7 @@ use App\Models\ErrorIssue;
 use App\Models\ErrorOccurrence;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Mail;
@@ -154,7 +157,14 @@ function errorsAlertSuper(string $locale = 'en', ?string $email = null): User
     return User::factory()->platformAdmin('super_admin')->create(array_filter(['locale' => $locale, 'email' => $email]));
 }
 
+/** Did the digest go out? */
 function errorsAlertDigest(): bool
+{
+    return errorsAlertOutcome() === DigestOutcome::Sent;
+}
+
+/** What the digest did: sent, had nothing to send, or could not be sent. */
+function errorsAlertOutcome(): DigestOutcome
 {
     return app(ErrorAlerts::class)->digest(now());
 }
@@ -207,7 +217,7 @@ function errorsAlertMailer(array $broken = ['*']): object
         /** @var list<string> */
         public array $broken = ['*'];
 
-        /** @var list<array{html: string|null, text: string|null}> */
+        /** @var list<array{html: string|null, text: string|null, auto: string|null}> */
         public array $bodies = [];
 
         protected function doSend(SentMessage $message): void
@@ -221,7 +231,11 @@ function errorsAlertMailer(array $broken = ['*']): object
 
             array_push($this->reached, ...$to);
             $email = $message->getOriginalMessage();
-            $this->bodies[] = ['html' => $email->getHtmlBody(), 'text' => $email->getTextBody()];
+            $this->bodies[] = [
+                'html' => $email->getHtmlBody(),
+                'text' => $email->getTextBody(),
+                'auto' => $email->getHeaders()->get('Auto-Submitted')?->getBodyAsString(),
+            ];
         }
 
         public function __toString(): string
@@ -398,6 +412,37 @@ describe('the instant e-mail', function () {
         Mail::assertSent(ErrorAlertMail::class, 1);
     });
 
+    it('sends nothing for an issue whose row already says it was told about', function () {
+        errorsAlertSuper();
+        $issue = errorsAlertIssue(['first_seen_at' => now(), 'last_seen_at' => now()]);
+        ErrorIssue::query()->whereKey($issue->id)->update(['alerted_at' => now()->subMinute()]); // another worker was first
+
+        expect($issue->alerted_at)->toBeNull() // the copy the event carries is stale
+            ->and(app(ErrorAlerts::class)->instant($issue))->toBeFalse()
+            ->and(RateLimiter::attempts('error-alerts-hour'))->toBe(0);
+        Mail::assertNothingSent();
+    });
+
+    it('sends nothing when staff dealt with the issue between the event and the mail', function (string $status) {
+        errorsAlertSuper();
+        $issue = errorsAlertIssue(['first_seen_at' => now(), 'last_seen_at' => now()]);
+        ErrorIssue::query()->whereKey($issue->id)->update(['status' => $status]);
+
+        expect($issue->status)->toBe('open') // the copy the event carries is stale
+            ->and(app(ErrorAlerts::class)->instant($issue))->toBeFalse()
+            ->and(RateLimiter::attempts('error-alerts-hour'))->toBe(0);
+        Mail::assertNothingSent();
+    })->with(['resolved', 'ignored']);
+
+    it('sends nothing for an issue that was removed in the meantime', function () {
+        errorsAlertSuper();
+        $issue = errorsAlertIssue(['first_seen_at' => now(), 'last_seen_at' => now()]);
+        ErrorIssue::query()->whereKey($issue->id)->delete();
+
+        expect(app(ErrorAlerts::class)->instant($issue))->toBeFalse();
+        Mail::assertNothingSent();
+    });
+
     it('does not even read the database for an issue that never alerts', function () {
         errorsAlertSuper();
         $quiet = errorsAlertIssue(['source' => 'site', 'kind' => 'http', 'class' => 'http.404', 'first_seen_at' => now(), 'last_seen_at' => now()]);
@@ -499,6 +544,70 @@ describe('the caps', function () {
 
         expect($queries)->toBe([]);
         Mail::assertNothingSent();
+    });
+
+    it('holds the hourly cap when workers finish their issues at the same moment', function () {
+        errorsAlertSuper();
+        $issues = array_map(fn () => errorsAlertIssue(['first_seen_at' => now(), 'last_seen_at' => now()]), range(0, 7));
+        $others = array_slice($issues, 1);
+
+        // While one worker looks up whom to tell, the next has passed the same check: each of them, in turn, is caught between
+        // reading the counters and writing them. Eight issues, one after the other nested, as eight workers would interleave.
+        DB::listen(function (QueryExecuted $query) use (&$others) {
+            if ($others !== [] && str_contains($query->sql, 'platform_role')) {
+                app(ErrorAlerts::class)->instant(array_shift($others));
+            }
+        });
+
+        app(ErrorAlerts::class)->instant($issues[0]);
+
+        Mail::assertSent(ErrorAlertMail::class, ErrorAlerts::HOUR_LIMIT);
+        expect(ErrorIssue::query()->whereNotNull('alerted_at')->count())->toBe(ErrorAlerts::HOUR_LIMIT)
+            ->and(ErrorIssue::query()->whereNull('alerted_at')->count())->toBe(8 - ErrorAlerts::HOUR_LIMIT) // left for the digest
+            ->and(RateLimiter::attempts('error-alerts-day'))->toBe(ErrorAlerts::HOUR_LIMIT);
+    });
+
+    it('does not take a place in the day for a mail that did not go', function () {
+        $transport = errorsAlertMailer();
+        errorsAlertSuper();
+
+        foreach (range(0, 2) as $n) {
+            errorsAlertRecord(errorsAlertFailure($n));
+        }
+
+        expect($transport->attempts)->toBe(3)
+            ->and(RateLimiter::attempts('error-alerts-hour'))->toBe(3) // every attempt counts for the hour: a dead server is tried 3 times
+            ->and(RateLimiter::attempts('error-alerts-day'))->toBe(0);
+    });
+
+    it('takes a place in the day for a mail that went', function () {
+        errorsAlertSuper();
+
+        errorsAlertRecord(errorsAlertFailure(0));
+        errorsAlertRecord(errorsAlertFailure(1));
+
+        expect(RateLimiter::attempts('error-alerts-hour'))->toBe(2)
+            ->and(RateLimiter::attempts('error-alerts-day'))->toBe(2);
+    });
+
+    it('is not held up for the day by a mail server that was down all morning', function () {
+        $transport = errorsAlertMailer();
+        errorsAlertSuper();
+
+        foreach (range(0, 11) as $n) { // twelve failed attempts, three an hour
+            if ($n > 0 && $n % 3 === 0) {
+                $this->travelTo(now()->addMinutes(61));
+            }
+            errorsAlertRecord(errorsAlertFailure($n));
+        }
+        expect($transport->attempts)->toBe(12)->and(RateLimiter::attempts('error-alerts-day'))->toBe(0);
+
+        $transport->broken = []; // the server is back
+        $this->travelTo(now()->addMinutes(61));
+        errorsAlertRecord(errorsAlertFailure(12));
+
+        expect($transport->reached)->toHaveCount(1)
+            ->and(ErrorIssue::query()->whereNotNull('alerted_at')->count())->toBe(1);
     });
 });
 
@@ -708,6 +817,17 @@ describe('a mail that cannot be sent', function () {
             ->and(app()->getLocale())->toBe('en'); // the language of the mail did not stay behind
     });
 
+    it('marks both mails as automatic, so no out-of-office reply is sent to them', function () {
+        $transport = errorsAlertMailer(['nobody@example.test']);
+        errorsAlertSuper('en', 'owner@example.test');
+        errorsAlertRecord(errorsAlertEvent());
+        errorsAlertNew();
+
+        expect(errorsAlertDigest())->toBeTrue()
+            ->and($transport->bodies)->toHaveCount(2)
+            ->and(array_column($transport->bodies, 'auto'))->toBe(['auto-generated', 'auto-generated']);
+    });
+
     it('tells the digest too, through a real mailer', function () {
         $transport = errorsAlertMailer(['nobody@example.test']);
         errorsAlertSuper('fr', 'owner@example.test');
@@ -720,12 +840,12 @@ describe('a mail that cannot be sent', function () {
             ->and($transport->bodies[0]['text'])->toContain($issue->title)->not->toContain('<');
     });
 
-    it('is swallowed by the digest too', function () {
+    it('is swallowed by the digest too, which says it could not be sent', function () {
         errorsAlertMailer();
         errorsAlertSuper();
         errorsAlertNew();
 
-        expect(errorsAlertDigest())->toBeFalse();
+        expect(errorsAlertOutcome())->toBe(DigestOutcome::Failed);
     });
 });
 
@@ -797,6 +917,7 @@ describe('the digest', function () {
     it('leaves out an issue that is ignored or resolved, in every list', function () {
         errorsAlertSuper();
         errorsAlertNew(1, ['status' => 'ignored']);
+        errorsAlertNew(1, ['status' => 'resolved']);
         errorsAlertBack(1, ['status' => 'ignored']);
         errorsAlertBusy(9, 0, ['status' => 'ignored']);
         errorsAlertBusy(9, 0, ['status' => 'resolved']);
@@ -933,6 +1054,90 @@ describe('the digest', function () {
             ->and($mail->subject)->not->toBe('Error summary of the last 24 hours');
     });
 
+    it('does not list as new an issue staff already resolved, and it cannot make a digest alone', function () {
+        errorsAlertSuper();
+        $resolved = errorsAlertNew(2, ['status' => 'resolved']);
+
+        expect(errorsAlertOutcome())->toBe(DigestOutcome::NothingToSend);
+        Mail::assertNothingSent();
+
+        $open = errorsAlertNew(1);
+
+        expect(errorsAlertOutcome())->toBe(DigestOutcome::Sent)
+            ->and(errorsAlertLists()['new'])->toBe([$open->id])->not->toContain($resolved->id);
+    });
+
+    it('says whether it went, had nothing to send, or could not be sent', function () {
+        errorsAlertSuper();
+
+        expect(errorsAlertOutcome())->toBe(DigestOutcome::NothingToSend);
+
+        errorsAlertNew();
+
+        expect(errorsAlertOutcome())->toBe(DigestOutcome::Sent);
+
+        User::query()->update(['status' => 'suspended']); // nobody to tell is not a failed mail
+
+        expect(errorsAlertOutcome())->toBe(DigestOutcome::NothingToSend);
+    });
+
+    it('never prints what a stranger wrote: a report from a browser or a phone is a label and a link', function () {
+        errorsAlertSuper();
+        $hostile = 'Your account is locked, open https://evil.example/login';
+        $script = errorsAlertNew(1, ['source' => 'site', 'kind' => 'script', 'class' => 'TypeError', 'title' => $hostile, 'occurrences' => 4]);
+        $crash = errorsAlertNew(1, ['source' => 'app', 'kind' => 'crash', 'class' => 'StateError', 'title' => $hostile.' now', 'occurrences' => 3]);
+
+        expect(errorsAlertDigest())->toBeTrue();
+
+        $mail = Mail::sent(ErrorDigestMail::class)->sole();
+        $html = $mail->render();
+
+        expect($html)->not->toContain('evil.example')->not->toContain('account is locked')
+            ->toContain('Reported by a browser')->toContain('Reported by a phone')
+            ->toContain('Script error')->toContain('Crash')
+            ->toContain('https://qistas.example/admin/errors/'.$script->id)
+            ->toContain('https://qistas.example/admin/errors/'.$crash->id)
+            ->toContain('Times seen: 4');
+        $mail->assertDontSeeInText('evil.example');
+        $mail->assertDontSeeInText('account is locked');
+        $mail->assertSeeInText('Reported by a browser');
+        $mail->assertSeeInText('Reported by a phone');
+        $mail->assertSeeInText('https://qistas.example/admin/errors/'.$crash->id);
+    });
+
+    it('marks a page that was not found as one, since the visitor chose the address', function () {
+        errorsAlertSuper();
+        $missing = errorsAlertNew(1, ['source' => 'site', 'kind' => 'http', 'class' => 'http.404', 'title' => '404 Not Found: /your-account-is-locked']);
+        $broken = errorsAlertNew(1, ['source' => 'site', 'kind' => 'http', 'class' => 'http.500', 'title' => '500 Internal Server Error: /app/reports']);
+
+        expect(errorsAlertDigest())->toBeTrue();
+
+        $mail = Mail::sent(ErrorDigestMail::class)->sole();
+        $html = $mail->render();
+
+        expect($html)->toContain('404 Not Found: /your-account-is-locked')->toContain('500 Internal Server Error: /app/reports')
+            ->and(substr_count($html, 'Page not found'))->toBe(1); // on the 404 only
+        $mail->assertSeeInText('Page not found');
+        $mail->assertSeeInText('404 Not Found: /your-account-is-locked');
+        expect(collect($mail->new)->pluck('id')->all())->toEqualCanonicalizing([$missing->id, $broken->id]);
+    });
+
+    it('names the real limits in its footer and its hint, in every language', function (string $locale) {
+        errorsAlertSuper();
+        $issue = errorsAlertIssue(['first_seen_at' => now(), 'last_seen_at' => now()]);
+        errorsAlertBusy(5, 0);
+        errorsAlertDigest();
+        $alert = (new ErrorAlertMail($issue))->locale($locale);
+        $digest = Mail::sent(ErrorDigestMail::class)->sole()->locale($locale);
+        $footer = trans('You receive this because you are a super admin. At most :hour of these are sent an hour and :day a day; the others wait for the daily summary.', ['hour' => ErrorAlerts::HOUR_LIMIT, 'day' => ErrorAlerts::DAY_LIMIT], $locale);
+        $hint = trans('Today at least :times times, and at least double the daily average of the :days days before.', ['times' => ErrorTrend::GROWING_MIN, 'days' => ErrorTrend::WINDOW], $locale);
+
+        expect($alert->render())->toContain(e($footer))->not->toContain(':hour')->not->toContain(':day')
+            ->and($digest->render())->toContain(e($hint))->not->toContain(':times')->not->toContain(':days')
+            ->and($footer)->toContain((string) ErrorAlerts::HOUR_LIMIT)->toContain((string) ErrorAlerts::DAY_LIMIT)
+            ->and($hint)->toContain((string) ErrorTrend::GROWING_MIN)->toContain((string) ErrorTrend::WINDOW);
+    })->with(['en', 'ar', 'fr', 'es', 'ur']);
+
     it('is run by a command that says what it did', function () {
         $this->artisan('qistas:errors:digest')->expectsOutputToContain('Nothing to send.')->assertExitCode(0);
         Mail::assertNothingSent();
@@ -942,5 +1147,13 @@ describe('the digest', function () {
 
         $this->artisan('qistas:errors:digest')->expectsOutputToContain('Digest sent.')->assertExitCode(0);
         Mail::assertSent(ErrorDigestMail::class, 1);
+    });
+
+    it('fails the command, and says why, when no mail could be sent', function () {
+        errorsAlertMailer();
+        errorsAlertSuper();
+        errorsAlertNew();
+
+        $this->artisan('qistas:errors:digest')->expectsOutputToContain('The digest could not be sent.')->assertExitCode(1);
     });
 });

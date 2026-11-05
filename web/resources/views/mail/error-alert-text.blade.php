@@ -12,4 +12,4 @@
 {!! __('Open the error') !!}: {!! $link !!}
 
 --
-{!! __('You receive this because you are a super admin. At most 3 of these are sent an hour and 10 a day; the others wait for the daily summary.') !!}
+{!! __('You receive this because you are a super admin. At most :hour of these are sent an hour and :day a day; the others wait for the daily summary.', ['hour' => $hourLimit, 'day' => $dayLimit]) !!}

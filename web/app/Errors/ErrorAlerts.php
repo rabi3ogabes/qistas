@@ -36,7 +36,13 @@ use Throwable;
  *     re-enter the capture layer): a mail that cannot be sent, a database that does not answer, a cache that refuses a count
  *     are all swallowed, and the issue stays stored as the recorder left it. The mails are not queued, so the failure is
  *     caught here and not by a worker later.
- *   - An attempt takes its place in the caps whether or not the mail server answers, so a server that is down is tried 3
+ *   - The caps hold when workers run at the same moment. The counters are read first only as the cheap way out; the hour's
+ *     counter is then taken with one atomic step (the count RateLimiter::hit returns), and an issue that finds itself past
+ *     the cap sends nothing. A worker that loses that race wastes one place in the hour (bounded by the number of workers) and
+ *     leaves its issue for the digest. The day's counter is written only after a mail has gone, so a dead mail server cannot use
+ *     the day up and leave the first real alert after it recovers waiting until tomorrow; workers racing at the edge of the
+ *     day's cap are still held by the hour's, so it can be passed by at most the hour's cap less one.
+ *   - Every attempt takes its place in the hour whether or not the mail server answers, so a server that is down is tried 3
  *     times an hour, not once for every new issue of a flood.
  *   - Nothing is read for an issue that never alerts, and nobody is looked up until an alert is really going out.
  *   - The e-mails carry the source, the title (already scrubbed; the views escape it all the same), the count and a link,
@@ -92,20 +98,26 @@ final class ErrorAlerts
                 return false;
             }
 
-            // The count so far, and whether anyone has dealt with it in the meantime: read again, now that it goes out.
+            // The count so far, and whether the issue is still one to tell about: staff may have resolved or ignored it, or
+            // another worker told about it, since the event was fired with the copy this method was given. Read again, now
+            // that it goes out.
             $current = ErrorIssue::query()->find($issue->getKey());
 
             if ($current === null || ! self::wouldAlert($current)) {
                 return false;
             }
 
-            RateLimiter::hit(self::HOUR_KEY, self::HOUR_SECONDS);
-            RateLimiter::hit(self::DAY_KEY, self::DAY_SECONDS);
+            // The pre-check above saw the counters before any of the workers racing with this one wrote to them. The place in
+            // the hour is taken in one atomic step, and the count it gives back says whether there was one.
+            if (RateLimiter::hit(self::HOUR_KEY, self::HOUR_SECONDS) > self::HOUR_LIMIT) {
+                return false;
+            }
 
             if ($this->deliver($recipients, static fn (): ErrorAlertMail => new ErrorAlertMail($current)) === 0) {
                 return false;
             }
 
+            RateLimiter::hit(self::DAY_KEY, self::DAY_SECONDS);
             ErrorIssue::query()->whereKey($current->getKey())->update(['alerted_at' => now()]);
 
             return true;
@@ -137,28 +149,33 @@ final class ErrorAlerts
 
     /**
      * The daily digest: one e-mail to each recipient, only when something is new in the last 24 hours, came back in the last
-     * 24 hours, or is growing; returns whether it went to anybody. An ignored issue is in none of the lists, and an issue is
-     * in one list only (came back, then new, then growing), so it is not told twice. A mail that cannot be sent is swallowed.
+     * 24 hours, or is growing. Only open issues are listed: one that staff resolved or ignored is dealt with. An issue is in
+     * one list only (came back, then new, then growing), so it is not told twice.
+     *
+     * What it did is the outcome: Sent when the mail went to somebody; NothingToSend on a quiet day, or when nobody can be
+     * told; Failed when there was something to say, people to say it to, and no mail could be sent. A mail that cannot be sent
+     * is swallowed (never reported), and the command turns Failed into a failing exit, so the digest of a day does not vanish
+     * the way a quiet day does.
+     *
+     * Known limit: "growing" is judged on the day so far, against the seven days before it (ErrorTrend::growing). An issue
+     * that surged yesterday and is quiet so far today is not listed, and the early hours of a day show less than its end will.
      */
-    public function digest(CarbonInterface $now): bool
+    public function digest(CarbonInterface $now): DigestOutcome
     {
         $since = CarbonImmutable::instance($now)->setTimezone(self::timezone())->subHours(self::DIGEST_HOURS);
 
-        $cameBack = $this->ids(
-            $this->live()->where('status', ErrorIssue::STATUS_OPEN)->where('reopened_at', '>=', $since),
-            [],
-        );
-        $new = $this->ids($this->live()->where('first_seen_at', '>=', $since), $cameBack);
+        $cameBack = $this->ids($this->open()->where('reopened_at', '>=', $since), []);
+        $new = $this->ids($this->open()->where('first_seen_at', '>=', $since), $cameBack);
         $growing = $this->growing($since, [...$cameBack, ...$new]);
 
         if ($cameBack === [] && $new === [] && $growing === []) {
-            return false;
+            return DigestOutcome::NothingToSend;
         }
 
         $recipients = $this->recipients();
 
         if ($recipients->isEmpty()) {
-            return false;
+            return DigestOutcome::NothingToSend;
         }
 
         [$new, $moreNew] = $this->shown($new);
@@ -166,7 +183,9 @@ final class ErrorAlerts
         [$growing, $moreGrowing] = $this->shown($growing);
         $more = ['new' => $moreNew, 'cameBack' => $moreBack, 'growing' => $moreGrowing];
 
-        return $this->deliver($recipients, static fn (): ErrorDigestMail => new ErrorDigestMail($new, $cameBack, $growing, $more)) > 0;
+        $sent = $this->deliver($recipients, static fn (): ErrorDigestMail => new ErrorDigestMail($new, $cameBack, $growing, $more));
+
+        return $sent > 0 ? DigestOutcome::Sent : DigestOutcome::Failed;
     }
 
     /** A link to an issue's page in the admin console. */
@@ -247,13 +266,14 @@ final class ErrorAlerts
     }
 
     /**
-     * The issues that count for the digest at all: everything not ignored.
+     * The issues that count for the digest at all: the open ones. A resolved or ignored issue is dealt with, whatever else is
+     * true of it.
      *
      * @return Builder<ErrorIssue>
      */
-    private function live(): Builder
+    private function open(): Builder
     {
-        return ErrorIssue::query()->where('status', '!=', ErrorIssue::STATUS_IGNORED);
+        return ErrorIssue::query()->where('status', ErrorIssue::STATUS_OPEN);
     }
 
     /**
@@ -281,8 +301,7 @@ final class ErrorAlerts
     private function growing(CarbonImmutable $since, array $taken): array
     {
         $candidates = $this->ids(
-            $this->live()->where('status', ErrorIssue::STATUS_OPEN)
-                ->where('last_seen_at', '>=', $since)->where('occurrences', '>=', ErrorTrend::GROWING_MIN),
+            $this->open()->where('last_seen_at', '>=', $since)->where('occurrences', '>=', ErrorTrend::GROWING_MIN),
             $taken,
         );
 

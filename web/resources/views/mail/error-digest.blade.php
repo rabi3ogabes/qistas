@@ -1,7 +1,7 @@
 {{--
     The daily digest of the error center (App\Mail\ErrorDigestMail). Needs $language, $dir, $brand, $listLink and $sections:
-    the parts that have something in them, each with a heading, a hint, its issues (source, title, count, link) and how
-    many more there were. Titles are printed as text and nothing else about a failure is available here.
+    the parts that have something in them, each with a heading, a hint, its issues (source, a note or null, title, count,
+    link) and how many more there were. Titles are printed as text and nothing else about a failure is available here.
 --}}
 @extends('mail.error-frame')
 
@@ -16,7 +16,7 @@
 @foreach ($section['issues'] as $issue)
 <tr>
 <td dir="{{ $dir }}" valign="top" style="padding:14px;border-bottom:1px solid #EDE6D6;">
-<div dir="{{ $dir }}" style="font-size:12px;line-height:18px;font-weight:600;color:#5B6070;">{{ $issue['source'] }}</div>
+<div dir="{{ $dir }}" style="font-size:12px;line-height:18px;font-weight:600;color:#5B6070;">{{ $issue['source'] }}@if ($issue['note'] !== null) · {{ $issue['note'] }}@endif</div>
 <a href="{{ $issue['link'] }}" dir="auto" style="font-weight:600;color:#0B1F44;text-decoration:underline;word-break:break-word;">{{ $issue['title'] }}</a>
 <div dir="{{ $dir }}" style="font-size:13px;line-height:20px;color:#5B6070;">{{ __('Times seen') }}: {{ $issue['count'] }}</div>
 </td>
