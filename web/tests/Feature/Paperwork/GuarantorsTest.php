@@ -67,7 +67,9 @@ describe('adding them', function () {
         $this->postJson("/api/v1/contracts/{$contract->id}/guarantors", guarantorInput())->assertCreated();
 
         $row = AuditLog::query()->where('action', 'guarantor.added')->sole();
-        expect(json_encode($row->toArray()))->not->toContain('1098765432')->not->toContain('432');
+        // The whole row may hold random ids (a UUID can contain "432"), so the short tail is checked where the person's data goes.
+        expect(json_encode($row->toArray()))->not->toContain('1098765432')
+            ->and(json_encode($row->changes))->not->toContain('432');
     });
 });
 
