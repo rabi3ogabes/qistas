@@ -19,8 +19,10 @@ class InvalidScheduleException implements Exception {
   /// When the shop's own amounts miss the total: what is still to place (negative when they go over).
   final Money? remaining;
 
+  /// What an uncaught one prints, and so what a crash report would hold: which input, and why, but not [message], which
+  /// can hold the amounts the person typed ("The instalments add up to ..."). Every form catches it and writes its own words.
   @override
-  String toString() => 'InvalidScheduleException($field): $message';
+  String toString() => 'InvalidScheduleException($field${reason == null ? '' : ', $reason'})';
 }
 
 /// What a person asks of the schedule. Amounts are the text they typed (or the API sent), exactly as the server

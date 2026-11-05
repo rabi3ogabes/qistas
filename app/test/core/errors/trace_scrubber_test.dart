@@ -138,7 +138,9 @@ void main() {
     });
 
     test('a text built to be slow is read in a bounded time', () {
-      final stopwatch = Stopwatch()..start();
+      // Each text on its own: one that makes a pattern quadratic took 7 to 10 seconds by itself (and a busy machine adds
+      // to every one), so a bound of a few seconds each tells it from a text that is merely long.
+      final slow = <String>[];
 
       for (final text in [
         'a' * 2000000,
@@ -159,10 +161,12 @@ void main() {
         'aB1+' * 600000,
         'a.b' * 700000,
       ]) {
+        final stopwatch = Stopwatch()..start();
         TraceScrubber.clean(text);
+        if (stopwatch.elapsed > const Duration(seconds: 5)) slow.add('${text.substring(0, 8)}... took ${stopwatch.elapsed}');
       }
 
-      expect(stopwatch.elapsed, lessThan(const Duration(seconds: 10)));
+      expect(slow, isEmpty);
     });
 
     test('a secret beyond the cut made for speed is never sent', () {

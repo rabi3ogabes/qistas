@@ -120,7 +120,7 @@ class SettingsScreen extends ConsumerWidget {
                       key: const ValueKey('settings-crash-reports'),
                       icon: Icons.bug_report_outlined,
                       title: context.t('Send crash reports'),
-                      subtitle: context.t('When the app hits an error it sends the kind of error and a technical trace, never your data or your customers\', so we can fix it.'),
+                      subtitle: context.t('When the app hits an error it sends the kind of error and a technical trace, never your data or your customers’, so we can fix it.'),
                       value: crashReports,
                       onChanged: (on) {
                         HapticFeedback.selectionClick();
@@ -578,6 +578,8 @@ class _SwitchRow extends StatelessWidget {
 
     return MergeSemantics(
       child: InkWell(
+        // The switch inside is the one stop for the keyboard and a switch panel; the row around it is only a larger place to tap.
+        canRequestFocus: false,
         onTap: () => onChanged(!value),
         child: Padding(
           padding: const EdgeInsetsDirectional.fromSTEB(16, 6, 12, 12),

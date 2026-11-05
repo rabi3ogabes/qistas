@@ -41,7 +41,9 @@ jobs:
           cache: true
       - run: flutter pub get
       - name: Build the iPhone app without signing
-        run: flutter build ios --release --no-codesign
+        run: |
+          VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //; s/+.*//')
+          flutter build ios --release --no-codesign --dart-define=APP_VERSION="$VERSION"
       - name: Are the App Store Connect secrets set?
         id: secrets
         env:
@@ -81,7 +83,9 @@ jobs:
           fi
       - run: flutter pub get
       - name: Prepare the release (version from pubspec.yaml, build number from this run)
-        run: flutter build ios --release --no-codesign --build-number=${{ github.run_number }}
+        run: |
+          VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //; s/+.*//')
+          flutter build ios --release --no-codesign --build-number=${{ github.run_number }} --dart-define=APP_VERSION="$VERSION"
       - name: Archive, sign and upload to App Store Connect
         working-directory: app/ios
         env:

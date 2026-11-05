@@ -12,6 +12,7 @@ import 'package:qistas/core/api/api_exception.dart';
 import 'package:qistas/core/config.dart';
 import 'package:qistas/core/errors/error_queue.dart';
 import 'package:qistas/core/errors/error_reporter.dart';
+import 'package:qistas/core/errors/trace_scrubber.dart';
 import 'package:qistas/core/storage/token_store.dart';
 import 'package:qistas/data/qistas_api.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -38,7 +39,9 @@ void main() {
 
   Future<void> offline(Map<String, dynamic> report) async => throw const ApiException.network();
 
-  Future<void> start({Map<String, Object> preferences = const {}, DeviceFacts Function()? facts, String Function(String text, {int max})? scrub}) async {
+  /// A reporter with a fresh phone. The ceiling on how often a report is built (1 a second, 10 a minute) is lifted, so that
+  /// the tests that make many different reports in one instant need not move the clock; the tests about it ask for [limited].
+  Future<void> start({Map<String, Object> preferences = const {}, DeviceFacts Function()? facts, String Function(String text, {int max})? scrub, bool limited = false}) async {
     SharedPreferences.setMockInitialValues(preferences);
     prefs = await SharedPreferences.getInstance();
     sent = [];
@@ -54,6 +57,8 @@ void main() {
       facts: facts ?? () => phone,
       scrub: scrub,
       clock: () => now,
+      buildGap: limited ? const Duration(seconds: 1) : Duration.zero,
+      buildsPerMinute: limited ? 10 : 1 << 20,
     );
   }
 
@@ -276,6 +281,7 @@ void main() {
       expect(queued(), ['Bad state: first', 'Bad state: second']);
 
       sent.clear();
+      now = now.add(const Duration(seconds: 61));
       behaviour = (_) async {};
       await reporter.flush();
 
@@ -283,20 +289,49 @@ void main() {
       expect(queued(), isEmpty);
     });
 
-    test('a flush that fails again keeps everything it had, in order, and stops at the first failure', () async {
+    test('after a failure it waits a minute: what comes in meanwhile is kept, not tried at once', () async {
       behaviour = offline;
       await reporter.report(StateError('a'), trace);
       await reporter.report(StateError('b'), trace);
       await reporter.report(StateError('c'), trace);
-
-      // one attempt each time (the first of the queue), never a run through the rest
-      expect(messages(), ['Bad state: a', 'Bad state: a', 'Bad state: a']);
-
-      behaviour = (_) async {};
-      sent.clear();
       await reporter.flush();
 
-      expect(messages(), ['Bad state: a', 'Bad state: b', 'Bad state: c']);
+      expect(messages(), ['Bad state: a'], reason: 'one attempt, then it waits');
+      expect(queued(), ['Bad state: a', 'Bad state: b', 'Bad state: c']);
+
+      now = now.add(const Duration(seconds: 59));
+      await reporter.flush();
+      expect(messages(), ['Bad state: a'], reason: 'not yet');
+
+      now = now.add(const Duration(seconds: 2));
+      behaviour = (_) async {};
+      await reporter.flush();
+
+      expect(messages(), ['Bad state: a', 'Bad state: a', 'Bad state: b', 'Bad state: c']);
+      expect(queued(), isEmpty);
+    });
+
+    test('a 5xx answer waits a minute too', () async {
+      behaviour = (_) async => throw refusal(503);
+      await reporter.report(StateError('a'), trace);
+      await reporter.report(StateError('b'), trace);
+
+      expect(messages(), ['Bad state: a']);
+
+      now = now.add(const Duration(seconds: 61));
+      await reporter.flush();
+
+      expect(messages(), ['Bad state: a', 'Bad state: a']);
+    });
+
+    test('a 408, the server giving up on a slow body, is a lost connection: kept, and a minute of waiting', () async {
+      behaviour = (_) async => throw refusal(408);
+      await reporter.report(StateError('slow'), trace);
+
+      expect(queued(), ['Bad state: slow']);
+      expect(reporter.stopped, isFalse);
+      await reporter.flush();
+      expect(sent, hasLength(1));
     });
 
     test('the 21st report waiting drops the oldest', () async {
@@ -344,6 +379,30 @@ void main() {
       expect(queued(), ['Bad state: first']);
     });
 
+    test('a sender that leaves a failure behind for later does not let it out, or make a report of it', () async {
+      behaviour = (_) {
+        unawaited(Future<void>.error(StateError('left unawaited')));
+        unawaited(Future<void>.delayed(const Duration(milliseconds: 5), () => throw StateError('thrown later')));
+        Timer(const Duration(milliseconds: 10), () => throw StateError('thrown by a timer'));
+
+        return Future<void>.value();
+      };
+      final uncaught = <Object>[];
+      final framework = <FlutterErrorDetails>[];
+      final before = FlutterError.onError;
+      FlutterError.onError = framework.add;
+      addTearDown(() => FlutterError.onError = before);
+
+      await runZonedGuarded(() async {
+        await reporter.report(StateError('first'), trace);
+        await Future<void>.delayed(const Duration(milliseconds: 60));
+      }, (error, stack) => uncaught.add(error));
+
+      expect(uncaught, isEmpty);
+      expect(framework, isEmpty);
+      expect(messages(), ['Bad state: first'], reason: 'none of the late failures is a report');
+    });
+
     test('a sender that throws before it returns a future is swallowed too', () async {
       reporter = ErrorReporter(preferences: () async => prefs, send: (_) => throw StateError('sync'), facts: () => phone, clock: () => now);
 
@@ -377,12 +436,120 @@ void main() {
     });
   });
 
+  group('what it costs when the same error comes again and again', () {
+    /// How many reports were built: the trace is scrubbed once for each (the one text cut to 8000 characters).
+    late int built;
+
+    Future<void> startCounting() async {
+      built = 0;
+      await start(
+        limited: true,
+        scrub: (text, {int max = TraceScrubber.traceMax}) {
+          if (max == TraceScrubber.traceMax) built++;
+
+          return TraceScrubber.clean(text, max: max);
+        },
+      );
+    }
+
+    test('500 errors that are equal but not the same object are cleaned once, and reported once', () async {
+      await startCounting();
+
+      for (var i = 0; i < 500; i++) {
+        await reporter.report(StateError('same'), trace);
+      }
+
+      expect(built, 1);
+      expect(sent, hasLength(1));
+    });
+
+    test('the same error is cleaned and reported again once the minute is over', () async {
+      await startCounting();
+      await reporter.report(StateError('same'), trace);
+      now = now.add(const Duration(seconds: 59));
+      await reporter.report(StateError('same'), trace);
+
+      expect(built, 1);
+
+      now = now.add(const Duration(seconds: 2));
+      await reporter.report(StateError('same'), trace);
+
+      expect(built, 2);
+      expect(sent, hasLength(2));
+    });
+
+    test('what tells two errors apart is read before anything is cleaned: another message, another frame, another class', () async {
+      await startCounting();
+      await reporter.report(StateError('one'), trace);
+      now = now.add(const Duration(seconds: 1));
+      await reporter.report(StateError('two'), trace);
+      now = now.add(const Duration(seconds: 1));
+      await reporter.report(StateError('one'), StackTrace.fromString('#0      other (package:qistas/other.dart:1:1)'));
+      now = now.add(const Duration(seconds: 1));
+      await reporter.report(ArgumentError('one'), trace);
+
+      expect(built, 4);
+    });
+
+    test('20 different errors in one second are cleaned once: at most one a second', () async {
+      await startCounting();
+
+      for (var i = 0; i < 20; i++) {
+        await reporter.report(StateError('different $i'), trace);
+      }
+
+      expect(built, 1);
+      expect(sent, hasLength(1));
+    });
+
+    test('and one more each second that passes, never more than 10 in a minute', () async {
+      await startCounting();
+
+      for (var i = 0; i < 15; i++) {
+        await reporter.report(StateError('different $i'), trace);
+        now = now.add(const Duration(seconds: 1));
+      }
+
+      expect(built, 10, reason: 'the first ten seconds; the next five were over the ceiling');
+
+      now = now.add(const Duration(seconds: 46));
+      await reporter.report(StateError('after the minute'), trace);
+
+      expect(built, 11, reason: 'a minute after the first ones, there is room again');
+    });
+
+    test('an error that was over the ceiling is not forgotten as if it had been reported: it is taken when there is room', () async {
+      await startCounting();
+      await reporter.report(StateError('a'), trace);
+      await reporter.report(StateError('b'), trace);
+
+      expect(messages(), ['Bad state: a']);
+
+      now = now.add(const Duration(seconds: 1));
+      await reporter.report(StateError('b'), trace);
+
+      expect(messages(), ['Bad state: a', 'Bad state: b']);
+    });
+
+    test('an error that cannot be turned into a report is not tried again every time it comes', () async {
+      await startCounting();
+
+      for (var i = 0; i < 100; i++) {
+        await reporter.report(_Unreadable(), trace);
+      }
+
+      expect(built, lessThanOrEqualTo(1));
+      expect(sent, isEmpty);
+    });
+  });
+
   group('what the server answers', () {
     for (final status in [403, 404, 405]) {
       test('$status stops sending for the session and drops the queue', () async {
         behaviour = offline;
         await reporter.report(StateError('waiting'), trace);
 
+        now = now.add(const Duration(seconds: 61));
         behaviour = (_) async => throw refusal(status);
         await reporter.report(StateError('next'), trace);
         final calls = sent.length;
@@ -399,19 +566,44 @@ void main() {
       });
     }
 
-    for (final status in [413, 422]) {
-      test('$status drops that report, which can never succeed, and keeps the rest', () async {
+    test('a report that comes in while the server is saying no is dropped with the rest', () async {
+      late Completer<void> answer;
+      behaviour = (_) {
+        answer = Completer<void>();
+
+        return answer.future;
+      };
+
+      final first = reporter.report(StateError('one'), trace);
+      await settle();
+      final during = reporter.report(StateError('during'), trace);
+      await settle();
+      expect(messages(), ['Bad state: one'], reason: 'in flight, the other waits behind it');
+
+      answer.completeError(refusal(403));
+      await Future.wait([first, during]);
+      await settle();
+
+      expect(reporter.stopped, isTrue);
+      expect(queued(), isEmpty, reason: 'what came in while it was answering is dropped too');
+      expect(messages(), ['Bad state: one']);
+      expect(prefs.getString(ErrorQueue.key), isNull);
+    });
+
+    for (final status in [400, 401, 406, 409, 413, 415, 422]) {
+      test('$status drops that report, which will not be better for trying again, and keeps the rest', () async {
         behaviour = offline;
-        await reporter.report(StateError('too big'), trace);
+        await reporter.report(StateError('refused'), trace);
         await reporter.report(StateError('fine'), trace);
         sent.clear();
 
+        now = now.add(const Duration(seconds: 61));
         behaviour = (report) async {
-          if (report['message'] == 'Bad state: too big') throw refusal(status);
+          if (report['message'] == 'Bad state: refused') throw refusal(status);
         };
         await reporter.flush();
 
-        expect(messages(), ['Bad state: too big', 'Bad state: fine']);
+        expect(messages(), ['Bad state: refused', 'Bad state: fine']);
         expect(reporter.stopped, isFalse);
         expect(queued(), isEmpty);
 
@@ -576,6 +768,7 @@ void main() {
           facts: () => phone,
           clock: () => now,
           isWeb: isWeb,
+          reportInDebug: true,
           flushAfter: Duration.zero,
         );
 
@@ -712,6 +905,92 @@ void main() {
 
       expect(FlutterError.onError, same(handler));
       expect(PlatformDispatcher.instance.onError, platform);
+    });
+
+    test('a sender that calls the installed hooks itself does not start a loop of reports', () async {
+      install();
+      behaviour = (_) {
+        FlutterError.onError!(FlutterErrorDetails(exception: StateError('inner framework'), stack: trace));
+        PlatformDispatcher.instance.onError!(StateError('inner platform'), trace);
+
+        return Future<void>.value();
+      };
+
+      FlutterError.onError!(FlutterErrorDetails(exception: StateError('outer'), stack: trace));
+      await settle();
+      await settle();
+
+      expect(messages(), ['Bad state: outer']);
+    });
+
+    test('in a debug build nothing is installed unless asked: what a developer breaks does not go to the live server', () async {
+      final handler = FlutterError.onError;
+      final platform = PlatformDispatcher.instance.onError;
+      var ran = false;
+
+      // flutter test is a debug build, as `flutter run` is
+      final installed = reporting = installErrorReporting(
+        preferences: () async => prefs,
+        send: (report) {
+          sent.add(report);
+
+          return behaviour(report);
+        },
+        facts: () => phone,
+        clock: () => now,
+        flushAfter: Duration.zero,
+      );
+      installed.run(() async => ran = true);
+      FlutterError.onError!(FlutterErrorDetails(exception: StateError('developer'), stack: trace));
+      await settle();
+
+      expect(installed.reporter, isNull);
+      expect(FlutterError.onError, same(handler));
+      expect(PlatformDispatcher.instance.onError, platform);
+      expect(sent, isEmpty);
+      expect(ran, isTrue, reason: 'the app still starts');
+    });
+
+    test('a debug build reports when it is told to (to a server of its own)', () async {
+      final installed = install();
+
+      FlutterError.onError!(FlutterErrorDetails(exception: StateError('on purpose'), stack: trace));
+      await settle();
+
+      expect(installed.reporter, isNotNull);
+      expect(messages(), ['Bad state: on purpose']);
+    });
+
+    test('a release build reports without being asked', () async {
+      final handler = FlutterError.onError;
+
+      final installed = reporting = installErrorReporting(
+        preferences: () async => prefs,
+        send: (report) {
+          sent.add(report);
+
+          return behaviour(report);
+        },
+        facts: () => phone,
+        clock: () => now,
+        isDebug: false,
+        flushAfter: Duration.zero,
+      );
+      FlutterError.onError!(FlutterErrorDetails(exception: StateError('released'), stack: trace));
+      await settle();
+
+      expect(installed.reporter, isNotNull);
+      expect(FlutterError.onError, isNot(same(handler)));
+      expect(messages(), ['Bad state: released']);
+    });
+
+    test('a release build in a browser still installs nothing', () async {
+      final handler = FlutterError.onError;
+
+      final installed = reporting = installErrorReporting(preferences: () async => prefs, send: (_) async {}, isWeb: true, isDebug: false);
+
+      expect(installed.reporter, isNull);
+      expect(FlutterError.onError, same(handler));
     });
 
     test('in a browser nothing is installed: its reports would all be refused', () async {

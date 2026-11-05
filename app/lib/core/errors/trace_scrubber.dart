@@ -35,21 +35,28 @@ abstract final class TraceScrubber {
   static String clean(String text, {int max = traceMax}) {
     var work = _prepare(_bounded(text, max));
 
-    work = work.replaceAllMapped(_urlUserInfo, (m) => m[1]!);
-    work = work.replaceAllMapped(_urlQuery, (m) => m[1]!);
-    work = work.replaceAll(_queryString, '');
+    // A pattern that needs a character the text does not have is not run at all: most traces have none of the rarer ones,
+    // every pass over a long text costs milliseconds (a phone's several times that), and a text outside Latin-1 pays more
+    // for every pass it is given (and the first time it meets a pattern, for compiling it again for the wider alphabet).
+    if (work.contains('://')) {
+      work = work.replaceAllMapped(_urlUserInfo, (m) => m[1]!);
+      work = work.replaceAllMapped(_urlQuery, (m) => m[1]!);
+    }
+    if (work.contains('?')) work = work.replaceAll(_queryString, '');
     work = _paths(work);
 
-    work = work.replaceAllMapped(_authorization, (m) => '${m[1]}: [secret]');
-    work = work.replaceAllMapped(_cookie, (m) => '${m[1]}: [secret]');
-    work = work.replaceAll(_bearer, 'Bearer [token]');
-    work = work.replaceAll(_sanctum, '[token]');
-    work = work.replaceAll(_jwt, '[token]');
-    work = work.replaceAll(_uuid, '[id]');
+    final lower = work.toLowerCase();
+    if (lower.contains('authorization')) work = work.replaceAllMapped(_authorization, (m) => '${m[1]}: [secret]');
+    if (lower.contains('cookie')) work = work.replaceAllMapped(_cookie, (m) => '${m[1]}: [secret]');
+    if (lower.contains('bearer')) work = work.replaceAll(_bearer, 'Bearer [token]');
+    if (work.contains('|')) work = work.replaceAll(_sanctum, '[token]');
+    if (work.contains('.')) work = work.replaceAll(_jwt, '[token]');
+    if (work.contains('-')) work = work.replaceAll(_uuid, '[id]');
     work = _keyed(work);
 
-    work = work.replaceAll(_email, '[email]');
-    work = work.replaceAll(_ipv4, '[ip]');
+    // An address needs its @ (or the written forms of it).
+    if (work.contains('@') || work.contains('%40') || work.contains('\uFF20')) work = work.replaceAll(_email, '[email]');
+    if (work.contains('.')) work = work.replaceAll(_ipv4, '[ip]');
 
     work = work.replaceAll(_hex, '[token]');
     work = work.replaceAllMapped(_slashed, (m) => _slashedIsToken(m[1]!) ? '[token]' : m[0]!);
@@ -60,7 +67,7 @@ abstract final class TraceScrubber {
       work = work.replaceAll(pattern, mask);
     }
 
-    work = work.replaceAll(_quoted, '"?"');
+    if (work.contains('"')) work = work.replaceAll(_quoted, '"?"');
 
     return cut(work.trim(), max);
   }
@@ -98,27 +105,88 @@ abstract final class TraceScrubber {
 
   /// Plain spaces and lines, ASCII digits, and no invisible character: one set of patterns then reads every keyboard,
   /// and a zero-width space cannot split a number to hide it.
+  ///
+  /// One pass over the code units, not four patterns over the text: a pattern over a letter of another alphabet (Arabic,
+  /// an emoji) is compiled again for it and read much more slowly, and the longer the text the more that costs. A text
+  /// of plain ASCII is returned as it is.
   static String _prepare(String text) {
-    var work = text.replaceAll(_lineBreaks, '\n').replaceAll(_spaces, ' ');
-    work = work.replaceAllMapped(_foreignDigits, (m) {
-      final unit = m[0]!.codeUnitAt(0);
-      final digit = unit >= 0xFF10 ? unit - 0xFF10 : (unit >= 0x06F0 ? unit - 0x06F0 : unit - 0x0660);
+    final length = text.length;
+    var i = 0;
+    // The plain case first: nothing to change in what is printable ASCII, a line break or a tab.
+    while (i < length) {
+      final unit = text.codeUnitAt(i);
+      if (unit > 0x7E || (unit < 0x20 && unit != 0x0A && unit != 0x09)) break;
+      i++;
+    }
+    if (i == length) return text.trim();
 
-      return String.fromCharCode(0x30 + digit);
-    });
+    final out = StringBuffer(text.substring(0, i));
+    for (; i < length; i++) {
+      final unit = text.codeUnitAt(i);
 
-    return work.replaceAll(_hidden, '').trim();
+      if (unit < 0x80) {
+        if (unit == 0x0D) {
+          // \r\n and a lone \r are one line break
+          if (i + 1 < length && text.codeUnitAt(i + 1) == 0x0A) i++;
+          out.writeCharCode(0x0A);
+        } else if (unit == 0x0A || unit == 0x09 || (unit >= 0x20 && unit < 0x7F)) {
+          out.writeCharCode(unit);
+        }
+        // the other controls (and DEL) are dropped
+      } else if (unit >= 0xD800 && unit <= 0xDBFF && i + 1 < length && _isLow(text.codeUnitAt(i + 1))) {
+        // a pair: kept, unless it is a tag character or from a private-use plane (invisible, and used to hide text)
+        final rune = 0x10000 + ((unit - 0xD800) << 10) + (text.codeUnitAt(i + 1) - 0xDC00);
+        if (!((rune >= 0xE0000 && rune <= 0xE007F) || rune >= 0xF0000)) {
+          out.writeCharCode(unit);
+          out.writeCharCode(text.codeUnitAt(i + 1));
+        }
+        i++;
+      } else if (_isHigh(unit) || _isLow(unit)) {
+        // half a pair: dropped
+      } else if (unit == 0x2028 || unit == 0x2029) {
+        out.writeCharCode(0x0A);
+      } else if (_isSpace(unit)) {
+        out.writeCharCode(0x20);
+      } else if (unit >= 0x0660 && unit <= 0x0669) {
+        out.writeCharCode(0x30 + unit - 0x0660);
+      } else if (unit >= 0x06F0 && unit <= 0x06F9) {
+        out.writeCharCode(0x30 + unit - 0x06F0);
+      } else if (unit >= 0xFF10 && unit <= 0xFF19) {
+        out.writeCharCode(0x30 + unit - 0xFF10);
+      } else if (!_isHidden(unit)) {
+        out.writeCharCode(unit);
+      }
+    }
+
+    return out.toString().trim();
   }
+
+  /// A space of another alphabet or typography (no-break, en, em, thin, ideographic ...): the category Zs.
+  static bool _isSpace(int unit) => unit == 0x00A0 || unit == 0x1680 || (unit >= 0x2000 && unit <= 0x200A) || unit == 0x202F || unit == 0x205F || unit == 0x3000;
+
+  /// What cannot be seen and can hide a number or a word: controls, format characters (soft hyphen, zero-width and
+  /// direction marks, the invisible operators), private use.
+  static bool _isHidden(int unit) =>
+      unit <= 0x9F ||
+      unit == 0x00AD ||
+      (unit >= 0x0600 && unit <= 0x0605) ||
+      unit == 0x061C ||
+      unit == 0x06DD ||
+      unit == 0x070F ||
+      unit == 0x08E2 ||
+      unit == 0x180E ||
+      (unit >= 0x200B && unit <= 0x200F) ||
+      (unit >= 0x202A && unit <= 0x202E) ||
+      (unit >= 0x2060 && unit <= 0x206F) ||
+      (unit >= 0xE000 && unit <= 0xF8FF) ||
+      unit == 0xFEFF ||
+      (unit >= 0xFFF9 && unit <= 0xFFFB);
 
   static bool _isHigh(int unit) => unit >= 0xD800 && unit <= 0xDBFF;
 
   static bool _isLow(int unit) => unit >= 0xDC00 && unit <= 0xDFFF;
 
   static final RegExp _whitespace = RegExp(r'\s');
-  static final RegExp _lineBreaks = RegExp(r'\r\n?|[\u2028\u2029]');
-  static final RegExp _spaces = RegExp(r'\p{Zs}', unicode: true);
-  static final RegExp _foreignDigits = RegExp(r'[\u0660-\u0669\u06F0-\u06F9\uFF10-\uFF19]');
-  static final RegExp _hidden = RegExp(r'[^\P{C}\n\t]+', unicode: true);
   static final RegExp _tornMask = RegExp(r'\[[a-z]{0,7}$');
 
   // ---------------------------------------------------------------- addresses and paths
@@ -136,9 +204,10 @@ abstract final class TraceScrubber {
 
   /// Every absolute path in the text becomes the part under the project's `lib/` folder, or `[path]`.
   static String _paths(String text) {
-    var work = text.replaceAll(_fileScheme, '');
-    work = work.replaceAllMapped(_quotedPath, (m) => '${m[1]}${_relative(m[2]!)}${m[1]}');
-    work = work.replaceAllMapped(_drivePath, (m) => _relative(m[0]!));
+    var work = text.toLowerCase().contains('file://') ? text.replaceAll(_fileScheme, '') : text;
+    if (work.contains('"') || work.contains("'")) work = work.replaceAllMapped(_quotedPath, (m) => '${m[1]}${_relative(m[2]!)}${m[1]}');
+    if (work.contains(':/') || work.contains(':\\')) work = work.replaceAllMapped(_drivePath, (m) => _relative(m[0]!));
+    if (!work.contains('/') && !work.contains('\\')) return work;
 
     // A slash that starts a word and has another after it is a path (`/data/user/0/...`); `/x` alone is not.
     return work.replaceAllMapped(_slashPath, (m) => m[0]!.substring(1).contains(_separator) ? _relative(m[0]!) : m[0]!);
@@ -217,7 +286,8 @@ abstract final class TraceScrubber {
 
   // ---------------------------------------------------------------- long runs that are random on purpose
 
-  static final RegExp _hex = RegExp(r'(?<![\p{L}\p{N}])(?=[0-9]*[a-f])[0-9a-f]{24,}(?![\p{L}\p{N}])', caseSensitive: false, unicode: true);
+  // ASCII only (no `\p{L}`): a pattern for every script would be compiled again the first time the text has a letter outside Latin-1.
+  static final RegExp _hex = RegExp(r'(?<![0-9A-Za-z])(?=[0-9]*[a-fA-F])[0-9a-fA-F]{24,}(?![0-9A-Za-z])');
   static final RegExp _slashed = RegExp(r'(?<![\w+/-])((?=[A-Za-z0-9+]*/)[A-Za-z0-9+/]{24,})(={0,2})(?![\w+/-])', unicode: true);
   static final RegExp _run = RegExp(r'(?<![\w+/-])([A-Za-z0-9+_-]{24,})(={0,2})(?![\w+-])', unicode: true);
   static final RegExp _padded = RegExp(r'(?<![\w+/-])[A-Za-z0-9+/]{24,}={1,2}(?![\w=])', unicode: true);

@@ -6,23 +6,17 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app/app.dart';
+import 'app/crash_report_sender.dart';
 import 'app/providers.dart';
-import 'core/api/api_client.dart';
 import 'core/config.dart';
 import 'core/errors/error_reporter.dart';
 import 'core/push/background.dart';
-import 'core/storage/token_store.dart';
-import 'data/qistas_api.dart';
 
 void main() {
-  // Before anything can fail: crash reports (Settings > Send crash reports, on by default, never in a browser). It tells the
-  // server the kind of error and a cleaned trace, and nothing of the person's. The reporter has an API client of its own: a
-  // stale token must never sign anyone out from here.
-  QistasApi? api;
-  final reporting = installErrorReporting(
-    preferences: SharedPreferences.getInstance,
-    send: (report) => (api ??= QistasApi(ApiClient(baseUrl: AppConfig.apiBaseUrl, tokens: SecureTokenStore(), language: () => 'en', onUnauthorized: () {}))).reportError(report),
-  );
+  // Before anything can fail: crash reports (Settings > Send crash reports, on by default). They tell the server the kind of
+  // error and a cleaned trace, and nothing of the person's. Nothing is installed in a browser (the server refuses its
+  // reports) or in a debug build (it would report to the live server what a developer breaks).
+  final reporting = installErrorReporting(preferences: SharedPreferences.getInstance, send: crashReportSender());
 
   reporting.run(_start);
 }

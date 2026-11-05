@@ -15,7 +15,7 @@ import '../support/harness.dart';
 /// Settings > Send crash reports: on until the person turns it off, kept on the phone, and turning it off also
 /// empties what was waiting to be sent.
 void main() {
-  const english = 'When the app hits an error it sends the kind of error and a technical trace, never your data or your customers\', so we can fix it.';
+  const english = 'When the app hits an error it sends the kind of error and a technical trace, never your data or your customers’, so we can fix it.';
   final row = find.byKey(const ValueKey('settings-crash-reports'));
   final queuedReport = jsonEncode([
     {
@@ -116,6 +116,17 @@ void main() {
       expect(theSwitch(tester).value, isFalse);
       expect(tester.getSemantics(row).getSemanticsData().flagsCollection.isToggled, Tristate.isFalse);
       handle.dispose();
+    });
+
+    testWidgets('is one stop for the keyboard and a switch panel: the switch, not the row around it too', (tester) async {
+      await pumpApp(tester, workspaceServer());
+      await showRow(tester);
+
+      final around = tester.widget<InkWell>(find.descendant(of: row, matching: find.byType(InkWell)));
+      expect(around.canRequestFocus, isFalse);
+
+      final stops = tester.widgetList<Focus>(find.descendant(of: row, matching: find.byType(Focus))).where((focus) => focus.canRequestFocus && (focus.focusNode?.canRequestFocus ?? true));
+      expect(stops, hasLength(1), reason: 'Tab stops once in this row');
     });
 
     for (final language in ['ar', 'fr', 'es', 'ur']) {

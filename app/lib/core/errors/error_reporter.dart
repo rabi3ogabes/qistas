@@ -94,11 +94,19 @@ class ErrorReporter with WidgetsBindingObserver {
     DeviceFacts Function()? facts,
     String Function(String text, {int max})? scrub,
     DateTime Function()? clock,
+    this.buildGap = const Duration(seconds: 1),
+    this.buildsPerMinute = 10,
   })  : _preferences = preferences,
         _send = send,
         _facts = facts ?? currentDeviceFacts,
         _scrub = scrub ?? TraceScrubber.clean,
         _clock = clock ?? DateTime.now;
+
+  /// How often a report is made at the most: one a second and ten a minute (what is over is dropped, silently). Cleaning
+  /// a trace costs milliseconds, a phone's several times that, on the thread that draws the screen; an error that comes
+  /// again and again must not take that thread. (Tests that make many reports in one instant lift it.)
+  final Duration buildGap;
+  final int buildsPerMinute;
 
   /// The most bytes a body may have; the server refuses more than 16 KB (413), and this leaves room for the framing.
   static const int _maxBody = 15000;
@@ -106,7 +114,7 @@ class ErrorReporter with WidgetsBindingObserver {
   /// How long the same error is reported once.
   static const Duration _window = Duration(minutes: 1);
 
-  /// How long a 429 without a time to wait waits, and the longest it ever waits.
+  /// How long a 429, a 408, a 5xx or a lost connection waits (a 429 that says how long is believed, up to [_longestPause]).
   static const int _defaultPause = 60;
   static const int _longestPause = 300;
 
@@ -134,7 +142,12 @@ class ErrorReporter with WidgetsBindingObserver {
   DateTime? _pausedUntil;
   Object? _lastError;
   DateTime? _lastErrorAt;
+
+  /// The errors seen in the last minute, by [_rawKey], and when. Kept in memory only: never sent, never stored.
   final Map<String, DateTime> _recent = {};
+
+  /// When the reports of the last minute were made.
+  final List<DateTime> _builds = [];
 
   /// The server said it does not want reports (a 403, a 404 or a 405): nothing is sent or kept until the app is started again.
   bool get stopped => _stopped;
@@ -206,11 +219,20 @@ class ErrorReporter with WidgetsBindingObserver {
   Future<void> _report(Object error, StackTrace stack) async {
     if (_stopped || _isExpected(error) || _isSame(error)) return;
 
+    // Before anything is cleaned: has this error come in the last minute, and is there room to make another report? Both
+    // are read from the raw error with no pattern run over it, and recorded here, before the first `await`, so that two
+    // hooks handing over the same error at once make one report.
+    final now = _clock();
+    final key = _rawKey(error, stack);
+    if (_isRepeat(key, now) || !_hasRoom(now)) return;
+    _recent[key] = now;
+    _builds.add(now);
+
     final prefs = await _open();
     if (!CrashReports.isOn(prefs)) return;
 
     final report = _build(error, stack);
-    if (report == null || _isRepeat(report)) return;
+    if (report == null) return;
 
     await ErrorQueue(prefs, clock: _clock).add(report);
     await _flush();
@@ -239,19 +261,31 @@ class ErrorReporter with WidgetsBindingObserver {
     return same;
   }
 
-  /// The same class, message and first frames within the last minute.
-  bool _isRepeat(Map<String, dynamic> report) {
-    final now = _clock();
+  /// What tells one error from another, from the raw error: its class, the first line of its message and its first three
+  /// frames, each cut short. A few string operations, no pattern; what comes out is compared and thrown away.
+  static String _rawKey(Object error, StackTrace stack) {
+    try {
+      return '${error.runtimeType}|${TraceScrubber.cut(_firstLine(error.toString()), 200)}|${_leadingLines(stack.toString(), 3)}';
+    } on Object {
+      return '${error.runtimeType}';
+    }
+  }
+
+  /// Has [key] been seen in the last minute? (An error over the ceiling is not recorded, so it is taken when there is room.)
+  bool _isRepeat(String key, DateTime now) {
     _recent.removeWhere((_, at) => now.difference(at) >= _window);
-
-    final frames = (report['trace'] as String).split('\n').take(3).join('\n');
-    final fingerprint = '${report['class']}|${report['message']}|$frames';
-    if (_recent.containsKey(fingerprint)) return true;
-
     if (_recent.length >= 64) _recent.remove(_recent.keys.first);
-    _recent[fingerprint] = now;
 
-    return false;
+    return _recent.containsKey(key);
+  }
+
+  /// Is there room for one more report: at least [buildGap] after the last, and fewer than [buildsPerMinute] in the last minute?
+  bool _hasRoom(DateTime now) {
+    // A clock set back leaves moments in the future: they do not count.
+    _builds.removeWhere((at) => now.difference(at) >= _window || at.isAfter(now));
+    if (_builds.length >= buildsPerMinute) return false;
+
+    return _builds.isEmpty || now.difference(_builds.last) >= buildGap;
   }
 
   /// The report, or null when this platform does not report or when the text could not be cleaned: it fails closed.
@@ -286,13 +320,32 @@ class ErrorReporter with WidgetsBindingObserver {
     }
   }
 
+  /// The first line that has something in it. (A message can be long: it is read only as far as it is needed.)
   static String _firstLine(String text) {
-    for (final line in text.split('\n')) {
-      final trimmed = line.trim();
-      if (trimmed.isNotEmpty) return trimmed;
+    var start = 0;
+    while (start < text.length) {
+      var end = text.indexOf('\n', start);
+      if (end < 0) end = text.length;
+      final line = text.substring(start, end).trim();
+      if (line.isNotEmpty) return line;
+      start = end + 1;
     }
 
     return '';
+  }
+
+  /// The first [count] lines of [text], each cut to 200 characters.
+  static String _leadingLines(String text, int count) {
+    final lines = <String>[];
+    var start = 0;
+    while (start < text.length && lines.length < count) {
+      var end = text.indexOf('\n', start);
+      if (end < 0) end = text.length;
+      lines.add(TraceScrubber.cut(text.substring(start, end), 200));
+      start = end + 1;
+    }
+
+    return lines.join('\n');
   }
 
   // ---------------------------------------------------------------- sending
@@ -350,19 +403,28 @@ class ErrorReporter with WidgetsBindingObserver {
       } on ApiException catch (e) {
         switch (e.status) {
           case 403 || 404 || 405:
+            // A browser's report, or a server with no such place yet: nothing more is sent this session, nothing is kept.
             _stopped = true;
             await queue.clear();
 
             return false;
-          case 413 || 422:
-            continue; // this one can never succeed; the others can
+          case 408:
+            _pauseFor(_defaultPause);
           case 429:
-            _pausedUntil = _clock().add(Duration(seconds: (e.retryAfter ?? _defaultPause).clamp(1, _longestPause)));
+            _pauseFor(e.retryAfter ?? _defaultPause);
+          case >= 400 && < 500:
+            // A refusal of this body (a proxy, a firewall, the server's own check): trying it again changes nothing, and
+            // it would stand in front of every report behind it for six hours. This one is dropped; the others go on.
+            continue;
+          default:
+            // A 5xx, no connection: kept, and not tried again for a minute (every new error would try at once).
+            _pauseFor(_defaultPause);
         }
         await _keep(prefs, queue, batch.sublist(i));
 
         return false;
       } on Object {
+        _pauseFor(_defaultPause);
         await _keep(prefs, queue, batch.sublist(i));
 
         return false;
@@ -371,6 +433,9 @@ class ErrorReporter with WidgetsBindingObserver {
 
     return true;
   }
+
+  /// Nothing is sent for [seconds] (at least one, at most [_longestPause]).
+  void _pauseFor(int seconds) => _pausedUntil = _clock().add(Duration(seconds: seconds.clamp(1, _longestPause)));
 
   Future<void> _keep(SharedPreferences prefs, ErrorQueue queue, List<QueuedReport> unsent) async {
     if (CrashReports.isOn(prefs)) await queue.restore(unsent);
@@ -401,7 +466,7 @@ class ErrorReporter with WidgetsBindingObserver {
 class ErrorReporting {
   ErrorReporting._(this.reporter, this._flushAfter, this._previousFlutter, this._flutterHook, this._previousPlatform, this._platformHook);
 
-  /// Nothing installed (a browser): [run] only runs the body.
+  /// Nothing installed (a browser, or a debug build): [run] only runs the body.
   ErrorReporting._off()
       : reporter = null,
         _flushAfter = Duration.zero,
@@ -468,20 +533,28 @@ class ErrorReporting {
 
 /// Installs crash reporting: `FlutterError.onError` and `PlatformDispatcher.instance.onError` report, then do what they
 /// did before (the console output and the app's behaviour are unchanged), and the returned [ErrorReporting.run] is the
-/// zone the app runs in. Nothing is installed in a browser: its reports always carry an `Origin` header and the server
-/// refuses every one.
+/// zone the app runs in.
+///
+/// Nothing is installed (the returned [ErrorReporting.run] only runs the body) in two cases:
+///  - in a browser: its reports always carry an `Origin` header and the server refuses every one;
+///  - in a debug build, unless [reportInDebug]: `flutter run` points at the live server by default and carries the version
+///    number of the release, so what a developer breaks would land among the real errors. (A developer who wants to see a
+///    report arrive passes `reportInDebug` and points `API_BASE_URL` at a server of their own.)
 ///
 /// Call it first thing in `main`, before the bindings exist: the preferences are opened when the first report needs them.
-/// A test calls it with its own [preferences], [send] and [facts], and [ErrorReporting.uninstall]s afterwards.
+/// A test calls it with its own [preferences], [send] and [facts], and [ErrorReporting.uninstall]s afterwards; [isWeb] and
+/// [isDebug] are what the build is, which a test can tell it otherwise.
 ErrorReporting installErrorReporting({
   required Future<SharedPreferences> Function() preferences,
   required ReportSender send,
   DeviceFacts Function()? facts,
   DateTime Function()? clock,
   bool isWeb = kIsWeb,
+  bool isDebug = kDebugMode,
+  bool reportInDebug = false,
   Duration flushAfter = const Duration(seconds: 3),
 }) {
-  if (isWeb) return ErrorReporting._off();
+  if (isWeb || (isDebug && !reportInDebug)) return ErrorReporting._off();
 
   final reporter = ErrorReporter(preferences: preferences, send: send, facts: facts, clock: clock);
   final previousFlutter = FlutterError.onError;
