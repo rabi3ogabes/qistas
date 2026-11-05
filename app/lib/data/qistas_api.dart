@@ -114,6 +114,12 @@ class QistasApi {
 
   Future<void> logout() async => _client.post('/auth/logout');
 
+  /// Tells the server about a crash: the kind of error, a cleaned trace, the versions and whether this is a phone or a
+  /// tablet, never anything of the person's (see `ErrorReporter`). The token goes along when someone is signed in and is
+  /// left out when not: the server takes both. It answers 204, or a status with no words (403 for anything a web browser
+  /// sent, 413, 422, 429).
+  Future<void> reportError(Map<String, dynamic> report) async => _client.post('/client-errors', body: report);
+
   Future<void> logoutEverywhere() async => _client.post('/auth/logout-all');
 
   Future<List<PlanOffer>> plans() async {

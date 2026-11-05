@@ -9,6 +9,8 @@ import '../core/api/api_client.dart';
 import '../core/api/api_exception.dart';
 import '../core/config.dart';
 import '../core/device_hint.dart';
+import '../core/errors/error_queue.dart';
+import '../core/errors/error_reporter.dart' show CrashReports;
 import '../core/l10n/translations.dart';
 import '../core/push/push_service.dart';
 import '../core/storage/token_store.dart';
@@ -76,6 +78,23 @@ class ThemeModeController extends Notifier<ThemeMode> {
 }
 
 final themeModeProvider = NotifierProvider<ThemeModeController, ThemeMode>(ThemeModeController.new);
+
+/// Settings > Send crash reports: on until the person turns it off, kept on this phone. Turning it off also empties the
+/// reports that were waiting to be sent, so that nothing leaves the phone after the person said no.
+class CrashReportsController extends Notifier<bool> {
+  @override
+  bool build() => CrashReports.isOn(ref.read(sharedPreferencesProvider));
+
+  Future<void> choose(bool on) async {
+    final prefs = ref.read(sharedPreferencesProvider);
+    state = on;
+    // The choice is written first: the reporter reads it before every send, so nothing more goes while the queue is emptied.
+    await prefs.setBool(CrashReports.key, on);
+    if (!on) await ErrorQueue(prefs).clear();
+  }
+}
+
+final crashReportsProvider = NotifierProvider<CrashReportsController, bool>(CrashReportsController.new);
 
 const String onboardedKey = 'onboarded';
 

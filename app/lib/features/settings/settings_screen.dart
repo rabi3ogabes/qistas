@@ -79,6 +79,8 @@ class SettingsScreen extends ConsumerWidget {
     final wording = remindsEveryone(account) && (account?.canManageSettings ?? false);
     // The Android home-screen widget (daily-habit wave A, H3): offered once the platform and the plan have it, on a phone that can show it.
     final homeWidget = ref.watch(glanceSupportedProvider) && offersWidget(account);
+    // Whether a crash is told to us (Error center): on until the person turns it off.
+    final crashReports = ref.watch(crashReportsProvider);
 
     return SectionScaffold(
       title: context.t('Settings'),
@@ -110,6 +112,21 @@ class SettingsScreen extends ConsumerWidget {
                   if (homeWidget) ...[
                     const _Divider(),
                     _Row(key: const ValueKey('settings-widget'), icon: Icons.widgets_outlined, title: context.t('Home-screen widget'), onTap: () => context.push('/settings/widget')),
+                  ],
+                  // The browser never reports (the server would refuse it), so there is nothing to switch there.
+                  if (!kIsWeb) ...[
+                    const _Divider(),
+                    _SwitchRow(
+                      key: const ValueKey('settings-crash-reports'),
+                      icon: Icons.bug_report_outlined,
+                      title: context.t('Send crash reports'),
+                      subtitle: context.t('When the app hits an error it sends the kind of error and a technical trace, never your data or your customers\', so we can fix it.'),
+                      value: crashReports,
+                      onChanged: (on) {
+                        HapticFeedback.selectionClick();
+                        ref.read(crashReportsProvider.notifier).choose(on);
+                      },
+                    ),
                   ],
                 ],
               ),
@@ -533,6 +550,54 @@ class _Row extends StatelessWidget {
                 const SizedBox(width: 4),
                 Icon(external ? Icons.north_east_rounded : Icons.chevron_right_rounded, size: external ? 18 : 22, color: c.inkMuted),
               ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One setting that is on or off: an icon, what it is and the switch on one line, and under them a line saying what it
+/// does, as wide as the card allows (a sentence beside a switch would be squeezed into a narrow column, and at a large
+/// text size into a tall one). The whole row is the control, and a screen reader hears it as one switch with its name and
+/// its state.
+class _SwitchRow extends StatelessWidget {
+  const _SwitchRow({super.key, required this.icon, required this.title, required this.subtitle, required this.value, required this.onChanged});
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.qc;
+    final text = Theme.of(context).textTheme;
+
+    return MergeSemantics(
+      child: InkWell(
+        onTap: () => onChanged(!value),
+        child: Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 6, 12, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _IconTile(icon: icon),
+                  const SizedBox(width: 14),
+                  Expanded(child: Text(title, style: text.titleSmall)),
+                  const SizedBox(width: 8),
+                  Switch(value: value, onChanged: onChanged),
+                ],
+              ),
+              // Starts where the title does (the icon tile and its gap), under the switch too.
+              Padding(
+                padding: const EdgeInsetsDirectional.only(start: 50, end: 4),
+                child: Text(subtitle, style: text.bodySmall?.copyWith(color: c.inkMuted)),
+              ),
             ],
           ),
         ),
