@@ -139,6 +139,10 @@ In this order, on the server after the new version is deployed:
    connection's address, its country and the device's kind, operating system and app version. Whether Google counts those is for you to decide
    when you fill the form in; the document has not been changed.
 
-Release 2 (error center) and Release 3 (phone number and code, Google, Microsoft) need accounts and keys only you can
-create (an SMS provider, a Google project, a Microsoft app registration); they go on the server's Environment page, never
-in a chat or the repository, when those releases start.
+8. **Decide the three error-center proposals** in `error-center.md` (the privacy sentence, the Google Play Data safety change and
+   the Apple privacy label for crash reports). Nothing is published or filed until you approve them; do it before the app
+   with crash reports reaches the stores.
+
+Release 3 (phone number and code, Google, Microsoft) needs accounts and keys only you can create (an SMS provider, a Google
+project, a Microsoft app registration); they go on the server's Environment page, never in a chat or the repository, when
+that release starts. The error center (Release 2) needs none: see `error-center.md`.

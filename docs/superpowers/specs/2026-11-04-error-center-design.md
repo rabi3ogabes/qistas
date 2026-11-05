@@ -243,4 +243,91 @@ i18n in five languages.
 
 ## 14. Plan deviations
 
-None yet. The plan is written after the owner approves this document, and any later change is recorded here.
+What the build does differently from sections 1 to 13 above (checked against the code on 5 November 2026; the rest of this
+document stands as written). Each item names the section it changes.
+
+**Grouping and titles (section 4)**
+
+- D1. SQLSTATE codes are kept in fingerprints (`SQLSTATE[23505]` is not turned into `SQLSTATE[<n>]`), and double-quoted
+  identifiers stay inside a SQL statement (tables and columns), so queries on different tables do not merge.
+- D2. A slow query's statement is cut at 300 characters for its fingerprint and every other normalised message at 200
+  (`normalise()` takes the width); a list of the same mark collapses (`in (?, ?)` is `in (?)`, and `values (?), (?)` is `values (?)`).
+- D3. A frame counts as "our code" when its file is under `app/` or its function starts with `App\` (controllers, jobs and
+  commands called from vendor code), and a masked file does not hide it.
+- D4. Database failures are stored as the class, the SQLSTATE with a short plain description ("Unique violation") and the
+  statement with placeholders, never the driver's own message; `mask_bindings_in_exception_messages` is on for all five connections and
+  `App\Errors\SqlMasker` removes every value from a statement. (Sections 3 and 6.)
+
+**What is recorded (section 3)**
+
+- D5. Besides `EntitlementException`, an `ApiException` below 500 and the "not on your plan" or "switched off" page are not recorded; the
+  503 shown in maintenance mode is not recorded; a request that reports an exception and then answers 5xx is one issue, not two.
+- D6. A 5xx on a path no route matches (and the web fallback route counts as no route) uses one fixed pattern, `/{unmatched}`; a 404 on
+  such a path keeps the path with ids hidden.
+- D7. The noise list is two config lists, not one: `errors.scanner_paths` (widened: any dot file at any depth, `/cgi-bin/`, `/actuator`,
+  `.map`, `.gz`, `.yml` and more) and `errors.browser_noise_paths` (`/apple-touch-icon*.png`, `/sw.js`, `/manifest.webmanifest`, everything under `/.well-known/`).
+- D8. Repeats of a hot error page (the same fingerprint below 500 within 5 seconds) are counted in `dropped`; there is no separate
+  noise kind. `dropped` also counts reports lost on the way (unreadable or refused spool lines, a request with more than 100 events).
+- D9. The two reporters' own refusals (403, 413, 415, 422, 429) are never recorded as error pages and not counted anywhere.
+- D10. A failed queued job and a failed scheduled task are recorded through the worker's and the scheduler's events (flushed at the
+  worker's next loop or stop), as the job's own failure with no route, method or status.
+- D11. `RecordErrorPages` is **prepended** to the global middleware, not appended, because terminating middleware ends in list order
+  and an appended one would end after `InvokeDeferredCallbacks`, which would then never run its deferred recording.
+- D12. An exception the code reported and recovered from is stored with status 500 (the answer is not known when it is reported).
+
+**Floods, spool, alerts (section 8)**
+
+- D13. New issues draw on **four** budgets, not one: `alert` (exceptions and error pages of 500 or more) 60 a minute and 500 an hour, `quiet`
+  (error pages below 500 and slow queries) 30 and 200, `script` and `crash` 20 and 100 each; a known issue is never capped; a cap counter
+  that cannot be read keeps the gate shut.
+- D14. On top of the budgets one client sender may open 3 new client issues an hour, keyed by the person for a signed-in phone (every sign-in
+  makes a new token) and by the address otherwise; the key is an HMAC and is never stored.
+- D15. The recorder runs its writes in transactions of its own and, on PostgreSQL, sets `lock_timeout = 1s` (`SET LOCAL`, at the outermost level
+  only); counters are added to in the database (`occurrences = occurrences + 1`).
+- D16. A spool line keeps its stored fingerprint only when an issue with that fingerprint exists and has the same source and kind; the import
+  has a 20-second budget, a line the database refuses three times while its tables answer is dropped, and a refusal for a lock (55P03)
+  is treated as "the database is away".
+- D17. The 3-an-hour and 10-a-day caps use Laravel's rate limiter (`error-alerts-hour`, `error-alerts-day`), not raw `Cache::add`: the hour
+  counter is taken atomically before sending, the day counter moves only after a mail went, and a dead mail server uses the hour's three attempts.
+- D18. A resolved issue that comes back sends no instant e-mail (the event fires only when an issue is created); it is announced by the digest
+  as "came back".
+- D19. The digest runs at **04:00 UTC, which is 07:00 in Qatar**, not "07:00 in `app.timezone`", because `app.timezone` is hard-coded to UTC in
+  `config/app.php`. It lists open issues only, each in one list (came back, then new, then growing), at most 25 per list with "And N more", shows
+  client-reported issues by their kind and not their text, and judges "growing" on the application's day so far.
+- D20. The mails are plain HTML with a text part (not Markdown, so a title can never become a link), carry an `Auto-Submitted` header, and link to
+  `APP_URL` plus the relative route (never the request's host). A digest that could not be sent to anyone fails the command (exit 1).
+- D21. `qistas:errors:prune` also removes the expired error-center rows from the cache table (`errors:*`, `error-alerts-*`) when the cache is in the database.
+
+**The two reporters (section 9)**
+
+- D22. The phone endpoint is throttled 30 a minute per **app token** (per address when there is none), not "per address and per token"; only a token with
+  the `app` ability is a person, any other is nobody; and a request carrying `Origin` or `Sec-Fetch-Site` is refused with an empty 403, because a
+  browser can post to it cross-site without a preflight.
+- D23. The stored route of a client report is never the page's own text: it is matched against the router (`/verify/K7MPQ2RTXW` is `/verify/{code}`),
+  or hidden as a pattern, and any segment that is markup once its percent escapes are read becomes `{x}` (`ErrorScrubber::route`, one rule for
+  every route). A refusal is a bare status with no body (the phone's 429 keeps the API's usual error body).
+- D24. The phone sends the system's version (`os_version`) and the server reads and does not keep it (no column).
+
+**The phone app (section 9)**
+
+- D25. A 403, 404 or 405 answer (not only 404 and 405) stops reporting for the session and drops the queue; 413 and 422 drop that report; 429 waits `Retry-After`.
+- D26. The reporter sends only the first line of an error's message, does not report network, API or time-out errors or framework errors marked
+  silent, counts the same error within a minute once, uses an API client of its own (a stale token cannot sign anyone out), and cuts the encoded body to 15 KB.
+- D27. The web build never reports, and the Settings switch is hidden there (a browser's reports always carry an `Origin` and would all be refused).
+
+**The screens (section 7)**
+
+- D28. The home health line "Errors in the last 24 hours" counts only server errors (open exceptions and error pages of 500 or more); the sidebar
+  badge still counts every open issue. When recording is off the line is a warning that says so, and the list shows the same notice.
+- D29. The source tag for `site` reads "Website" (a string called "Site" collides with `lang/en/site.php`), the status reads "Open issue", the noise card is
+  called "Background noise (bots and browsers)" and shows the dropped count in its summary, Ignore asks for a second press (a `<details>`, no script),
+  a staff resolve or ignore clears `reopened_at` and `reopened_version` (so "came back" means it came back after the last decision), and the detail
+  page's back link keeps the list's filters.
+- D30. Translations: the strings live in `lang/app/{ar,fr,es,ur}.json`; French, Spanish and Urdu are real translations (the translation test demands
+  them) and, like the Arabic, were not read by a native speaker.
+
+**Elsewhere**
+
+- D31. `error_occurrences` has one extra index, `(issue_id, occurred_at)`, and the issue's samples relation is `samples()` (the `occurrences` property is the count column).
+- D32. A bearer token whose id no bigint can hold (`99999999999999999999|x`) gave a 500 on PostgreSQL on every `auth:sanctum` route and on `/plans`;
+  `App\Models\PersonalAccessToken` (Sanctum's model, registered in `AppServiceProvider`) now answers it as an ordinary 401.

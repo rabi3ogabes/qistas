@@ -2,9 +2,9 @@
 
 Asked by the owner on 1 November 2026 as the first release of the "go live" package: make creating an account shorter,
 stop asking for what the product can work out, record where each sign-in comes from, and take the public demo away.
-This is **Release 1**. Release 2 (an error center for the site, the API, the database and the app) and Release 3
-(sign-up and sign-in with a phone number and a code by SMS with WhatsApp as the backup, plus Google and Microsoft/Outlook
-accounts) are separate pieces of work, each with its own design and plan; neither is built yet.
+This is **Release 1**. Release 2 (an error center for the site, the API, the database and the app) is built: see
+`error-center.md`. Release 3 (sign-up and sign-in with a phone number and a code by SMS with WhatsApp as the backup, plus
+Google and Microsoft/Outlook accounts) is a separate piece of work with its own design and plan, and is not built yet.
 
 ## What a person fills in
 

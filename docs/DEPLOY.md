@@ -114,12 +114,16 @@ Everything else has a safe default (production mode, secure cookies, trusted pro
 | `APP_URL` | detected | The public address, used in e-mails and links created outside a request. |
 | `MAIL_MAILER`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_ADDRESS` | `log` | Send real e-mail (verification, password reset). Until set, e-mails are written to the log only. |
 | `AUTO_MIGRATE` | `true` | Bring the database up to date on every start. Set `false` to run `php artisan migrate --force` yourself. |
-| `TRUSTED_PROXIES` | `*` | Which proxies' `X-Forwarded-*` headers are believed. `*` is right behind Vercel. |
+| `TRUSTED_PROXIES` | `*` | Which proxies' `X-Forwarded-*` headers are believed. `*` is the container image's default and is right behind Vercel; leave it **unset** on SixPanel (see [Option D](#option-d--production-on-sixpanel-wwwqistasmecom)). |
 | `STRIPE_SECRET`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` | none | Normally left unset: Pro by card keeps its Stripe keys in the admin Billing page (`docs/features/billing.md`). A value here wins over the saved one, for testing on your own machine with your own test keys. With none saved, no card is ever charged. (`BILLING_GATEWAY` is only the development default for the fake checkout; the live gateway is decided by the saved keys.) |
 | `QISTAS_DEFAULT_CURRENCY` | `USD` | Currency for new workspaces whose country is not recognised. |
 | `QISTAS_DEFAULT_COUNTRY` | `SA` | The country a new workspace gets when sign-up can find none (no CDN header, no time zone, no language region). Two letters, one the product knows. See `docs/features/sign-up.md`. |
 | `QISTAS_SIGN_IN_DAYS` | `90` | How many days each person's sign-in record (device, address, country, proxy verdict) is kept; a daily job removes older rows. |
 | `QISTAS_PROXY_CHAIN_ALLOWED` | `2` | How many addresses `X-Forwarded-For` may list before a sign-in reads "proxy detected" (a normal visit already passes the CDN and the host's own proxy). After going live, sign in once from your own phone and computer: both should read "not detected"; if not, raise this by one. |
+| `QISTAS_ERRORS` | `true` | The error center (admin → Errors). `false` stops recording new errors; what is already recorded stays visible and the go-live check warns. See `docs/features/error-center.md`. |
+| `QISTAS_SLOW_QUERY_MS` | `3000` | A database query slower than this many milliseconds is recorded as a slow query. |
+| `QISTAS_ERROR_OCCURRENCE_DAYS` | `30` | How many days the sample occurrences of an error are kept; the nightly `qistas:errors:prune` removes older ones. |
+| `QISTAS_ERROR_ISSUE_DAYS` | `90` | How many days an open error is kept after it was last seen. (A resolved error is kept 30 days after it was resolved, an ignored one 30 days after its last sighting.) |
 | `CRON_SECRET` | none | Switches on scheduled work (see below). Any long random string. With none, `/internal/cron` answers 503 and nothing runs. |
 | `CRON_MAX_SECONDS` | `50` | How long one scheduler call works through waiting jobs before it stops and leaves the rest for the next call. |
 | `FILESYSTEM_DISK` | none | Where customers' files (contract and ID photos, proofs of payment) are kept. **Unset (Vercel): in the database** (`file_blobs`, decision D5 of Sprint 2), which lasts and is backed up with everything else. `s3` keeps them in an S3-compatible bucket instead (better once there are many photos); `local` in a private folder on the server, for development only (Vercel throws its disk away). Every kind is only ever served through links that expire within five minutes. Moving from the database to a bucket keeps the same paths. |
@@ -136,6 +140,34 @@ On the server, `php artisan qistas:go-live-check` says in seventeen plain lines 
 https, e-mail, scheduler, a super admin, the terms and privacy pages, PostgreSQL, writable storage, the error center, no
 leftover demo accounts); it changes nothing and exits 1 while any line is FAIL. `php artisan qistas:purge-demo` lists the old demo
 accounts and removes them only with `--confirm`. Both are explained, with their output, in `docs/features/go-live.md`.
+
+### Error center
+
+Everything that breaks on the website, in the API and in the database (slow queries included), and the crashes the phone
+app reports, is recorded and grouped into issues under **Errors** in the admin console (platform staff only). A brand-new
+server error is e-mailed to the super admins at once (at most 3 an hour and 10 a day); a daily digest says what is new, came
+back or is growing. Nothing leaves the server and nothing about a customer is stored. The full note is
+`docs/features/error-center.md`.
+
+* **Where it lives.** Five tables in the site's own database (`error_issues`, `error_occurrences`, `error_issue_days`,
+  `error_issue_people`, `error_noise_days`), created by `php artisan qistas:setup` like the others, and one file,
+  `storage/logs/error-spool.ndjson`, where an error waits when it happens while the database is away. `storage/logs` must be
+  writable: the go-live check's *Error center* line fails when it is not.
+* **Three scheduled commands**, registered in `routes/console.php`: `qistas:errors:prune` (every night at 00:00 UTC),
+  `qistas:errors:import-spool` (every five minutes) and `qistas:errors:digest` (04:00 UTC, which is 07:00 in Qatar, because
+  the application's clock is fixed to UTC). They run from the Laravel scheduler, so **they only run while something calls
+  `/internal/cron` every five minutes** (see Scheduled work below). A daily task fires only when a call lands in its minute:
+  a pinger on the five-minute grid is right; one that runs a few minutes late (GitHub's schedule can) can miss the digest
+  and the nightly prune, like every other daily task.
+* **The instant e-mail needs no scheduler**, only working e-mail (the go-live check's *E-mail can be sent* line), but the
+  digest and the spool import do. An outage of the database itself cannot be e-mailed while it lasts: for that, point an
+  external uptime monitor at `/up`.
+* **Settings:** the four `QISTAS_ERRORS`, `QISTAS_SLOW_QUERY_MS`, `QISTAS_ERROR_OCCURRENCE_DAYS` and
+  `QISTAS_ERROR_ISSUE_DAYS` rows of the table above; the defaults are right.
+* **On the Vercel container** each running instance has its own disk, thrown away when it stops, so an error spooled there can
+  be lost; SixPanel is one server with one spool file.
+* **Deploy order:** the website first, the app after. The website tolerates an app that does not report, and the new app
+  stops reporting for the session when the server answers 403, 404 or 405.
 
 ### Scheduled work
 
@@ -201,9 +233,28 @@ the public demo was removed; the line can be deleted from the Environment page.)
 (`APP_KEY`, `DB_PASSWORD`, `CRON_SECRET`) are made on the server and never leave it. Set the `MAIL_*` keys there to send
 real e-mail.
 
+**The visitor's address (rate limits, and the error center's quotas).** Every "per person" limit here keys on the
+connection's address, including the error center's two reporters (20 reports a minute per address from the website's scripts,
+and 3 new client issues an hour per sender). Three things must hold on SixPanel; check them when the site is set up or
+changed:
+
+1. **Keep `TRUSTED_PROXIES` unset.** The `*` in the optional-settings table is the container image's default, right behind
+   Vercel. With `*` on SixPanel a client can send its own `X-Forwarded-For` header and change its address at will, which
+   defeats every rate limit and lets one visitor use up another's quota.
+2. **nginx's `real_ip` must believe `CF-Connecting-IP` only from Cloudflare's address ranges:** `set_real_ip_from` for each
+   range Cloudflare publishes (<https://www.cloudflare.com/ips/>), then `real_ip_header CF-Connecting-IP;`, and no
+   other source. Ideally the origin also accepts traffic only from Cloudflare (a firewall rule, or `allow`/`deny` on the same
+   ranges), so nobody who finds the server's own address can forge that header.
+3. **nginx `client_max_body_size 16k` on the two reporter locations**, `/client-errors` (the website's scripts) and
+   `/api/v1/client-errors` (the phone app), so an oversized report is refused before PHP reads it. The app itself refuses
+   more than 8 KB (website) or 16 KB (phone); the other locations keep the larger size the photo uploads need.
+
 **Scheduled work.** A cron job of the website, every five minutes, calls `/internal/cron` with the `CRON_SECRET` it reads
 from `.env`; check it with `php artisan qistas:cron-status`. The scheduler runs each task as its own process, so this
-website's PHP keeps `proc_open` allowed (the other process functions stay disabled).
+website's PHP keeps `proc_open` allowed (the other process functions stay disabled). The same call runs the error center's
+three commands (see *Error center* above): the cron job must reach `/internal/cron` every five minutes, on the grid, for the
+digest at 04:00 UTC and the nightly prune to fire. The error spool (`storage/logs`) is kept between deploys with the rest of
+`web/storage`.
 
 **MariaDB is not supported**: the migrations use PostgreSQL features (partial unique indexes, for example one main
 investor per business). The website's unused MariaDB database can be removed on its Database page.
@@ -234,8 +285,9 @@ and builds and starts the production container.
 * Security headers and a Content-Security-Policy for the app are planned (task 15 in the plan).
 * Pro by card is built and switched off on the live site: it needs a Stripe account, its keys saved in the admin Billing
   page, and one end-to-end run in Stripe's test mode before the switch is turned on (`docs/features/billing.md`).
-* Sign-up with a phone number and a code, Google and Microsoft accounts, and the error center are planned as the next two
-  releases; they need an SMS provider, a Google project and a Microsoft app registration that only the owner can create.
+* Sign-up with a phone number and a code, and Google and Microsoft accounts, are planned as the next release (Release 3);
+  they need an SMS provider, a Google project and a Microsoft app registration that only the owner can create. (The error
+  center, Release 2, is built and needs none of that: see *Error center* above.)
 * The Android app is a test build signed with a debug key (see `app/README.md`); store releases need a release key.
 * The admin overview (`/admin`) counts workspaces, plans, people and new sign-ups (never customer data), and shows
   whether the database, e-mail, the environment and scheduled work are in order. It is where an admin opens a test
