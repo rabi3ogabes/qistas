@@ -12,7 +12,7 @@ php artisan qistas:purge-demo --confirm   # the list worked out again now, then 
 
 ## The go-live check
 
-Sixteen checks, each **PASS**, **WARN** or **FAIL** with one plain line saying what to do next. A FAIL stops the launch
+Seventeen checks, each **PASS**, **WARN** or **FAIL** with one plain line saying what to do next. A FAIL stops the launch
 (the command exits 1, so a script can stop on it); a WARN does not, but each one deserves a decision.
 It never prints a secret, a customer's address or the value of a setting: a setting is named, not quoted, and a check
 that cannot run says which kind of fault stopped it (the reason could hold a connection string).
@@ -35,6 +35,7 @@ that cannot run says which kind of fault stopped it (the reason could hold a con
 | Terms and privacy pages | `/terms` or `/privacy` does not answer 200 | |
 | PostgreSQL database | | the database is not PostgreSQL |
 | Storage is writable | `storage`, `storage/logs` or `storage/framework` cannot be written | |
+| Error center | the folder where errors wait while the database is away (`storage/logs`) cannot be written | error recording is switched off (`QISTAS_ERRORS`) |
 
 What it does that looks like a write: it asks the application itself for the terms and privacy pages (through its own
 HTTP kernel, no network, with the session kept in memory), which can warm a cache entry. Nothing else is stored.
@@ -66,8 +67,9 @@ Qistas go-live check
  PASS Terms and privacy pages .. /terms and /privacy both answer 200.
  WARN PostgreSQL database .. The database is sqlite, not PostgreSQL. Point the live site at PostgreSQL (DB_URL).
  PASS Storage is writable .. storage, storage/logs and storage/framework are writable.
+ PASS Error center Errors are recorded, and storage/logs is writable for the ones that happen while the database is away.
 
- ERROR Summary: 6 PASS, 5 WARN, 5 FAIL. Fix every FAIL, then run this check again.
+ ERROR Summary: 7 PASS, 5 WARN, 5 FAIL. Fix every FAIL, then run this check again.
 ```
 
 ## Removing the demo leftovers

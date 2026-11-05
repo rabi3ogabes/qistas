@@ -3,6 +3,7 @@
 use App\Billing\Card\FakeStripeGateway;
 use App\Billing\Card\StripeGateway;
 use App\Entitlements\Feature;
+use App\Errors\ErrorSpool;
 use App\Mail\MailSettings;
 use App\Models\CronRun;
 use App\Models\PlatformSetting;
@@ -22,7 +23,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 /*
-| `qistas:go-live-check` (go-live basics 6.3): sixteen checks the owner runs on the server before real customers come,
+| `qistas:go-live-check` (go-live basics 6.3): seventeen checks the owner runs on the server before real customers come,
 | each PASS, WARN or FAIL with one plain line saying what to do next. It reads, it never writes, and it never prints a
 | secret, a customer's address or the value of a setting: a setting is named, not shown.
 */
@@ -33,7 +34,7 @@ beforeEach(function () {
 });
 
 /** The checks, in the order the owner reads them. */
-const GO_LIVE_KEYS = ['env', 'debug', 'url', 'demo', 'demo-data', 'demo-domain', 'test-workspaces', 'mail', 'cron', 'geo', 'billing', 'admin', 'support', 'legal', 'database', 'storage'];
+const GO_LIVE_KEYS = ['env', 'debug', 'url', 'demo', 'demo-data', 'demo-domain', 'test-workspaces', 'mail', 'cron', 'geo', 'billing', 'admin', 'support', 'legal', 'database', 'storage', 'errors'];
 
 /** Everything a site that is ready has: production settings, e-mail, a recent scheduler run and a super admin. */
 function goLiveReady(): void
@@ -125,7 +126,18 @@ function goLiveBreak(string $what): void
         'terms-gone' => Route::get('/terms', fn () => abort(404)),
         'privacy-down' => Route::get('/privacy', fn () => response('Back soon', 503)),
         'privacy-redirect' => Route::get('/privacy', fn () => redirect('/elsewhere')),
+        'errors-off' => config(['qistas.errors.enabled' => false]),
+        'errors-no-folder' => errorsGoLiveMissingFolder(),
     };
+}
+
+/** Points the error spool at a folder that does not exist, as a folder nobody can write is for the check. Returns the folder. */
+function errorsGoLiveMissingFolder(): string
+{
+    $folder = sys_get_temp_dir().DIRECTORY_SEPARATOR.'qistas-spool-missing-'.Str::random(8);
+    config(['qistas.errors.spool_path' => $folder.DIRECTORY_SEPARATOR.'error-spool.ndjson']);
+
+    return $folder;
 }
 
 /**
@@ -261,6 +273,8 @@ describe('what each check looks at', function () {
         'the terms page is gone' => ['terms-gone', 'legal', 'fail', '/terms answered 404'],
         'the privacy page is down' => ['privacy-down', 'legal', 'fail', '/privacy answered 503'],
         'the privacy page redirects' => ['privacy-redirect', 'legal', 'fail', '/privacy answered 302'],
+        'error recording is switched off' => ['errors-off', 'errors', 'warn', 'QISTAS_ERRORS'],
+        'the folder of the error spool cannot be written' => ['errors-no-folder', 'errors', 'fail', 'storage/logs', 'qistas-spool-missing'],
     ]);
 
     it('names a good setting by its name, so the owner knows what passed', function () {
@@ -294,6 +308,94 @@ describe('what each check looks at', function () {
     it('passes the database check on PostgreSQL', function () {
         expect(goLiveResult('database')['status'])->toBe('pass');
     })->skip(fn () => DB::connection()->getDriverName() !== 'pgsql', 'needs PostgreSQL');
+});
+
+describe('the error center', function () {
+    it('is the seventeenth check, titled Error center, and passes when recording is on and the spool folder can be written', function () {
+        $results = GoLiveCheck::run();
+        $result = goLiveResult('errors');
+
+        expect($results)->toHaveCount(17)
+            ->and(array_key_last($results))->toBe(16)
+            ->and($results[16]['key'])->toBe('errors')
+            ->and($result['title'])->toBe('Error center')
+            ->and($result['status'])->toBe('pass');
+    });
+
+    it('names the folder storage/logs and never a path of this machine', function () {
+        $detail = goLiveResult('errors')['detail'];
+
+        expect($detail)->toContain('storage/logs')
+            ->not->toContain(dirname(ErrorSpool::path()))
+            ->not->toContain('error-spool')
+            ->not->toContain(base_path());
+    });
+
+    it('follows the folder the spool is really in', function () {
+        config(['qistas.errors.spool_path' => sys_get_temp_dir().DIRECTORY_SEPARATOR.'error-spool.ndjson']);
+        expect(goLiveResult('errors')['status'])->toBe('pass');
+
+        $folder = errorsGoLiveMissingFolder();
+        $result = goLiveResult('errors');
+
+        expect($result['status'])->toBe('fail')
+            ->and($result['detail'])->toContain('storage/logs')->not->toContain($folder)->not->toContain(basename($folder));
+    });
+
+    it('fails, and says what to do, when the folder cannot be written', function () {
+        errorsGoLiveMissingFolder();
+
+        $result = goLiveResult('errors');
+
+        expect($result['status'])->toBe('fail')
+            ->and($result['detail'])->toContain('cannot write to storage/logs')->toContain('permissions');
+    });
+
+    it('warns, and says what to do, when recording is switched off', function () {
+        config(['qistas.errors.enabled' => false]);
+
+        $result = goLiveResult('errors');
+
+        expect($result['status'])->toBe('warn')
+            ->and($result['detail'])->toContain('Error recording is switched off (QISTAS_ERRORS)');
+    });
+
+    it('warns for a switched-off recorder whatever the folder is, since nothing is written then', function () {
+        config(['qistas.errors.enabled' => false]);
+        errorsGoLiveMissingFolder();
+
+        expect(goLiveResult('errors')['status'])->toBe('warn');
+    });
+
+    it('reads the setting as the recorder does', function (mixed $setting, string $status) {
+        config(['qistas.errors.enabled' => $setting]);
+
+        expect(goLiveResult('errors')['status'])->toBe($status);
+    })->with([
+        'true' => [true, 'pass'],
+        'the text true' => ['true', 'pass'],
+        'false' => [false, 'warn'],
+        'the text false' => ['false', 'warn'],
+        'the text 0' => ['0', 'warn'],
+        'unset' => [null, 'warn'],
+    ]);
+
+    it('writes nothing: no folder made, no spool file, no row', function () {
+        $folder = errorsGoLiveMissingFolder();
+        $before = goLiveRowCounts();
+
+        $this->artisan('qistas:go-live-check')->assertExitCode(1);
+
+        expect(is_dir($folder))->toBeFalse()->and(goLiveRowCounts())->toBe($before);
+    });
+
+    it('is a line of its own in the command’s output, and a failure there stops the launch', function () {
+        errorsGoLiveMissingFolder();
+
+        Artisan::call('qistas:go-live-check');
+
+        expect(Artisan::output())->toMatch('/FAIL\s+Error center/')->not->toContain('qistas-spool-missing');
+    });
 });
 
 describe('old demo accounts', function () {

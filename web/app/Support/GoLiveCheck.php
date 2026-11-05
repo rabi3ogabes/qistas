@@ -9,6 +9,8 @@ use App\Billing\Card\StripeGateway;
 use App\Entitlements\Feature;
 use App\Entitlements\PlatformFeatures;
 use App\Entitlements\PlatformState;
+use App\Errors\ErrorRecorder;
+use App\Errors\ErrorSpool;
 use App\Mail\MailSettings;
 use App\Models\CronRun;
 use App\Models\User;
@@ -20,7 +22,7 @@ use Illuminate\Support\Facades\Facade;
 use Throwable;
 
 /**
- * What the owner must see before real customers come (`qistas:go-live-check`, go-live basics 6.3): sixteen checks, each
+ * What the owner must see before real customers come (`qistas:go-live-check`, go-live basics 6.3): seventeen checks, each
  * pass, warn or fail with one plain line saying what to do next.
  *
  * It changes no data. The one thing it does that looks like a write is asking the application itself for the terms and
@@ -70,6 +72,7 @@ final class GoLiveCheck
             'legal' => ['Terms and privacy pages', $this->legal(...)],
             'database' => ['PostgreSQL database', $this->database(...)],
             'storage' => ['Storage is writable', $this->storage(...)],
+            'errors' => ['Error center', $this->errors(...)],
         ];
 
         $results = [];
@@ -376,6 +379,29 @@ final class GoLiveCheck
         return $unwritable === []
             ? ['pass', 'storage, storage/logs and storage/framework are writable.']
             : ['fail', 'The server cannot write to '.implode(', ', $unwritable).'. Fix its permissions so logs and caches can be saved.'];
+    }
+
+    /**
+     * Is the error center recording, and could an error be kept while the database is away? The spool is the file those
+     * errors wait in (`ErrorSpool::path()`, in storage/logs unless a test points it elsewhere), so its folder has to be
+     * writable. Off is a warning and nothing more: nothing is written then, and the storage check already looks at the folder.
+     * The folder is only ever named storage/logs, never as a path of this machine.
+     *
+     * @return Outcome
+     */
+    private function errors(): array
+    {
+        if (! ErrorRecorder::enabled()) {
+            return ['warn', 'Error recording is switched off (QISTAS_ERRORS), so nothing that breaks on the site or in the app is kept. Set QISTAS_ERRORS=true, or remove that line from the server environment, to switch it on.'];
+        }
+
+        $folder = dirname(ErrorSpool::path());
+
+        if (! is_dir($folder) || ! is_writable($folder)) {
+            return ['fail', 'The server cannot write to storage/logs, so an error that happens while the database is away would be lost. Fix the permissions of that folder.'];
+        }
+
+        return ['pass', 'Errors are recorded, and storage/logs is writable for the ones that happen while the database is away.'];
     }
 
     /**

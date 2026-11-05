@@ -35,3 +35,12 @@ Schedule::command('qistas:billing-notices')->hourly()->withoutOverlapping(10);
 
 // Each person's sign-in record is kept for qistas.sign_in_days (90 by default), then removed; nothing else removes it.
 Schedule::command('qistas:sign-ins:prune')->daily()->withoutOverlapping(30);
+
+// The error center forgets old samples, issues and scanner-noise counts every night, and clears its expired rows from the cache table.
+Schedule::command('qistas:errors:prune')->daily()->withoutOverlapping(30);
+
+// Errors that waited in storage/logs/error-spool.ndjson while the database was away are recorded as soon as it answers again.
+Schedule::command('qistas:errors:import-spool')->everyFiveMinutes()->withoutOverlapping(10);
+
+// The error digest goes at 04:00 on the app's clock, which is fixed to UTC in config/app.php, so at 07:00 in the Gulf.
+Schedule::command('qistas:errors:digest')->dailyAt('04:00')->withoutOverlapping(30);

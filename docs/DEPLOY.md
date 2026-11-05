@@ -132,9 +132,9 @@ Everything else has a safe default (production mode, secure cookies, trusted pro
 
 ### Before real customers come
 
-On the server, `php artisan qistas:go-live-check` says in sixteen plain lines whether the site is ready (production mode,
-https, e-mail, scheduler, a super admin, the terms and privacy pages, PostgreSQL, writable storage, no leftover demo
-accounts); it changes nothing and exits 1 while any line is FAIL. `php artisan qistas:purge-demo` lists the old demo
+On the server, `php artisan qistas:go-live-check` says in seventeen plain lines whether the site is ready (production mode,
+https, e-mail, scheduler, a super admin, the terms and privacy pages, PostgreSQL, writable storage, the error center, no
+leftover demo accounts); it changes nothing and exits 1 while any line is FAIL. `php artisan qistas:purge-demo` lists the old demo
 accounts and removes them only with `--confirm`. Both are explained, with their output, in `docs/features/go-live.md`.
 
 ### Scheduled work

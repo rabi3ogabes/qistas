@@ -9,7 +9,8 @@ use Illuminate\Console\Command;
 /**
  * Sends the error center's daily digest to the active super admins (design section 8): what is new, came back or is growing in
  * the last 24 hours. On a day when none of that is so, or when nobody can be told, nothing is sent. Meant to run once a day, at
- * 07:00 on the application's clock; running it again sends the same digest again.
+ * 04:00 on the application's clock (UTC, so 07:00 in the Gulf: see routes/console.php); running it again sends the same
+ * digest again.
  *
  * When there was something to say and people to tell and no mail could be sent, it says so and fails (exit code 1), so the
  * scheduler's record shows a digest that never arrived instead of a quiet day.
