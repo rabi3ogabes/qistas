@@ -52,8 +52,7 @@ final class ErrorsController
             $counts = $trend[$issue->id];
             $weeks[$issue->id] = array_slice($counts, 1);
             // Only an issue that is open can be growing: a resolved one reopens itself when it happens again.
-            $growing[$issue->id] = $issue->status === ErrorIssue::STATUS_OPEN
-                && ErrorTrend::growing($counts[self::SPARK_DAYS], array_slice($counts, 0, self::SPARK_DAYS));
+            $growing[$issue->id] = $issue->status === ErrorIssue::STATUS_OPEN && ErrorTrend::growing(...ErrorTrend::split($counts));
         }
 
         $noise = ErrorTrend::noise(self::SPARK_DAYS);
@@ -86,7 +85,7 @@ final class ErrorsController
             'days' => $days,
             // The same rule as the list's mark: today against the seven days before it, for an open issue only.
             'growing' => $issue->status === ErrorIssue::STATUS_OPEN
-                && ErrorTrend::growing($days[self::TIMELINE_DAYS - 1], array_slice($days, -(self::SPARK_DAYS + 1), self::SPARK_DAYS)),
+                && ErrorTrend::growing(...ErrorTrend::split(array_slice($days, -(self::SPARK_DAYS + 1)))),
             'staff' => $people === [] ? collect() : User::query()->whereIn('id', $people)->pluck('name', 'id'),
             'back' => $back,
             'backUrl' => url($back ?? $this->listPath()),

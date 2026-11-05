@@ -1092,6 +1092,37 @@ it('a stored occurrence holds no personal data', function () {
         ->and(DB::table('error_issue_people')->pluck('person')->all())->toBe([errorsRecorderPerson($userId)]);
 });
 
+it('the cap counters get a transaction of their own only when the cache keeps them in this database', function () {
+    $began = 0;
+    Event::listen(TransactionBeginning::class, function () use (&$began): void {
+        $began++;
+    });
+
+    // A cache in memory (array, Redis, a file): no BEGIN, SET and COMMIT around a counter that is not in the database. Two
+    // transactions: the look for the issue, and the opening of it.
+    app(ErrorRecorder::class)->record(errorsRecorderEvent(['class' => 'ArrayCacheException']));
+
+    expect($began)->toBe(2);
+
+    // The cache in the database on the same connection: the minute's and the hour's counters each in one of the recorder's
+    // own (a lock on a cache row waits no longer than any other write), around the store's own transaction for increment.
+    config(['cache.default' => 'database']);
+    $began = 0;
+    $levels = [];
+    DB::listen(function (QueryExecuted $query) use (&$levels): void {
+        if (str_contains($query->sql, '"cache"') && str_starts_with(strtolower($query->sql), 'update')) {
+            $levels[] = DB::transactionLevel();
+        }
+    });
+
+    app(ErrorRecorder::class)->record(errorsRecorderEvent(['class' => 'DatabaseCacheException']));
+
+    expect(ErrorIssue::query()->count())->toBe(2)
+        ->and($began)->toBe(6)
+        ->and($levels)->toHaveCount(2)
+        ->and(array_unique($levels))->toBe([DB::transactionLevel() + 2]);
+});
+
 // ---- noise ---------------------------------------------------------------------------------------------------------
 
 it('noise() is one statement, with no transaction around it, whether the day\'s row is there or not', function () {

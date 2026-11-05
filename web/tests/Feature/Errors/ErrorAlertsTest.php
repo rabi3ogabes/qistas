@@ -914,6 +914,23 @@ describe('the digest', function () {
         'a busy week and a quiet today' => [1, 9, false],
     ]);
 
+    it('judges "growing" on the clock of the digest it is asked for, not on the real one', function () {
+        errorsAlertSuper();
+        $then = CarbonImmutable::now()->subDays(3);
+
+        // Busy three days ago (nine sightings, one a day the week before), quiet since.
+        $days = [$then->toDateString() => 9];
+        foreach (range(1, 7) as $back) {
+            $days[$then->subDays($back)->toDateString()] = 1;
+        }
+        $issue = errorsAlertIssue(['occurrences' => 16, 'first_seen_at' => $then->subDays(10), 'last_seen_at' => $then->subHour()], $days);
+
+        // The digest for that day lists it; today's does not (it is quiet today).
+        expect(app(ErrorAlerts::class)->digest($then))->toBe(DigestOutcome::Sent)
+            ->and(errorsAlertLists())->toBe(['new' => [], 'cameBack' => [], 'growing' => [$issue->id]])
+            ->and(errorsAlertOutcome())->toBe(DigestOutcome::NothingToSend);
+    });
+
     it('leaves out an issue that is ignored or resolved, in every list', function () {
         errorsAlertSuper();
         errorsAlertNew(1, ['status' => 'ignored']);

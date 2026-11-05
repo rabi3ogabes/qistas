@@ -129,7 +129,8 @@ final class ErrorScrubber
         // A key that names a secret (or personal data) and the value after it, in every shape code and logs write one:
         // password=x, "password":"x", 'password' => 'x', [password] => x, ["password"]=> string(1) "x", {"cookie":["a=b"]}.
         'secret_value' => [
-            '~(?<![\w.-])('.self::KEYS.')(["\']?)(\]\s*=>\s*|\s*(?:=>|[:=])\s*)(?:string\(\d+\)\s*|(\[)(?!'.self::MASK_WORDS.'\])\s*)?'
+            // `::` is a PostgreSQL cast ("name"::text ilike ?), not a key and its value.
+            '~(?<![\w.-])('.self::KEYS.')(["\']?)(\]\s*=>\s*|\s*(?:=>|:(?!:)|=)\s*)(?:string\(\d+\)\s*|(\[)(?!'.self::MASK_WORDS.'\])\s*)?'
             .'("(?:[^"\\\\\n]|\\\\.)*+"|\'(?:[^\'\\\\\n]|\\\\.)*+\'|(?![?{])(?:'.self::MASK.'|[^\s,;&)\]}"\'?]|(?<!\])\?(?=[^\s,;&)\]}"\']))+)~iu',
             '@secret',
         ],
@@ -139,7 +140,8 @@ final class ErrorScrubber
         'email' => ['~(?<![\p{L}\p{N}])(?:"[^"\n]{1,64}"|[\p{L}\p{N}._%+\'\~-]{1,64})(?:@|%40|＠|&#0*64;|&commat;)(?:\[[0-9a-f:.]{2,45}\]|localhost\b|(?:[\p{L}\p{N}](?:[\p{L}\p{N}_-]*[\p{L}\p{N}])?\.)+(?:xn--[a-z0-9-]{2,}|\p{L}{2,}))~iu', '[email]'],
         'ipv4' => ['~(?<![\d.])(?:::ffff:)?(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)(?!\d|\.\d)~iu', '[ip]'],
         'ipv6' => ['~(?<![\w:])(?=[0-9a-f:]*\d)(?:(?:[0-9a-f]{1,4}:){7}[0-9a-f]{1,4}|(?:[0-9a-f]{1,4}(?::[0-9a-f]{1,4}){0,6})?::(?:[0-9a-f]{1,4}(?::[0-9a-f]{1,4}){0,6})?)(?![\w:])~iu', '[ip]'],
-        'iban' => ['~(?<![A-Za-z0-9])[A-Za-z]{2}\d{2}(?:(?=(?:[A-Za-z]*\d){4})[A-Za-z0-9]{11,30}|(?:[ -](?:[A-Z0-9]{4}|(?=[a-z0-9]*\d)[a-z0-9]{4})){2,7}(?:[ -](?=[A-Za-z0-9]*\d)[A-Za-z0-9]{1,4})?)(?![A-Za-z0-9])~u', '[id]'],
+        // In groups of four, the last group may be shorter: digits, or a single capital (a Qatari IBAN ends `CDEF G`).
+        'iban' => ['~(?<![A-Za-z0-9])[A-Za-z]{2}\d{2}(?:(?=(?:[A-Za-z]*\d){4})[A-Za-z0-9]{11,30}|(?:[ -](?:[A-Z0-9]{4}|(?=[a-z0-9]*\d)[a-z0-9]{4})){2,7}(?:[ -](?:(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{1,4}|[A-Z]))?)(?![A-Za-z0-9])~u', '[id]'],
 
         // Long runs that are random on purpose: hashes and keys. A run is a token unless it reads like a name (see
         // random()), so a long class or constraint name is left alone.
@@ -149,8 +151,10 @@ final class ErrorScrubber
         'token_run' => ['~(?<![\w+-]|%[0-9A-Fa-f]{2})((?:[A-Za-z0-9+_-]|%[0-9A-Fa-f]{2}){24,})(={0,2})(?![\w+-])~u', '@random'],
         'token_padded' => ['~(?<![\w+/-])[A-Za-z0-9+/]{24,}={1,2}(?![\w=])~u', '[token]'],
 
-        // Numbers. A card goes before the phones (half a card must not be read as a number), and the digit runs last.
-        'card' => ['~(?<![\d-])(?:\d{4}(?:[ .-]{1,2}\d{4}){3}(?:[ .-]{1,2}\d{1,3})?|\d{4}[ .-]{1,2}\d{6}[ .-]{1,2}\d{4,5})(?!\d|-\d)~u', '[id]'],
+        // Numbers. A card goes before the phones (half a card must not be read as a number), and the digit runs last. The
+        // short tail of a longer card (19 digits) is the card's only when no other group of digits follows it: a phone
+        // written right after a card (`4111 1111 1111 1111 050 123 4567`) keeps its first group, so it is still a phone.
+        'card' => ['~(?<![\d-])(?:\d{4}(?:[ .-]{1,2}\d{4}){3}(?:[ .-]{1,2}\d{1,3}(?![ .-]{1,2}\d))?|\d{4}[ .-]{1,2}\d{6}[ .-]{1,2}\d{4,5})(?!\d|-\d)~u', '[id]'],
         'uae_id' => ['~(?<!\d)784-?\d{4}-?\d{7}-?\d(?!\d)~u', '[id]'],
         'phone_international' => ['~(?<![\w+.])(?:\+|00)\d{1,3}(?:[ .()/-]*\d){6,12}(?!\d)~u', '[phone]'],
         'phone_country' => ['~(?<![\d.+-])(?:966|971|974|965|973|968)(?:[ -]\d{1,2}[ -]\d{3}[ -]\d{4}|[ -]\d{4}[ -]\d{4}|[ -]\d{8,9})(?!\d)~u', '[phone]'],
@@ -413,6 +417,12 @@ final class ErrorScrubber
             $mask = ($quote !== '' && str_contains($separator, ':'))
                 || str_contains($separator, '=>')
                 || (str_starts_with($separator, '=') && $separator !== '=>');
+
+            // The type of an error is nobody's name: a JavaScript error written as JSON says {"name":"TypeError"}, and a PHP
+            // class can be written the same way. Only that shape: a class name that ends in Error or Exception.
+            if ($mask && $lower === 'name' && preg_match('~^[A-Z][A-Za-z0-9_\\\\]*(?:Error|Exception)$~D', trim($value, '"\'')) === 1) {
+                $mask = false;
+            }
         } else {
             $mask = false;
         }
@@ -479,6 +489,12 @@ final class ErrorScrubber
      */
     private static function looksRandom(string $run, bool $whole = true): bool
     {
+        // A migration's name: the moment it was made, then its words (`2026_10_07_000400_create_customers_table`). The run of
+        // digits in front would count against the words below, and no secret has this shape.
+        if (preg_match('~^\d{4}_\d{2}_\d{2}_\d{6}_[a-z0-9_]+$~D', $run) === 1) {
+            return false;
+        }
+
         // A run that is one letter again and again, or two, is a filler and not a secret; a key has many different characters.
         if (strlen($run) >= 12 && count(array_unique(str_split(strtolower($run)))) < 6) {
             return false;
@@ -514,7 +530,8 @@ final class ErrorScrubber
                 continue;
             }
 
-            if (preg_match('~^(?>[A-Z][a-z]{2,}|To|Of|Is|In|On|By|Or|An|As|At|If|No|Id|Ok|Up|Do|Be|Me|My|We|So|[a-z]{3,}|[A-Z]{2,5}v\d{1,2}|[A-Z]{2,5}(?![a-z])|[A-Z](?=[A-Z][a-z]|\d)|\d{1,3}(?:[a-z]{2,3}(?![a-z]))?)+$~', $part) !== 1) {
+            // The short words of a name, and the two-letter parts names are made of (QrCode, DynamoDb, Io, Ip, Ui).
+            if (preg_match('~^(?>[A-Z][a-z]{2,}|To|Of|Is|In|On|By|Or|An|As|At|If|No|Id|Ok|Up|Do|Be|Me|My|We|So|Qr|Db|Io|Ip|Ui|[a-z]{3,}|[A-Z]{2,5}v\d{1,2}|[A-Z]{2,5}(?![a-z])|[A-Z](?=[A-Z][a-z]|\d)|\d{1,3}(?:[a-z]{2,3}(?![a-z]))?)+$~', $part) !== 1) {
                 return true;
             }
         }

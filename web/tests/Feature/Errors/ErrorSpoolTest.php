@@ -11,6 +11,7 @@ use App\Errors\RecorderBusy;
 use App\Models\ErrorIssue;
 use App\Models\ErrorOccurrence;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
@@ -487,6 +488,66 @@ it('a spooled line keeps the fingerprint it was written with, so an import never
     expect(errorsSpoolImport())->toBe(1)
         ->and(ErrorIssue::query()->count())->toBe(1)
         ->and($issue->fresh()->occurrences)->toBe(2);
+});
+
+it('a line cannot choose its issue: the fingerprint of an issue of another source or kind is worked out again', function () {
+    app(ErrorRecorder::class)->record(errorsSpoolEvent(['source' => 'api', 'class' => 'GatewayFailure', 'route' => '/api/v1/payments']));
+    $api = ErrorIssue::query()->sole();
+
+    // A forged line: a browser's script error that carries the fingerprint of the API's exception (which can alert).
+    errorsSpoolWrite($this->spool, [
+        'source' => 'site', 'kind' => 'script', 'platform' => 'web', 'status' => null, 'method' => null, 'route' => null,
+        'class' => 'TypeError', 'message' => 'forged', 'trace' => '', 'fingerprint' => $api->fingerprint,
+    ]);
+
+    expect(errorsSpoolImport())->toBe(1)
+        ->and($api->fresh()->occurrences)->toBe(1);
+
+    $script = ErrorIssue::query()->where('kind', 'script')->sole();
+
+    expect($script->only(['source', 'occurrences']))->toBe(['source' => 'site', 'occurrences' => 1])
+        ->and($script->fingerprint)->not->toBe($api->fingerprint);
+});
+
+it('a fingerprint no issue has yet is used only when it is the one worked out now', function () {
+    $made = str_repeat('ab', 20);
+    errorsSpoolWrite($this->spool, ['class' => 'FreshException', 'fingerprint' => $made]);
+
+    expect(errorsSpoolImport())->toBe(1)
+        ->and(ErrorIssue::query()->sole()->fingerprint)->not->toBe($made)
+        ->toBe(ErrorFingerprint::of(ErrorScrubber::event(errorsSpoolEvent(['class' => 'FreshException']))));
+});
+
+it('a lock that runs out while a line is read back is the database being busy: the line waits, and no try is counted', function () {
+    $spool = app(ErrorSpool::class);
+    $spool->append(errorsSpoolEvent(['class' => 'AlphaException']));
+    $spool->append(errorsSpoolEvent(['class' => 'BravoException']));
+
+    // Another worker holds the issue's row for longer than the recorder waits: PostgreSQL cancels the statement (55P03).
+    $busy = true;
+    DB::connection()->beforeExecuting(function (string $sql) use (&$busy): void {
+        if ($busy && str_contains($sql, '"fingerprint" = ?')) {
+            $failure = new PDOException('SQLSTATE[55P03]: Lock not available: 7 ERROR:  canceling statement due to lock timeout');
+            $failure->errorInfo = ['55P03', 7, 'ERROR:  canceling statement due to lock timeout'];
+
+            throw new QueryException('pgsql', $sql, [], $failure);
+        }
+    });
+
+    // However many runs it lasts, no line is charged and none is dropped.
+    foreach (range(1, ErrorSpool::MAX_TRIES + 1) as $run) {
+        expect(errorsSpoolImport())->toBe(0);
+    }
+
+    expect(array_column(errorsSpoolLines($this->spool), 'class'))->toBe(['AlphaException', 'BravoException'])
+        ->and(array_column(errorsSpoolLines($this->spool), 'tries'))->toBe([])
+        ->and(errorsSpoolDropped())->toBe(0);
+
+    // The lock is let go: both come in.
+    $busy = false;
+
+    expect(errorsSpoolImport())->toBe(2)
+        ->and(errorsSpoolSize($this->spool))->toBe(0);
 });
 
 it('a fingerprint in a line that is not 40 hex characters is worked out again', function () {

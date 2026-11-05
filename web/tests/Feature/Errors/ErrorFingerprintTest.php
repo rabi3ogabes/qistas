@@ -500,6 +500,18 @@ dataset('errors fingerprint frames', [
         'app/Foo.php::App\\Foo->{closure}',
     ],
 
+    // PHP: a frame whose file the scrubber masked (outside the project) is still ours when its function is ours
+    'a masked file with our function' => [
+        "#0 [path](52): App\\Actions\\Act->handle()\n#1 vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(170): Illuminate\\Pipeline\\Pipeline->then()",
+        'server',
+        'App\\Actions\\Act->handle',
+    ],
+    'a masked file with a function that is not ours' => [
+        "#0 [path](52): Vendor\\Thing->run()\n#1 app/Foo.php(12): App\\Foo->bar()",
+        'server',
+        'app/Foo.php::App\\Foo->bar',
+    ],
+
     // PHP: our code in the function column, called by vendor code (a controller, a job, a command, a view)
     'a controller method called by the framework' => [
         errorsFingerprintControllerTrace('PaymentController'),
@@ -784,19 +796,15 @@ it('keeps a very long path within the width of the route column', function () {
 });
 
 it('reads a hostile path in no time: a path built to make the query pattern quadratic is cut before it is read', function () {
+    // This is the test of routePattern's 8192-byte cut: without it the lookahead of the query pattern reads about 65000 x
+    // 65000 / 2 characters. Only the time can tell: the scrubber cuts a route on its own as well, so what comes out is the
+    // same with or without the cut (a test that compared the result was dropped for that reason).
     $started = hrtime(true);
     $pattern = ErrorFingerprint::routePattern('/'.str_repeat('?', 65000).'}');
     $seconds = (hrtime(true) - $started) / 1e9;
 
     expect($seconds)->toBeLessThan(0.3)
         ->and(mb_strlen($pattern))->toBeLessThanOrEqual(ErrorScrubber::ROUTE_MAX);
-});
-
-it('reads at most 8192 bytes of a path', function () {
-    // The ? of an optional parameter is only one while the closing brace is in view; the brace is 9000 bytes away. Either
-    // way the segment is a brace that is no lone {name}, so it is {x}.
-    expect(ErrorFingerprint::routePattern('/a/{b?'.str_repeat('x', 9000).'}'))->toBe('/a/{x}')
-        ->and(ErrorFingerprint::routePattern('/a/{b?'.str_repeat('x', 100).'}'))->toBe('/a/{x}');
 });
 
 // ---- isScannerPath --------------------------------------------------------------------------------------------------

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Errors;
 
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -32,11 +33,13 @@ final class ErrorTrend
     /**
      * The last $days daily counts of each issue, oldest first, today last, a day with no sighting as 0. One query for all
      * the issues (a page of them), not one each. An id that has no days at all gets zeros; a repeated id is read once.
+     * "Today" is the day of $now on the application clock (now when not given), so a digest made for another moment reads
+     * the week of that moment, not of the real clock.
      *
      * @param  iterable<string>  $issueIds
      * @return array<string, list<int>> issue id => counts
      */
-    public static function days(iterable $issueIds, int $days = 7): array
+    public static function days(iterable $issueIds, int $days = 7, ?CarbonInterface $now = null): array
     {
         $days = max(1, $days);
         $ids = [];
@@ -49,7 +52,7 @@ final class ErrorTrend
             return [];
         }
 
-        $today = CarbonImmutable::now(self::timezone())->startOfDay();
+        $today = CarbonImmutable::instance($now ?? now())->setTimezone(self::timezone())->startOfDay();
         $slots = [];
 
         for ($back = $days - 1; $back >= 0; $back--) {
@@ -87,6 +90,21 @@ final class ErrorTrend
         $week = array_sum(array_slice($previousSevenDays, -self::WINDOW));
 
         return $today >= self::GROWING_MIN && $today * self::WINDOW >= self::GROWING_TIMES * $week;
+    }
+
+    /**
+     * Today's count and the seven days before it, from days() read WINDOW + 1 days at a time (oldest first, today last):
+     * what growing() is given. Fewer days give what there is; more give only the seven before today.
+     *
+     * @param  list<int>  $eightDays
+     * @return array{0: int, 1: list<int>}
+     */
+    public static function split(array $eightDays): array
+    {
+        $days = $eightDays;
+        $today = array_pop($days) ?? 0;
+
+        return [$today, array_slice($days, -self::WINDOW)];
     }
 
     /**

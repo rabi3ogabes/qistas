@@ -136,7 +136,9 @@ final class ErrorFingerprint
      * `-` when there is none. The trace is the scrubbed one: PHP frames are `#0 app/Foo.php(12): Foo->bar()`, a script
      * error is a browser stack, a phone crash is a Dart stack. Which one is read depends on the platform.
      *
-     * - server (PHP): the first frame whose file is under `app/`, with the function of that frame.
+     * - server (PHP): the first frame of ours, either a call made from a file under `app/` (`file::function`), or a call of
+     *   a function of ours (one under `App\`) whatever made it: the framework, a compiled view, a file the scrubber masked as
+     *   `[path]`, or nothing (`[internal function]`); then only the function (see phpFrame).
      * - web (JavaScript): the first frame in a script, with the file name without the hash a build puts in it
      *   (`app-Bx9a2c.js` is `app.js`) and the function.
      * - android, ios (Dart): the first frame in `package:qistas/`, as the path under it and the function.
@@ -218,7 +220,8 @@ final class ErrorFingerprint
      * - the call was made by the framework, so the file is vendor's (or a compiled view, or none) and ours is only the
      *   function: `#0 vendor/.../ControllerDispatcher.php(46): App\Http\Controllers\X->store()` is
      *   `App\Http\Controllers\X->store`. An exception thrown directly in a controller, a job, a command, a listener or a
-     *   middleware looks like this, and without it two controllers would share the middleware that calls them all.
+     *   middleware looks like this, and without it two controllers would share the middleware that calls them all. A file the
+     *   scrubber masked (`#0 [path](52): App\Act->handle()`, a copy of the code outside the project) is read the same way.
      */
     private static function phpFrame(string $trace): ?string
     {
@@ -230,7 +233,7 @@ final class ErrorFingerprint
         } while ($trace !== $before);
 
         foreach (self::lines($trace) as $line) {
-            if (preg_match('~^#\d+\s+(?<file>[^\s(]+?\.php)(?:\(\d+\))?:\s+(?<function>[^\s(]+)\(~u', $line, $found) === 1) {
+            if (preg_match('~^#\d+\s+(?<file>[^\s(]+?\.php|\[path\])(?:\(\d+\))?:\s+(?<function>[^\s(]+)\(~u', $line, $found) === 1) {
                 $file = $found['file'];
             } elseif (preg_match('~^#\d+\s+\[internal function\]:\s+(?<function>[^\s(]+)\(~u', $line, $found) === 1) {
                 $file = '';

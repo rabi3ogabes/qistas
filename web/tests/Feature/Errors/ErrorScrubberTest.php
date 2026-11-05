@@ -72,6 +72,11 @@ dataset('errors personal data', [
     'a card number' => ['Card 4111111111111111 declined', 'Card [id] declined'],
     'a card number in groups' => ['Card 4111 1111 1111 1111 declined', 'Card [id] declined'],
     'a card number with dashes' => ['Card 4111-1111-1111-1111 declined', 'Card [id] declined'],
+    // Hardening B3, B4: the last letter of a Qatari IBAN is part of it; a card's tail does not eat the phone after it.
+    'a Qatari IBAN in groups' => ['Pay to QA58 DOHB 0000 1234 5678 90AB CDEF G today', 'Pay to [id] today'],
+    'a Qatari IBAN in groups at the end' => ['IBAN QA58 DOHB 0000 1234 5678 90AB CDEF G', 'IBAN [id]'],
+    'a card and then a phone' => ['card 4111 1111 1111 1111 050 123 4567', 'card [id] [phone]'],
+    'a nineteen digit card in groups' => ['Card 6011 0009 9013 9424 123 declined', 'Card [id] declined'],
     'a record id' => ['No query results for 550e8400-e29b-41d4-a716-446655440000', 'No query results for [id]'],
 
     // tokens
@@ -365,6 +370,9 @@ dataset('errors personal data', [
     'a national id in camel case' => ['{"nationalId":"1234567890"}', '{"nationalId":[secret]}'],
     'an address in a PHP array' => ["'address' => 'Street 5, Doha'", "'address' => [secret]"],
     'a full name in a dump' => ['[full_name] => Fahad', '[full_name] => [secret]'],
+    // Only an error type is let through: a name written like a class is still a name.
+    'a name in JSON written like a class' => ['{"name":"FahadAlotaibi"}', '{"name":[secret]}'],
+    'a name in JSON that ends in Error with a space' => ['{"name":"Sara Error"}', '{"name":[secret]}'],
     'an Android storage path' => ['/storage/emulated/0/Download/contract-Fahad-Alotaibi.pdf', '[path]'],
     'an Android card path' => ['Cannot read /sdcard/Download/Fahad.pdf now', 'Cannot read [path] now'],
 ]);
@@ -423,6 +431,19 @@ dataset('errors readable text', [
     'a Dart frame' => '#0      main.<anonymous closure> (package:qistas/features/home/home_screen.dart:128:7)',
     'a JavaScript frame' => 'at onClick (https://qistas.app/build/assets/app-Bx9a2c.js:1:2345)',
     'Arabic text' => 'حدث خطأ أثناء حفظ العقد، حاول مرة أخرى',
+    // Hardening B1: a migration's name, and names built with two-letter parts.
+    'a migration name' => '2026_10_07_000400_create_customers_table',
+    'a migration in a trace frame' => '#3 database/migrations/2026_10_07_000400_create_customers_table.php(23): Illuminate\Database\Migrations\Migration@anonymous->up()',
+    'the framework\'s migration of users' => 'Migrating: 0001_01_01_000000_create_users_table',
+    'a class with Db in it' => 'Illuminate\Queue\Failed\DynamoDbFailedJobProvider',
+    'a class with Qr in it' => 'App\Documents\QrCodeGeneratorForInvoices',
+    'a class with Ip in it' => 'App\Http\Middleware\IpAddressAllowListMiddleware',
+    'a class with Ui in it' => 'App\View\UiComponentRendererService',
+    'a class with Io in it' => 'App\Support\IoExceptionHandlerFactory',
+    // Hardening B2: Laravel's pgsql grammar writes "column"::text for every like, and JSON names the error type.
+    'a PostgreSQL cast before a like' => 'select * from "customers" where "name"::text ilike ? and "phone"::text ilike ?',
+    'an error type in JSON' => '{"name":"TypeError","message":"x is undefined"}',
+    'an exception class in JSON' => '{"name":"App\\\\Exceptions\\\\PaymentException","code":0}',
 ]);
 
 it('removes personal data from a message', function (string $input, string $expected) {
@@ -657,6 +678,31 @@ it('leaves under one in a thousand random tokens in a sentence', function (strin
     'upper case 32' => ['upper', 32],
     'upper case 24' => ['upper', 24],
 ]);
+
+it('keeps the long names it meets in traces: every migration, and at least 98 % of the framework\'s long class names', function () {
+    $names = array_map('basename', glob(database_path('migrations/*.php')));
+
+    foreach ([base_path('vendor/laravel/framework/src'), base_path('vendor/symfony')] as $root) {
+        $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS));
+
+        foreach ($files as $file) {
+            $class = basename($file->getFilename(), '.php');
+
+            if (str_ends_with($file->getFilename(), '.php') && strlen($class) >= 24 && preg_match('~^[A-Za-z_]\w*$~D', $class) === 1) {
+                $names[] = $class;
+            }
+        }
+    }
+
+    $names = array_values(array_unique($names));
+    $failing = array_values(array_filter($names, fn (string $name): bool => ErrorScrubber::text($name) !== $name));
+    $rate = 1 - count($failing) / count($names);
+    $migrations = array_values(array_filter($failing, fn (string $name): bool => preg_match('~^\d{4}_\d{2}_\d{2}_\d{6}_~', $name) === 1));
+
+    expect(count($names))->toBeGreaterThan(200)
+        ->and($migrations)->toBe([], 'migration names masked: '.implode(', ', array_slice($migrations, 0, 10)))
+        ->and($rate)->toBeGreaterThanOrEqual(0.98, sprintf('%.2f %% of %d names survive; masked: %s', 100 * $rate, count($names), implode(', ', array_slice($failing, 0, 20))));
+});
 
 it('does not cut the middle of a value at the guard against huge texts', function (string $value, string $part) {
     // One long hash becomes one [token] and shrinks the text to a few characters; the guard cuts the raw text at 4096

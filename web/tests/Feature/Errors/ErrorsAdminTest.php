@@ -1133,6 +1133,34 @@ describe('times', function () {
     });
 });
 
+describe('the Arabic words agree with "issue"', function () {
+    it('calls an open issue مفتوحة, like محلولة and متجاهَلة, in the filter and on the page', function () {
+        $admin = errorsAdminUser();
+        $issue = errorsAdminIssue();
+
+        $list = $this->actingAs($admin)->get('/admin/errors?lang=ar')->assertOk()->getContent();
+        $page = $this->actingAs($admin)->get('/admin/errors/'.$issue->id.'?lang=ar')->assertOk()->getContent();
+
+        expect($list)->toContain('>مفتوحة</a>')->toContain('>محلولة</a>')->toContain('>متجاهَلة</a>')->not->toContain('>مفتوح</a>')
+            ->and($page)->toMatch('~<span class="badge[^"]*">مفتوحة</span>~u');
+    });
+
+    it('leaves the word the rest of the product shares as it is, and reads the same in English', function () {
+        app()->setLocale('ar');
+        expect(__('Open'))->toBe('مفتوح');
+
+        app()->setLocale('en');
+        expect(ErrorIssue::statusLabels()['open'])->toBe('Open issue');
+    });
+
+    it('calls the website الموقع wherever the Arabic file names it, never موقع الويب', function () {
+        $arabic = json_decode((string) file_get_contents(lang_path('app/ar.json')), true, flags: JSON_THROW_ON_ERROR);
+
+        expect($arabic['Website'])->toBe('الموقع')
+            ->and(collect($arabic)->filter(fn (string $text): bool => str_contains($text, 'موقع الويب'))->keys()->all())->toBe([]);
+    });
+});
+
 describe('Ignore asks for one more step, without script', function () {
     it('keeps the real button inside a closed details element, with the sentence that explains it', function () {
         $admin = errorsAdminUser();

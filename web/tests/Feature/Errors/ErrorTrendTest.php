@@ -94,6 +94,15 @@ describe('days', function () {
         expect($none)->toBe([])->and(ErrorTrend::days($generator))->toBe([$issue->id => [0, 0, 0, 0, 0, 0, 2]]);
     });
 
+    it('reads the days up to the moment it is given, on the application clock, not up to now', function () {
+        config(['app.timezone' => 'Asia/Riyadh']);
+        $issue = errorsTrendIssue(['2026-11-04' => 9, '2026-11-01' => 3, '2026-10-31' => 2, '2026-10-29' => 1]);
+
+        // 23:00 on 31 October in UTC is 02:00 on 1 November in Riyadh: that is the last day of the window.
+        expect(ErrorTrend::days([$issue->id], 4, CarbonImmutable::parse('2026-10-31 23:00:00', 'UTC'))[$issue->id])->toBe([1, 0, 2, 3])
+            ->and(ErrorTrend::days([$issue->id], 4)[$issue->id])->toBe([3, 0, 0, 9]);
+    });
+
     it('counts a day on the application clock, as the recorder writes it', function () {
         config(['app.timezone' => 'Asia/Riyadh']);
         // 01:30 on 5 November in Riyadh, still 4 November in UTC.
@@ -127,10 +136,20 @@ describe('growing', function () {
         $steady = errorsTrendIssue(['2026-11-04' => 6, '2026-11-03' => 5, '2026-11-02' => 5, '2026-11-01' => 5, '2026-10-31' => 5, '2026-10-30' => 5, '2026-10-29' => 5, '2026-10-28' => 5]);
 
         $series = ErrorTrend::days([$growing->id, $steady->id], 8);
-        $check = fn (string $id): bool => ErrorTrend::growing($series[$id][7], array_slice($series[$id], 0, 7));
+        $check = fn (string $id): bool => ErrorTrend::growing(...ErrorTrend::split($series[$id]));
 
         expect($check($growing->id))->toBeTrue()->and($check($steady->id))->toBeFalse();
     });
+
+    it('splits eight days into today and the seven before it', function (array $days, int $today, array $before) {
+        expect(ErrorTrend::split($days))->toBe([$today, $before]);
+    })->with([
+        'eight days' => [[1, 2, 3, 4, 5, 6, 7, 8], 8, [1, 2, 3, 4, 5, 6, 7]],
+        'more than eight: only the seven before today' => [[9, 9, 1, 2, 3, 4, 5, 6, 7, 8], 8, [1, 2, 3, 4, 5, 6, 7]],
+        'fewer than eight' => [[4, 5], 5, [4]],
+        'one day' => [[3], 3, []],
+        'none' => [[], 0, []],
+    ]);
 });
 
 describe('noise', function () {

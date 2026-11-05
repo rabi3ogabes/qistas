@@ -166,7 +166,9 @@ class ErrorIssue extends Model
     /** @return array<string, string> the statuses in plain words, by key */
     public static function statusLabels(): array
     {
-        return [self::STATUS_OPEN => __('Open'), self::STATUS_RESOLVED => __('Resolved'), self::STATUS_IGNORED => __('Ignored')];
+        // A key of its own for "open": the product's shared "Open" is masculine in Arabic (an open contract), and an issue
+        // (مشكلة) is feminine, as the words for resolved and ignored already are.
+        return [self::STATUS_OPEN => __('Open issue'), self::STATUS_RESOLVED => __('Resolved'), self::STATUS_IGNORED => __('Ignored')];
     }
 
     /** How many issues are waiting for a look; the badge on the admin menu. */

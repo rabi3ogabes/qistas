@@ -23,6 +23,7 @@ use App\Models\Contract;
 use App\Models\Customer;
 use App\Models\DayClose;
 use App\Models\Investor;
+use App\Models\PersonalAccessToken;
 use App\Models\Tenant;
 use App\Models\TenantInvitation;
 use App\Models\User;
@@ -65,6 +66,7 @@ use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\Validator;
 use Laravel\Passkeys\Passkeys;
 use Laravel\Sanctum\Events\TokenAuthenticated;
+use Laravel\Sanctum\Sanctum;
 use League\Flysystem\Filesystem;
 use Throwable;
 
@@ -190,6 +192,9 @@ class AppServiceProvider extends ServiceProvider
 
         Paginator::defaultView('pagination.qistas');
         Paginator::defaultSimpleView('pagination.qistas');
+
+        // A bearer token whose id no row can have is nobody, never a query PostgreSQL refuses (see the model).
+        Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
 
         // A mistake names the field the way its form labels it, in the person's language ("the price", never
         // "principal"). A validator that names its own fields keeps its names.

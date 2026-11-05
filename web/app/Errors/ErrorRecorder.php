@@ -10,6 +10,7 @@ use App\Models\ErrorOccurrence;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Closure;
+use Illuminate\Cache\DatabaseStore;
 use Illuminate\Database\Connection;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Cache;
@@ -35,9 +36,12 @@ use Throwable;
  *   - While it is at work (a listener of ErrorIssueCreated, a query listener reacting to its own queries) a nested call
  *     writes nothing: record() returns Dropped, replay() throws RecorderBusy. A failure of the error center itself cannot
  *     loop back into it.
- *   - Every statement it sends runs inside one of its own transactions (transaction()), so a refused statement never
- *     leaves a caller's PostgreSQL transaction in a failed state (inside a caller's transaction, Laravel's nesting is a
- *     savepoint), and on PostgreSQL no lock is waited for longer than a second.
+ *   - Every statement it sends to record an event runs inside one of its own transactions (transaction()), so a refused
+ *     statement never leaves a caller's PostgreSQL transaction in a failed state (inside a caller's transaction, Laravel's
+ *     nesting is a savepoint), and on PostgreSQL no lock is waited for longer than a second. Two things are not: noise()
+ *     is one upsert with no transaction, no savepoint and no lock timeout (it holds its day's row only for the moment of
+ *     that statement; the capture layer calls it after the answer, outside any caller's transaction), and the flood-cap
+ *     counters get a transaction only when the cache keeps them in this database (counting()).
  *   - The counters are added to in the database (`occurrences = occurrences + 1`), never written back as a number read
  *     before.
  *   - QISTAS_ERRORS=false: nothing is written anywhere, not even the spool.
@@ -230,9 +234,9 @@ final class ErrorRecorder
 
     /**
      * Records an event read back from the spool: the same as record(), except that a database that still refuses it
-     * throws, so the spool keeps the line instead of writing it a second time. The fingerprint the line was written with
-     * is used when it is one (40 hex characters), so the scrubber's rare second opinion on a text can never open a second
-     * issue for the same failure.
+     * throws, so the spool keeps the line instead of writing it a second time. The fingerprint the line was written with is
+     * used only when it can be believed (trustedFingerprint): so the scrubber's rare second opinion on a text never opens a
+     * second issue for the same failure, and a line edited by hand can never choose the issue it is counted on.
      *
      * @throws RecorderBusy when the recorder is already at work: the line was not recorded and must be kept
      * @throws Throwable when the database refuses the write
@@ -251,12 +255,32 @@ final class ErrorRecorder
 
         try {
             $scrubbed = ErrorScrubber::event($event);
-            $known = $fingerprint !== null && preg_match('~^[0-9a-f]{40}$~D', $fingerprint) === 1;
 
-            return $this->write($scrubbed, $known ? $fingerprint : ErrorFingerprint::of($scrubbed), null);
+            return $this->write($scrubbed, $this->trustedFingerprint($scrubbed, $fingerprint), null);
         } finally {
             self::$busy = false;
         }
+    }
+
+    /**
+     * The fingerprint a spool line is recorded under. The one it was written with (40 hex characters) when an issue with it
+     * exists and is of the same source and kind as the line: the same failure, whatever a second scrubbing of its text says.
+     * Otherwise the one worked out from the line now: a fingerprint no issue has yet is never taken on the line's word (it
+     * would be the same as the one worked out, or a choice the line made), nor one of an issue of another source or kind (a
+     * browser's script error counted on an API failure, which can send the instant e-mail). Throws what the database throws.
+     */
+    private function trustedFingerprint(ErrorEvent $scrubbed, ?string $stored): string
+    {
+        $computed = ErrorFingerprint::of($scrubbed);
+
+        if ($stored === null || $stored === $computed || preg_match('~^[0-9a-f]{40}$~D', $stored) !== 1) {
+            return $computed;
+        }
+
+        $db = self::connection();
+        $issue = self::transaction($db, static fn (): ?ErrorIssue => ErrorIssue::query()->where('fingerprint', $stored)->first(['source', 'kind']));
+
+        return $issue !== null && $issue->source === $scrubbed->source && $issue->kind === $scrubbed->kind ? $stored : $computed;
     }
 
     /**
@@ -479,8 +503,9 @@ final class ErrorRecorder
 
     /**
      * May a new issue be opened now? Takes a place in the minute's and the hour's counters of its budget and returns the
-     * counters it took (to give back if another request opens the issue first), or null when either is full. Counted in a
-     * transaction of its own, so a cache kept in the database waits for its row at most as long as any other write.
+     * counters it took (to give back if another request opens the issue first), or null when either is full. A cache kept
+     * in this database counts in a transaction of its own, so it waits for its row at most as long as any other write
+     * (counting()).
      *
      * For what a client reports, and a sender given, the sender's own counter for the hour comes first: a sender over its
      * quota is turned away before it touches the budget everyone shares, and a place it took is given back when the budget
@@ -534,7 +559,7 @@ final class ErrorRecorder
     private function withinBudget(Connection $db, string $key, int $limit, int $seconds): bool
     {
         try {
-            $count = self::transaction($db, static function () use ($key, $seconds): mixed {
+            $count = self::counting($db, static function () use ($key, $seconds): mixed {
                 Cache::add($key, 0, $seconds);
 
                 return Cache::increment($key);
@@ -555,11 +580,32 @@ final class ErrorRecorder
     {
         foreach ($taken as $key) {
             try {
-                self::transaction($db, static fn (): mixed => Cache::decrement($key));
+                self::counting($db, static fn (): mixed => Cache::decrement($key));
             } catch (Throwable) {
                 // a place not given back is only a place less in this minute
             }
         }
+    }
+
+    /**
+     * Runs $work on the cache's counters: in a transaction of the recorder's own when the cache keeps them in this database
+     * (so a cache row waits for its lock no longer than any other write, and a refusal never spoils a caller's transaction),
+     * and as it is otherwise. A cache in memory, Redis or a file has nothing for a transaction to hold: on PostgreSQL that
+     * would be a BEGIN, a SET and a COMMIT for nothing, twice for every new issue.
+     *
+     * @template T
+     *
+     * @param  Closure(): T  $work
+     * @return T
+     */
+    private static function counting(Connection $db, Closure $work): mixed
+    {
+        $store = Cache::getStore();
+        $cache = $store instanceof DatabaseStore ? $store->getConnection() : null;
+
+        return $cache instanceof Connection && $cache->getName() === $db->getName()
+            ? self::transaction($db, $work)
+            : $work();
     }
 
     /** Fires ErrorIssueCreated once the transaction that opened the issue has committed; a listener's failure stays its own. */

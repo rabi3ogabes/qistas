@@ -16,9 +16,9 @@ use Throwable;
  * The file holds one JSON object per line: the fields of ErrorEvent::toArray() of the SCRUBBED event (append() scrubs it
  * again, so nothing that was not cleaned ever reaches the disk), except that `user_id` is never a user id: it is `h:`
  * followed by the 16 hex characters of the person hash (ErrorRecorder::spooledPerson), or null. Each line also carries
- * `fingerprint`, the 40 hex characters the direct write would have used (the import uses it again, so it counts the very
- * same issue), and a line the database has refused while its tables answered carries `tries`, the number of those
- * refusals.
+ * `fingerprint`, the 40 hex characters the direct write would have used (the import uses it again for an issue of the same
+ * source and kind, so it counts the very same issue; see ErrorRecorder::replay), and a line the database has refused while
+ * its tables answered carries `tries`, the number of those refusals.
  *
  * Rules:
  *   - append() never throws and never blocks for long: it takes the file's lock (LOCK_EX) only to check the size and
@@ -31,7 +31,8 @@ use Throwable;
  *     refuses (keeping it and the rest), or after a time budget, so a full spool on a slow database is worked off over
  *     several runs instead of never finishing. A line that cannot be read is skipped and counted as dropped. A line the
  *     database refuses three times while its tables answer is dropped too, so one bad line can never hold back the
- *     spool for good. A line the recorder could not take because it was at work is kept, untouched.
+ *     spool for good; a lock that was not let go in time (55P03) is not held against the line, like a database that is
+ *     away. A line the recorder could not take because it was at work is kept, untouched.
  *   - With QISTAS_ERRORS=false nothing is written and nothing is read.
  */
 final class ErrorSpool
@@ -47,6 +48,9 @@ final class ErrorSpool
 
     /** Read to tell "the database is away" (keep every line) from "this line is refused" (count a try against it). */
     private const TABLES = ['error_issues', 'error_occurrences', 'error_issue_days', 'error_issue_people', 'error_noise_days'];
+
+    /** PostgreSQL's "lock not available": a statement that waited for a lock longer than lock_timeout. */
+    private const LOCK_NOT_AVAILABLE = '55P03';
 
     /** What a replay can say that means the line is in the tables. */
     private const RECORDED = [Recorded::Created, Recorded::Counted, Recorded::Reopened];
@@ -213,14 +217,17 @@ final class ErrorSpool
                 continue;
             }
 
+            $busy = false;
+
             try {
                 $recorded = $recorder->replay($event, is_string($data['fingerprint'] ?? null) ? $data['fingerprint'] : null);
             } catch (RecorderBusy) {
                 $kept = self::rest($lines, $index); // not refused, only not now: kept as it is, no try counted
 
                 break;
-            } catch (Throwable) {
-                $recorded = null; // refused: see below whether by a database that is away or for this line alone
+            } catch (Throwable $refused) {
+                $recorded = null; // refused: see below whether by a database that is away or busy, or for this line alone
+                $busy = self::lockTimedOut($refused);
             }
 
             if ($recorded !== null) {
@@ -233,8 +240,10 @@ final class ErrorSpool
                 continue;
             }
 
-            if (! $this->tablesAnswer()) {
-                $kept = self::rest($lines, $index); // still away: this line and the rest wait, untouched
+            // Still away, or busy (a lock on the issue's row was not let go in time: under a flood of one failure that row is
+            // hot, and the line is as good as any other): this line and the rest wait, untouched, and no try is counted.
+            if ($busy || ! $this->tablesAnswer()) {
+                $kept = self::rest($lines, $index);
 
                 break;
             }
@@ -290,6 +299,17 @@ final class ErrorSpool
         });
 
         return is_int($cut) ? $cut : 0;
+    }
+
+    /**
+     * Did the database give up waiting for a lock (PostgreSQL's SQLSTATE 55P03, the recorder's LOCK_TIMEOUT running out)?
+     * That says the database is busy, not that the line is wrong.
+     */
+    private static function lockTimedOut(Throwable $refused): bool
+    {
+        $failure = DatabaseFailure::in($refused);
+
+        return $failure !== null && DatabaseFailure::sqlState($failure) === self::LOCK_NOT_AVAILABLE;
     }
 
     /**

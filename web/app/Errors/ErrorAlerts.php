@@ -166,7 +166,7 @@ final class ErrorAlerts
 
         $cameBack = $this->ids($this->open()->where('reopened_at', '>=', $since), []);
         $new = $this->ids($this->open()->where('first_seen_at', '>=', $since), $cameBack);
-        $growing = $this->growing($since, [...$cameBack, ...$new]);
+        $growing = $this->growing($now, $since, [...$cameBack, ...$new]);
 
         if ($cameBack === [] && $new === [] && $growing === []) {
             return DigestOutcome::NothingToSend;
@@ -291,14 +291,15 @@ final class ErrorAlerts
     }
 
     /**
-     * The open issues seen in the window that are growing by the one rule (ErrorTrend::growing): today's count against the
-     * seven days before it, so eight days are read at once. An issue seen fewer times than the rule asks for in a day cannot
-     * be growing, so it is not even looked at.
+     * The open issues seen in the window that are growing by the one rule (ErrorTrend::growing): the count of the digest's
+     * day ($now on the application clock) against the seven days before it, so eight days are read at once, on the same
+     * clock as the window. An issue seen fewer times than the rule asks for in a day cannot be growing, so it is not even
+     * looked at.
      *
      * @param  list<string>  $taken
      * @return list<string>
      */
-    private function growing(CarbonImmutable $since, array $taken): array
+    private function growing(CarbonInterface $now, CarbonImmutable $since, array $taken): array
     {
         $candidates = $this->ids(
             $this->open()->where('last_seen_at', '>=', $since)->where('occurrences', '>=', ErrorTrend::GROWING_MIN),
@@ -309,13 +310,12 @@ final class ErrorAlerts
             return [];
         }
 
-        $days = ErrorTrend::days($candidates, ErrorTrend::WINDOW + 1);
+        $days = ErrorTrend::days($candidates, ErrorTrend::WINDOW + 1, $now);
 
         return array_values(array_filter($candidates, static function (string $id) use ($days): bool {
             $counts = $days[$id] ?? [];
 
-            return $counts !== []
-                && ErrorTrend::growing($counts[ErrorTrend::WINDOW], array_slice($counts, 0, ErrorTrend::WINDOW));
+            return $counts !== [] && ErrorTrend::growing(...ErrorTrend::split($counts));
         }));
     }
 
