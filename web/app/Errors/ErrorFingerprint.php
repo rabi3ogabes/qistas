@@ -176,7 +176,8 @@ final class ErrorFingerprint
             explode('/', $path),
         ));
 
-        // The scrubber does the rest: ids, masks of personal data, the width of the column.
+        // The scrubber does the rest: percent escapes, a segment that is no plain path ({x}), ids, masks of personal data,
+        // the width of the column.
         $pattern = ErrorScrubber::route($path) ?? '/';
 
         return str_starts_with($pattern, '/') ? $pattern : '/'.$pattern;

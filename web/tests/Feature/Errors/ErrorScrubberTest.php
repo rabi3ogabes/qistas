@@ -848,6 +848,31 @@ it('reduces a route to its pattern', function (?string $route, ?string $expected
         '/api/v1/push-tokens/dGVzdDp0b2tlbg%3AAPA91bHun4MxP5egoKMwt2KZFBaFUH-1RYqx9z2LmZp0Vb7TrYw3NcJ8aDh5sFgHjK',
         '/api/v1/push-tokens/{id}',
     ],
+    // What is no plain path once its escapes are read: that segment is {x}, the rest stays.
+    'markup in percent escapes' => ['/help/%3Cscript%3E/x', '/help/{x}/x'],
+    'markup escaped twice' => ['/help/%253Cb%253E/x', '/help/{x}/x'],
+    'escapes still left after three rounds' => ['/help/%25252522/x', '/help/{x}/x'],
+    'a quote' => ['/help/what\'s-new', '/help/{x}'],
+    'a backtick' => ['/help/a%60b', '/help/{x}'],
+    'a backslash' => ['/help/a%5Cb', '/help/{x}'],
+    'a space' => ['/help/a%20b/x', '/help/{x}/x'],
+    'a line break' => ['/help/a%0Ab', '/help/{x}'],
+    'an invisible character' => ['/help/a%E2%80%8Bb', '/help/{x}'],
+    'a brace that is no parameter' => ['/help/{a}b', '/help/{x}'],
+    'braces in the escapes' => ['/help/%7Bconstructor%7D.x', '/help/{x}'],
+    'bytes that are not UTF-8' => ['/help/%C3%28', '/help/{x}'],
+    'an Arabic word, escaped' => ['/ar/%D8%A3%D8%B3%D8%B9%D8%A7%D8%B1', '/ar/أسعار'],
+    'a percent sign that escapes nothing' => ['/sale/100%25', '/sale/100%'],
+    'a question mark written as an escape is a query string' => ['/help/topic%3Fq=%3Cb%3E', '/help/topic'],
+]);
+
+it('a route scrubbed once is scrubbed for good: scrubbing it again changes nothing', function (string $route) {
+    $once = ErrorScrubber::route($route);
+
+    expect(ErrorScrubber::route($once))->toBe($once);
+})->with([
+    '/%3Cscript%3Ealert(1)%3C/script%3E', '/%253Cscript%253E', '/a/%25252522x', '/ar/%D8%A3%D8%B3%D8%B9%D8%A7%D8%B1',
+    '/sale/100%25', '/app/customers/{customer?}', '/x/%2541%2542', '/p/%2B966501234567', '/help/{x}/x', '/a%2Fb%2F%3C',
 ]);
 
 it('clamps every field of an event to the width of its column, after masking', function () {

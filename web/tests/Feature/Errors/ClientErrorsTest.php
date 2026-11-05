@@ -411,7 +411,9 @@ it('the route of a script error is the router\'s pattern, never the address: a c
     'a link to sign' => ['/sign/AbCdEfGhIj1234567890KlMnOpQrStUv', '/sign/{token}'],
     'an address only a POST answers, with a token in it (the fallback answers a GET for it, so the router is asked again)' => ['/sign/AbCdEfGhIj1234567890KlMnOpQrStUv/code', '/sign/{token}/code'],
     'a customer' => ['/app/customers/0b8a7c1e-6a0e-4d4f-9a52-3f1d1b2c4e5f?tab=payments', '/app/customers/{customer}'],
-    'a customer, as the script sends it' => ['/app/customers/{id}', '/app/customers/{customer}'],
+    // A path with a brace is a pattern the script made already: it is not asked of the router again.
+    'a customer, as the script sends it' => ['/app/customers/{id}', '/app/customers/{id}'],
+    'a sign link, as the script sends it' => ['/sign/{id}/code', '/sign/{id}/code'],
     'a page that has a fixed address' => ['/pricing', '/pricing'],
     'a page of the website in a language' => ['/ar/pricing', '/{locale}/pricing'],
     'the home page' => ['/', '/'],
@@ -453,6 +455,26 @@ it('markup in the route the controller does let through (it starts with a slash)
     expect(ErrorIssue::query()->sole()->samples()->sole()->route)->toBeNull()->and(errorsClientStored())->not->toContain('onerror');
 });
 
+it('markup written in percent escapes never reaches storage either: a segment that decodes to it is {x}', function (string $sent, string $stored) {
+    errorsClientSendSite(errorsClientSite(['route' => $sent]))->assertNoContent();
+
+    $route = ErrorIssue::query()->sole()->samples()->sole()->route;
+
+    expect($route)->toBe($stored);
+    foreach (['<', '>', '"', "'", '%'] as $character) {
+        expect($route)->not->toContain($character);
+    }
+    foreach (['<script', '<img', 'onerror', 'alert(', '%3C', '%253C', '%22'] as $markup) {
+        expect(errorsClientStored())->not->toContain($markup);
+    }
+})->with([
+    'a script tag' => ['/%3Cscript%3Ealert(1)%3C/script%3E', '/{x}/{x}'],
+    'a script tag escaped twice' => ['/%253Cscript%253Ealert(1)%253C/script%253E', '/{x}/{x}'],
+    'an attribute that breaks out' => ['/%22%3E%3Cimg%20src=x%20onerror=alert(1)%3E', '/{x}'],
+    'escaped three times, then once more than that' => ['/a/%25252522x', '/a/{x}'],
+    'an Arabic word, escaped as browsers send it' => ['/ar/%D8%A3%D8%B3%D8%B9%D8%A7%D8%B1', '/ar/أسعار'],
+]);
+
 it('the class of a script error is a name, and the route an address: the script sends nothing else', function (string $field, string $value, bool $taken) {
     $response = errorsClientSendSite(errorsClientSite([$field => $value]));
 
@@ -467,6 +489,9 @@ it('the class of a script error is a name, and the route an address: the script 
     'words' => ['class', 'Not a class', false],
     'a digit first' => ['class', '1Error', false],
     'a quote' => ['class', 'Type"Error', false],
+    // A $ in a pattern matches before a closing line break too, unless the pattern says otherwise (and the reporters'
+    // routes are not trimmed).
+    'a name and a line break' => ['class', "TypeError\n", false],
     'a slash route' => ['route', '/app/contracts/{id}', true],
     'a bare slash' => ['route', '/', true],
     'a route with a query string' => ['route', '/pricing?lang=ar', true],
@@ -838,12 +863,13 @@ it('a refused request is not counted against the address, and costs no query', f
 
     errorsClientSendSite(errorsClientSite(), ['REMOTE_ADDR' => '10.60.0.1'])->assertStatus(429);
 
-    // And a refusal runs no statement at all: nothing reads the cache, the tokens or the tables. (The website's 403 is the
-    // exception after the answer: the capture layer counts it as dropped, with one statement.)
+    // And a refusal runs no statement at all: nothing reads the cache, the tokens or the tables, and nothing counts it after
+    // the answer either (a refusal at a reporter is not "dropped").
     $queries = [];
     DB::listen(function ($query) use (&$queries): void {
         $queries[] = $query->sql;
     });
+    errorsClientSendSite(errorsClientSite(), ['REMOTE_ADDR' => '10.60.0.3', 'HTTP_ORIGIN' => 'https://evil.example'])->assertForbidden();
     errorsClientSendSite(errorsClientSite(), ['REMOTE_ADDR' => '10.60.0.3', 'CONTENT_TYPE' => 'text/plain'])->assertStatus(415);
     errorsClientSendSite(errorsClientPadded(errorsClientSite(), 9000), ['REMOTE_ADDR' => '10.60.0.3'])->assertStatus(413);
     errorsClientSendApp(errorsClientApp(), ['REMOTE_ADDR' => '10.60.0.4', 'HTTP_ORIGIN' => 'https://evil.example', 'HTTP_AUTHORIZATION' => 'Bearer 1|'.Str::random(40)])->assertForbidden();
@@ -955,6 +981,103 @@ it('a phone is held to the same quota by its token, whatever addresses it comes 
     }
 
     expect(ErrorIssue::query()->count())->toBe(8);
+});
+
+it('one person is one sender however many times they sign in: 40 tokens open 3 new issues in the hour, in all', function () {
+    $this->freezeTime();
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+
+    // A free account signing in again and again (each sign-in makes a token), each time from another address, and each
+    // token sending one new crash: the quota is the person's, not each token's.
+    foreach (range(1, 40) as $n) {
+        errorsClientSendApp(
+            errorsClientApp(['class' => 'SignInFlood'.errorsClientWord($n)]),
+            ['HTTP_AUTHORIZATION' => 'Bearer '.errorsClientToken($user), 'REMOTE_ADDR' => '10.72.0.'.$n],
+        )->assertNoContent();
+    }
+
+    expect(ErrorIssue::query()->count())->toBe(3)
+        ->and(errorsClientNoise('dropped'))->toBe(37)
+        // and the person counted on them is that one person
+        ->and(DB::table('error_issue_people')->pluck('person')->unique()->values()->all())->toBe([errorsClientPerson($user->id)]);
+
+    // Another person is not held back by it, and a crash the first one already reported still counts.
+    errorsClientSendApp(errorsClientApp(['class' => 'SignInFloodOther']), ['HTTP_AUTHORIZATION' => 'Bearer '.errorsClientToken($other), 'REMOTE_ADDR' => '10.72.0.1'])->assertNoContent();
+    errorsClientSendApp(errorsClientApp(['class' => 'SignInFlood'.errorsClientWord(1)]), ['HTTP_AUTHORIZATION' => 'Bearer '.errorsClientToken($user), 'REMOTE_ADDR' => '10.72.0.99'])->assertNoContent();
+
+    expect(ErrorIssue::query()->count())->toBe(4)
+        ->and(ErrorIssue::query()->where('class', 'SignInFlood'.errorsClientWord(1))->sole()->occurrences)->toBe(2);
+
+    // The hour after, the person may open three again.
+    $this->travel(61)->minutes();
+
+    foreach (range(41, 44) as $n) {
+        errorsClientSendApp(errorsClientApp(['class' => 'SignInFlood'.errorsClientWord($n)]), ['HTTP_AUTHORIZATION' => 'Bearer '.errorsClientToken($user), 'REMOTE_ADDR' => '10.72.1.'.$n])->assertNoContent();
+    }
+
+    expect(ErrorIssue::query()->count())->toBe(7);
+});
+
+it('the request limit stays the token\'s: one person\'s second phone is not slowed by the first one\'s 30 a minute', function () {
+    $user = User::factory()->create();
+    $phone = errorsClientToken($user);
+    $tablet = errorsClientToken($user);
+
+    foreach (range(1, 30) as $n) {
+        errorsClientSendApp(errorsClientApp(), ['HTTP_AUTHORIZATION' => 'Bearer '.$phone, 'REMOTE_ADDR' => '10.75.0.1'])->assertNoContent();
+    }
+
+    errorsClientSendApp(errorsClientApp(), ['HTTP_AUTHORIZATION' => 'Bearer '.$phone, 'REMOTE_ADDR' => '10.75.0.1'])->assertStatus(429);
+    errorsClientSendApp(errorsClientApp(), ['HTTP_AUTHORIZATION' => 'Bearer '.$tablet, 'REMOTE_ADDR' => '10.75.0.1'])->assertNoContent();
+});
+
+it('a phone without a token is held to the quota by its address', function () {
+    $this->freezeTime();
+
+    foreach (range(1, 5) as $n) {
+        errorsClientSendApp(errorsClientApp(['class' => 'Anonymous'.errorsClientWord($n)]), ['REMOTE_ADDR' => '10.73.0.1'])->assertNoContent();
+    }
+
+    errorsClientSendApp(errorsClientApp(['class' => 'Anonymous'.errorsClientWord(6)]), ['REMOTE_ADDR' => '10.73.0.2'])->assertNoContent();
+
+    expect(ErrorIssue::query()->count())->toBe(4)->and(errorsClientNoise('dropped'))->toBe(2);
+});
+
+it('a token made for something else is nobody for the quota too: its reports count against the address, not the person', function () {
+    $this->freezeTime();
+    $user = User::factory()->create();
+    $books = $user->createToken('books', ['integration'])->plainTextToken;
+    $sheets = $user->createToken('sheets', ['integration'])->plainTextToken;
+
+    // Two integration tokens of one person from one address: that address's three.
+    foreach (range(1, 5) as $n) {
+        errorsClientSendApp(errorsClientApp(['class' => 'Integration'.errorsClientWord($n)]), ['HTTP_AUTHORIZATION' => 'Bearer '.($n % 2 === 0 ? $books : $sheets), 'REMOTE_ADDR' => '10.74.0.1'])->assertNoContent();
+    }
+
+    expect(ErrorIssue::query()->count())->toBe(3);
+
+    // The same person on the phone app is a person: a quota of its own.
+    errorsClientSendApp(errorsClientApp(['class' => 'Integration'.errorsClientWord(6)]), ['HTTP_AUTHORIZATION' => 'Bearer '.errorsClientToken($user), 'REMOTE_ADDR' => '10.74.0.1'])->assertNoContent();
+
+    expect(ErrorIssue::query()->count())->toBe(4)->and(DB::table('error_issue_people')->count())->toBe(1);
+});
+
+it('what the website endpoint refuses is counted nowhere: 50 posts from a foreign page leave no dropped count and no issue', function () {
+    foreach (range(1, 50) as $n) {
+        errorsClientSendSite(errorsClientSite(['message' => 'Forged '.errorsClientWord($n)]), ['HTTP_ORIGIN' => 'https://evil.example', 'REMOTE_ADDR' => '10.62.0.1'])->assertForbidden();
+    }
+
+    errorsClientNothingStored();
+});
+
+it('a throttled address is not counted as dropped either: only the reports it was allowed are counted', function () {
+    foreach (range(1, 25) as $n) {
+        errorsClientSendSite(errorsClientSite(), ['REMOTE_ADDR' => '10.63.0.1']);
+    }
+
+    expect(ErrorIssue::query()->sole()->only(['kind', 'occurrences']))->toBe(['kind' => 'script', 'occurrences' => 20])
+        ->and(errorsClientNoise('dropped'))->toBe(0);
 });
 
 // ---- no session, no cookie, no token ----------------------------------------------------------------------------------

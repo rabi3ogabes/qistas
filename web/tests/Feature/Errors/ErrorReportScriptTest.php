@@ -361,7 +361,8 @@ describe('what is sent', function () {
 
         expect($issues)->toHaveCount(2)
             ->and($issues->first()->only(['source', 'kind', 'class']))->toBe(['source' => 'site', 'kind' => 'script', 'class' => 'TypeError'])
-            ->and($sample->route)->toBe('/app/customers/{customer}') // the router's name for it, not the script's
+            // The script hid the id already, so the router is not asked again: the script's pattern is kept.
+            ->and($sample->route)->toBe('/app/customers/{id}')
             ->and($sample->platform)->toBe('web')
             ->and(ErrorFingerprint::topFrame($sample->trace, 'web'))->toBe('app.js::pick');
     });

@@ -46,8 +46,8 @@ use Throwable;
  * in the cache, keyed by the minute and the hour. A failure that can send the instant e-mail never shares a budget with what
  * any visitor can make at will (a new 404 for a made-up path, a browser's script error, a phone's crash) or with slow
  * queries, so no flood of those can stop a real server error being opened; and browsers' script errors and phones' crashes
- * have a budget each. Inside the client budgets one sender (an address, an app token) may open only SENDER_NEW_ISSUES new
- * issues an hour, so one sender cannot use a whole budget up. A sighting of a known issue is never capped. A counter
+ * have a budget each. Inside the client budgets one sender (an address, or the person on a phone's app token) may open only
+ * SENDER_NEW_ISSUES new issues an hour, so one sender cannot use a whole budget up. A sighting of a known issue is never capped. A counter
  * that cannot be read or written keeps the gate shut (fails closed): a failing cache can never let a flood through.
  * Everything over a cap is counted as `dropped` in error_noise_days, so nothing is invisible.
  */
@@ -74,8 +74,9 @@ final class ErrorRecorder
     ];
 
     /**
-     * How many new client issues one sender (a browser's address, a phone's token) may open in an hour. A budget is shared by
-     * everyone; this keeps one sender from using all of it (ruling R18).
+     * How many new client issues one sender (a browser's address, the person on a phone's token, or a phone's address when it
+     * has no token) may open in an hour. A budget is shared by everyone; this keeps one sender from using all of it (ruling
+     * R18). By person, not by token: every sign-in makes a new token (ClientSender::quotaKey).
      */
     public const SENDER_NEW_ISSUES = 3;
 
@@ -186,10 +187,10 @@ final class ErrorRecorder
      * goes to the spool (Spooled), and when the spool cannot take it either, it is lost (Dropped).
      *
      * $sender is for what a client reports (a browser's script error, a phone's crash): an opaque key for whoever sent it,
-     * which the intake builds from the address or the app token. It is used for one thing, SENDER_NEW_ISSUES: a sender
-     * that has opened that many new issues this hour gets no more (Dropped, counted), and takes nothing from the budget of
-     * everyone else. It is turned into a keyed hash for the cache key and never stored, written to the spool or logged.
-     * A sighting of an issue that exists is never held to it.
+     * which the controller builds from the address or the person on the app token (ClientSender::quotaKey). It is used for
+     * one thing, SENDER_NEW_ISSUES: a sender that has opened that many new issues this hour gets no more (Dropped, counted),
+     * and takes nothing from the budget of everyone else. It is turned into a keyed hash for the cache key and never
+     * stored, written to the spool or logged. A sighting of an issue that exists is never held to it.
      */
     public function record(ErrorEvent $event, ?string $sender = null): Recorded
     {

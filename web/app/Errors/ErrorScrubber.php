@@ -57,6 +57,12 @@ final class ErrorScrubber
 
     public const DEVICES = ['desktop', 'mobile', 'tablet'];
 
+    /** What a segment of a route becomes when it holds what no plain path does (markup, a quote, a space ...): see route(). */
+    public const UNPLAIN = '{x}';
+
+    /** How many times the percent escapes of a route are read: once more than any route of ours needs. */
+    private const DECODE_ROUNDS = 3;
+
     private const REMOVED = '[removed]';
 
     /** Full-width digits; the Arabic-Indic and Persian ones are App\Support\Digits. */
@@ -178,6 +184,14 @@ final class ErrorScrubber
      * The pattern of a route, never the address that was asked for: no query string, no fragment, and every segment that
      * looks like an id (a number, a uuid, a ulid, a hash, a token) replaced with {id}. A parameter such as {customer}
      * or {customer?} is kept as it is.
+     *
+     * Every route passes here, whoever wrote it (a browser's report, the path of the server's own 404, a matched route's
+     * pattern), so this is the one place that decides what a route may hold. Its percent escapes are read first, again and
+     * again as long as that changes it (at most DECODE_ROUNDS times: `%253C` is `%3C` is `<`), so what is checked is what a
+     * page would show. A segment that then holds what no plain path does becomes UNPLAIN (`{x}`): markup, a quote, a
+     * backtick, a space, a backslash, a control or invisible character, a brace that is not a lone `{name}`, bytes that are
+     * not UTF-8, or escapes still left after the last round. The route keeps its shape (a broken link next to it is still
+     * one issue) and markup never reaches storage. Letters of any script survive (`/ar/%D8%A3...` is `/ar/أسعار`).
      */
     public static function route(?string $route): ?string
     {
@@ -186,9 +200,7 @@ final class ErrorScrubber
         }
 
         try {
-            $route = self::prepare(rawurldecode($route), self::ROUTE_MAX, multiline: false);
-            $route = self::rx('~\?(?![^{]*\})[\s\S]*$~u', '', $route);
-            $route = self::rx('~#[\s\S]*$~u', '', $route);
+            $route = self::prepare(self::plainSegments($route), self::ROUTE_MAX, multiline: false);
             $route = implode('/', array_map(self::segment(...), explode('/', $route)));
             $route = self::mask($route, structured: false);
         } catch (RuntimeException) {
@@ -571,6 +583,44 @@ final class ErrorScrubber
     private static function untorn(string $cut): string
     {
         return rtrim(preg_replace('~\[[a-z]{0,7}$~', '', $cut) ?? $cut);
+    }
+
+    /**
+     * The route read from its percent escapes, without its query string and fragment, with every segment that is not a
+     * plain path segment replaced by UNPLAIN (see route()). Works on bytes until each segment has been checked for UTF-8,
+     * so a text that is not UTF-8 never makes a pattern fail.
+     */
+    private static function plainSegments(string $route): string
+    {
+        // A guard against a text built to be slow (the lookahead below is quadratic on a hostile one), as in prepare().
+        $route = mb_strcut($route, 0, max(4096, self::ROUTE_MAX * 8), 'UTF-8');
+        $stable = false;
+
+        for ($round = 0; $round < self::DECODE_ROUNDS && ! $stable; $round++) {
+            $decoded = rawurldecode($route);
+            $stable = $decoded === $route;
+            $route = $decoded;
+        }
+
+        $stable = $stable || rawurldecode($route) === $route;
+
+        // The ? of an optional parameter ({customer?}) is not a query string.
+        $route = self::rx('~\?(?![^{]*\})[\s\S]*$~', '', $route);
+        $route = self::rx('~#[\s\S]*$~', '', $route);
+
+        $segments = array_map(static function (string $segment) use ($stable): string {
+            if ($segment === '' || preg_match('~^\{[A-Za-z_][A-Za-z0-9_]*\??\}$~D', $segment) === 1) {
+                return $segment;
+            }
+
+            $plain = mb_check_encoding($segment, 'UTF-8')
+                && preg_match('~[<>"\'`\\\\{}\s\p{Z}\p{C}]~u', $segment) === 0
+                && ($stable || preg_match('~%[0-9A-Fa-f]{2}~', $segment) === 0);
+
+            return $plain ? $segment : self::UNPLAIN;
+        }, explode('/', $route));
+
+        return implode('/', $segments);
     }
 
     /** One segment of a route: an id becomes {id}. */

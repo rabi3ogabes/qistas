@@ -793,9 +793,10 @@ it('reads a hostile path in no time: a path built to make the query pattern quad
 });
 
 it('reads at most 8192 bytes of a path', function () {
-    // The ? of an optional parameter is only one while the closing brace is in view; the brace is 9000 bytes away.
-    expect(ErrorFingerprint::routePattern('/a/{b?'.str_repeat('x', 9000).'}'))->toBe('/a/{b')
-        ->and(ErrorFingerprint::routePattern('/a/{b?'.str_repeat('x', 100).'}'))->toStartWith('/a/{b?xxxx');
+    // The ? of an optional parameter is only one while the closing brace is in view; the brace is 9000 bytes away. Either
+    // way the segment is a brace that is no lone {name}, so it is {x}.
+    expect(ErrorFingerprint::routePattern('/a/{b?'.str_repeat('x', 9000).'}'))->toBe('/a/{x}')
+        ->and(ErrorFingerprint::routePattern('/a/{b?'.str_repeat('x', 100).'}'))->toBe('/a/{x}');
 });
 
 // ---- isScannerPath --------------------------------------------------------------------------------------------------

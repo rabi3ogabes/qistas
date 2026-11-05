@@ -9,9 +9,15 @@ use Illuminate\Http\Request;
 use Throwable;
 
 /**
- * Who a report from a browser or a phone counts against (design section 9): for the request limit of the phone's endpoint
- * and for the share of new issues one sender may open (ErrorRecorder::SENDER_NEW_ISSUES). It is a key and never a name: the
- * phone's token number, or the address. Nothing here is stored; the recorder turns the key into a keyed hash for a cache key.
+ * Who a report from a browser or a phone counts against (design section 9). It is a key and never a name, and there are two:
+ *
+ *   - key(): for the request limit of the phone's endpoint (30 a minute): the phone's token number, or the address. One
+ *     person with a phone and a tablet has two places.
+ *   - quotaKey(): for the share of NEW issues one sender may open (ErrorRecorder::SENDER_NEW_ISSUES): the person on the app
+ *     token, or the address. Every sign-in makes a new token, so a quota by token would give one account three more new
+ *     issues each time it signs in again; by person, signing in buys nothing.
+ *
+ * Nothing here is stored; the recorder turns the quota key into a keyed hash (HMAC with the application key) for a cache key.
  *
  * Only a token made for the phone app (its ability `app`) is a phone. A token made to connect another program to a
  * workspace (ability `integration`) is not: it is no person here, and its reports count against its address like any
@@ -47,6 +53,14 @@ final class ClientSender
         }
 
         return self::address($request);
+    }
+
+    /** `user:<id>` for the person on a phone's app token, else `address:<address>`: who a NEW issue counts against. */
+    public static function quotaKey(Request $request): string
+    {
+        $id = self::person($request)?->getAuthIdentifier();
+
+        return is_int($id) || (is_string($id) && $id !== '') ? 'user:'.$id : self::address($request);
     }
 
     /** `address:<address>`: a browser's report, or a phone's without a token of its own. */

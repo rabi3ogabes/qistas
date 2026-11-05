@@ -42,13 +42,14 @@ final class ClientErrorController
         $data = $report->validated();
         $id = ClientSender::person($request)?->getAuthIdentifier();
 
+        // The new issues it may open count against the person, not the token: every sign-in makes a new token.
         $intake->accept(
             'app',
             'crash',
             $data,
             is_int($id) || is_string($id) ? (string) $id : null,
             (string) $data['os'],
-            ClientSender::key($request),
+            ClientSender::quotaKey($request),
         );
 
         return response()->noContent();

@@ -24,7 +24,8 @@ final class ClientErrorController
 {
     /** Every field is bounded by its column in the error tables (ErrorScrubber's widths), and the whole body by 8 KB. */
     private const RULES = [
-        'class' => ['nullable', 'string', 'max:160', 'regex:/^[A-Za-z_$][\w$.]*$/'],
+        // `D`: without it `$` also matches before a closing line break, and the reporters' bodies are not trimmed.
+        'class' => ['nullable', 'string', 'max:160', 'regex:/^[A-Za-z_$][\w$.]*$/D'],
         'message' => ['required', 'string', 'max:500'],
         'trace' => ['nullable', 'string', 'max:6000'],
         'route' => ['nullable', 'string', 'max:160', 'regex:~^/~'],

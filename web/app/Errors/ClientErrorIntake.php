@@ -25,11 +25,13 @@ use Throwable;
  *     and counts it; the id itself is never stored.
  *   - The route is never the page's own word for it. A page's address can hold a secret (the code in /verify/K7MPQ2RTXW opens
  *     a document to anyone who has it), and no rule can tell every such code from a word, so after the answer the path is
- *     matched against the router's own routes and what is stored is the route's pattern (`/verify/{code}`). A path no route
- *     serves becomes the pattern of the path (numbers and ids hidden); anything that is not a plain path (no leading slash,
- *     markup, a script address) becomes none.
- *   - $sender is an opaque key for who sent the report (ClientSender): the recorder uses it to hold one sender to a few new
- *     issues an hour. It is used for that and for nothing else.
+ *     matched against the router's own routes and what is stored is the route's pattern (`/verify/{code}`). A path the
+ *     script has made a pattern of already (it has a brace: `/app/customers/{id}`) and a path no route serves become the
+ *     pattern of the path (numbers and ids hidden); anything that is not a plain path as sent (no leading slash, markup, a
+ *     script address) becomes none, and a segment that is markup once its percent escapes are read becomes `{x}`
+ *     (ErrorScrubber::route, the one rule for every route).
+ *   - $sender is an opaque key for who sent the report (ClientSender::quotaKey: the person on a phone's app token, else the
+ *     address): the recorder uses it to hold one sender to a few new issues an hour. It is used for that and nothing else.
  *
  * Recording runs after the answer (ErrorCapture::guarded) and swallows every Throwable, and so does this method: a
  * reporter is never given an error back (ruling R1). The recorder already puts a report in the spool when the database is
@@ -117,6 +119,12 @@ final class ClientErrorIntake
 
         if (preg_match(self::ROUTE, $path) !== 1) {
             return null;
+        }
+
+        // A brace means the script has made a pattern of the page's address already (it hides ids as {id}): asking the
+        // router again would cost a few milliseconds for every report and could only rename the parameter.
+        if (str_contains($path, '{')) {
+            return ErrorFingerprint::routePattern($path);
         }
 
         try {

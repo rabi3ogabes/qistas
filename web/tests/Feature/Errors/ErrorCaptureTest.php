@@ -513,6 +513,27 @@ it('404s for paths no route serves are grouped by the path with its numbers repl
     expect(ErrorIssue::query()->sole()->only(['title', 'occurrences']))->toBe(['title' => '404 Not Found: /errors-missing/{n}/receipt', 'occurrences' => 2]);
 });
 
+it('a 404 for a path with markup in percent escapes keeps its record with {x} for that part, never the markup', function (string $path, string $route) {
+    $this->get($path)->assertNotFound();
+
+    $issue = ErrorIssue::query()->sole();
+
+    expect($issue->samples()->sole()->route)->toBe($route)
+        ->and($issue->title)->toBe('404 Not Found: '.$route);
+    foreach (['<', '>', '"', "'", '%'] as $character) {
+        expect($issue->title)->not->toContain($character);
+    }
+    foreach (['<script', '<img', '<b>', 'onerror', 'alert(', '%3C', '%253C', '%22'] as $markup) {
+        expect(errorsCaptureStored())->not->toContain($markup);
+    }
+})->with([
+    'a script tag' => ['/%3Cscript%3Ealert(1)%3C/script%3E', '/{x}/{x}'],
+    'a script tag escaped twice' => ['/%253Cscript%253Ealert(1)%253C/script%253E', '/{x}/{x}'],
+    'an attribute that breaks out' => ['/%22%3E%3Cimg%20src=x%20onerror=alert(1)%3E', '/{x}'],
+    'a broken link beside it keeps its words' => ['/help/%3Cb%3E/payments', '/help/{x}/payments'],
+    'an Arabic word, escaped as browsers send it' => ['/ar/%D8%A3%D8%B3%D8%B9%D8%A7%D8%B1', '/ar/أسعار'],
+]);
+
 it('a 404 on a route that exists is grouped by the route\'s pattern', function () {
     $this->get('/errors-test/customers/1/missing')->assertNotFound();
     $this->travel(6)->seconds();
@@ -941,21 +962,22 @@ it('a scanner\'s path answered 403 or 405 is noise too', function () {
         ->and(errorsCaptureNoise('scanner'))->toBe(2);
 });
 
-it('what the two reporters refuse is never an issue, whatever the status: a stranger cannot make issues that way', function () {
-    // A foreign page posting to the website's endpoint: refused 403, and from the 21st on (its limit) 429.
+it('what the two reporters refuse is never an issue and is not even counted, whatever the status', function () {
+    // A foreign page posting to the website's endpoint: refused 403 every time (the guard comes before the limit). It is a
+    // stranger's doing and not a report over a cap, so "dropped" (which the admin reads as "over a limit") is not touched.
     foreach (range(1, 21) as $post) {
         $this->call('POST', '/client-errors', [], [], [], ['HTTP_ORIGIN' => 'https://evil.example', 'CONTENT_TYPE' => 'application/json', 'REMOTE_ADDR' => '10.66.0.1'], '{}');
     }
 
     expect(ErrorIssue::query()->count())->toBe(0)
-        ->and(errorsCaptureNoise('dropped'))->toBe(21);
+        ->and(errorsCaptureNoise('dropped'))->toBe(0);
 
-    // The phone's endpoint, should it ever answer with a 5xx of its own.
+    // The phone's endpoint, should it ever answer with a 5xx of its own, and either one's path when no route matched.
     app(ErrorCapture::class)->errorPage(Request::create('/api/v1/client-errors', 'POST'), 503);
+    app(ErrorCapture::class)->errorPage(Request::create('/client-errors/', 'POST'), 429);
     app(ErrorCapture::class)->flush();
 
-    expect(ErrorIssue::query()->count())->toBe(0)
-        ->and(errorsCaptureNoise('dropped'))->toBe(22);
+    errorsCaptureNothingStored();
 });
 
 // ---- the rest of fix round 1 (minor) -------------------------------------------------------------------------------

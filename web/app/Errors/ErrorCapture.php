@@ -31,8 +31,9 @@ use function Illuminate\Support\defer;
  *   - an error page: `site/http` for 403, 404, 419, 429, 500 and 503, `api/http` for any 5xx; a 404, 403 or 405 for a
  *     path only a scanner (or a browser's housekeeping) asks for is counted as scanner noise instead; a 5xx that carries
  *     the very exception that was recorded is not a second issue; a 5xx while the site is down for maintenance is not
- *     recorded; whatever the two reporters (`/client-errors`, `/api/v1/client-errors`) answer is only counted as dropped,
- *     so a stranger can never make issues by posting to them. The same page below 500 again within REPEAT_SECONDS is only
+ *     recorded; whatever the two reporters (`/client-errors`, `/api/v1/client-errors`) answer is neither recorded nor
+ *     counted, so a stranger can never make issues (or a dropped count) by posting to them; a real failure behind such an
+ *     answer is still recorded as the exception it is. The same page below 500 again within REPEAT_SECONDS is only
  *     counted as dropped: a hot broken link costs one cheap statement a hit, not a locked write.
  *   - a query at or above qistas.errors.slow_query_ms (3000 when that is under 1 ms), never one on the error center's
  *     own tables or one made while the capture is at work.
@@ -252,6 +253,12 @@ final class ErrorCapture
                 return;
             }
 
+            // A forged origin or a throttled address at a reporter is a stranger's doing: never an issue, and not counted
+            // either. "Dropped" is what the admin reads as "over a cap", and a refusal is no report that was over one.
+            if (self::reporter($request)) {
+                return;
+            }
+
             if (in_array($status, self::SCANNER_STATUSES, true) && ErrorFingerprint::isScannerPath($request->getPathInfo())) {
                 $this->noise('scanner');
 
@@ -261,13 +268,6 @@ final class ErrorCapture
             $api = self::underApi($request);
 
             if ($api ? $status < 500 || $status > 599 : ! in_array($status, self::SITE_PAGES, true)) {
-                return;
-            }
-
-            // A forged origin or a throttled address at a reporter is a stranger's doing: counted, never an issue.
-            if (self::reporter($request)) {
-                $this->noise('dropped');
-
                 return;
             }
 
