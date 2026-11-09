@@ -188,7 +188,7 @@ jobs:
           git push -f origin app-latest
       - name: Publish the version's own release
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: app-v${{ steps.build.outputs.version }}
           name: Qistas app ${{ steps.build.outputs.version }}
@@ -198,7 +198,7 @@ jobs:
           body_path: release-notes.md
       - name: Attach the app bundle for Google Play
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && steps.signing.outputs.signed == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: app-v${{ steps.build.outputs.version }}
           fail_on_unmatched_files: true
@@ -207,7 +207,7 @@ jobs:
       # always gives the newest build; the version's own release above is the one marked "Latest".
       - name: Keep the newest-build link working
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: app-latest
           name: Qistas app (newest build)
