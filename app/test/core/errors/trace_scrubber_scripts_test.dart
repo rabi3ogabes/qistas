@@ -42,7 +42,9 @@ void main() {
     final latinCold = runs.map((run) => run.latin).reduce((a, b) => a < b ? a : b);
     final arabicCold = runs.map((run) => run.arabic).reduce((a, b) => a < b ? a : b);
 
-    expect(arabicCold, lessThan(latinCold * 3 + 400), reason: 'Latin $latinCold ms, then Arabic $arabicCold ms (before the fix: several seconds)');
+    // The bound is generous on purpose: Latin is a few tens of milliseconds, and one pause of the garbage collector on a busy
+    // CI runner must not break the test. What it guards against is seconds.
+    expect(arabicCold, lessThan(latinCold * 5 + 800), reason: 'Latin $latinCold ms, then Arabic $arabicCold ms (before the fix: several seconds)');
     expect(arabicCold, lessThan(2500));
   });
 
@@ -52,7 +54,9 @@ void main() {
     for (final text in ['$latin\nع', '$latin\n😀', '$latin\nليلى', '$latin\n日本語']) {
       final took = bestOf(text);
 
-      expect(took.inMilliseconds, lessThan(latinWarm.inMilliseconds * 3 + 150), reason: '$took for a text ending ${text.substring(text.length - 3)}; Latin $latinWarm');
+      // Latin is about 10 ms warm, so a bound of three times that and a little is broken by one pause of the garbage collector
+      // on a busy CI runner. Five times and half a second still fail the scrubber this test was written for (1.9 s warm).
+      expect(took.inMilliseconds, lessThan(latinWarm.inMilliseconds * 5 + 500), reason: '$took for a text ending ${text.substring(text.length - 3)}; Latin $latinWarm');
       expect(took, lessThan(const Duration(seconds: 1)));
     }
   });

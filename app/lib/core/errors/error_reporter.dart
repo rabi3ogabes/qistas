@@ -537,13 +537,14 @@ class ErrorReporting {
 ///
 /// Nothing is installed (the returned [ErrorReporting.run] only runs the body) in two cases:
 ///  - in a browser: its reports always carry an `Origin` header and the server refuses every one;
-///  - in a debug build, unless [reportInDebug]: `flutter run` points at the live server by default and carries the version
-///    number of the release, so what a developer breaks would land among the real errors. (A developer who wants to see a
-///    report arrive passes `reportInDebug` and points `API_BASE_URL` at a server of their own.)
+///  - in a debug or a profile build, unless [reportInDebug]: `flutter run` and `flutter run --profile` point at the live
+///    server by default and carry the version number of the release, so what a developer breaks would land among the real
+///    errors. (A developer who wants to see a report arrive passes `reportInDebug` and points `API_BASE_URL` at a server of
+///    their own.) Only a release build reports without being asked.
 ///
 /// Call it first thing in `main`, before the bindings exist: the preferences are opened when the first report needs them.
-/// A test calls it with its own [preferences], [send] and [facts], and [ErrorReporting.uninstall]s afterwards; [isWeb] and
-/// [isDebug] are what the build is, which a test can tell it otherwise.
+/// A test calls it with its own [preferences], [send] and [facts], and [ErrorReporting.uninstall]s afterwards; [isWeb],
+/// [isDebug] and [isProfile] are what the build is, which a test can tell it otherwise.
 ErrorReporting installErrorReporting({
   required Future<SharedPreferences> Function() preferences,
   required ReportSender send,
@@ -551,10 +552,11 @@ ErrorReporting installErrorReporting({
   DateTime Function()? clock,
   bool isWeb = kIsWeb,
   bool isDebug = kDebugMode,
+  bool isProfile = kProfileMode,
   bool reportInDebug = false,
   Duration flushAfter = const Duration(seconds: 3),
 }) {
-  if (isWeb || (isDebug && !reportInDebug)) return ErrorReporting._off();
+  if (isWeb || ((isDebug || isProfile) && !reportInDebug)) return ErrorReporting._off();
 
   final reporter = ErrorReporter(preferences: preferences, send: send, facts: facts, clock: clock);
   final previousFlutter = FlutterError.onError;

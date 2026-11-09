@@ -984,6 +984,72 @@ void main() {
       expect(messages(), ['Bad state: released']);
     });
 
+    // `flutter run --profile` is neither a debug nor a release build: it points at the live server by default (API_BASE_URL) and
+    // carries the release's version number, so what a developer breaks in it would land among the real errors just the same.
+    test('in a profile build nothing is installed unless asked: it points at the live server too', () async {
+      final handler = FlutterError.onError;
+      final platform = PlatformDispatcher.instance.onError;
+      var ran = false;
+
+      final installed = reporting = installErrorReporting(
+        preferences: () async => prefs,
+        send: (report) {
+          sent.add(report);
+
+          return behaviour(report);
+        },
+        facts: () => phone,
+        clock: () => now,
+        isDebug: false,
+        isProfile: true,
+        flushAfter: Duration.zero,
+      );
+      installed.run(() async => ran = true);
+      FlutterError.onError!(FlutterErrorDetails(exception: StateError('profiled'), stack: trace));
+      await settle();
+
+      expect(installed.reporter, isNull);
+      expect(FlutterError.onError, same(handler));
+      expect(PlatformDispatcher.instance.onError, platform);
+      expect(sent, isEmpty);
+      expect(ran, isTrue, reason: 'the app still starts');
+    });
+
+    test('a profile build reports when it is told to (to a server of its own)', () async {
+      final installed = reporting = installErrorReporting(
+        preferences: () async => prefs,
+        send: (report) {
+          sent.add(report);
+
+          return behaviour(report);
+        },
+        facts: () => phone,
+        clock: () => now,
+        isDebug: false,
+        isProfile: true,
+        reportInDebug: true,
+        flushAfter: Duration.zero,
+      );
+
+      FlutterError.onError!(FlutterErrorDetails(exception: StateError('profiled on purpose'), stack: trace));
+      await settle();
+
+      expect(installed.reporter, isNotNull);
+      expect(messages(), ['Bad state: profiled on purpose']);
+    });
+
+    test('a release build is neither debug nor profile, and reports without being asked', () async {
+      final installed = reporting = installErrorReporting(
+        preferences: () async => prefs,
+        send: (_) async {},
+        isDebug: false,
+        isProfile: false,
+        flushAfter: Duration.zero,
+      );
+
+      expect(installed.reporter, isNotNull);
+    });
+
     test('a release build in a browser still installs nothing', () async {
       final handler = FlutterError.onError;
 
