@@ -312,7 +312,7 @@ dataset('errors personal data', [
     'a long bearer token in lower case' => ['bearer kQ9x2LmZp0Vb7TrYw3Nc', 'Bearer [token]'],
     'a key of lower case letters and digits' => ['api 6hd8a9s7d6f5g4h3j2k1l0z9x8c7v6b5', 'api [token]'],
     'a key of upper case letters and digits' => ['code K9X2LMZP0VB7TRYW3NCJ8ADH5SFGHJKL end', 'code [token] end'],
-    'a Stripe key' => ['Invalid API Key provided: sk_' . 'test_4eC39HqLyjWDarjtT1zdp7dc', 'Invalid API Key provided: [token]'],
+    'a Stripe key' => ['Invalid API Key provided: sk_'.'test_4eC39HqLyjWDarjtT1zdp7dc', 'Invalid API Key provided: [token]'],
     'standard base64 with a slash' => ['value kQ9x2LmZp0Vb7TrY/w3NcJ8aDh5sFgHjK end', 'value [token] end'],
 
     // Fix round 1, I5: credentials in dumps, quotes and escapes
