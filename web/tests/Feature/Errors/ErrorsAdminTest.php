@@ -900,7 +900,10 @@ describe('the menu and the admin home', function () {
         Mail::assertNothingSent();
         Mail::assertNothingQueued();
         $page->assertOk()->assertSee('Errors in the last 24 hours')->assertSee('Cannot read the error tables yet.');
-    })->group('db-errors'); // makes the database raise an error: left out when running against the PGlite stand-in
+    })->group('db-errors') // makes the database raise an error: left out when running against the PGlite stand-in
+        // PostgreSQL aborts the test's own wrapping transaction at the first failed statement, so every later read of the page fails
+        // too; the live site has no such transaction (only the one read fails and the page rescues it). SQLite runs this.
+        ->skip(fn () => DB::connection()->getDriverName() === 'pgsql', 'PostgreSQL aborts the surrounding test transaction; the SQLite run covers the page');
 
     it('answers "Cannot read the error tables yet." as a warning without a way to the list when the tables are missing', function () {
         Schema::disableForeignKeyConstraints();
