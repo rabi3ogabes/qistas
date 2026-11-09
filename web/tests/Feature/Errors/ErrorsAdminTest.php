@@ -596,15 +596,17 @@ describe('what is stored is still escaped', function () {
         $admin = errorsAdminUser();
         $markup = '<script>alert(1)</script>';
         $handler = '<img src=x onerror=alert(1)>';
+        // The version columns are 16 characters wide (PostgreSQL enforces it, SQLite does not): short markup there.
+        $short = '<i onclick=a()>';
         $issue = errorsAdminIssue([
-            'title' => "TypeError: {$markup}", 'class' => $markup, 'first_version' => $markup, 'last_version' => $handler,
-            'reopened_at' => now()->subDay(), 'reopened_version' => $handler,
+            'title' => "TypeError: {$markup}", 'class' => $markup, 'first_version' => $short, 'last_version' => $short,
+            'reopened_at' => now()->subDay(), 'reopened_version' => $short,
         ]);
         errorsAdminSample($issue, [
             'message' => "bad {$markup} and {$handler}",
             'trace' => "#0 app/X.php(1): {$markup}\n#1 {$handler}",
             'route' => "/x/{$markup}/{$handler}",
-            'version' => $handler,
+            'version' => $short,
             'method' => '<b>',
         ]);
 
@@ -613,7 +615,13 @@ describe('what is stored is still escaped', function () {
 
             $page->assertDontSee($markup, false)->assertDontSee($handler, false)->assertDontSee('<img', false)->assertDontSee('<script>alert', false)
                 ->assertSee('&lt;script&gt;alert(1)&lt;/script&gt;', false)
-                ->assertSee('&lt;img src=x onerror=alert(1)&gt;', false);
+                ->assertDontSee('<i onclick', false)
+                ->assertSee('&lt;i onclick=a()&gt;', false);
+
+            // The sightings (message, trace, route) are shown on the detail page only.
+            if ($path !== '/admin/errors') {
+                $page->assertSee('&lt;img src=x onerror=alert(1)&gt;', false);
+            }
         }
     });
 

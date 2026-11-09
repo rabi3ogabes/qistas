@@ -95,7 +95,8 @@ it('the fingerprint is unique', function () {
 
     errorsIssue(['fingerprint' => $fingerprint]);
 
-    expect(fn () => errorsIssue(['fingerprint' => $fingerprint]))->toThrow(UniqueConstraintViolationException::class)
+    // A savepoint around the refused insert: on PostgreSQL a failed statement aborts the test's own transaction otherwise.
+    expect(fn () => DB::transaction(fn () => errorsIssue(['fingerprint' => $fingerprint])))->toThrow(UniqueConstraintViolationException::class)
         ->and(ErrorIssue::query()->count())->toBe(1);
 
     errorsIssue(['fingerprint' => sha1('another')]);
@@ -116,17 +117,17 @@ it('days, people and noise are keyed by their pair', function () {
 
     DB::table('error_issue_days')->insert(['issue_id' => $issue->id, 'day' => '2026-11-05', 'count' => 3]);
     DB::table('error_issue_days')->insert(['issue_id' => $issue->id, 'day' => '2026-11-06', 'count' => 1]);
-    expect(fn () => DB::table('error_issue_days')->insert(['issue_id' => $issue->id, 'day' => '2026-11-05', 'count' => 9]))
+    expect(fn () => DB::transaction(fn () => DB::table('error_issue_days')->insert(['issue_id' => $issue->id, 'day' => '2026-11-05', 'count' => 9])))
         ->toThrow(UniqueConstraintViolationException::class);
 
     DB::table('error_issue_people')->insert(['issue_id' => $issue->id, 'person' => 'a1b2c3d4e5f60718']);
     DB::table('error_issue_people')->insert(['issue_id' => $issue->id, 'person' => '0718a1b2c3d4e5f6']);
-    expect(fn () => DB::table('error_issue_people')->insert(['issue_id' => $issue->id, 'person' => 'a1b2c3d4e5f60718']))
+    expect(fn () => DB::transaction(fn () => DB::table('error_issue_people')->insert(['issue_id' => $issue->id, 'person' => 'a1b2c3d4e5f60718'])))
         ->toThrow(UniqueConstraintViolationException::class);
 
     DB::table('error_noise_days')->insert(['day' => '2026-11-05', 'kind' => 'scanner', 'count' => 40]);
     DB::table('error_noise_days')->insert(['day' => '2026-11-05', 'kind' => 'dropped', 'count' => 2]);
-    expect(fn () => DB::table('error_noise_days')->insert(['day' => '2026-11-05', 'kind' => 'scanner', 'count' => 1]))
+    expect(fn () => DB::transaction(fn () => DB::table('error_noise_days')->insert(['day' => '2026-11-05', 'kind' => 'scanner', 'count' => 1])))
         ->toThrow(UniqueConstraintViolationException::class)
         ->and(DB::table('error_issue_days')->count())->toBe(2)
         ->and(DB::table('error_issue_people')->count())->toBe(2)
