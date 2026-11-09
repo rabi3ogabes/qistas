@@ -18,12 +18,14 @@ final class HomeController
         return view('admin.home', [
             'admin' => $admin,
             'figures' => $overview->figures(),
-            'health' => $overview->health(),
             'sandbox' => $test->for($admin),
             'testOn' => $test->isOn($admin),
             'plans' => Plan::query()->orderBy('sort_order')->get(['key', 'name']),
             'apiUrl' => url('/api/v1'),
             'appDownloadUrl' => config('qistas.app_download_url'),
+            // Last on purpose: its read of the error tables is allowed to fail (see PlatformOverview::errorsCheck()), and a
+            // failed read inside a transaction (the test suite's, on PostgreSQL) refuses every statement after it.
+            'health' => $overview->health(),
         ]);
     }
 }

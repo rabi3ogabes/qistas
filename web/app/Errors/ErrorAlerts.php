@@ -165,7 +165,7 @@ final class ErrorAlerts
         $since = CarbonImmutable::instance($now)->setTimezone(self::timezone())->subHours(self::DIGEST_HOURS);
 
         $cameBack = $this->ids($this->open()->where('reopened_at', '>=', $since), []);
-        $new = $this->ids($this->open()->where('first_seen_at', '>=', $since), $cameBack);
+        $new = $this->ids($this->open()->where('first_seen_at', '>=', $since), $cameBack, serverFirst: true);
         $growing = $this->growing($now, $since, [...$cameBack, ...$new]);
 
         if ($cameBack === [] && $new === [] && $growing === []) {
@@ -277,14 +277,21 @@ final class ErrorAlerts
     }
 
     /**
-     * The ids of a query's issues, the most often seen first, without those already in an earlier list.
+     * The ids of a query's issues, the most often seen first, without those already in an earlier list. With $serverFirst
+     * the server's own failures (an exception, an error page of 500 or more) come before everything else, each group
+     * most often seen first: a list is cut at LIST_LIMIT lines, and a bot probing for made-up addresses opens an issue for
+     * every one of them, which must not push the one real failure into "And N more".
      *
      * @param  Builder<ErrorIssue>  $query
      * @param  list<string>  $taken
      * @return list<string>
      */
-    private function ids(Builder $query, array $taken): array
+    private function ids(Builder $query, array $taken, bool $serverFirst = false): array
     {
+        if ($serverFirst) {
+            $query->serverErrorsFirst();
+        }
+
         $ids = $query->orderByDesc('occurrences')->orderByDesc('last_seen_at')->orderBy('id')->pluck('id')->all();
 
         return array_values(array_diff($ids, $taken));

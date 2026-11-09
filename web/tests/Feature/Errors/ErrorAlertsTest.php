@@ -15,9 +15,11 @@ use App\Models\ErrorIssue;
 use App\Models\ErrorOccurrence;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
@@ -1051,6 +1053,47 @@ describe('the digest', function () {
             ->and($mail->render())->toContain('And 5 more.');
     });
 
+    // A bot that probes for made-up addresses opens one issue per address, each seen once. They must not push the one real
+    // failure (an exception, or an error page of 500 or more) below the cap of 25 lines, where it would only be "And N more".
+    it('lists the exceptions and the 5xx pages of the new issues before the rest, however often the rest was seen', function () {
+        errorsAlertSuper();
+        $noise = collect(range(1, 30))->map(fn (int $n) => errorsAlertNew(1, [
+            'kind' => 'http', 'class' => 'http.404', 'title' => 'Error 404 on /probe-'.errorsAlertWord($n), 'occurrences' => 1,
+        ]));
+        $busyNoise = errorsAlertNew(1, ['kind' => 'http', 'class' => 'http.404', 'title' => 'Error 404 on /old-link', 'occurrences' => 400]);
+        $exception = errorsAlertNew(1, ['title' => 'RuntimeException: gateway refused', 'occurrences' => 1]);
+        $page = errorsAlertNew(1, ['kind' => 'http', 'class' => 'http.502', 'title' => 'Error 502 on /app/reports', 'occurrences' => 3]);
+        $busyException = errorsAlertNew(1, ['title' => 'PDOException: server has gone away', 'class' => 'PDOException', 'occurrences' => 9]);
+        $slow = errorsAlertNew(1, ['source' => 'database', 'kind' => 'slow_query', 'title' => 'A slow query', 'occurrences' => 50]);
+
+        expect(errorsAlertDigest())->toBeTrue();
+
+        $mail = Mail::sent(ErrorDigestMail::class)->sole();
+        $order = collect($mail->new)->pluck('id')->all();
+
+        // Server errors first, the busiest of them first; then everything else, the busiest first (the one-hit 404s, all
+        // equal, come last and in no order that matters).
+        expect(array_slice($order, 0, 3))->toBe([$busyException->id, $page->id, $exception->id])
+            ->and(array_slice($order, 3, 2))->toBe([$busyNoise->id, $slow->id])
+            ->and(array_diff(array_slice($order, 5), $noise->pluck('id')->all()))->toBe([])
+            ->and($mail->new)->toHaveCount(25)
+            ->and($mail->more['new'])->toBe(10); // 35 new issues, 25 of them listed
+    });
+
+    it('puts a rarely seen exception ahead of a busier 404, each sort busiest first', function () {
+        errorsAlertSuper();
+        $quiet = errorsAlertNew(1, ['title' => 'Quiet failure', 'occurrences' => 2]);
+        $loud = errorsAlertNew(1, ['title' => 'Loud failure', 'occurrences' => 20]);
+        $bots = [
+            errorsAlertNew(1, ['kind' => 'http', 'class' => 'http.404', 'title' => 'Error 404 on /a', 'occurrences' => 1]),
+            errorsAlertNew(1, ['kind' => 'http', 'class' => 'http.404', 'title' => 'Error 404 on /b', 'occurrences' => 5]),
+        ];
+
+        expect(errorsAlertDigest())->toBeTrue();
+
+        expect(collect(Mail::sent(ErrorDigestMail::class)->sole()->new)->pluck('id')->all())->toBe([$loud->id, $quiet->id, $bots[1]->id, $bots[0]->id]);
+    });
+
     it('is Arabic for a super admin who reads Arabic, laid out right to left', function () {
         errorsAlertSuper('ar');
         errorsAlertNew();
@@ -1172,5 +1215,19 @@ describe('the digest', function () {
         errorsAlertNew();
 
         $this->artisan('qistas:errors:digest')->expectsOutputToContain('The digest could not be sent.')->assertExitCode(1);
+    });
+
+    // The scheduler runs the command in a process of its own, so what it prints goes nowhere, CronRunner records the run as
+    // fine (an exit code is not an exception, so ScheduledTaskFailed never fires), and a digest that never arrived would be
+    // lost without a trace. The scheduled event writes the line to the application log itself.
+    it('leaves a line in the application log when the scheduled digest ends with a failure, and none when it went well', function () {
+        Log::spy();
+        $digest = collect(app(Schedule::class)->events())->filter(fn ($event) => str_contains((string) $event->command, 'qistas:errors:digest'))->sole();
+
+        $digest->finish(app(), 0);
+        Log::shouldNotHaveReceived('warning');
+
+        $digest->finish(app(), 1);
+        Log::shouldHaveReceived('warning')->once()->with('The error digest could not be sent.');
     });
 });

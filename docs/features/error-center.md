@@ -16,7 +16,7 @@ about a customer or a business is stored, and nothing goes to a third party.
 | Question | Your answer, and what was built |
 |---|---|
 | Build it or buy it | **Built inside Qistas' own admin console.** No Sentry, no outside service: nothing is sent anywhere. |
-| How you are told | **An instant e-mail for a brand-new kind of server error, plus a daily digest at 07:00 Qatar time.** A badge on the admin menu always shows how many issues are open. |
+| How you are told | **An instant e-mail for a brand-new kind of server error, plus a daily digest at 07:00 Qatar time.** A badge on the admin menu shows how many server errors are open. |
 | The phone app | **It sends its crashes and unhandled errors by itself, with a "Send crash reports" switch in Settings** that turns it off (on by default). |
 
 ## What is recorded
@@ -91,8 +91,8 @@ statement with placeholders.
 
 **Never stored, by construction:** request bodies and headers, cookies, session ids, the visitor's address, their
 browser's user-agent text, user ids, tenant ids or names, customer data. The only trace of a person is a **code**: the
-first 16 characters of an HMAC-SHA256 of the user id with the application key. It cannot be turned back into a person; it
-exists so the same person is not counted twice. These tables belong to the platform, not to a business: they have no
+first 16 characters of an HMAC-SHA256 of the user id with the application key. Nobody without the application key can turn
+it back into a person; it exists so the same person is not counted twice. These tables belong to the platform, not to a business: they have no
 `tenant_id`, and a customer can never reach them.
 
 ## The admin screens
@@ -108,10 +108,15 @@ exists so the same person is not counted twice. These tables belong to the platf
 - **The detail.** The scrubbed trace, the five latest occurrences, a 30-day timeline, who resolved or ignored it and when,
   and the buttons **Resolve**, **Ignore** (it asks for a second press) and **Reopen**. A page that came from a browser or
   a phone says "Reported by a browser" or "Reported by a phone" and that it never sends an instant e-mail.
-- **The badge.** The count of open issues on the menu entry (hidden at 0, "99+" above).
+- **The badge.** The count of open **server errors** (exceptions and error pages of 500 or more, the same kind the admin home
+  line counts, without its 24 hours) on the menu entry (hidden at 0, "99+" above). A broken link or an expired form is an open
+  issue too but is not in the badge: a bot that probes made-up addresses opens an issue for each one and would keep it up for
+  ever. The top of the list says both numbers: "5 open, 2 of them server errors".
 - **The admin home** has a line "Errors in the last 24 hours" in its health block. It counts **server errors only**
   (open exceptions and error pages of 500 or more), so a broken link or an expired form does not keep it yellow for ever.
-  It turns to a warning with a "See the errors" button; it also warns when recording is switched off.
+  It turns to a warning with a "See the errors" button; it also warns when recording is switched off. While the error tables
+  cannot be read yet (a deploy that has not finished `qistas:setup`, or a rolled-back migration) the home still opens and the
+  line says "Cannot read the error tables yet."; nothing is reported or e-mailed for it.
 
 Every screen works with the keyboard, mirrors correctly in Arabic, and holds at 200 % text. Whatever a stranger can
 write (a message, a route) is shown as text and never becomes a link.
@@ -131,12 +136,14 @@ answer.
 
 **Daily digest.** At **04:00 UTC, which is 07:00 in Qatar**, only on a day when at least one open issue is new (first seen
 in the last 24 hours), came back (in the last 24 hours) or is growing. Three lists, each issue in one list only, up to 25
-in each and "And N more". Phone and browser reports appear with their kind ("Crash", "Script error") and not with their
-text, which a stranger wrote.
+in each and "And N more". In the *new* list the exceptions and the error pages of 500 or more come first, then everything
+else, each group by how often it was seen, so a bot's flood of one-hit 404s cannot push a real failure out of the 25. Phone
+and browser reports appear with their kind ("Crash", "Script error") and not with their text, which a stranger wrote.
 
 Mail goes through the SMTP server saved in the admin E-mail page, like every other mail. With the mailer set to `log`
 nothing real is sent (the go-live check already fails that). A mail that cannot be sent is skipped without noise; a digest
-that could not be sent to anyone makes `qistas:errors:digest` print "The digest could not be sent." and exit 1.
+that could not be sent to anyone makes `qistas:errors:digest` print "The digest could not be sent." and exit 1 (and the
+schedule then writes the same sentence as a warning in `storage/logs/laravel.log`; see Known limits).
 
 ## The safety rules
 
@@ -186,9 +193,9 @@ have the place yet) stops reporting for the session and empties the queue; 429 w
 ones behind it. The reporter has an API client of its own, so a stale sign-in can never sign anyone out.
 
 **Not reported:** failed network calls (`ApiException`, no connection, a time-out, a refused certificate), errors the
-framework marks as handled, and anything on the web build or in a debug build (`flutter run`, which points at the live site
-with the release's version number and would put a developer's errors among the real ones). Neither has a reporter; the
-Settings switch is hidden on the web and stays visible in a debug build.
+framework marks as handled, and anything on the web build or in a debug or profile build (`flutter run` and `flutter run
+--profile`, which point at the live site with the release's version number and would put a developer's errors among the real
+ones). None of them has a reporter; the Settings switch is hidden on the web and stays visible in a debug or profile build.
 
 **The server side** is `POST /api/v1/client-errors` (`api.client-errors.store`): no token needed (a crash on the sign-in
 screen matters); a phone's app token counts one more person on the issue; any other token is nobody. A request that comes
@@ -277,8 +284,8 @@ database is away would be lost). See `go-live.md`.
 - **A crash inside Android or iOS code that never reaches Dart is not seen.** That would need a native plugin; it was left out
   of this release.
 - **The phone does not report network failures, errors in background isolates (the push handler, the home-widget refresh), or
-  anything from the web build or a debug build.** (A debug build reports only when a developer asks for it in code and points
-  the app at a server of their own.) The reporter has run in the test suite only: no real phone and no live server have
+  anything from the web build, a debug build or a profile build.** (A debug or profile build reports only when a developer asks
+  for it in code and points the app at a server of their own.) The reporter has run in the test suite only: no real phone and no live server have
   seen it yet, so look at the first real reports after the app is released.
 - **Client reports cannot be verified.** Anyone can post a fake one, so they never send an instant e-mail, they have budgets of
   their own, one sender can open only 3 new issues an hour, and a flood of fake reports can use up a client budget and
@@ -300,8 +307,8 @@ database is away would be lost). See `go-live.md`.
   `QueryException`'s message; Laravel's masking of bindings only covers the `SQL:` part. The error center is not affected,
   because it never stores a database exception's message (only the class, the SQLSTATE and the statement with
   placeholders), but Laravel's own log in `storage/logs` can hold those characters. SixPanel uses native prepares and is not
-  affected. This was found because one test (`ErrorScrubberTest`: Laravel keeps the bindings out of the exception message on
-  every connection) fails against such a connection; it passes on SQLite.
+  affected. This was found because one test (`ErrorScrubberTest`: Laravel keeps the bindings of a failed query out of the
+  exception message) fails against such a connection; it is skipped there, and runs on SQLite and on a native PostgreSQL.
 - **The container hosting target (Vercel) spools per running instance** and throws that disk away when the instance stops, so
   a spooled event can be lost there. SixPanel is one server with one spool file that the five-minute import reads.
 - **Real addresses that now count as noise:** old `.php`, `.zip`, `.map` and similar URLs, `/sw.js`, `/manifest.webmanifest`
@@ -312,7 +319,10 @@ database is away would be lost). See `go-live.md`.
   when workers race at its edge. A dead mail server uses the hour's three attempts; the day's count only moves when a mail went.
 - **Arabic, French, Spanish and Urdu wording of the new screens, mails and phone strings is not native-reviewed.** English and
   Arabic are complete, the others are real translations written without a native reader.
-- **The detail page says "Sightings are kept for 30 days"** whatever `QISTAS_ERROR_OCCURRENCE_DAYS` says.
+- **A digest that could not be sent leaves no mark in the admin screens.** The command exits with 1, but that is not an
+  exception: the scheduler fires no failure event and the cron run is recorded as fine. The only trace is the warning "The
+  error digest could not be sent." in `storage/logs/laravel.log`, so after a day without a digest e-mail, look there (or run
+  `php artisan qistas:errors:digest` by hand, which says why; running it again sends it again).
 
 ## Proposals (not published until you approve them)
 

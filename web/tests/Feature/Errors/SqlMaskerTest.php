@@ -253,7 +253,9 @@ it('works through a long text of statements in a moment', function () {
     $started = microtime(true);
     $masked = SqlMasker::mask($text);
 
-    expect(microtime(true) - $started)->toBeLessThan(2.0)
+    // About a fifth of a second on a quiet machine. The bound is generous on purpose (a loaded CI runner, or a folder of
+    // tests running beside this one, has been seen to take a few times as long): a regression is a different order of magnitude.
+    expect(microtime(true) - $started)->toBeLessThan(6.0)
         ->and($masked)->not->toContain('Fahad');
 });
 

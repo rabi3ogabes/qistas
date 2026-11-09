@@ -2,6 +2,7 @@
 
 use App\Errors\ErrorEvent;
 use App\Errors\ErrorRecorder;
+use App\Errors\ErrorSpool;
 use App\Errors\ErrorTriage;
 use App\Errors\Recorded;
 use App\Models\AuditLog;
@@ -11,6 +12,7 @@ use App\Models\User;
 use App\Reports\PlatformOverview;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -348,6 +350,42 @@ describe('the list', function () {
         $this->actingAs($admin)->get('/admin/errors?source=api&new=1')->assertOk()->assertSee('No issue matches');
     });
 
+    // The badge counts server errors only; the list says how many issues are open in all, and how many of them are server errors.
+    it('says at the top how many issues are open and how many of them are server errors', function () {
+        $admin = errorsAdminUser();
+        errorsAdminIssue(); // an exception
+        errorsAdminIssue(['kind' => 'http', 'class' => 'http.502']);
+        errorsAdminIssue(['kind' => 'http', 'class' => 'http.404']);
+        errorsAdminIssue(['kind' => 'http', 'class' => 'http.404']);
+        errorsAdminIssue(['source' => 'app', 'kind' => 'crash']);
+        errorsAdminIssue(['status' => 'resolved', 'resolved_at' => now()]);
+        errorsAdminIssue(['status' => 'ignored', 'ignored_at' => now()]);
+
+        $this->actingAs($admin)->get('/admin/errors')->assertOk()->assertSee('5 open, 2 of them server errors');
+    });
+
+    it('keeps the count at the top whatever the filters show', function () {
+        $admin = errorsAdminUser();
+        errorsAdminIssue(['source' => 'api']);
+        errorsAdminIssue(['source' => 'site', 'kind' => 'http', 'class' => 'http.404']);
+        errorsAdminIssue(['status' => 'resolved', 'resolved_at' => now()]);
+
+        $this->actingAs($admin)->get('/admin/errors?status=resolved')->assertOk()->assertSee('2 open, 1 of them a server error');
+        $this->actingAs($admin)->get('/admin/errors?source=app&new=1')->assertOk()->assertSee('2 open, 1 of them a server error');
+    });
+
+    it('words the count for one server error, for none and for an empty list', function () {
+        $admin = errorsAdminUser();
+
+        $this->actingAs($admin)->get('/admin/errors')->assertOk()->assertSee('0 open, 0 of them server errors');
+
+        errorsAdminIssue(['kind' => 'http', 'class' => 'http.404']);
+        $this->actingAs($admin)->get('/admin/errors')->assertOk()->assertSee('1 open, 0 of them server errors');
+
+        errorsAdminIssue();
+        $this->actingAs($admin)->get('/admin/errors')->assertOk()->assertSee('2 open, 1 of them a server error');
+    });
+
     it('marks the filters that are on', function () {
         $admin = errorsAdminUser();
 
@@ -455,6 +493,31 @@ describe('the detail', function () {
         $html = $this->actingAs($admin)->get('/admin/errors/'.$issue->id)->assertOk()->getContent();
 
         expect($html)->toContain('No trace was kept for this one.')->not->toContain('<pre');
+    });
+
+    // The empty state names how long sightings are kept: the number the prune command really uses, not a fixed 30.
+    it('says how many days sightings are kept, as the setting has it', function (mixed $setting, string $sentence) {
+        $admin = errorsAdminUser();
+        $issue = errorsAdminIssue();
+        config(['qistas.errors.occurrence_days' => $setting]);
+
+        $this->actingAs($admin)->get('/admin/errors/'.$issue->id)->assertOk()->assertSee($sentence);
+    })->with([
+        'the default' => [30, 'Sightings are kept for 30 days. The counts above are kept as long as the issue is.'],
+        'a shorter time' => [14, 'Sightings are kept for 14 days. The counts above are kept as long as the issue is.'],
+        'a longer time' => ['90', 'Sightings are kept for 90 days. The counts above are kept as long as the issue is.'],
+        'one day' => [1, 'Sightings are kept for 1 day. The counts above are kept as long as the issue is.'],
+        'a setting nobody can use falls back like the recorder' => ['soon', 'Sightings are kept for 30 days. The counts above are kept as long as the issue is.'],
+        'zero falls back like the recorder' => [0, 'Sightings are kept for 30 days. The counts above are kept as long as the issue is.'],
+    ]);
+
+    it('says it in Arabic with the number of days', function () {
+        $admin = errorsAdminUser();
+        $issue = errorsAdminIssue();
+        config(['qistas.errors.occurrence_days' => 14]);
+
+        $this->actingAs($admin)->get('/admin/errors/'.$issue->id.'?lang=ar')->assertOk()
+            ->assertSee('عدد أيام حفظ مرات الظهور: 14.')->assertDontSee('Sightings are kept');
     });
 
     it('draws the 30-day timeline from the daily counts', function () {
@@ -736,19 +799,53 @@ describe('the menu and the admin home', function () {
             ->and(substr_count($list, 'aria-current="page"'))->toBe(1);
     });
 
-    it('shows the number of open issues in a badge, and no badge at zero', function () {
+    // The badge counts what the line on the admin home counts (open server errors: exceptions and error pages of 500 or more),
+    // not every open issue: a bot probing made-up addresses opens an issue for each one and would keep the badge up for ever.
+    it('shows the number of open server errors in a badge, and no badge at zero', function () {
         $admin = errorsAdminUser();
 
         expect(errorsAdminRail($this->actingAs($admin)->get('/admin')->getContent()))->not->toContain('rail-count');
 
         errorsAdminIssue();
-        errorsAdminIssue();
+        errorsAdminIssue(['kind' => 'http', 'class' => 'http.503']);
         errorsAdminIssue(['status' => 'resolved', 'resolved_at' => now()]);
         errorsAdminIssue(['status' => 'ignored', 'ignored_at' => now()]);
 
         $rail = errorsAdminRail($this->actingAs($admin)->get('/admin')->getContent());
 
-        expect($rail)->toMatch('/class="rail-count"[^>]*>\s*<span aria-hidden="true">2<\/span>\s*<span class="sr-only">2 open<\/span>/');
+        expect($rail)->toMatch('/class="rail-count"[^>]*>\s*<span aria-hidden="true">2<\/span>\s*<span class="sr-only">2 open server errors<\/span>/');
+    });
+
+    it('says "1 open server error" for one', function () {
+        $admin = errorsAdminUser();
+        errorsAdminIssue(['source' => 'api', 'kind' => 'http', 'class' => 'http.500']);
+
+        $rail = errorsAdminRail($this->actingAs($admin)->get('/admin')->getContent());
+
+        expect($rail)->toMatch('/<span aria-hidden="true">1<\/span>\s*<span class="sr-only">1 open server error<\/span>/');
+    });
+
+    it('does not count the quiet kinds in the badge: a broken link, an expired form, a slow query, a browser or a phone', function () {
+        $admin = errorsAdminUser();
+        errorsAdminIssue(['kind' => 'http', 'class' => 'http.404']);
+        errorsAdminIssue(['kind' => 'http', 'class' => 'http.419']);
+        errorsAdminIssue(['kind' => 'http', 'class' => null]);
+        errorsAdminIssue(['source' => 'database', 'kind' => 'slow_query']);
+        errorsAdminIssue(['source' => 'site', 'kind' => 'script']);
+        errorsAdminIssue(['source' => 'app', 'kind' => 'crash']);
+
+        $rail = errorsAdminRail($this->actingAs($admin)->get('/admin')->getContent());
+
+        expect($rail)->not->toContain('rail-count');
+    });
+
+    it('counts an old open server error too: the badge has no 24 hours, the line on the home has', function () {
+        $admin = errorsAdminUser();
+        errorsAdminIssue(['last_seen_at' => now()->subDays(20)]);
+
+        $page = $this->actingAs($admin)->get('/admin')->assertOk()->assertSee('No server errors in the last 24 hours.');
+
+        expect(errorsAdminRail($page->getContent()))->toContain('<span class="sr-only">1 open server error</span>');
     });
 
     it('caps a long badge at 99+', function () {
@@ -760,7 +857,7 @@ describe('the menu and the admin home', function () {
 
         $rail = errorsAdminRail($this->actingAs($admin)->get('/admin')->getContent());
 
-        expect($rail)->toContain('<span aria-hidden="true">99+</span>')->toContain('120 open');
+        expect($rail)->toContain('<span aria-hidden="true">99+</span>')->toContain('120 open server errors');
     });
 
     it('still opens every admin page when the open issues cannot be counted', function () {
@@ -774,6 +871,67 @@ describe('the menu and the admin home', function () {
         $rail = errorsAdminRail($this->actingAs($admin)->get('/admin/businesses')->assertOk()->getContent());
 
         expect($rail)->toContain('href="'.route('admin.errors.index').'"')->not->toContain('rail-count');
+    });
+
+    // The deploy window (the code is pulled, qistas:setup has not finished) and a rolled-back migration both leave the site
+    // without the error tables. The admin home must open all the same, say so on its line, and stay quiet: the failed read
+    // is not reported, so it is not spooled, imported later and e-mailed as a brand-new "Undefined table error_issues" alert.
+    it('opens the admin home when the error tables cannot be read, with a warning that says so and nothing reported', function () {
+        Mail::fake();
+        $admin = errorsAdminUser();
+        Schema::disableForeignKeyConstraints();
+        Schema::drop('error_occurrences');
+        Schema::drop('error_issue_days');
+        Schema::drop('error_issue_people');
+        Schema::drop('error_issues');
+
+        $page = $this->actingAs($admin)->get('/admin');
+        $spool = ErrorSpool::path();
+
+        expect(is_file($spool) ? trim((string) file_get_contents($spool)) : '')->toBe('', 'a spool line was written for the failed read');
+        Mail::assertNothingSent();
+        Mail::assertNothingQueued();
+        $page->assertOk()->assertSee('Errors in the last 24 hours')->assertSee('Cannot read the error tables yet.');
+    })->group('db-errors'); // makes the database raise an error: left out when running against the PGlite stand-in
+
+    it('answers "Cannot read the error tables yet." as a warning without a way to the list when the tables are missing', function () {
+        Schema::disableForeignKeyConstraints();
+        Schema::drop('error_occurrences');
+        Schema::drop('error_issue_days');
+        Schema::drop('error_issue_people');
+        Schema::drop('error_issues');
+
+        $check = collect(app(PlatformOverview::class)->health())->firstWhere('key', 'errors');
+
+        expect($check['status'])->toBe('warn')->and($check['title'])->toBe('Errors in the last 24 hours')
+            ->and($check['detail'])->toBe('Cannot read the error tables yet.')->and($check)->not->toHaveKey('action');
+    })->group('db-errors');
+
+    it('says it in Arabic too', function () {
+        Schema::disableForeignKeyConstraints();
+        Schema::drop('error_occurrences');
+        Schema::drop('error_issue_days');
+        Schema::drop('error_issue_people');
+        Schema::drop('error_issues');
+        app()->setLocale('ar');
+
+        $check = collect(app(PlatformOverview::class)->health())->firstWhere('key', 'errors');
+
+        expect($check['status'])->toBe('warn')->and($check['detail'])->toBe('تعذّرت قراءة جداول الأخطاء حتى الآن.');
+    })->group('db-errors');
+
+    it('counts the open server errors with a single cheap query', function () {
+        errorsAdminIssue();
+        errorsAdminIssue(['kind' => 'http', 'class' => 'http.404']);
+        errorsAdminIssue(['status' => 'resolved', 'resolved_at' => now()]);
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $count = ErrorIssue::openServerCount();
+        $queries = DB::getQueryLog();
+        DB::disableQueryLog();
+
+        expect($count)->toBe(1)->and($queries)->toHaveCount(1)->and($queries[0]['query'])->toContain('count(*)')->toContain('"status"');
     });
 
     it('counts the open issues with a single cheap query', function () {
@@ -859,13 +1017,13 @@ describe('the menu and the admin home', function () {
             ->assertSee('href="'.route('admin.errors.index').'"', false);
     });
 
-    it('shows the good line on a quiet day, while the menu badge still counts every open issue', function () {
+    it('shows the good line on a quiet day, and the menu badge stays away too', function () {
         $admin = errorsAdminUser();
         errorsAdminIssue(['kind' => 'http', 'class' => 'http.404']);
 
         $page = $this->actingAs($admin)->get('/admin')->assertOk()->assertSee('Errors in the last 24 hours')->assertSee('No server errors in the last 24 hours.');
 
-        expect(errorsAdminRail($page->getContent()))->toContain('<span class="sr-only">1 open</span>');
+        expect(errorsAdminRail($page->getContent()))->not->toContain('rail-count');
     });
 });
 
@@ -1284,6 +1442,20 @@ describe('in Arabic', function () {
             ->assertDontSee('Background noise')->assertDontSee('Times seen');
     });
 
+    it('says the open count and the server errors at the top in Arabic', function () {
+        $admin = errorsAdminUser();
+        errorsAdminIssue();
+        errorsAdminIssue(['kind' => 'http', 'class' => 'http.500']);
+        errorsAdminIssue(['kind' => 'http', 'class' => 'http.404']);
+
+        $this->actingAs($admin)->get('/admin/errors?lang=ar')->assertOk()
+            ->assertSee('المفتوحة: 3، منها أخطاء الخادم: 2')->assertDontSee('of them');
+
+        $rail = errorsAdminRail($this->actingAs($admin)->get('/admin?lang=ar')->getContent());
+
+        expect($rail)->toContain('أخطاء الخادم المفتوحة: 2')->not->toContain('open server errors');
+    });
+
     it('has the detail and the buttons in Arabic too', function () {
         $admin = errorsAdminUser();
         $issue = errorsAdminIssue(['source' => 'app', 'kind' => 'crash']);
@@ -1319,9 +1491,10 @@ describe('speed', function () {
         }
         $many = errorsAdminQueries(fn () => $this->actingAs($admin)->get('/admin/errors')->assertOk());
 
-        // The signed-in user's workspace (twice, for the menu), the menu's count of open issues, the page's count and rows, the
-        // days of all 25 rows at once and the week of noise: seven, however many rows there are.
-        expect($many)->toBe($few)->and($many)->toBe(7);
+        // The signed-in user's workspace (twice, for the menu), the menu's count of open server errors, the two counts at the top
+        // of the list (open issues, and open server errors), the page's count and rows, the days of all 25 rows at once and the
+        // week of noise: nine, however many rows there are.
+        expect($many)->toBe($few)->and($many)->toBe(9);
     });
 
     it('stays at that number with hundreds of issues, on any page and with filters', function () {
@@ -1346,7 +1519,7 @@ describe('speed', function () {
             errorsAdminQueries(fn () => $this->actingAs($admin)->get('/admin/errors?status=all&source=api&new=1')->assertOk()),
         ];
 
-        expect($queries)->toBe([7, 7, 7]);
+        expect($queries)->toBe([9, 9, 9]);
         expect(errorsAdminRows($this->actingAs($admin)->get('/admin/errors')->getContent()))->toBe(25);
     });
 
@@ -1360,7 +1533,7 @@ describe('speed', function () {
 
         $count = errorsAdminQueries(fn () => $this->actingAs($admin)->get('/admin/errors/'.$issue->id)->assertOk());
 
-        // The workspace lookups for the menu, the issue, its samples, its 30 days and the menu's count of open issues: six.
+        // The workspace lookups for the menu, the issue, its samples, its 30 days and the menu's count of open server errors: six.
         expect($count)->toBe(6);
     });
 });

@@ -673,7 +673,8 @@ final class ErrorRecorder
         return $moment->setTimezone(self::timezone());
     }
 
-    private static function occurrenceDays(): int
+    /** How many days sightings are kept: the setting when it is a whole number of at least 1, else 30. The detail page says it. */
+    public static function occurrenceDays(): int
     {
         $days = config('qistas.errors.occurrence_days');
 

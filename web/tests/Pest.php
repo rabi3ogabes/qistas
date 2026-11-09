@@ -42,7 +42,25 @@ require_once __DIR__.'/Support/Pdf.php';
 
 pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)
-    ->beforeEach(fn () => $this->withoutVite())
+    ->beforeEach(function () {
+        $this->withoutVite();
+
+        // The error center's spool is a file in storage/logs. A test that breaks the database after an exception is reported
+        // would append to the repository's own file, and a developer's server would import it on its next run. So every test
+        // gets a spool of its own in the system's temporary folder (the Errors tests that look inside the spool point it at
+        // a place of theirs, which wins). Nothing is created until something is written.
+        $this->suiteErrorSpool = sys_get_temp_dir().DIRECTORY_SEPARATOR.'qistas-suite-spool-'.bin2hex(random_bytes(8)).'.ndjson';
+        config(['qistas.errors.spool_path' => $this->suiteErrorSpool]);
+    })
+    ->afterEach(function () {
+        $spool = $this->suiteErrorSpool ?? null;
+
+        foreach ($spool === null ? [] : [$spool, $spool.'.lock'] as $file) {
+            if (is_file($file)) {
+                unlink($file);
+            }
+        }
+    })
     ->in('Feature');
 
 /** Run $callback with $tenant as the active workspace (tenant-owned models need one). */

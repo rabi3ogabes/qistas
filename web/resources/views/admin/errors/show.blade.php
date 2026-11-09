@@ -139,7 +139,7 @@
             @empty
                 <div class="empty empty-quiet">
                     <h3>{{ __('No sighting is kept') }}</h3>
-                    <p>{{ __('Sightings are kept for 30 days. The counts above are kept as long as the issue is.') }}</p>
+                    <p>{{ $keptDays === 1 ? __('Sightings are kept for 1 day. The counts above are kept as long as the issue is.') : __('Sightings are kept for :days days. The counts above are kept as long as the issue is.', ['days' => $keptDays]) }}</p>
                 </div>
             @endforelse
         </section>

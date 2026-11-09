@@ -16,6 +16,8 @@
     @endunless
 
     <div>
+        <p class="err-open">{{ $openServer === 1 ? __(':open open, 1 of them a server error', ['open' => number_format($openTotal)]) : __(':open open, :server of them server errors', ['open' => number_format($openTotal), 'server' => number_format($openServer)]) }}</p>
+
         <div class="err-tools">
             @foreach ($groups as [$group, $name])
                 <div class="err-filter">

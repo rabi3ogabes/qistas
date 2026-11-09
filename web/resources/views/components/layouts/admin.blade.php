@@ -3,9 +3,11 @@
     $user = auth()->user();
     $hasWorkspace = $user->primaryTenant() !== null;
 
-    // How many errors wait for a look: one count on an index, on every admin page. If that cannot be read, the menu still
-    // opens (the badge is left out and nothing is reported: the Errors page itself says what is wrong).
-    $openErrors = (int) rescue(fn () => \App\Models\ErrorIssue::openCount(), 0, false);
+    // How many server errors (exceptions and error pages of 500 or more) wait for a look: the same kind the line on the admin
+    // home counts, and one count on an index, on every admin page. A broken link or an expired form is an open issue too, but a
+    // visitor can make those at will, so they are not in the badge (the list says how many issues are open in all). If that
+    // cannot be read, the menu still opens (the badge is left out and nothing is reported: the Errors page itself says what is wrong).
+    $openErrors = (int) rescue(fn () => \App\Models\ErrorIssue::openServerCount(), 0, false);
 
     // The pages of the admin area, then the places a person goes next. One list each, so a new page is one line. A fifth
     // item, when there is one, is a count shown as a badge.
@@ -75,7 +77,7 @@
                     @foreach ($manage as $entry)
                         @php [$key, $label, $href, $icon] = $entry; $count = $entry[4] ?? 0; @endphp
                         <a href="{{ $href }}" @if ($section === $key) aria-current="page" @endif><x-icon :name="$icon" :size="20" /> <span>{{ $label }}</span>
-                            @if ($count > 0)<span class="rail-count"><span aria-hidden="true">{{ $count > 99 ? '99+' : $count }}</span><span class="sr-only">{{ __(':count open', ['count' => $count]) }}</span></span>@endif
+                            @if ($count > 0)<span class="rail-count"><span aria-hidden="true">{{ $count > 99 ? '99+' : $count }}</span><span class="sr-only">{{ $count === 1 ? __('1 open server error') : __(':count open server errors', ['count' => $count]) }}</span></span>@endif
                         </a>
                     @endforeach
                 </nav>

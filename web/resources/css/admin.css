@@ -1419,6 +1419,7 @@ fieldset:has(input[value="date"]:checked) .biz-until, .biz-until:has([aria-inval
 }
 
 /* The filters: three labelled groups of links, each link a pill like the Businesses plan filter. */
+.err-open { margin: 0 0 .75rem; font-size: .9375rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 .err-tools { display: grid; gap: .625rem; margin-block-end: 1rem; }
 .err-filter { display: flex; flex-wrap: wrap; align-items: center; gap: .375rem .75rem; }
 .err-filter-name { margin: 0; min-inline-size: 4.5rem; font-size: .8125rem; font-weight: 600; color: var(--q-ink-muted); }

@@ -67,6 +67,10 @@ final class ErrorsController
             'chips' => $this->chips($filters),
             'filtered' => $filters !== $this->defaults(),
             'recording' => ErrorRecorder::enabled(),
+            // Two numbers whatever the filters show: every open issue, and the part of them that are the server's own failures
+            // (the menu's badge and the admin home count the second).
+            'openTotal' => ErrorIssue::openCount(),
+            'openServer' => ErrorIssue::openServerCount(),
             'back' => $listUrl === $this->listPath() ? null : $listUrl,
             'noise' => $noise,
             'noiseTotals' => ['scanner' => array_sum(array_column($noise, 'scanner')), 'dropped' => array_sum(array_column($noise, 'dropped'))],
@@ -83,6 +87,7 @@ final class ErrorsController
             'issue' => $issue,
             'samples' => $issue->samples()->limit(ErrorRecorder::SAMPLES)->get(),
             'days' => $days,
+            'keptDays' => ErrorRecorder::occurrenceDays(),
             // The same rule as the list's mark: today against the seven days before it, for an open issue only.
             'growing' => $issue->status === ErrorIssue::STATUS_OPEN
                 && ErrorTrend::growing(...ErrorTrend::split(array_slice($days, -(self::SPARK_DAYS + 1)))),

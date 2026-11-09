@@ -123,6 +123,17 @@ class ErrorIssue extends Model
             ->orWhere(fn (Builder $page) => $page->where('kind', 'http')->where('class', 'like', 'http.5%')));
     }
 
+    /**
+     * Orders the server's own failures (the same rule as scopeServerErrors) before everything else; add the finer order after
+     * it. A raw CASE rather than a negated scopeServerErrors: an issue whose class is NULL must not drop out of the list.
+     *
+     * @param  Builder<ErrorIssue>  $query
+     */
+    public function scopeServerErrorsFirst(Builder $query): void
+    {
+        $query->orderByRaw('case when "kind" = ? or ("kind" = ? and "class" like ?) then 0 else 1 end', ['exception', 'http', 'http.5%']);
+    }
+
     /** Is it new? The same rule as scopeNewIssues. */
     public function isNew(): bool
     {
@@ -171,10 +182,20 @@ class ErrorIssue extends Model
         return [self::STATUS_OPEN => __('Open issue'), self::STATUS_RESOLVED => __('Resolved'), self::STATUS_IGNORED => __('Ignored')];
     }
 
-    /** How many issues are waiting for a look; the badge on the admin menu. */
+    /** How many issues are open, of every kind: the first number at the top of the list. */
     public static function openCount(): int
     {
         return static::query()->open()->count();
+    }
+
+    /**
+     * How many open issues are the server's own failures (scopeServerErrors): the badge on the admin menu, which counts what
+     * the line on the admin home counts, without its 24 hours. What a visitor can make at will (a 404 for a made-up address)
+     * would otherwise keep the badge up for ever.
+     */
+    public static function openServerCount(): int
+    {
+        return static::query()->open()->serverErrors()->count();
     }
 
     protected function casts(): array

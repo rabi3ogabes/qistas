@@ -121,27 +121,36 @@ final class PlatformOverview
      * Whether the server has been failing lately: fine while no open server error (an exception, or an error page of 500 or
      * more) was seen in the last 24 hours, otherwise a warning that says how many. Only the server's own failures count: a
      * broken link or an expired form becomes an open issue by design and would keep the line yellow for ever on a live site,
-     * until the owner stopped reading it. The menu's badge still counts every open issue. When recording is switched off the
-     * line says so instead of "No server errors", since nothing new would be seen. One count on the (status, last_seen_at)
-     * index. The way to the list is part of the line.
+     * until the owner stopped reading it. The menu's badge counts the same kind (open server errors), without the 24 hours.
+     * When recording is switched off the line says so instead of "No server errors", since nothing new would be seen. One
+     * count on the (status, last_seen_at) index. The way to the list is part of the line.
      *
-     * @return array{key: string, status: string, title: string, detail: string, action: array{label: string, href: string}}
+     * The home must open whatever state the tables are in. During a deploy (the code is pulled and `qistas:setup` has not
+     * finished) or after a rolled-back migration they do not exist, and a failed read here would answer the admin home with
+     * a 500 that is itself reported, spooled, imported later and e-mailed as a brand-new "Undefined table" alert. So the read
+     * is rescued without being reported, and the line says that it could not read the tables; it has no way to the list then,
+     * since the list needs the same tables.
+     *
+     * @return array{key: string, status: string, title: string, detail: string, action?: array{label: string, href: string}}
      */
     private function errorsCheck(): array
     {
-        $check = fn (string $status, string $detail): array => [
+        $check = fn (string $status, string $detail, bool $withAction = true): array => [
             'key' => 'errors',
             'status' => $status,
             'title' => __('Errors in the last 24 hours'),
             'detail' => $detail,
-            'action' => ['label' => __('See the errors'), 'href' => route('admin.errors.index')],
-        ];
+        ] + ($withAction ? ['action' => ['label' => __('See the errors'), 'href' => route('admin.errors.index')]] : []);
 
         if (! ErrorRecorder::enabled()) {
             return $check('warn', __('Error recording is switched off (QISTAS_ERRORS). Nothing new is being recorded.'));
         }
 
-        $seen = ErrorIssue::query()->open()->serverErrors()->where('last_seen_at', '>=', now()->subDay())->count();
+        $seen = rescue(fn (): int => ErrorIssue::query()->open()->serverErrors()->where('last_seen_at', '>=', now()->subDay())->count(), null, false);
+
+        if ($seen === null) {
+            return $check('warn', __('Cannot read the error tables yet.'), withAction: false);
+        }
 
         return match (true) {
             $seen === 0 => $check('ok', __('No server errors in the last 24 hours.')),

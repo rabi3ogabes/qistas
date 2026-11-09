@@ -154,9 +154,10 @@ paths:
         (it carries an `Origin` or a `Sec-Fetch-Site` header; the app's HTTP library sends neither) is refused with `403`,
         so another site's page cannot post here through a visitor's browser. The `429` has the usual error body.
 
-        A new kind of crash is opened at most 3 times an hour for one sender (token, or address without one), and the
-        platform opens at most 20 a minute and 100 an hour of them; a report over either is answered `204` all the same and
-        counted as dropped.
+        A new kind of crash is opened at most 3 times an hour for one sender, and the platform opens at most 20 a minute and
+        100 an hour of them; a report over either is answered `204` all the same and counted as dropped. The sender is the
+        person on the app token (not the token itself, so signing in again buys nothing), or the address when the report
+        carries no app token.
       security:
         - {}
         - bearer: []

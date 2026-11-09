@@ -2,6 +2,7 @@
 
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
@@ -43,4 +44,9 @@ Schedule::command('qistas:errors:prune')->daily()->withoutOverlapping(30);
 Schedule::command('qistas:errors:import-spool')->everyFiveMinutes()->withoutOverlapping(10);
 
 // The error digest goes at 04:00 on the app's clock, which is fixed to UTC in config/app.php, so at 07:00 in the Gulf.
-Schedule::command('qistas:errors:digest')->dailyAt('04:00')->withoutOverlapping(30);
+// The command exits with 1 when the digest could not be sent to anyone. That is not an exception, so the scheduler fires no
+// ScheduledTaskFailed and CronRunner records the run as fine: the line in the application log is the trace that is left.
+Schedule::command('qistas:errors:digest')->dailyAt('04:00')->withoutOverlapping(30)
+    ->onFailure(function () {
+        Log::warning('The error digest could not be sent.');
+    });

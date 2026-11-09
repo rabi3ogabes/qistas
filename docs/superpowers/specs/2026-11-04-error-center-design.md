@@ -315,13 +315,17 @@ document stands as written). Each item names the section it changes.
 - D26. The reporter sends only the first line of an error's message, does not report network, API or time-out errors or framework errors marked
   silent, counts the same error within a minute once (decided before anything is cleaned) and makes at most one report a second and ten a minute, uses an API client
   of its own (a stale token cannot sign anyone out), and cuts the encoded body to 15 KB.
-- D27. The web build never reports, and the Settings switch is hidden there (a browser's reports always carry an `Origin` and would all be refused); a debug build
-  (`flutter run`, which points at the live site with the release's version) installs nothing either, unless a developer passes `reportInDebug`.
+- D27. The web build never reports, and the Settings switch is hidden there (a browser's reports always carry an `Origin` and would all be refused); a debug or
+  profile build (`flutter run` and `flutter run --profile`, which point at the live site with the release's version) installs nothing either, unless a developer
+  passes `reportInDebug`.
 
 **The screens (section 7)**
 
 - D28. The home health line "Errors in the last 24 hours" counts only server errors (open exceptions and error pages of 500 or more); the sidebar
-  badge still counts every open issue. When recording is off the line is a warning that says so, and the list shows the same notice.
+  badge counts the same kind, the open server errors without the 24 hours, and not every open issue (a bot that probes made-up addresses opens an issue for
+  each one and would keep a count of all of them up for ever). The top of the list shows both numbers ("N open, M of them server errors"). When recording is
+  off the line is a warning that says so, and the list shows the same notice. When the error tables cannot be read yet (the deploy window, a rolled-back
+  migration) the line is a warning "Cannot read the error tables yet." with no way to the list, and the home still opens: the failed read is not reported.
 - D29. The source tag for `site` reads "Website" (a string called "Site" collides with `lang/en/site.php`), the status reads "Open issue", the noise card is
   called "Background noise (bots and browsers)" and shows the dropped count in its summary, Ignore asks for a second press (a `<details>`, no script),
   a staff resolve or ignore clears `reopened_at` and `reopened_version` (so "came back" means it came back after the last decision), and the detail

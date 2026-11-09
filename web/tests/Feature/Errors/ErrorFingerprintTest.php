@@ -443,8 +443,9 @@ it('reads at most 8192 bytes of a message, so a report of a megabyte costs what 
     $fingerprint = ErrorFingerprint::of(errorsFingerprintEvent(['message' => str_repeat(' ', 1024 * 1024).'tail']));
     $seconds = (hrtime(true) - $started) / 1e9;
 
+    // Under 20 ms on a quiet machine; the bound leaves room for a loaded runner. What was read is proved by the fingerprint.
     expect($fingerprint)->toBe(sha1('site|exception|RuntimeException||app/Foo.php::Foo->bar'))
-        ->and($seconds)->toBeLessThan(0.5)
+        ->and($seconds)->toBeLessThan(2.0)
         ->and(ErrorFingerprint::normalise(str_repeat(' ', 9000).'tail'))->toBe('')
         ->and(ErrorFingerprint::normalise(str_repeat(' ', 8000).'tail'))->toBe('tail');
 });
@@ -458,8 +459,9 @@ it('reads at most the first 8192 bytes of a trace, however many lines it has', f
     $fingerprint = ErrorFingerprint::of(errorsFingerprintEvent(['trace' => $trace]));
     $seconds = (hrtime(true) - $started) / 1e9;
 
+    // About 12 ms on a quiet machine; the bound leaves room for a loaded runner. What was read is proved by the fingerprint.
     expect($fingerprint)->toBe(sha1('site|exception|RuntimeException|Something broke|-'))
-        ->and($seconds)->toBeLessThan(0.5)
+        ->and($seconds)->toBeLessThan(2.0)
         ->and(ErrorFingerprint::topFrame("#0 vendor/x/Y.php(1): Y->z()\n#1 app/Foo.php(1): Foo->bar()", 'server'))->toBe('app/Foo.php::Foo->bar');
 });
 
@@ -796,14 +798,16 @@ it('keeps a very long path within the width of the route column', function () {
 });
 
 it('reads a hostile path in no time: a path built to make the query pattern quadratic is cut before it is read', function () {
-    // This is the test of routePattern's 8192-byte cut: without it the lookahead of the query pattern reads about 65000 x
-    // 65000 / 2 characters. Only the time can tell: the scrubber cuts a route on its own as well, so what comes out is the
-    // same with or without the cut (a test that compared the result was dropped for that reason).
+    // This is the test of routePattern's 8192-byte cut: without it the lookahead of the query pattern reads about 200000 x
+    // 200000 / 2 characters, which takes some 15 seconds (a few milliseconds with the cut). Only the time can tell: the
+    // scrubber cuts a route on its own as well, so what comes out is the same with or without the cut (a test that compared
+    // the result was dropped for that reason). The path is long and the bound generous on purpose: a loaded runner may take
+    // several times as long as a quiet machine, and a regression must stay many times above the bound whatever the machine.
     $started = hrtime(true);
-    $pattern = ErrorFingerprint::routePattern('/'.str_repeat('?', 65000).'}');
+    $pattern = ErrorFingerprint::routePattern('/'.str_repeat('?', 200000).'}');
     $seconds = (hrtime(true) - $started) / 1e9;
 
-    expect($seconds)->toBeLessThan(0.3)
+    expect($seconds)->toBeLessThan(3.0)
         ->and(mb_strlen($pattern))->toBeLessThanOrEqual(ErrorScrubber::ROUTE_MAX);
 });
 
